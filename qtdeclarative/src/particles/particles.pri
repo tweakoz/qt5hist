@@ -25,7 +25,7 @@ HEADERS += \
     $$PWD/qquickturbulence_p.h \
     $$PWD/qquickwander_p.h \
     $$PWD/qquickcumulativedirection_p.h \
-    $$PWD/qquickv8particledata_p.h \
+    $$PWD/qquickv4particledata_p.h \
     $$PWD/qquickrectangleextruder_p.h \
     $$PWD/qquickparticlegroup_p.h \
     $$PWD/qquickgroupgoal_p.h \
@@ -58,10 +58,22 @@ SOURCES += \
     $$PWD/qquickturbulence.cpp \
     $$PWD/qquickwander.cpp \
     $$PWD/qquickcumulativedirection.cpp \
-    $$PWD/qquickv8particledata.cpp \
+    $$PWD/qquickv4particledata.cpp \
     $$PWD/qquickrectangleextruder.cpp \
     $$PWD/qquickparticlegroup.cpp \
     $$PWD/qquickgroupgoal.cpp
+
+OTHER_FILES += \
+    $$PWD/shaders/customparticletemplate.vert \
+    $$PWD/shaders/customparticle.vert \
+    $$PWD/shaders/customparticle.frag \
+    $$PWD/shaders/imageparticle.vert \
+    $$PWD/shaders/imageparticle.frag \
+    $$PWD/shaders/customparticletemplate_core.vert \
+    $$PWD/shaders/customparticle_core.vert \
+    $$PWD/shaders/customparticle_core.frag \
+    $$PWD/shaders/imageparticle_core.vert \
+    $$PWD/shaders/imageparticle_core.frag
 
 RESOURCES += \
     $$PWD/particles.qrc

@@ -629,6 +629,22 @@ void QMainWindow::setCentralWidget(QWidget *widget)
     d->layout->setCentralWidget(widget);
 }
 
+/*!
+    Removes the central widget from this main window.
+
+    The ownership of the removed widget is passed to the caller.
+
+    \since Qt 5.2
+*/
+QWidget *QMainWindow::takeCentralWidget()
+{
+    Q_D(QMainWindow);
+    QWidget *oldcentralwidget = d->layout->centralWidget();
+    oldcentralwidget->setParent(0);
+    d->layout->setCentralWidget(0);
+    return oldcentralwidget;
+}
+
 #ifndef QT_NO_DOCKWIDGET
 /*!
     Sets the given dock widget \a area to occupy the specified \a
@@ -888,8 +904,8 @@ void QMainWindow::setAnimated(bool enabled)
     \brief whether docks can be nested
     \since 4.2
 
-    If this property is false, dock areas can only contain a single row
-    (horizontal or vertical) of dock widgets. If this property is true,
+    If this property is \c false, dock areas can only contain a single row
+    (horizontal or vertical) of dock widgets. If this property is \c true,
     the area occupied by a dock widget can be split in either direction to contain
     more dock widgets.
 
@@ -1076,8 +1092,8 @@ void QMainWindow::addDockWidget(Qt::DockWidgetArea area, QDockWidget *dockwidget
 
 /*!
     Restores the state of \a dockwidget if it is created after the call
-    to restoreState(). Returns true if the state was restored; otherwise
-    returns false.
+    to restoreState(). Returns \c true if the state was restored; otherwise
+    returns \c false.
 
     \sa restoreState(), saveState()
 */

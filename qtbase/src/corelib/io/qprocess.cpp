@@ -249,13 +249,13 @@ QProcessEnvironment &QProcessEnvironment::operator=(const QProcessEnvironment &o
 /*!
     \fn bool QProcessEnvironment::operator !=(const QProcessEnvironment &other) const
 
-    Returns true if this and the \a other QProcessEnvironment objects are different.
+    Returns \c true if this and the \a other QProcessEnvironment objects are different.
 
     \sa operator==()
 */
 
 /*!
-    Returns true if this and the \a other QProcessEnvironment objects are equal.
+    Returns \c true if this and the \a other QProcessEnvironment objects are equal.
 
     Two QProcessEnvironment objects are considered equal if they have the same
     set of key=value pairs. The comparison of keys is done case-sensitive on
@@ -275,7 +275,7 @@ bool QProcessEnvironment::operator==(const QProcessEnvironment &other) const
 }
 
 /*!
-    Returns true if this QProcessEnvironment object is empty: that is
+    Returns \c true if this QProcessEnvironment object is empty: that is
     there are no key=value pairs set.
 
     \sa clear(), systemEnvironment(), insert()
@@ -301,7 +301,7 @@ void QProcessEnvironment::clear()
 }
 
 /*!
-    Returns true if the environment variable of name \a name is found in
+    Returns \c true if the environment variable of name \a name is found in
     this QProcessEnvironment object.
 
 
@@ -533,7 +533,11 @@ void QProcessPrivate::Channel::clear()
     MergedChannels before starting the process to activative
     this feature. You also have the option of forwarding the output of
     the running process to the calling, main process, by passing
-    ForwardedChannels as the argument.
+    ForwardedChannels as the argument. It is also possible to forward
+    only one of the output channels - typically one would use
+    ForwardedErrorChannel, but ForwardedOutputChannel also exists.
+    Note that using channel forwarding is typically a bad idea in GUI
+    applications - you should present errors graphically instead.
 
     Certain processes need special environment settings in order to
     operate. You can set environment variables for your process by
@@ -604,8 +608,8 @@ void QProcessPrivate::Channel::clear()
 /*!
     \enum QProcess::ProcessChannelMode
 
-    This enum describes the process channel modes of QProcess. Pass
-    one of these values to setProcessChannelMode() to set the
+    This enum describes the process output channel modes of QProcess.
+    Pass one of these values to setProcessChannelMode() to set the
     current read channel mode.
 
     \value SeparateChannels QProcess manages the output of the
@@ -625,6 +629,17 @@ void QProcessPrivate::Channel::clear()
     writes to its standard output and standard error will be written
     to the standard output and standard error of the main process.
 
+    \value ForwardedErrorChannel QProcess manages the standard output
+    of the running process, but forwards its standard error onto the
+    main process. This reflects the typical use of command line tools
+    as filters, where the standard output is redirected to another
+    process or a file, while standard error is printed to the console
+    for diagnostic purposes.
+    (This value was introduced in Qt 5.2.)
+
+    \value ForwardedOutputChannel Complementary to ForwardedErrorChannel.
+    (This value was introduced in Qt 5.2.)
+
     \note Windows intentionally suppresses output from GUI-only
     applications to inherited consoles.
     This does \e not apply to output redirected to files or pipes.
@@ -634,6 +649,26 @@ void QProcessPrivate::Channel::clear()
     output channels.
 
     \sa setProcessChannelMode()
+*/
+
+/*!
+    \enum QProcess::InputChannelMode
+    \since 5.2
+
+    This enum describes the process input channel modes of QProcess.
+    Pass one of these values to setInputChannelMode() to set the
+    current write channel mode.
+
+    \value ManagedInputChannel QProcess manages the input of the running
+    process. This is the default input channel mode of QProcess.
+
+    \value ForwardedInputChannel QProcess forwards the input of the main
+    process onto the running process. The child process reads its standard
+    input from the same source as the main process.
+    Note that the main process must not try to read its standard input
+    while the child process is running.
+
+    \sa setInputChannelMode()
 */
 
 /*!
@@ -764,6 +799,7 @@ QProcessPrivate::QProcessPrivate()
 {
     processChannel = QProcess::StandardOutput;
     processChannelMode = QProcess::SeparateChannels;
+    inputChannelMode = QProcess::ManagedInputChannel;
     processError = QProcess::UnknownError;
     processState = QProcess::NotRunning;
     pid = 0;
@@ -818,8 +854,7 @@ void QProcessPrivate::cleanup()
         pid = 0;
     }
     if (processFinishedNotifier) {
-        processFinishedNotifier->setEnabled(false);
-        qDeleteInEventHandler(processFinishedNotifier);
+        delete processFinishedNotifier;
         processFinishedNotifier = 0;
     }
 
@@ -829,33 +864,28 @@ void QProcessPrivate::cleanup()
     dying = false;
 
     if (stdoutChannel.notifier) {
-        stdoutChannel.notifier->setEnabled(false);
-        qDeleteInEventHandler(stdoutChannel.notifier);
+        delete stdoutChannel.notifier;
         stdoutChannel.notifier = 0;
     }
     if (stderrChannel.notifier) {
-        stderrChannel.notifier->setEnabled(false);
-        qDeleteInEventHandler(stderrChannel.notifier);
+        delete stderrChannel.notifier;
         stderrChannel.notifier = 0;
     }
     if (stdinChannel.notifier) {
-        stdinChannel.notifier->setEnabled(false);
-        qDeleteInEventHandler(stdinChannel.notifier);
+        delete stdinChannel.notifier;
         stdinChannel.notifier = 0;
     }
     if (startupSocketNotifier) {
-        startupSocketNotifier->setEnabled(false);
-        qDeleteInEventHandler(startupSocketNotifier);
+        delete startupSocketNotifier;
         startupSocketNotifier = 0;
     }
     if (deathNotifier) {
-        deathNotifier->setEnabled(false);
-        qDeleteInEventHandler(deathNotifier);
+        delete deathNotifier;
         deathNotifier = 0;
     }
 #ifdef Q_OS_WIN
     if (notifier) {
-        qDeleteInEventHandler(notifier);
+        delete notifier;
         notifier = 0;
     }
 #endif
@@ -1125,12 +1155,8 @@ void QProcessPrivate::closeWriteChannel()
     qDebug("QProcessPrivate::closeWriteChannel()");
 #endif
     if (stdinChannel.notifier) {
-        extern void qDeleteInEventHandler(QObject *o);
-        stdinChannel.notifier->setEnabled(false);
-        if (stdinChannel.notifier) {
-            qDeleteInEventHandler(stdinChannel.notifier);
-            stdinChannel.notifier = 0;
-        }
+        delete stdinChannel.notifier;
+        stdinChannel.notifier = 0;
     }
 #ifdef Q_OS_WIN
     // ### Find a better fix, feeding the process little by little
@@ -1229,6 +1255,34 @@ void QProcess::setProcessChannelMode(ProcessChannelMode mode)
 }
 
 /*!
+    \since 5.2
+
+    Returns the channel mode of the QProcess standard input channel.
+
+    \sa setInputChannelMode(), InputChannelMode
+*/
+QProcess::InputChannelMode QProcess::inputChannelMode() const
+{
+    Q_D(const QProcess);
+    return d->inputChannelMode;
+}
+
+/*!
+    \since 5.2
+
+    Sets the channel mode of the QProcess standard intput
+    channel to the \a mode specified.
+    This mode will be used the next time start() is called.
+
+    \sa inputChannelMode(), InputChannelMode
+*/
+void QProcess::setInputChannelMode(InputChannelMode mode)
+{
+    Q_D(QProcess);
+    d->inputChannelMode = mode;
+}
+
+/*!
     Returns the current read channel of the QProcess.
 
     \sa setReadChannel()
@@ -1317,6 +1371,10 @@ void QProcess::closeWriteChannel()
     object will be in read-only mode (calling write() will result in
     error).
 
+    To make the process read EOF right away, pass nullDevice() here.
+    This is cleaner than using closeWriteChannel() before writing any
+    data, because it can be set up prior to starting the process.
+
     If the file \a fileName does not exist at the moment start() is
     called or is not readable, starting the process will fail.
 
@@ -1339,6 +1397,10 @@ void QProcess::setStandardInputFile(const QString &fileName)
     fileName. When the redirection is in place, the standard output
     read channel is closed: reading from it using read() will always
     fail, as will readAllStandardOutput().
+
+    To discard all standard output from the process, pass nullDevice()
+    here. This is more efficient than simply never reading the standard
+    output, as no QProcess buffers are filled.
 
     If the file \a fileName doesn't exist at the moment start() is
     called, it will be created. If it cannot be created, the starting
@@ -1525,8 +1587,8 @@ void QProcess::close()
 
 /*! \reimp
 
-   Returns true if the process is not running, and no more data is available
-   for reading; otherwise returns false.
+   Returns \c true if the process is not running, and no more data is available
+   for reading; otherwise returns \c false.
 */
 bool QProcess::atEnd() const
 {
@@ -1673,8 +1735,8 @@ QProcessEnvironment QProcess::processEnvironment() const
     Blocks until the process has started and the started() signal has
     been emitted, or until \a msecs milliseconds have passed.
 
-    Returns true if the process was started successfully; otherwise
-    returns false (if the operation timed out or if an error
+    Returns \c true if the process was started successfully; otherwise
+    returns \c false (if the operation timed out or if an error
     occurred).
 
     This function can operate without an event loop. It is
@@ -1691,10 +1753,10 @@ QProcessEnvironment QProcess::processEnvironment() const
 bool QProcess::waitForStarted(int msecs)
 {
     Q_D(QProcess);
-    if (d->processState == QProcess::Running)
-        return true;
+    if (d->processState == QProcess::Starting)
+        return d->waitForStarted(msecs);
 
-    return d->waitForStarted(msecs);
+    return d->processState == QProcess::Running;
 }
 
 /*! \reimp
@@ -1736,7 +1798,7 @@ bool QProcess::waitForBytesWritten(int msecs)
     Blocks until the process has finished and the finished() signal
     has been emitted, or until \a msecs milliseconds have passed.
 
-    Returns true if the process finished; otherwise returns false (if
+    Returns \c true if the process finished; otherwise returns \c false (if
     the operation timed out, if an error occurred, or if this QProcess
     is already finished).
 
@@ -2304,8 +2366,8 @@ int QProcess::execute(const QString &program)
 
 /*!
     Starts the program \a program with the arguments \a arguments in a
-    new process, and detaches from it. Returns true on success;
-    otherwise returns false. If the calling process exits, the
+    new process, and detaches from it. Returns \c true on success;
+    otherwise returns \c false. If the calling process exits, the
     detached process will continue to live.
 
     Note that arguments that contain spaces are not passed to the
@@ -2338,8 +2400,8 @@ bool QProcess::startDetached(const QString &program,
 
 /*!
     Starts the program \a program with the given \a arguments in a
-    new process, and detaches from it. Returns true on success;
-    otherwise returns false. If the calling process exits, the
+    new process, and detaches from it. Returns \c true on success;
+    otherwise returns \c false. If the calling process exits, the
     detached process will continue to live.
 
     \note Arguments that contain spaces are not passed to the
@@ -2438,6 +2500,25 @@ QStringList QProcess::systemEnvironment()
 
     \sa QProcess::systemEnvironment()
 */
+
+/*!
+    \since 5.2
+
+    \brief The null device of the operating system.
+
+    The returned file path uses native directory separators.
+
+    \sa QProcess::setStandardInputFile(), QProcess::setStandardOutputFile(),
+        QProcess::setStandardErrorFile()
+*/
+QString QProcess::nullDevice()
+{
+#ifdef Q_OS_WIN
+    return QStringLiteral("\\\\.\\NUL");
+#else
+    return QStringLiteral("/dev/null");
+#endif
+}
 
 /*!
     \typedef Q_PID

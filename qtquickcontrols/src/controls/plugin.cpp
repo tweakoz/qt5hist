@@ -39,28 +39,63 @@
 **
 ****************************************************************************/
 
+#include "plugin.h"
+
 #include "qquickaction_p.h"
 #include "qquickexclusivegroup_p.h"
 #include "qquickmenu_p.h"
 #include "qquickmenubar_p.h"
 #include "qquickstack_p.h"
 #include "qquickdesktopiconprovider_p.h"
+#include "qquickselectionmode_p.h"
+#include "Private/qquickrangemodel_p.h"
+#include "Private/qquickwheelarea_p.h"
+#include "Private/qquicktooltip_p.h"
+#include "Private/qquickcontrolsettings_p.h"
+#include "Private/qquickspinboxvalidator_p.h"
+#include "Private/qquickabstractstyle_p.h"
+#include "Private/qquickcontrolsprivate_p.h"
 
-#include <qqml.h>
-#include <qqmlengine.h>
-#include <qqmlextensionplugin.h>
-#include <qquickwindow.h>
+#ifdef QT_WIDGETS_LIB
+#include <QtQuick/qquickimageprovider.h>
+#include "Private/qquickstyleitem_p.h"
+#endif
 
 QT_BEGIN_NAMESPACE
 
-class QtQuickControlsPlugin : public QQmlExtensionPlugin
-{
-    Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QQmlExtensionInterface/1.0")
+static const struct {
+    const char *type;
+    int major, minor;
+} qmldir [] = {
+    { "ApplicationWindow", 1, 0 },
+    { "Button", 1, 0 },
+    { "CheckBox", 1, 0 },
+    { "ComboBox", 1, 0 },
+    { "GroupBox", 1, 0 },
+    { "Label", 1, 0 },
+    { "MenuBar", 1, 0 },
+    { "Menu", 1, 0 },
+    { "StackView", 1, 0 },
+    { "ProgressBar", 1, 0 },
+    { "RadioButton", 1, 0 },
+    { "ScrollView", 1, 0 },
+    { "Slider", 1, 0 },
+    { "SpinBox", 1, 0 },
+    { "SplitView", 1, 0 },
+    { "StackViewDelegate", 1, 0 },
+    { "StackViewTransition", 1, 0 },
+    { "StatusBar", 1, 0 },
+    { "Switch", 1, 1 },
+    { "Tab", 1, 0 },
+    { "TabView", 1, 0 },
+    { "TableView", 1, 0 },
+    { "TableViewColumn", 1, 0 },
+    { "TextArea", 1, 0 },
+    { "TextField", 1, 0 },
+    { "ToolBar", 1, 0 },
+    { "ToolButton", 1, 0 },
 
-public:
-    void registerTypes(const char *uri);
-    void initializeEngine(QQmlEngine *engine, const char *uri);
+    { "BusyIndicator", 1, 1 }
 };
 
 void QtQuickControlsPlugin::registerTypes(const char *uri)
@@ -77,14 +112,50 @@ void QtQuickControlsPlugin::registerTypes(const char *uri)
                                                QLatin1String("Do not create objects of type MenuBase"));
 
     qmlRegisterUncreatableType<QQuickStack>(uri, 1, 0, "Stack", QLatin1String("Do not create objects of type Stack"));
+    qmlRegisterUncreatableType<QQuickSelectionMode>(uri, 1, 1, "SelectionMode", QLatin1String("Do not create objects of type SelectionMode"));
+
+    const QString filesLocation = fileLocation();
+    for (int i = 0; i < int(sizeof(qmldir)/sizeof(qmldir[0])); i++)
+        qmlRegisterType(QUrl(filesLocation + "/" + qmldir[i].type + ".qml"), uri, qmldir[i].major, qmldir[i].minor, qmldir[i].type);
 }
 
 void QtQuickControlsPlugin::initializeEngine(QQmlEngine *engine, const char *uri)
 {
     Q_UNUSED(uri);
+
+    // Register private API
+    const char *private_uri = "QtQuick.Controls.Private";
+    qmlRegisterType<QQuickAbstractStyle>(private_uri, 1, 0, "AbstractStyle");
+    qmlRegisterType<QQuickPadding>();
+    qmlRegisterType<QQuickRangeModel>(private_uri, 1, 0, "RangeModel");
+    qmlRegisterType<QQuickWheelArea>(private_uri, 1, 0, "WheelArea");
+    qmlRegisterType<QQuickSpinBoxValidator>(private_uri, 1, 0, "SpinBoxValidator");
+    qmlRegisterSingletonType<QQuickTooltip>(private_uri, 1, 0, "Tooltip", QQuickControlsPrivate::registerTooltipModule);
+    qmlRegisterSingletonType<QQuickControlSettings>(private_uri, 1, 0, "Settings", QQuickControlsPrivate::registerSettingsModule);
+
+#ifdef QT_WIDGETS_LIB
+    qmlRegisterType<QQuickStyleItem>(private_uri, 1, 0, "StyleItem");
+    engine->addImageProvider("__tablerow", new QQuickTableRowImageProvider);
+#endif
     engine->addImageProvider("desktoptheme", new QQuickDesktopIconProvider);
+    if (isLoadedFromResource())
+        engine->addImportPath(QStringLiteral("qrc:/"));
+}
+
+QString QtQuickControlsPlugin::fileLocation() const
+{
+    if (isLoadedFromResource())
+        return "qrc:/QtQuick/Controls";
+    return baseUrl().toString();
+}
+
+bool QtQuickControlsPlugin::isLoadedFromResource() const
+{
+    // If one file is missing, it will load all the files from the resource
+    QFile file(baseUrl().toLocalFile() + "/ApplicationWindow.qml");
+    if (!file.exists())
+        return true;
+    return false;
 }
 
 QT_END_NAMESPACE
-
-#include "plugin.moc"

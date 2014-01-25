@@ -97,7 +97,11 @@ public:
         BearerWCDMA,
         BearerHSPA,
         BearerBluetooth,
-        BearerWiMAX
+        BearerWiMAX,
+        BearerEVDO,
+        BearerLTE,
+        Bearer3G,
+        Bearer4G
     };
 
     StateFlags state() const;
@@ -105,6 +109,7 @@ public:
     Purpose purpose() const;
 
     BearerType bearerType() const;
+    BearerType bearerTypeFamily() const;
     QString bearerTypeName() const;
 
     QString identifier() const;

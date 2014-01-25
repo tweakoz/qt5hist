@@ -29,6 +29,7 @@
     \module QtGui
     \title Qt GUI C++ Classes
     \ingroup modules
+    \qtvariable gui
 
     \brief The Qt GUI module provides the basic enablers for graphical
     applications written with Qt.
@@ -45,7 +46,10 @@
 
     \snippet code/doc_src_qtgui.pro 0
 
-    See the \l {Qt GUI} page for more details.
+    If you use \l qmake to build your projects, \l{Qt GUI} is included by
+    default. To disable Qt GUI, add the following line to your \c .pro file:
+
+    \snippet code/doc_src_qtgui.pro 1
 
 */
 
@@ -71,7 +75,10 @@
 
     \snippet code/doc_src_qtgui.pro 0
 
+    If you use \l qmake to build your projects, Qt GUI is included by
+    default. To disable Qt GUI, add the following line to your \c .pro file:
 
+    \snippet code/doc_src_qtgui.pro 1
 
     \section1 Application Windows
 
@@ -172,11 +179,3 @@
         \endlist
     \endlist
  */
-
-/*!
-    \group events
-    \title Event Classes
-    \ingroup groups
-
-    \brief Classes that provide UI and input events.
-*/

@@ -685,6 +685,7 @@ void tst_QFont::defaultFamily()
             break;
         }
     }
+
     QVERIFY2(isAcceptable, msgNotAcceptableFont(familyForHint, acceptableFamilies));
 }
 

@@ -63,7 +63,6 @@
 
 static void initResources()
 {
-    Q_INIT_RESOURCE_EXTERN(qcocoaresources)
     Q_INIT_RESOURCE(qcocoaresources);
 }
 
@@ -199,6 +198,7 @@ QPixmap QCocoaScreen::grabWindow(WId window, int x, int y, int width, int height
         int w = (width < 0 ? bounds.size.width : width) * devicePixelRatio();
         int h = (height < 0 ? bounds.size.height : height) * devicePixelRatio();
         QRect displayRect = QRect(x, y, w, h);
+        displayRect = displayRect.translated(qRound(-bounds.origin.x), qRound(-bounds.origin.y));
         QCFType<CGImageRef> image = CGDisplayCreateImageForRect(displays[i],
             CGRectMake(displayRect.x(), displayRect.y(), displayRect.width(), displayRect.height()));
         QPixmap pix(w, h);
@@ -209,14 +209,13 @@ QPixmap QCocoaScreen::grabWindow(WId window, int x, int y, int width, int height
         CGContextRelease(ctx);
 
         QPainter painter(&windowPixmap);
-        painter.drawPixmap(bounds.origin.x, bounds.origin.y, pix);
+        painter.drawPixmap(0, 0, pix);
     }
     return windowPixmap;
 }
 
 QCocoaIntegration::QCocoaIntegration()
     : mFontDb(new QCoreTextFontDatabase())
-    , mEventDispatcher(new QCocoaEventDispatcher())
     , mInputContext(new QCocoaInputContext)
 #ifndef QT_NO_ACCESSIBILITY
     , mAccessibility(new QCocoaAccessibility)
@@ -232,7 +231,7 @@ QCocoaIntegration::QCocoaIntegration()
 
     qApp->setAttribute(Qt::AA_DontUseNativeMenuBar, false);
 
-    NSApplication *cocoaApplication = [QT_MANGLE_NAMESPACE(QNSApplication) sharedApplication];
+    NSApplication *cocoaApplication = [QNSApplication sharedApplication];
     qt_redirectNSApplicationSendEvent();
 
     if (qEnvironmentVariableIsEmpty("QT_MAC_DISABLE_FOREGROUND_APPLICATION_TRANSFORM")) {
@@ -256,12 +255,12 @@ QCocoaIntegration::QCocoaIntegration()
     if (!QCoreApplication::testAttribute(Qt::AA_MacPluginApplication)) {
 
         // Set app delegate, link to the current delegate (if any)
-        QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) *newDelegate = [QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) sharedDelegate];
+        QCocoaApplicationDelegate *newDelegate = [QCocoaApplicationDelegate sharedDelegate];
         [newDelegate setReflectionDelegate:[cocoaApplication delegate]];
         [cocoaApplication setDelegate:newDelegate];
 
         // Load the application menu. This menu contains Preferences, Hide, Quit.
-        QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *qtMenuLoader = [[QT_MANGLE_NAMESPACE(QCocoaMenuLoader) alloc] init];
+        QCocoaMenuLoader *qtMenuLoader = [[QCocoaMenuLoader alloc] init];
         qt_mac_loadMenuNib(qtMenuLoader);
         [cocoaApplication setMenu:[qtMenuLoader menu]];
         [newDelegate setMenuLoader:qtMenuLoader];
@@ -279,7 +278,7 @@ QCocoaIntegration::~QCocoaIntegration()
     QCocoaAutoReleasePool pool;
     if (!QCoreApplication::testAttribute(Qt::AA_MacPluginApplication)) {
         // remove the apple event handlers installed by QCocoaApplicationDelegate
-        QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) *delegate = [QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) sharedDelegate];
+        QCocoaApplicationDelegate *delegate = [QCocoaApplicationDelegate sharedDelegate];
         [delegate removeAppleEventHandlers];
         // reset the application delegate
         [[NSApplication sharedApplication] setDelegate: 0];
@@ -343,6 +342,14 @@ void QCocoaIntegration::updateScreens()
         screen->setVirtualSiblings(siblings);
 }
 
+QCocoaScreen *QCocoaIntegration::screenAtIndex(int index)
+{
+    if (index >= mScreens.count())
+        updateScreens();
+
+    return mScreens.at(index);
+}
+
 bool QCocoaIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
     switch (cap) {
@@ -376,9 +383,9 @@ QPlatformBackingStore *QCocoaIntegration::createPlatformBackingStore(QWindow *wi
     return new QCocoaBackingStore(window);
 }
 
-QAbstractEventDispatcher *QCocoaIntegration::guiThreadEventDispatcher() const
+QAbstractEventDispatcher *QCocoaIntegration::createEventDispatcher() const
 {
-    return mEventDispatcher;
+    return new QCocoaEventDispatcher;
 }
 
 QPlatformFontDatabase *QCocoaIntegration::fontDatabase() const

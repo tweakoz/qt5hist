@@ -48,7 +48,7 @@
 
 QT_BEGIN_NAMESPACE
 
-class QQnxWindow;
+class QQnxRasterWindow;
 
 class QQnxRasterBackingStore : public QPlatformBackingStore
 {
@@ -61,7 +61,7 @@ public:
     void resize(const QSize &size, const QRegion &staticContents);
     bool scroll(const QRegion &area, int dx, int dy);
     void beginPaint(const QRegion &region);
-    void endPaint(const QRegion &region);
+    void endPaint();
 
 private:
     class ScrollOp {
@@ -72,7 +72,7 @@ private:
         int dy;
     };
 
-    QQnxWindow *platformWindow() const;
+    QQnxRasterWindow *platformWindow() const;
 
     QWindow *m_window;
     QList<ScrollOp> m_scrollOpList;

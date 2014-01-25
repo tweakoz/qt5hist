@@ -56,6 +56,8 @@
 #include <private/qopenglextensions_p.h>
 #include <private/qopenglversionfunctionsfactory_p.h>
 
+#include <private/qopengltexturehelper_p.h>
+
 #include <QDebug>
 
 QT_BEGIN_NAMESPACE
@@ -180,7 +182,7 @@ void QOpenGLVersionProfile::setProfile(QSurfaceFormat::OpenGLContextProfile prof
 }
 
 /*!
-    Returns true if profiles are supported by the OpenGL version returned by version(). Only
+    Returns \c true if profiles are supported by the OpenGL version returned by version(). Only
     OpenGL versions >= 3.2 support profiles.
 
     \sa profile(), version()
@@ -192,7 +194,7 @@ bool QOpenGLVersionProfile::hasProfiles() const
 }
 
 /*!
-    Returns true is the OpenGL version returned by version() contains deprecated functions
+    Returns \c true is the OpenGL version returned by version() contains deprecated functions
     and does not support profiles i.e. if the OpenGL version is <= 3.1.
 */
 bool QOpenGLVersionProfile::isLegacyVersion() const
@@ -201,7 +203,7 @@ bool QOpenGLVersionProfile::isLegacyVersion() const
 }
 
 /*!
-    Returns true if the version number is valid. Note that for a default constructed
+    Returns \c true if the version number is valid. Note that for a default constructed
     QOpenGLVersionProfile object this function will return false.
 
     \sa setVersion(), version()
@@ -270,7 +272,7 @@ QMutex QOpenGLContextPrivate::makeCurrentTrackerMutex;
     or OpenGL ES 1.x.
 
     For more information about the OpenGL API, refer to the official
-    \l{OpenGL documentation}.
+    \l{http://www.opengl.org}{OpenGL documentation}.
 
     For an example of how to use QOpenGLContext see the
     \l{OpenGL Window Example}{OpenGL Window} example.
@@ -376,7 +378,7 @@ QOpenGLContext* QOpenGLContext::currentContext()
 }
 
 /*!
-    Returns true if the \a first and \a second contexts are sharing OpenGL resources.
+    Returns \c true if the \a first and \a second contexts are sharing OpenGL resources.
 */
 bool QOpenGLContext::areSharing(QOpenGLContext *first, QOpenGLContext *second)
 {
@@ -468,7 +470,7 @@ void QOpenGLContext::setScreen(QScreen *screen)
     and/or hardware only supports version 3.2 Core profile contexts then you will
     get a 3.2 Core profile context.
 
-    Returns true if the native context was successfully created and is ready to
+    Returns \c true if the native context was successfully created and is ready to
     be used with makeCurrent(), swapBuffers(), etc.
 
     \sa makeCurrent(), destroy(), format()
@@ -523,6 +525,8 @@ void QOpenGLContext::destroy()
     d->versionFunctions.clear();
     qDeleteAll(d->versionFunctionsBackend);
     d->versionFunctionsBackend.clear();
+    delete d->textureFunctions;
+    d->textureFunctions = 0;
 }
 
 /*!
@@ -583,6 +587,8 @@ QOpenGLFunctions *QOpenGLContext::functions() const
 /*!
     \fn T *QOpenGLContext::versionFunctions() const
 
+    \overload versionFunctions()
+
     Returns a pointer to an object that provides access to all functions for
     the version and profile of this context. Before using any of the functions
     they must be initialized by calling QAbstractOpenGLFunctions::initializeOpenGLFunctions().
@@ -632,8 +638,6 @@ QOpenGLFunctions *QOpenGLContext::functions() const
 
     Usually one would use the template version of this function to automatically
     have the result cast to the correct type.
-
-    \sa T *QOpenGLContext::versionFunctions()
 */
 QAbstractOpenGLFunctions *QOpenGLContext::versionFunctions(const QOpenGLVersionProfile &versionProfile) const
 {
@@ -690,7 +694,7 @@ QSet<QByteArray> QOpenGLContext::extensions() const
 }
 
 /*!
-    Returns true if this OpenGL context supports the specified OpenGL
+    Returns \c true if this OpenGL context supports the specified OpenGL
     \a extension, false otherwise.
 
     The context or a sharing context must be current.
@@ -729,7 +733,7 @@ GLuint QOpenGLContext::defaultFramebufferObject() const
 
 /*!
     Makes the context current in the current thread, against the given
-    \a surface. Returns true if successful.
+    \a surface. Returns \c true if successful.
 
     If \a surface is 0 this is equivalent to calling doneCurrent().
 
@@ -974,6 +978,24 @@ void QOpenGLContext::removeFunctionsBackend(const QOpenGLVersionStatus &v)
 {
     Q_D(QOpenGLContext);
     d->versionFunctionsBackend.remove(v);
+}
+
+/*!
+    \internal
+*/
+QOpenGLTextureHelper* QOpenGLContext::textureFunctions() const
+{
+    Q_D(const QOpenGLContext);
+    return d->textureFunctions;
+}
+
+/*!
+    \internal
+*/
+void QOpenGLContext::setTextureFunctions(QOpenGLTextureHelper* textureFuncs)
+{
+    Q_D(QOpenGLContext);
+    d->textureFunctions = textureFuncs;
 }
 
 /*!

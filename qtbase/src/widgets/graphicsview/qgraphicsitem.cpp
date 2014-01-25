@@ -403,7 +403,7 @@
     contained focus handling. Only one panel can be active at a time (see
     QGraphicsItem::isActive()). When no panel is active, QGraphicsScene
     activates all non-panel items. Window items (i.e.,
-    QGraphicsItem::isWindow() returns true) are panels. This flag was
+    QGraphicsItem::isWindow() returns \c true) are panels. This flag was
     introduced in Qt 4.6.
 
     \omitvalue ItemIsFocusScope \omit Internal only (for now). \endomit
@@ -844,8 +844,8 @@ void QGraphicsItemPrivate::updateAncestorFlag(QGraphicsItem::GraphicsItemFlag ch
             // Inherit the enabled-state from our parents.
             if ((parent->d_ptr->ancestorFlags & flag)
                     || (int(parent->d_ptr->flags & childFlag) == childFlag)
-                        || (childFlag == -1 && parent->d_ptr->handlesChildEvents)
-                        || (childFlag == -2 && parent->d_ptr->filtersDescendantEvents)) {
+                    || (int(childFlag) == -1 && parent->d_ptr->handlesChildEvents)
+                    || (int(childFlag) == -2 && parent->d_ptr->filtersDescendantEvents)) {
                 enabled = true;
                 ancestorFlags |= flag;
             } else {
@@ -868,7 +868,7 @@ void QGraphicsItemPrivate::updateAncestorFlag(QGraphicsItem::GraphicsItemFlag ch
             ancestorFlags &= ~flag;
 
         // Don't process children if the item has the main flag set on itself.
-        if ((childFlag != -1 &&  int(flags & childFlag) == childFlag)
+        if ((int(childFlag) != -1 &&  int(flags & childFlag) == childFlag)
             || (int(childFlag) == -1 && handlesChildEvents)
             || (int(childFlag) == -2 && filtersDescendantEvents))
             return;
@@ -1414,7 +1414,10 @@ QGraphicsItem::~QGraphicsItem()
         QObjectPrivate *p = QObjectPrivate::get(o);
         p->wasDeleted = true;
         if (p->declarativeData) {
-            QAbstractDeclarativeData::destroyed(p->declarativeData, o);
+            if (QAbstractDeclarativeData::destroyed)
+                QAbstractDeclarativeData::destroyed(p->declarativeData, o);
+            if (QAbstractDeclarativeData::destroyed_qml1)
+                QAbstractDeclarativeData::destroyed_qml1(p->declarativeData, o);
             p->declarativeData = 0;
         }
     }
@@ -1709,8 +1712,8 @@ QList<QGraphicsItem *> QGraphicsItem::childItems() const
 
 /*!
     \since 4.4
-    Returns true if this item is a widget (i.e., QGraphicsWidget); otherwise,
-    returns false.
+    Returns \c true if this item is a widget (i.e., QGraphicsWidget); otherwise,
+    returns \c false.
 */
 bool QGraphicsItem::isWidget() const
 {
@@ -1719,7 +1722,7 @@ bool QGraphicsItem::isWidget() const
 
 /*!
     \since 4.4
-    Returns true if the item is a QGraphicsWidget window, otherwise returns
+    Returns \c true if the item is a QGraphicsWidget window, otherwise returns
     false.
 
     \sa QGraphicsWidget::windowFlags()
@@ -1731,7 +1734,7 @@ bool QGraphicsItem::isWindow() const
 
 /*!
     \since 4.6
-    Returns true if the item is a panel; otherwise returns false.
+    Returns \c true if the item is a panel; otherwise returns \c false.
 
     \sa QGraphicsItem::panel(), ItemIsPanel
 */
@@ -2021,11 +2024,11 @@ void QGraphicsItem::setPanelModality(PanelModality panelModality)
 /*!
     \since 4.6
 
-    Returns true if this item is blocked by a modal panel, false otherwise. If \a blockingPanel is
+    Returns \c true if this item is blocked by a modal panel, false otherwise. If \a blockingPanel is
     non-zero, \a blockingPanel will be set to the modal panel that is blocking this item. If this
     item is not blocked, \a blockingPanel will not be set by this function.
 
-    This function always returns false for items not in a scene.
+    This function always returns \c false for items not in a scene.
 
     \sa panelModality(), setPanelModality(), PanelModality
 */
@@ -2156,7 +2159,7 @@ void QGraphicsItem::setCursor(const QCursor &cursor)
 }
 
 /*!
-    Returns true if this item has a cursor set; otherwise, false is returned.
+    Returns \c true if this item has a cursor set; otherwise, false is returned.
 
     By default, items don't have any cursor set. cursor() will return a
     standard pointing arrow cursor.
@@ -2192,7 +2195,7 @@ void QGraphicsItem::unsetCursor()
 #endif // QT_NO_CURSOR
 
 /*!
-   Returns true if the item is visible; otherwise, false is returned.
+   Returns \c true if the item is visible; otherwise, false is returned.
 
    Note that the item's general visibility is unrelated to whether or not it
    is actually being visualized by a QGraphicsView.
@@ -2206,7 +2209,7 @@ bool QGraphicsItem::isVisible() const
 
 /*!
     \since 4.4
-    Returns true if the item is visible to \a parent; otherwise, false is
+    Returns \c true if the item is visible to \a parent; otherwise, false is
     returned. \a parent can be 0, in which case this function will return
     whether the item is visible to the scene or not.
 
@@ -2448,7 +2451,7 @@ void QGraphicsItem::setVisible(bool visible)
 */
 
 /*!
-    Returns true if the item is enabled; otherwise, false is returned.
+    Returns \c true if the item is enabled; otherwise, false is returned.
 
     \sa setEnabled()
 */
@@ -2552,7 +2555,7 @@ void QGraphicsItem::setEnabled(bool enabled)
 }
 
 /*!
-    Returns true if this item is selected; otherwise, false is returned.
+    Returns \c true if this item is selected; otherwise, false is returned.
 
     Items that are in a group inherit the group's selected state.
 
@@ -2888,8 +2891,8 @@ QRectF QGraphicsItemPrivate::sceneEffectiveBoundingRect() const
 }
 
 /*!
-   Returns true if this item can accept drag and drop events; otherwise,
-   returns false. By default, items do not accept drag and drop events; items
+   Returns \c true if this item can accept drag and drop events; otherwise,
+   returns \c false. By default, items do not accept drag and drop events; items
    are transparent to drag and drop.
 
    \sa setAcceptDrops()
@@ -2956,8 +2959,8 @@ void QGraphicsItem::setAcceptedMouseButtons(Qt::MouseButtons buttons)
 /*!
     \since 4.4
 
-    Returns true if an item accepts hover events
-    (QGraphicsSceneHoverEvent); otherwise, returns false. By default,
+    Returns \c true if an item accepts hover events
+    (QGraphicsSceneHoverEvent); otherwise, returns \c false. By default,
     items do not accept hover events.
 
     \sa setAcceptedMouseButtons()
@@ -3025,8 +3028,8 @@ void QGraphicsItem::setAcceptHoverEvents(bool enabled)
 
 /*! \since 4.6
 
-    Returns true if an item accepts \l{QTouchEvent}{touch events};
-    otherwise, returns false. By default, items do not accept touch events.
+    Returns \c true if an item accepts \l{QTouchEvent}{touch events};
+    otherwise, returns \c false. By default, items do not accept touch events.
 
     \sa setAcceptTouchEvents()
 */
@@ -3056,7 +3059,7 @@ void QGraphicsItem::setAcceptTouchEvents(bool enabled)
 /*!
     \since 4.6
 
-    Returns true if this item filters child events (i.e., all events
+    Returns \c true if this item filters child events (i.e., all events
     intended for any of its children are instead sent to this item);
     otherwise, false is returned.
 
@@ -3092,7 +3095,7 @@ void QGraphicsItem::setFiltersChildEvents(bool enabled)
 /*!
     \obsolete
 
-    Returns true if this item handles child events (i.e., all events
+    Returns \c true if this item handles child events (i.e., all events
     intended for any of its children are instead sent to this item);
     otherwise, false is returned.
 
@@ -3141,7 +3144,7 @@ void QGraphicsItem::setHandlesChildEvents(bool enabled)
 }
 /*!
     \since 4.6
-    Returns true if this item is active; otherwise returns false.
+    Returns \c true if this item is active; otherwise returns \c false.
 
     An item can only be active if the scene is active. An item is active
     if it is, or is a descendent of, an active panel. Items in non-active
@@ -3203,8 +3206,8 @@ void QGraphicsItem::setActive(bool active)
 }
 
 /*!
-    Returns true if this item is active, and it or its \l{focusProxy()}{focus
-    proxy} has keyboard input focus; otherwise, returns false.
+    Returns \c true if this item is active, and it or its \l{focusProxy()}{focus
+    proxy} has keyboard input focus; otherwise, returns \c false.
 
     \sa focusItem(), setFocus(), QGraphicsScene::setFocusItem(), isActive()
 */
@@ -4199,9 +4202,14 @@ QTransform QGraphicsItem::deviceTransform(const QTransform &viewportTransform) c
         return QTransform();
     }
 
-    // First translate the base untransformable item.
-    untransformedAncestor->d_ptr->ensureSceneTransform();
-    QPointF mappedPoint = (untransformedAncestor->d_ptr->sceneTransform * viewportTransform).map(QPointF(0, 0));
+    // Determine the inherited origin. Find the parent of the topmost untransformable.
+    // Use its scene transform to map the position of the untransformable. Then use
+    // that viewport position as the anchoring point for the untransformable subtree.
+    QGraphicsItem *parentOfUntransformedAncestor = untransformedAncestor->parentItem();
+    QTransform inheritedMatrix;
+    if (parentOfUntransformedAncestor)
+        inheritedMatrix = parentOfUntransformedAncestor->sceneTransform();
+    QPointF mappedPoint = (inheritedMatrix * viewportTransform).map(untransformedAncestor->pos());
 
     // COMBINE
     QTransform matrix = QTransform::fromTranslate(mappedPoint.x(), mappedPoint.y());
@@ -4834,7 +4842,7 @@ QPainterPath QGraphicsItem::shape() const
 }
 
 /*!
-    Returns true if this item is clipped. An item is clipped if it has either
+    Returns \c true if this item is clipped. An item is clipped if it has either
     set the \l ItemClipsToShape flag, or if it or any of its ancestors has set
     the \l ItemClipsChildrenToShape flag.
 
@@ -4917,7 +4925,7 @@ QPainterPath QGraphicsItem::clipPath() const
 }
 
 /*!
-    Returns true if this item contains \a point, which is in local
+    Returns \c true if this item contains \a point, which is in local
     coordinates; otherwise, false is returned. It is most often called from
     QGraphicsView to determine what item is under the cursor, and for that
     reason, the implementation of this function should be as light-weight as
@@ -4935,8 +4943,8 @@ bool QGraphicsItem::contains(const QPointF &point) const
 
 /*!
 
-    Returns true if this item collides with \a other; otherwise
-    returns false.
+    Returns \c true if this item collides with \a other; otherwise
+    returns \c false.
 
     The \a mode is applied to \a other, and the resulting shape or
     bounding rectangle is then compared to this item's shape. The
@@ -4992,7 +5000,7 @@ bool QGraphicsItem::collidesWithItem(const QGraphicsItem *other, Qt::ItemSelecti
 }
 
 /*!
-    Returns true if this item collides with \a path.
+    Returns \c true if this item collides with \a path.
 
     The collision is determined by \a mode. The default value for \a mode is
     Qt::IntersectsItemShape; \a path collides with this item if it either
@@ -5062,7 +5070,7 @@ QList<QGraphicsItem *> QGraphicsItem::collidingItems(Qt::ItemSelectionMode mode)
 
     Item obscurity helper function.
 
-    Returns true if the subrect \a rect of \a item's bounding rect is obscured
+    Returns \c true if the subrect \a rect of \a item's bounding rect is obscured
     by \a other (i.e., \a other's opaque area covers \a item's \a rect
     completely. \a other is assumed to already be "on top of" \a item
     wrt. stacking order.
@@ -5078,7 +5086,7 @@ static bool qt_QGraphicsItem_isObscured(const QGraphicsItem *item,
     \overload
     \since 4.3
 
-    Returns true if \a rect is completely obscured by the opaque shape of any
+    Returns \c true if \a rect is completely obscured by the opaque shape of any
     of colliding items above it (i.e., with a higher Z value than this item).
 
     \sa opaqueArea()
@@ -5110,7 +5118,7 @@ bool QGraphicsItem::isObscured(const QRectF &rect) const
 */
 
 /*!
-    Returns true if this item's bounding rect is completely obscured by the
+    Returns \c true if this item's bounding rect is completely obscured by the
     opaque shape of \a item.
 
     The base implementation maps \a item's opaqueArea() to this item's
@@ -5312,7 +5320,7 @@ void QGraphicsItem::setBoundingRegionGranularity(qreal granularity)
 
 /*!
     \internal
-    Returns true if we can discard an update request; otherwise false.
+    Returns \c true if we can discard an update request; otherwise false.
 */
 bool QGraphicsItemPrivate::discardUpdateRequest(bool ignoreVisibleBit, bool ignoreDirtyBit,
                                                 bool ignoreOpacity) const
@@ -5641,7 +5649,7 @@ bool QGraphicsItemPrivate::isProxyWidget() const
     As a side effect of the item being repainted, other items that overlap the
     area \a rect may also be repainted.
 
-    If the item is invisible (i.e., isVisible() returns false), this function
+    If the item is invisible (i.e., isVisible() returns \c false), this function
     does nothing.
 
     \sa paint(), boundingRect()
@@ -6399,7 +6407,7 @@ QPainterPath QGraphicsItem::mapFromScene(const QPainterPath &path) const
 }
 
 /*!
-    Returns true if this item is an ancestor of \a child (i.e., if this item
+    Returns \c true if this item is an ancestor of \a child (i.e., if this item
     is \a child's parent, or one of \a child's parent's ancestors).
 
     \sa parentItem()
@@ -6453,7 +6461,7 @@ QGraphicsItem *QGraphicsItem::commonAncestorItem(const QGraphicsItem *other) con
 
 /*!
     \since 4,4
-    Returns true if this item is currently under the mouse cursor in one of
+    Returns \c true if this item is currently under the mouse cursor in one of
     the views; otherwise, false is returned.
 
     \sa QGraphicsScene::views(), QCursor::pos()
@@ -6622,7 +6630,7 @@ bool QGraphicsItem::sceneEventFilter(QGraphicsItem *watched, QEvent *event)
     mousePressEvent(), mouseReleaseEvent(), mouseMoveEvent(), and
     mouseDoubleClickEvent().
 
-    Returns true if the event was recognized and handled; otherwise, (e.g., if
+    Returns \c true if the event was recognized and handled; otherwise, (e.g., if
     the event type was not recognized,) false is returned.
 
     \a event is the intercepted event.
@@ -7355,7 +7363,6 @@ void QGraphicsItem::updateMicroFocus()
                     if (qApp)
                         qApp->inputMethod()->update(Qt::ImQueryAll);
                     break;
-                    }
                 }
             }
         }
@@ -7627,7 +7634,10 @@ QGraphicsObject::~QGraphicsObject()
 bool QGraphicsObject::event(QEvent *ev)
 {
     if (ev->type() == QEvent::StyleAnimationUpdate) {
-        update();
+        if (isVisible()) {
+            ev->accept();
+            update();
+        }
         return true;
     }
     return QObject::event(ev);
@@ -7940,7 +7950,7 @@ void QGraphicsItemPrivate::resetHeight()
 
   This property is declared in QGraphicsItem.
 
-  By default, this property is true.
+  By default, this property is \c true.
 
   \sa QGraphicsItem::isEnabled(), QGraphicsItem::setEnabled()
 */
@@ -7959,7 +7969,7 @@ void QGraphicsItemPrivate::resetHeight()
 
   This property is declared in QGraphicsItem.
 
-  By default, this property is true.
+  By default, this property is \c true.
 
   \sa QGraphicsItem::isVisible(), QGraphicsItem::setVisible()
 */
@@ -10506,7 +10516,7 @@ void QGraphicsTextItem::setTabChangesFocus(bool b)
 /*!
     \since 4.5
 
-    Returns true if the \uicontrol Tab key will cause the widget to change focus;
+    Returns \c true if the \uicontrol Tab key will cause the widget to change focus;
     otherwise, false is returned.
 
     By default, this behavior is disabled, and this function will return false.

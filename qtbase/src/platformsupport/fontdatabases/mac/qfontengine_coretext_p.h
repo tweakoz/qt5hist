@@ -57,7 +57,6 @@ QT_BEGIN_NAMESPACE
 class QRawFontPrivate;
 class QCoreTextFontEngine : public QFontEngine
 {
-    Q_OBJECT
 public:
     QCoreTextFontEngine(CTFontRef font, const QFontDef &def);
     QCoreTextFontEngine(CGFontRef font, const QFontDef &def);
@@ -96,6 +95,7 @@ public:
     virtual QImage alphaMapForGlyph(glyph_t, QFixed subPixelPosition);
     virtual QImage alphaMapForGlyph(glyph_t glyph, QFixed subPixelPosition, const QTransform &t);
     virtual QImage alphaRGBMapForGlyph(glyph_t, QFixed subPixelPosition, const QTransform &t);
+    glyph_metrics_t alphaMapBoundingBox(glyph_t glyph, QFixed, const QTransform &matrix, GlyphFormat);
     virtual QImage bitmapForGlyph(glyph_t, QFixed subPixelPosition, const QTransform &t);
     virtual qreal minRightBearing() const;
     virtual qreal minLeftBearing() const;

@@ -49,21 +49,22 @@
 /*
    The operating system, must be one of: (Q_OS_x)
 
-     DARWIN   - Darwin OS (synonym for Q_OS_MAC)
-     MAC      - OS X or iOS (synonym for Q_OS_DARWIN)
-     MACX     - OS X
+     DARWIN   - Any Darwin system
+     MAC      - OS X and iOS
+     OSX      - OS X
      IOS      - iOS
      MSDOS    - MS-DOS and Windows
      OS2      - OS/2
      OS2EMX   - XFree86 on OS/2 (not PM)
      WIN32    - Win32 (Windows 2000/XP/Vista/7 and Windows Server 2003/2008)
      WINCE    - WinCE (Windows CE 5.0)
+     WINRT    - WinRT (Windows 8 Runtime)
      CYGWIN   - Cygwin
      SOLARIS  - Sun Solaris
      HPUX     - HP-UX
      ULTRIX   - DEC Ultrix
-     LINUX    - Linux
-     FREEBSD  - FreeBSD
+     LINUX    - Linux [has variants]
+     FREEBSD  - FreeBSD [has variants]
      NETBSD   - NetBSD
      OPENBSD  - OpenBSD
      BSDI     - BSD/OS
@@ -76,12 +77,20 @@
      DGUX     - DG/UX
      RELIANT  - Reliant UNIX
      DYNIX    - DYNIX/ptx
-     QNX      - QNX
+     QNX      - QNX [has variants]
      QNX6     - QNX RTP 6.1
      LYNX     - LynxOS
      BSD4     - Any BSD 4.4 system
      UNIX     - Any UNIX BSD/SYSV system
      ANDROID  - Android platform
+
+   The following operating systems have variants:
+     LINUX    - both Q_OS_LINUX and Q_OS_ANDROID are defined when building for Android
+              - only Q_OS_LINUX is defined if building for other Linux systems
+     QNX      - both Q_OS_QNX and Q_OS_BLACKBERRY are defined when building for Blackberry 10
+              - only Q_OS_QNX is defined if building for other QNX targets
+     FREEBSD  - Q_OS_FREEBSD is defined only when building for FreeBSD with a BSD userland
+              - Q_OS_FREEBSD_KERNEL is always defined on FreeBSD, even if the userland is from GNU
 */
 
 #if defined(__APPLE__) && (defined(__GNUC__) || defined(__xlC__) || defined(__xlc__))
@@ -97,12 +106,21 @@
 #  define Q_OS_LINUX
 #elif defined(__CYGWIN__)
 #  define Q_OS_CYGWIN
-#elif !defined(SAG_COM) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
+#elif !defined(SAG_COM) && (!defined(WINAPI_FAMILY) || WINAPI_FAMILY==WINAPI_FAMILY_DESKTOP_APP) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
 #  define Q_OS_WIN32
 #  define Q_OS_WIN64
 #elif !defined(SAG_COM) && (defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__))
 #  if defined(WINCE) || defined(_WIN32_WCE)
 #    define Q_OS_WINCE
+#  elif defined(WINAPI_FAMILY)
+#    if WINAPI_FAMILY==WINAPI_FAMILY_PHONE_APP
+#      define Q_OS_WINPHONE
+#      define Q_OS_WINRT
+#    elif WINAPI_FAMILY==WINAPI_FAMILY_APP
+#      define Q_OS_WINRT
+#    else
+#      define Q_OS_WIN32
+#    endif
 #  else
 #    define Q_OS_WIN32
 #  endif
@@ -118,8 +136,11 @@
 #  define Q_OS_NACL
 #elif defined(__linux__) || defined(__linux)
 #  define Q_OS_LINUX
-#elif defined(__FreeBSD__) || defined(__DragonFly__)
-#  define Q_OS_FREEBSD
+#elif defined(__FreeBSD__) || defined(__DragonFly__) || defined(__FreeBSD_kernel__)
+#  ifndef __FreeBSD_kernel__
+#    define Q_OS_FREEBSD
+#  endif
+#  define Q_OS_FREEBSD_KERNEL
 #  define Q_OS_BSD4
 #elif defined(__NetBSD__)
 #  define Q_OS_NETBSD
@@ -161,7 +182,7 @@
 #  error "Qt has not been ported to this OS - see http://www.qt-project.org/"
 #endif
 
-#if defined(Q_OS_WIN32) || defined(Q_OS_WIN64) || defined(Q_OS_WINCE)
+#if defined(Q_OS_WIN32) || defined(Q_OS_WIN64) || defined(Q_OS_WINCE) || defined(Q_OS_WINRT)
 #  define Q_OS_WIN
 #endif
 
@@ -175,8 +196,9 @@
 #  include <TargetConditionals.h>
 #  if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
 #     define Q_OS_IOS
-#  else
-#     define Q_OS_MACX
+#  elif defined(TARGET_OS_MAC) && TARGET_OS_MAC
+#     define Q_OS_OSX
+#     define Q_OS_MACX // compatibility synonym
 #  endif
 #endif
 
@@ -237,10 +259,6 @@
 #  endif
 #  if !defined(__IPHONE_7_0)
 #       define __IPHONE_7_0 70000
-#  endif
-#
-#  if (__MAC_OS_X_VERSION_MAX_ALLOWED > __MAC_10_8)
-#    warning "This version of OS X is unsupported"
 #  endif
 #endif
 

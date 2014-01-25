@@ -46,6 +46,8 @@
 #include "qiodevice_p.h"
 #include "qfile.h"
 #include "qstringlist.h"
+
+#include <algorithm>
 #include <limits.h>
 
 #ifdef QIODEVICE_DEBUG
@@ -97,8 +99,10 @@ void debugBinaryString(const char *data, qint64 maxlen)
 #define CHECK_WRITABLE(function, returnType) \
    do { \
        if ((d->openMode & WriteOnly) == 0) { \
-           if (d->openMode == NotOpen) \
+           if (d->openMode == NotOpen) { \
+               qWarning("QIODevice::"#function": device not open"); \
                return returnType; \
+           } \
            qWarning("QIODevice::"#function": ReadOnly device"); \
            return returnType; \
        } \
@@ -107,8 +111,10 @@ void debugBinaryString(const char *data, qint64 maxlen)
 #define CHECK_READABLE(function, returnType) \
    do { \
        if ((d->openMode & ReadOnly) == 0) { \
-           if (d->openMode == NotOpen) \
+           if (d->openMode == NotOpen) { \
+               qWarning("QIODevice::"#function": device not open"); \
                return returnType; \
+           } \
            qWarning("QIODevice::"#function": WriteOnly device"); \
            return returnType; \
        } \
@@ -398,7 +404,7 @@ QIODevice::~QIODevice()
 }
 
 /*!
-    Returns true if this device is sequential; otherwise returns
+    Returns \c true if this device is sequential; otherwise returns
     false.
 
     Sequential devices, as opposed to a random-access devices, have no
@@ -474,7 +480,7 @@ void QIODevice::setTextModeEnabled(bool enabled)
 }
 
 /*!
-    Returns true if the \l Text flag is enabled; otherwise returns false.
+    Returns \c true if the \l Text flag is enabled; otherwise returns \c false.
 
     \sa setTextModeEnabled()
 */
@@ -484,9 +490,9 @@ bool QIODevice::isTextModeEnabled() const
 }
 
 /*!
-    Returns true if the device is open; otherwise returns false. A
+    Returns \c true if the device is open; otherwise returns \c false. A
     device is open if it can be read from and/or written to. By
-    default, this function returns false if openMode() returns
+    default, this function returns \c false if openMode() returns
     \c NotOpen.
 
     \sa openMode(), OpenMode
@@ -497,7 +503,7 @@ bool QIODevice::isOpen() const
 }
 
 /*!
-    Returns true if data can be read from the device; otherwise returns
+    Returns \c true if data can be read from the device; otherwise returns
     false. Use bytesAvailable() to determine how many bytes can be read.
 
     This is a convenience function which checks if the OpenMode of the
@@ -511,7 +517,7 @@ bool QIODevice::isReadable() const
 }
 
 /*!
-    Returns true if data can be written to the device; otherwise returns
+    Returns \c true if data can be written to the device; otherwise returns
     false.
 
     This is a convenience function which checks if the OpenMode of the
@@ -525,8 +531,8 @@ bool QIODevice::isWritable() const
 }
 
 /*!
-    Opens the device and sets its OpenMode to \a mode. Returns true if successful;
-    otherwise returns false. This function should be called from any
+    Opens the device and sets its OpenMode to \a mode. Returns \c true if successful;
+    otherwise returns \c false. This function should be called from any
     reimplementations of open() or other functions that open the device.
 
     \sa openMode(), OpenMode
@@ -663,9 +669,9 @@ bool QIODevice::seek(qint64 pos)
 }
 
 /*!
-    Returns true if the current read and write position is at the end
+    Returns \c true if the current read and write position is at the end
     of the device (i.e. there is no more data available for reading on
-    the device); otherwise returns false.
+    the device); otherwise returns \c false.
 
     For some devices, atEnd() can return true even though there is more data
     to read. This special case only applies to devices that generate data in
@@ -686,7 +692,7 @@ bool QIODevice::atEnd() const
 
 /*!
     Seeks to the start of input for random-access devices. Returns
-    true on success; otherwise returns false (for example, if the
+    true on success; otherwise returns \c false (for example, if the
     device is not open).
 
     Note that when using a QTextStream on a QFile, calling reset() on
@@ -1266,8 +1272,8 @@ qint64 QIODevice::readLineData(char *data, qint64 maxSize)
 #endif
 
 /*!
-    Returns true if a complete line of data can be read from the device;
-    otherwise returns false.
+    Returns \c true if a complete line of data can be read from the device;
+    otherwise returns \c false.
 
     Note that unbuffered devices, which have no way of determining what
     can be read, always return false.
@@ -1424,8 +1430,8 @@ void QIODevice::ungetChar(char c)
 
 /*! \fn bool QIODevice::putChar(char c)
 
-    Writes the character \a c to the device. Returns true on success;
-    otherwise returns false.
+    Writes the character \a c to the device. Returns \c true on success;
+    otherwise returns \c false.
 
     \sa write(), getChar(), ungetChar()
 */
@@ -1474,8 +1480,8 @@ QByteArray QIODevicePrivate::peek(qint64 maxSize)
 /*! \fn bool QIODevice::getChar(char *c)
 
     Reads one character from the device and stores it in \a c. If \a c
-    is 0, the character is discarded. Returns true on success;
-    otherwise returns false.
+    is 0, the character is discarded. Returns \c true on success;
+    otherwise returns \c false.
 
     \sa read(), putChar(), ungetChar()
 */
@@ -1535,7 +1541,7 @@ QByteArray QIODevice::peek(qint64 maxSize)
     signal has been emitted, or until \a msecs milliseconds have
     passed. If msecs is -1, this function will not time out.
 
-    Returns true if new data is available for reading; otherwise returns
+    Returns \c true if new data is available for reading; otherwise returns
     false (if the operation timed out or if an error occurred).
 
     This function can operate without an event loop. It is
@@ -1546,7 +1552,7 @@ QByteArray QIODevice::peek(qint64 maxSize)
     readyRead() will not be reemitted.
 
     Reimplement this function to provide a blocking API for a custom
-    device. The default implementation does nothing, and returns false.
+    device. The default implementation does nothing, and returns \c false.
 
     \warning Calling this function from the main (GUI) thread
     might cause your user interface to freeze.
@@ -1566,8 +1572,8 @@ bool QIODevice::waitForReadyRead(int msecs)
     milliseconds have passed. If msecs is -1, this function will
     not time out. For unbuffered devices, it returns immediately.
 
-    Returns true if a payload of data was written to the device;
-    otherwise returns false (i.e. if the operation timed out, or if an
+    Returns \c true if a payload of data was written to the device;
+    otherwise returns \c false (i.e. if the operation timed out, or if an
     error occurred).
 
     This function can operate without an event loop. It is
@@ -1578,7 +1584,7 @@ bool QIODevice::waitForReadyRead(int msecs)
     bytesWritten() will not be reemitted.
 
     Reimplement this function to provide a blocking API for a custom
-    device. The default implementation does nothing, and returns false.
+    device. The default implementation does nothing, and returns \c false.
 
     \warning Calling this function from the main (GUI) thread
     might cause your user interface to freeze.
@@ -1686,7 +1692,7 @@ QDebug operator<<(QDebug debug, QIODevice::OpenMode modes)
         if (modes & QIODevice::Unbuffered)
             modeList << QLatin1String("Unbuffered");
     }
-    qSort(modeList);
+    std::sort(modeList.begin(), modeList.end());
     debug << modeList.join(QLatin1Char('|'));
     debug << ')';
     return debug;

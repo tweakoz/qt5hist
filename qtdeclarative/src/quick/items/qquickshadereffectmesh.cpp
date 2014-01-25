@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -53,8 +53,8 @@ QQuickShaderEffectMesh::QQuickShaderEffectMesh(QObject *parent)
 /*!
     \qmltype GridMesh
     \instantiates QQuickGridMesh
-    \inqmlmodule QtQuick 2
-    \since QtQuick 2.0
+    \inqmlmodule QtQuick
+    \since 5.0
     \ingroup qtquick-effects
     \brief Defines a mesh with vertices arranged in a grid
 
@@ -161,7 +161,7 @@ QSGGeometry *QQuickGridMesh::updateGeometry(QSGGeometry *geometry, const QVector
 }
 
 /*!
-    \qmlproperty size QtQuick2::GridMesh::resolution
+    \qmlproperty size QtQuick::GridMesh::resolution
 
     This property holds the grid resolution. The resolution's width and height
     specify the number of cells or spacings between vertices horizontally and

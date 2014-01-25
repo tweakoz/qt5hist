@@ -62,17 +62,17 @@ const qreal CONV = 0.017453292520444443;
 */
 
 /*!
-    \qmlproperty real QtQuick.Particles2::Gravity::magnitude
+    \qmlproperty real QtQuick.Particles::Gravity::magnitude
 
     Pixels per second that objects will be accelerated by.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::Gravity::acceleration
+    \qmlproperty real QtQuick.Particles::Gravity::acceleration
 
     Name changed to magnitude, will be removed soon.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::Gravity::angle
+    \qmlproperty real QtQuick.Particles::Gravity::angle
 
     Angle of acceleration.
 */
@@ -88,8 +88,8 @@ bool QQuickGravityAffector::affectParticle(QQuickParticleData *d, qreal dt)
         return false;
     if (m_needRecalc) {
         m_needRecalc = false;
-        m_dx = m_magnitude * cos(m_angle * CONV);
-        m_dy = m_magnitude * sin(m_angle * CONV);
+        m_dx = m_magnitude * std::cos(m_angle * CONV);
+        m_dy = m_magnitude * std::sin(m_angle * CONV);
     }
 
     d->setInstantaneousVX(d->curVX() + m_dx*dt);

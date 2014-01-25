@@ -63,10 +63,10 @@
 #include "qqmltypenamecache_p.h"
 #include "qqmlnotifier_p.h"
 #include <private/qqmlprofilerservice_p.h>
-#include <private/qv8debugservice_p.h>
+#include <private/qv4debugservice_p.h>
 #include <private/qdebugmessageservice_p.h>
 #include "qqmlincubator.h"
-#include "qqmlabstracturlinterceptor_p.h"
+#include "qqmlabstracturlinterceptor.h"
 #include <private/qv8profilerservice_p.h>
 #include <private/qqmlboundsignal_p.h>
 
@@ -121,7 +121,7 @@ void qmlRegisterBaseTypes(const char *uri, int versionMajor, int versionMinor)
 /*!
   \qmltype QtObject
     \instantiates QObject
-  \inqmlmodule QtQml 2
+  \inqmlmodule QtQml
   \ingroup qml-utility-elements
   \brief A basic QML type
 
@@ -275,7 +275,7 @@ QQmlImageProviderBase::~QQmlImageProviderBase()
 
 /*!
 \qmltype Qt
-\inqmlmodule QtQml 2
+\inqmlmodule QtQml
 \instantiates QQmlEnginePrivate
 \ingroup qml-utility-elements
 \keyword QmlGlobalQtObject
@@ -370,7 +370,7 @@ The following functions are also on the Qt object.
 
 /*!
     \qmlproperty object Qt::platform
-    \since QtQml 2.1
+    \since 4.8
 
     The \c platform object provides info about the underlying platform.
 
@@ -400,7 +400,7 @@ The following functions are also on the Qt object.
 
 /*!
     \qmlproperty object Qt::application
-    \since QtQuick 1.1
+    \since 5.1
 
     The \c application object provides access to global application state
     properties shared by many QML components.
@@ -411,14 +411,50 @@ The following functions are also on the Qt object.
     \row
     \li \c application.active
     \li
-    This read-only property indicates whether the application is the top-most and focused
-    application, and the user is able to interact with the application. The property
-    is false when the application is in the background, the device keylock or screen
-    saver is active, the screen backlight is turned off, or the global system dialog
-    is being displayed on top of the application. It can be used for stopping and
-    pausing animations, timers and active processing of data in order to save device
-    battery power and free device memory and processor load when the application is not
-    active.
+    Deprecated, use Qt.application.state == Qt.ApplicationActive instead.
+
+    \row
+    \li \c application.state
+    \li
+    This read-only property indicates the current state of the application.
+
+    Possible values are:
+
+    \list
+    \li Qt.ApplicationActive - The application is the top-most and focused application, and the
+                               user is able to interact with the application.
+    \li Qt.ApplicationInactive - The application is visible or partially visible, but not selected
+                                 to be in front, the user cannot interact with the application.
+                                 On desktop platforms, this typically means that the user activated
+                                 another application. On mobile platforms, it is more common to
+                                 enter this state when the OS is interrupting the user with for
+                                 example incoming calls, SMS-messages or dialogs. This is usually a
+                                 transient state during which the application is paused. The user
+                                 may return focus to your application, but most of the time it will
+                                 be the first indication that the application is going to be suspended.
+                                 While in this state, consider pausing or stopping any activity that
+                                 should not continue when the user cannot interact with your
+                                 application, such as a video, a game, animations, or sensors.
+                                 You should also avoid performing CPU-intensive tasks which might
+                                 slow down the application in front.
+    \li Qt.ApplicationSuspended - The application is suspended and not visible to the user. On
+                                  mobile platforms, the application typically enters this state when
+                                  the user returns to the home screen or switches to another
+                                  application. While in this state, the application should ensure
+                                  that the user perceives it as always alive and does not lose his
+                                  progress, saving any persistent data. The application should cease
+                                  all activities and be prepared for code execution to stop. While
+                                  suspended, the application can be killed at any time without
+                                  further warnings (for example when low memory forces the OS to purge
+                                  suspended applications).
+    \li Qt.ApplicationHidden - The application is hidden and runs in the background. This is the
+                               normal state for applications that need to do background processing,
+                               like playing music, while the user interacts with other applications.
+                               The application should free up all graphical resources when entering
+                               this state. A Qt Quick application should not usually handle this state
+                               at the QML level. Instead, you should unload the entire UI and reload
+                               the QML files whenever the application becomes active again.
+    \endlist
 
     \row
     \li \c application.layoutDirection
@@ -448,7 +484,15 @@ The following functions are also on the Qt object.
     \row
     \li \c application.version
     \li This is the application version set on the QCoreApplication instance. This property can be written
-    to in order to set the application name.
+    to in order to set the application version.
+    \row
+    \li \c application.organization
+    \li This is the organization name set on the QCoreApplication instance. This property can be written
+    to in order to set the organization name.
+    \row
+    \li \c application.domain
+    \li This is the organization domain set on the QCoreApplication instance. This property can be written
+    to in order to set the organization domain.
     \endtable
 
     The object also has one signal, aboutToQuit(), which is the same as \l QCoreApplication::aboutToQuit().
@@ -461,13 +505,14 @@ The following functions are also on the Qt object.
     Note that when using QML without a QGuiApplication, the following properties will be undefined:
     \list
     \li application.active
+    \li application.state
     \li application.layoutDirection
     \endlist
 */
 
 /*!
     \qmlproperty object Qt::inputMethod
-    \since QtQuick 2.0
+    \since 5.0
 
     The \c inputMethod object allows access to application's QInputMethod object
     and all its properties and slots. See the QInputMethod documentation for
@@ -500,18 +545,21 @@ The \c status property will be updated as the operation progresses.
 If provided, \a callback is invoked when the operation completes.  The callback is passed
 the same object as is returned from the Qt.include() call.
 */
-// Qt.include() is implemented in qv8include.cpp
+// Qt.include() is implemented in qv4include.cpp
 
+DEFINE_BOOL_CONFIG_OPTION(qmlUseNewCompiler, QML_NEW_COMPILER)
 
 QQmlEnginePrivate::QQmlEnginePrivate(QQmlEngine *e)
 : propertyCapture(0), rootContext(0), isDebugging(false),
-  outputWarningsToStdErr(true), sharedContext(0), sharedScope(0),
+  outputWarningsToStdErr(true),
   cleanup(0), erroredBindings(0), inProgressCreations(0),
   workerScriptEngine(0), activeVME(0),
+  activeObjectCreator(0),
   networkAccessManager(0), networkAccessManagerFactory(0), urlInterceptor(0),
   scarceResourcesRefCount(0), typeLoader(e), importDatabase(e), uniqueId(1),
   incubatorCount(0), incubationController(0), mutex(QMutex::Recursive)
 {
+    useNewCompiler = qmlUseNewCompiler();
 }
 
 QQmlEnginePrivate::~QQmlEnginePrivate()
@@ -567,12 +615,18 @@ void QQmlPrivate::qdeclarativeelement_destructor(QObject *o)
 
 void QQmlData::destroyed(QAbstractDeclarativeData *d, QObject *o)
 {
-    static_cast<QQmlData *>(d)->destroyed(o);
+    QQmlData *ddata = static_cast<QQmlData *>(d);
+    if (ddata->ownedByQml1)
+        return;
+    ddata->destroyed(o);
 }
 
 void QQmlData::parentChanged(QAbstractDeclarativeData *d, QObject *o, QObject *p)
 {
-    static_cast<QQmlData *>(d)->parentChanged(o, p);
+    QQmlData *ddata = static_cast<QQmlData *>(d);
+    if (ddata->ownedByQml1)
+        return;
+    ddata->parentChanged(o, p);
 }
 
 class QQmlThreadNotifierProxyObject : public QObject
@@ -601,6 +655,7 @@ void QQmlData::signalEmitted(QAbstractDeclarativeData *, QObject *object, int in
 {
     QQmlData *ddata = QQmlData::get(object, false);
     if (!ddata) return; // Probably being deleted
+    if (ddata->ownedByQml1) return;
 
     // In general, QML only supports QObject's that live on the same thread as the QQmlEngine
     // that they're exposed to.  However, to make writing "worker objects" that calculate data
@@ -658,12 +713,18 @@ void QQmlData::signalEmitted(QAbstractDeclarativeData *, QObject *object, int in
 
 int QQmlData::receivers(QAbstractDeclarativeData *d, const QObject *, int index)
 {
-    return static_cast<QQmlData *>(d)->endpointCount(index);
+    QQmlData *ddata = static_cast<QQmlData *>(d);
+    if (ddata->ownedByQml1)
+        return 0;
+    return ddata->endpointCount(index);
 }
 
 bool QQmlData::isSignalConnected(QAbstractDeclarativeData *d, const QObject *, int index)
 {
-    return static_cast<QQmlData *>(d)->signalHasEndpoint(index);
+    QQmlData *ddata = static_cast<QQmlData *>(d);
+    if (ddata->ownedByQml1)
+        return false;
+    return ddata->signalHasEndpoint(index);
 }
 
 int QQmlData::endpointCount(int index)
@@ -728,6 +789,7 @@ void QQmlEnginePrivate::init()
     if (baseModulesUninitialized) {
         qmlRegisterType<QQmlComponent>("QML", 1, 0, "Component"); // required for the Compiler.
         registerBaseTypes("QtQml", 2, 0); // import which provides language building blocks.
+        qmlRegisterUncreatableType<QQmlLocale>("QtQml", 2, 2, "Locale", QQmlEngine::tr("Locale cannot be instantiated.  Use Qt.locale()"));
 
         QQmlData::init();
         baseModulesUninitialized = false;
@@ -739,7 +801,7 @@ void QQmlEnginePrivate::init()
     qRegisterMetaType<QQmlComponent::Status>();
     qRegisterMetaType<QList<QObject*> >();
     qRegisterMetaType<QList<int> >();
-    qRegisterMetaType<QQmlV8Handle>();
+    qRegisterMetaType<QQmlV4Handle>();
 
     v8engine()->setEngine(q);
 
@@ -749,17 +811,11 @@ void QQmlEnginePrivate::init()
         QQmlEngineDebugService::isDebuggingEnabled()) {
         isDebugging = true;
         QQmlEngineDebugService::instance()->addEngine(q);
-        QV8DebugService::initialize(v8engine());
+        QV4DebugService::instance()->addEngine(q);
         QV8ProfilerService::initialize();
         QQmlProfilerService::initialize();
         QDebugMessageService::instance();
     }
-
-    QString dataLocation = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
-    if (!dataLocation.isEmpty())
-        offlineStoragePath = dataLocation.replace(QLatin1Char('/'), QDir::separator())
-                           + QDir::separator() + QLatin1String("QML")
-                           + QDir::separator() + QLatin1String("OfflineStorage");
 }
 
 QQuickWorkerScriptEngine *QQmlEnginePrivate::getWorkerScriptEngine()
@@ -838,6 +894,7 @@ QQmlEngine::~QQmlEngine()
     Q_D(QQmlEngine);
     if (d->isDebugging) {
         QQmlEngineDebugService::instance()->remEngine(this);
+        QV4DebugService::instance()->removeEngine(this);
     }
 
     // Emit onDestruction signals for the root context before
@@ -980,7 +1037,9 @@ QQmlNetworkAccessManagerFactory *QQmlEngine::networkAccessManagerFactory() const
 void QQmlEnginePrivate::registerFinalizeCallback(QObject *obj, int index)
 {
     if (activeVME) {
-        activeVME->finalizeCallbacks.append(qMakePair(QQmlGuard<QObject>(obj), index));
+        activeVME->finalizeCallbacks.append(qMakePair(QPointer<QObject>(obj), index));
+    } else if (activeObjectCreator) {
+        activeObjectCreator->finalizeCallbacks.append(qMakePair(QPointer<QObject>(obj), index));
     } else {
         void *args[] = { 0 };
         QMetaObject::metacall(obj, QMetaObject::InvokeMetaMethod, index, args);
@@ -1279,7 +1338,7 @@ void qmlExecuteDeferred(QObject *object)
 {
     QQmlData *data = QQmlData::get(object);
 
-    if (data && data->deferredData) {
+    if (data && data->deferredData && !data->wasDeleted(object)) {
         QQmlObjectCreatingProfiler prof;
         if (prof.enabled) {
             QQmlType *type = QQmlMetaType::qmlType(object->metaObject());
@@ -1602,11 +1661,7 @@ void QQmlData::destroyed(QObject *object)
         delete extendedData;
 
     // Dispose the handle.
-    // We don't simply clear it (and wait for next gc cycle to dispose
-    // via the weak qobject reference callback) as this affects the
-    // outcomes of v8's gc statistical analysis heuristics, which can
-    // cause unnecessary growth of the old pointer space js heap area.
-    qPersistentDispose(v8object);
+    jsWrapper.clear();
 
     if (ownMemory)
         delete this;
@@ -1719,8 +1774,7 @@ void QQmlEnginePrivate::warning(const QList<QQmlError> &errors)
 
 void QQmlEnginePrivate::warning(QQmlDelayedError *error)
 {
-    Q_Q(QQmlEngine);
-    warning(error->error(q));
+    warning(error->error());
 }
 
 void QQmlEnginePrivate::warning(QQmlEngine *engine, const QQmlError &error)
@@ -1744,7 +1798,7 @@ void QQmlEnginePrivate::warning(QQmlEngine *engine, QQmlDelayedError *error)
     if (engine)
         QQmlEnginePrivate::get(engine)->warning(error);
     else
-        dumpwarning(error->error(0));
+        dumpwarning(error->error());
 }
 
 void QQmlEnginePrivate::warning(QQmlEnginePrivate *engine, const QQmlError &error)
@@ -1790,9 +1844,10 @@ void QQmlEnginePrivate::dereferenceScarceResources()
         // note that the actual SRD is owned by the JS engine,
         // so we cannot delete the SRD; but we can free the
         // memory used by the variant in the SRD.
-        while (ScarceResourceData *sr = scarceResources.first()) {
+        QV4::ExecutionEngine *engine = QV8Engine::getV4(v8engine());
+        while (QV4::ExecutionEngine::ScarceResourceData *sr = engine->scarceResources.first()) {
             sr->data = QVariant();
-            scarceResources.remove(sr);
+            engine->scarceResources.remove(sr);
         }
     }
 }
@@ -1946,6 +2001,16 @@ void QQmlEngine::setOfflineStoragePath(const QString& dir)
 QString QQmlEngine::offlineStoragePath() const
 {
     Q_D(const QQmlEngine);
+
+    if (d->offlineStoragePath.isEmpty()) {
+        QString dataLocation = QStandardPaths::writableLocation(QStandardPaths::DataLocation);
+        QQmlEnginePrivate *e = const_cast<QQmlEnginePrivate *>(d);
+        if (!dataLocation.isEmpty())
+            e->offlineStoragePath = dataLocation.replace(QLatin1Char('/'), QDir::separator())
+                                  + QDir::separator() + QLatin1String("QML")
+                                  + QDir::separator() + QLatin1String("OfflineStorage");
+    }
+
     return d->offlineStoragePath;
 }
 
@@ -2224,7 +2289,7 @@ bool QQml_isFileCaseCorrect(const QString &fileName, int lengthIn /* = -1 */)
     QFileInfo info(fileName);
     const QString absolute = info.absoluteFilePath();
 
-#if defined(Q_OS_MAC) || defined(Q_OS_WINCE)
+#if defined(Q_OS_MAC) || defined(Q_OS_WINCE) || defined(Q_OS_WINRT)
     const QString canonical = info.canonicalFilePath();
 #elif defined(Q_OS_WIN)
     wchar_t buffer[1024];

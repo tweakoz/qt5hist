@@ -83,7 +83,7 @@ QT_BEGIN_NAMESPACE
 
     A typical application of semaphores is for controlling access to
     a circular buffer shared by a producer thread and a consumer
-    thread. The \l{threads/semaphores}{Semaphores} example shows how
+    thread. The \l{Semaphores Example} shows how
     to use QSemaphore to solve that problem.
 
     A non-computing example of a semaphore would be dining at a
@@ -178,8 +178,8 @@ int QSemaphore::available() const
 
 /*!
     Tries to acquire \c n resources guarded by the semaphore and
-    returns true on success. If available() < \a n, this call
-    immediately returns false without acquiring any resources.
+    returns \c true on success. If available() < \a n, this call
+    immediately returns \c false without acquiring any resources.
 
     Example:
 
@@ -199,7 +199,7 @@ bool QSemaphore::tryAcquire(int n)
 
 /*!
     Tries to acquire \c n resources guarded by the semaphore and
-    returns true on success. If available() < \a n, this call will
+    returns \c true on success. If available() < \a n, this call will
     wait for at most \a timeout milliseconds for resources to become
     available.
 

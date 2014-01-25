@@ -43,6 +43,7 @@
 #include "qandroidplatformintegration.h"
 #include "androidjnimain.h"
 #include "androidjnimenu.h"
+#include "qandroidplatformwindow.h"
 
 QAndroidPlatformScreen::QAndroidPlatformScreen():QFbScreen()
 {
@@ -57,6 +58,12 @@ QAndroidPlatformScreen::QAndroidPlatformScreen():QFbScreen()
 void QAndroidPlatformScreen::topWindowChanged(QWindow *w)
 {
     QtAndroidMenu::setActiveTopLevelWindow(w);
+
+    if (w != 0) {
+        QAndroidPlatformWindow *platformWindow = static_cast<QAndroidPlatformWindow *>(w->handle());
+        if (platformWindow != 0)
+            platformWindow->updateStatusBarVisibility();
+    }
 }
 
 QRegion QAndroidPlatformScreen::doRedraw()
@@ -72,6 +79,16 @@ QRegion QAndroidPlatformScreen::doRedraw()
 
 QDpi QAndroidPlatformScreen::logicalDpi() const
 {
-    qreal lDpi = QtAndroid::scaledDensity() * 100;
+    qreal lDpi = QtAndroid::scaledDensity() * 72;
     return QDpi(lDpi, lDpi);
+}
+
+Qt::ScreenOrientation QAndroidPlatformScreen::orientation() const
+{
+    return QAndroidPlatformIntegration::m_orientation;
+}
+
+Qt::ScreenOrientation QAndroidPlatformScreen::nativeOrientation() const
+{
+    return QAndroidPlatformIntegration::m_nativeOrientation;
 }

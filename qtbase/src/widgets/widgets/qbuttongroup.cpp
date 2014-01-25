@@ -103,7 +103,7 @@
     \property QButtonGroup::exclusive
     \brief whether the button group is exclusive
 
-    If this property is true, then only one button in the group can be checked
+    If this property is \c true, then only one button in the group can be checked
     at any given time. The user can click on any button to check it, and that
     button will replace the existing one as the checked button in the group.
 
@@ -111,7 +111,7 @@
     by clicking on it; instead, another button in the group must be clicked
     to set the new checked button for that group.
 
-    By default, this property is true.
+    By default, this property is \c true.
 */
 
 /*!
@@ -172,6 +172,27 @@
 
     \sa QAbstractButton::released()
 */
+
+/*!
+    \fn void QButtonGroup::buttonToggled(QAbstractButton *button, bool checked)
+    \since 5.2
+
+    This signal is emitted when the given \a button is toggled.
+    \a checked is true if the button is checked, or false if the button is unchecked.
+
+    \sa QAbstractButton::toggled()
+*/
+
+/*!
+    \fn void QButtonGroup::buttonToggled(int id, bool checked)
+    \since 5.2
+
+    This signal is emitted when a button with the given \a id is toggled.
+    \a checked is true if the button is checked, or false if the button is unchecked.
+
+    \sa QAbstractButton::toggled()
+*/
+
 
 /*!
     \fn void QButtonGroup::addButton(QAbstractButton *button, int id = -1);

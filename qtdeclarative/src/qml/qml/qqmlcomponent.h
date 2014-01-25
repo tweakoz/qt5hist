@@ -56,7 +56,7 @@ class QByteArray;
 class QQmlEngine;
 class QQmlComponent;
 class QQmlIncubator;
-class QQmlV8Function;
+class QQmlV4Function;
 class QQmlCompiledData;
 class QQmlComponentPrivate;
 class QQmlComponentAttached;
@@ -120,8 +120,8 @@ Q_SIGNALS:
 
 protected:
     QQmlComponent(QQmlComponentPrivate &dd, QObject* parent);
-    Q_INVOKABLE void createObject(QQmlV8Function *);
-    Q_INVOKABLE void incubateObject(QQmlV8Function *);
+    Q_INVOKABLE void createObject(QQmlV4Function *);
+    Q_INVOKABLE void incubateObject(QQmlV4Function *);
 
 private:
     QQmlComponent(QQmlEngine *, QQmlCompiledData *, int, QObject *parent);
@@ -129,6 +129,7 @@ private:
     Q_DISABLE_COPY(QQmlComponent)
     friend class QQmlVME;
     friend class QQmlTypeData;
+    friend class QmlObjectCreator;
 };
 
 QT_END_NAMESPACE

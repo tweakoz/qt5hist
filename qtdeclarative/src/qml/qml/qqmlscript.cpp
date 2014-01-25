@@ -41,13 +41,12 @@
 
 #include "qqmlscript_p.h"
 
-#include "parser/qqmljsengine_p.h"
-#include "parser/qqmljsparser_p.h"
-#include "parser/qqmljslexer_p.h"
-#include "parser/qqmljsmemorypool_p.h"
-#include "parser/qqmljsastvisitor_p.h"
-#include "parser/qqmljsast_p.h"
-#include <private/qqmlrewrite_p.h>
+#include <private/qqmljsengine_p.h>
+#include <private/qqmljsparser_p.h>
+#include <private/qqmljslexer_p.h>
+#include <private/qqmljsmemorypool_p.h>
+#include <private/qqmljsastvisitor_p.h>
+#include <private/qqmljsast_p.h>
 
 #include <QStack>
 #include <QStringList>
@@ -203,7 +202,7 @@ QQmlScript::Object::DynamicSignal::DynamicSignal()
 }
 
 QQmlScript::Object::DynamicSlot::DynamicSlot()
-: nextSlot(0), nameIndex(-1)
+: funcDecl(0), nextSlot(0), nameIndex(-1)
 {
 }
 
@@ -501,7 +500,7 @@ public:
 
 protected:
 
-    QQmlScript::Object *defineObjectBinding(AST::UiQualifiedId *propertyName, bool onAssignment,
+    QQmlScript::Object *defineObjectBinding(AST::Node *node, AST::UiQualifiedId *propertyName, bool onAssignment,
                                 const QString &objectType,
                                 AST::SourceLocation typeLocation,
                                 LocationSpan location,
@@ -518,6 +517,7 @@ protected:
 
     virtual bool visit(AST::UiProgram *node);
     virtual bool visit(AST::UiImport *node);
+    virtual bool visit(AST::UiPragma *node);
     virtual bool visit(AST::UiObjectDefinition *node);
     virtual bool visit(AST::UiPublicMember *node);
     virtual bool visit(AST::UiObjectBinding *node);
@@ -635,13 +635,11 @@ void ProcessAST::extractVersion(QStringRef string, int *maj, int *min)
         int dot = string.indexOf(QLatin1Char('.'));
 
         if (dot < 0) {
-            *maj = string.toString().toInt();
+            *maj = string.toInt();
             *min = 0;
         } else {
-            const QString *s = string.string();
-            int p = string.position();
-            *maj = QStringRef(s, p, dot).toString().toInt();
-            *min = QStringRef(s, p + dot + 1, string.size() - dot - 1).toString().toInt();
+            *maj = string.left(dot).toInt();
+            *min = string.mid(dot + 1).toInt();
         }
     }
 }
@@ -661,7 +659,8 @@ QString ProcessAST::asString(AST::UiQualifiedId *node) const
 }
 
 QQmlScript::Object *
-ProcessAST::defineObjectBinding(AST::UiQualifiedId *propertyName,
+ProcessAST::defineObjectBinding(AST::Node *node,
+                                AST::UiQualifiedId *propertyName,
                                 bool onAssignment,
                                 const QString &objectType,
                                 AST::SourceLocation typeLocation,
@@ -733,6 +732,7 @@ ProcessAST::defineObjectBinding(AST::UiQualifiedId *propertyName,
         obj->type = _parser->findOrCreateTypeId(objectType, obj);
         obj->typeReference = _parser->_refTypes.at(obj->type);
         obj->location = location;
+        obj->astNode = node;
 
         if (propertyCount) {
             Property *prop = currentProperty();
@@ -795,10 +795,10 @@ LocationSpan ProcessAST::location(AST::SourceLocation start, AST::SourceLocation
     return rv;
 }
 
-// UiProgram: UiImportListOpt UiObjectMemberList ;
+// UiProgram: UiHeaderItemListOpt UiObjectMemberList ;
 bool ProcessAST::visit(AST::UiProgram *node)
 {
-    accept(node->imports);
+    accept(node->headers);
     accept(node->members->member);
     return false;
 }
@@ -890,6 +890,41 @@ bool ProcessAST::visit(AST::UiImport *node)
     return false;
 }
 
+bool ProcessAST::visit(AST::UiPragma *node)
+{
+    QQmlScript::Pragma pragma;
+
+    // For now the only valid pragma is Singleton, so lets validate the input
+    if (!node->pragmaType->name.isNull())
+    {
+        if (QLatin1String("Singleton") == node->pragmaType->name)
+        {
+            pragma.type = QQmlScript::Pragma::Singleton;
+        } else {
+            QQmlError error;
+            error.setDescription(QCoreApplication::translate("QQmlParser","Pragma requires a valid qualifier"));
+            error.setLine(node->pragmaToken.startLine);
+            error.setColumn(node->pragmaToken.startColumn);
+            _parser->_errors << error;
+            return false;
+        }
+    } else {
+        QQmlError error;
+        error.setDescription(QCoreApplication::translate("QQmlParser","Pragma requires a valid qualifier"));
+        error.setLine(node->pragmaToken.startLine);
+        error.setColumn(node->pragmaToken.startColumn);
+        _parser->_errors << error;
+        return false;
+    }
+
+    AST::SourceLocation startLoc = node->pragmaToken;
+    AST::SourceLocation endLoc = node->semicolonToken;
+    pragma.location = location(startLoc, endLoc);
+    _parser->_pragmas << pragma;
+
+    return false;
+}
+
 bool ProcessAST::visit(AST::UiPublicMember *node)
 {
     static const struct TypeNameToType {
@@ -958,7 +993,7 @@ bool ProcessAST::visit(AST::UiPublicMember *node)
             for(int typeIndex = 0; typeIndex < propTypeNameToTypesCount; ++typeIndex) {
                 const TypeNameToType *t = propTypeNameToTypes + typeIndex;
                 if (t->nameLength == size_t(memberType.length()) &&
-                    QHashedString::compare(memberType.constData(), t->name, t->nameLength)) {
+                    QHashedString::compare(memberType.constData(), t->name, int(t->nameLength))) {
                     type = t;
                     break;
                 }
@@ -1000,7 +1035,7 @@ bool ProcessAST::visit(AST::UiPublicMember *node)
         Object::DynamicProperty::Type type;
 
         if ((unsigned)memberType.length() == strlen("alias") && 
-            QHashedString::compare(memberType.constData(), "alias", strlen("alias"))) {
+            QHashedString::compare(memberType.constData(), "alias", int(strlen("alias")))) {
             type = Object::DynamicProperty::Alias;
             typeFound = true;
         } 
@@ -1008,7 +1043,7 @@ bool ProcessAST::visit(AST::UiPublicMember *node)
         for(int ii = 0; !typeFound && ii < propTypeNameToTypesCount; ++ii) {
             const TypeNameToType *t = propTypeNameToTypes + ii;
             if (t->nameLength == size_t(memberType.length()) &&
-                QHashedString::compare(memberType.constData(), t->name, t->nameLength)) {
+                QHashedString::compare(memberType.constData(), t->name, int(t->nameLength))) {
                 type = t->type;
                 typeFound = true;
             }
@@ -1020,7 +1055,7 @@ bool ProcessAST::visit(AST::UiPublicMember *node)
             if (typeModifier.isEmpty()) {
                 type = Object::DynamicProperty::Custom;
             } else if((unsigned)typeModifier.length() == strlen("list") && 
-                      QHashedString::compare(typeModifier.constData(), "list", strlen("list"))) {
+                      QHashedString::compare(typeModifier.constData(), "list", int(strlen("list")))) {
                 type = Object::DynamicProperty::CustomList;
             } else {
                 QQmlError error;
@@ -1097,7 +1132,7 @@ bool ProcessAST::visit(AST::UiObjectDefinition *node)
     const QString objectType = asString(node->qualifiedTypeNameId);
     const AST::SourceLocation typeLocation = node->qualifiedTypeNameId->identifierToken;
 
-    defineObjectBinding(/*propertyName = */ 0, false, objectType,
+    defineObjectBinding(node, /*propertyName = */ 0, false, objectType,
                         typeLocation, l, node->initializer);
 
     return false;
@@ -1113,7 +1148,7 @@ bool ProcessAST::visit(AST::UiObjectBinding *node)
     const QString objectType = asString(node->qualifiedTypeNameId);
     const AST::SourceLocation typeLocation = node->qualifiedTypeNameId->identifierToken;
 
-    defineObjectBinding(node->qualifiedId, node->hasOnToken, objectType, 
+    defineObjectBinding(node, node->qualifiedId, node->hasOnToken, objectType,
                         typeLocation, l, node->initializer);
 
     return false;
@@ -1251,9 +1286,8 @@ bool ProcessAST::visit(AST::UiSourceElement *node)
         AST::SourceLocation loc = funDecl->rparenToken;
         loc.offset = loc.end();
         loc.startColumn += 1;
-        QString body = textAt(loc, funDecl->rbraceToken);
         slot->name = funDecl->name;
-        slot->body = body;
+        slot->funcDecl = funDecl;
         obj->dynamicSlots.append(slot);
 
     } else {
@@ -1270,7 +1304,7 @@ bool ProcessAST::visit(AST::UiSourceElement *node)
 
 
 QQmlScript::Parser::Parser()
-: root(0), data(0)
+: root(0), _qmlRoot(0), data(0)
 {
 
 }
@@ -1347,6 +1381,8 @@ bool QQmlScript::Parser::parse(const QString &qmlcode, const QByteArray & /* pre
             _errors[ii].setUrl(url);
     }
 
+    _qmlRoot = parser.ast();
+
     return _errors.isEmpty();
 }
 
@@ -1363,6 +1399,11 @@ QQmlScript::Object *QQmlScript::Parser::tree() const
 QList<QQmlScript::Import> QQmlScript::Parser::imports() const
 {
     return _imports;
+}
+
+QList<QQmlScript::Pragma> QQmlScript::Parser::pragmas() const
+{
+    return _pragmas;
 }
 
 QList<QQmlError> QQmlScript::Parser::errors() const
@@ -1417,7 +1458,7 @@ QQmlScript::Object::ScriptBlock::Pragmas QQmlScript::Parser::extractPragmas(QStr
 
         token = l.lex();
 
-        if (token != QQmlJSGrammar::T_IDENTIFIER ||
+        if (token != QQmlJSGrammar::T_PRAGMA ||
             l.tokenStartLine() != startLine ||
             script.mid(l.tokenOffset(), l.tokenLength()) != pragma)
             return rv;
@@ -1507,7 +1548,6 @@ QQmlScript::Parser::JavaScriptMetaData QQmlScript::Parser::extractMetaData(QStri
 
     QQmlScript::Object::ScriptBlock::Pragmas &pragmas = rv.pragmas;
 
-    const QString pragma(QLatin1String("pragma"));
     const QString js(QLatin1String(".js"));
     const QString library(QLatin1String("library"));
 
@@ -1682,10 +1722,7 @@ QQmlScript::Parser::JavaScriptMetaData QQmlScript::Parser::extractMetaData(QStri
 
                 rv.imports << import;
             }
-
-        } else if (token == QQmlJSGrammar::T_IDENTIFIER &&
-                   script.mid(l.tokenOffset(), l.tokenLength()) == pragma) {
-
+        } else if (token == QQmlJSGrammar::T_PRAGMA) {
             token = l.lex();
 
             CHECK_TOKEN(T_IDENTIFIER);
@@ -1714,6 +1751,7 @@ QQmlScript::Parser::JavaScriptMetaData QQmlScript::Parser::extractMetaData(QStri
 
 void QQmlScript::Parser::clear()
 {
+    _pragmas.clear();
     _imports.clear();
     _refTypes.clear();
     _errors.clear();
@@ -1724,6 +1762,7 @@ void QQmlScript::Parser::clear()
     }
 
     _pool.clear();
+    _qmlRoot = 0;
 }
 
 int QQmlScript::Parser::findOrCreateTypeId(const QString &name, Object *object)
@@ -1745,6 +1784,11 @@ void QQmlScript::Parser::setTree(QQmlScript::Object *tree)
     Q_ASSERT(! root);
 
     root = tree;
+}
+
+Engine *QQmlScript::Parser::jsEngine() const
+{
+    return data ? &data->engine : 0;
 }
 
 QT_END_NAMESPACE

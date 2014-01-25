@@ -76,10 +76,14 @@ private slots:
 
     void nextItemInFocusChain();
     void nextItemInFocusChain2();
+    void nextItemInFocusChain3();
 
     void keys();
+    void standardKeys_data();
+    void standardKeys();
     void keysProcessingOrder();
     void keysim();
+    void keyNavigation_data();
     void keyNavigation();
     void keyNavigation_RightToLeft();
     void keyNavigation_skipNotVisible();
@@ -958,6 +962,18 @@ void tst_QQuickItem::nextItemInFocusChain2()
     delete window;
 }
 
+void tst_QQuickItem::nextItemInFocusChain3()
+{
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("nextItemInFocusChain3.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+}
+
 void tst_QQuickItem::keys()
 {
     QQuickView *window = new QQuickView(0);
@@ -1087,6 +1103,64 @@ void tst_QQuickItem::keys()
 
     delete window;
     delete testObject;
+}
+
+Q_DECLARE_METATYPE(QEvent::Type);
+Q_DECLARE_METATYPE(QKeySequence::StandardKey);
+
+void tst_QQuickItem::standardKeys_data()
+{
+    QTest::addColumn<QKeySequence::StandardKey>("standardKey");
+    QTest::addColumn<QKeySequence::StandardKey>("contextProperty");
+    QTest::addColumn<QEvent::Type>("eventType");
+    QTest::addColumn<bool>("pressed");
+    QTest::addColumn<bool>("released");
+
+    QTest::newRow("Press: Open") << QKeySequence::Open << QKeySequence::Open << QEvent::KeyPress << true << false;
+    QTest::newRow("Press: Close") << QKeySequence::Close << QKeySequence::Close << QEvent::KeyPress << true << false;
+    QTest::newRow("Press: Save") << QKeySequence::Save << QKeySequence::Save << QEvent::KeyPress << true << false;
+    QTest::newRow("Press: Quit") << QKeySequence::Quit << QKeySequence::Quit << QEvent::KeyPress << true << false;
+
+    QTest::newRow("Release: New") << QKeySequence::New << QKeySequence::New << QEvent::KeyRelease << false << true;
+    QTest::newRow("Release: Delete") << QKeySequence::Delete << QKeySequence::Delete << QEvent::KeyRelease << false << true;
+    QTest::newRow("Release: Undo") << QKeySequence::Undo << QKeySequence::Undo << QEvent::KeyRelease << false << true;
+    QTest::newRow("Release: Redo") << QKeySequence::Redo << QKeySequence::Redo << QEvent::KeyRelease << false << true;
+
+    QTest::newRow("Mismatch: Cut") << QKeySequence::Cut << QKeySequence::Copy << QEvent::KeyPress << false << false;
+    QTest::newRow("Mismatch: Copy") << QKeySequence::Copy << QKeySequence::Paste << QEvent::KeyPress << false << false;
+    QTest::newRow("Mismatch: Paste") << QKeySequence::Paste << QKeySequence::Cut << QEvent::KeyRelease << false << false;
+    QTest::newRow("Mismatch: Quit") << QKeySequence::Quit << QKeySequence::New << QEvent::KeyRelease << false << false;
+}
+
+void tst_QQuickItem::standardKeys()
+{
+    QFETCH(QKeySequence::StandardKey, standardKey);
+    QFETCH(QKeySequence::StandardKey, contextProperty);
+    QFETCH(QEvent::Type, eventType);
+    QFETCH(bool, pressed);
+    QFETCH(bool, released);
+
+    QKeySequence keySequence(standardKey);
+    if (keySequence.isEmpty())
+        QSKIP("Undefined key sequence.");
+
+    QQuickView view;
+    view.rootContext()->setContextProperty("standardKey", contextProperty);
+    view.setSource(testFileUrl("standardkeys.qml"));
+    view.show();
+    view.requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(&view));
+
+    QQuickItem *item = qobject_cast<QQuickItem*>(view.rootObject());
+    QVERIFY(item);
+
+    const int key = keySequence[0] & Qt::Key_unknown;
+    const int modifiers = keySequence[0] & Qt::KeyboardModifierMask;
+    QKeyEvent keyEvent(eventType, key, static_cast<Qt::KeyboardModifiers>(modifiers));
+    QGuiApplication::sendEvent(&view, &keyEvent);
+
+    QCOMPARE(item->property("pressed").toBool(), pressed);
+    QCOMPARE(item->property("released").toBool(), released);
 }
 
 void tst_QQuickItem::keysProcessingOrder()
@@ -1335,12 +1409,21 @@ void tst_QQuickItem::layoutMirroringIllegalParent()
     QVERIFY(object != 0);
 }
 
+void tst_QQuickItem::keyNavigation_data()
+{
+    QTest::addColumn<QString>("source");
+    QTest::newRow("KeyNavigation") << QStringLiteral("keynavigationtest.qml");
+    QTest::newRow("KeyNavigation_FocusScope") << QStringLiteral("keynavigationtest_focusscope.qml");
+}
+
 void tst_QQuickItem::keyNavigation()
 {
+    QFETCH(QString, source);
+
     QQuickView *window = new QQuickView(0);
     window->setBaseSize(QSize(240,320));
 
-    window->setSource(testFileUrl("keynavigationtest.qml"));
+    window->setSource(testFileUrl(source));
     window->show();
     window->requestActivate();
     QVERIFY(QTest::qWaitForWindowActive(window));

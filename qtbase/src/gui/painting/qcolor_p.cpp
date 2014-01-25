@@ -40,14 +40,10 @@
 ****************************************************************************/
 
 #include "qglobal.h"
-
-#if defined(Q_CC_BOR)
-// needed for qsort() because of a std namespace problem on Borland
-#include "qplatformdefs.h"
-#endif
-
 #include "qrgb.h"
 #include "qstringlist.h"
+
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -79,7 +75,8 @@ bool qt_get_hex_rgb(const char *name, QRgb *rgb)
         return false;
     name++;
     int len = qstrlen(name);
-    int r, g, b;
+    int a, r, g, b;
+    a = 255;
     if (len == 12) {
         r = hex2int(name);
         g = hex2int(name + 4);
@@ -87,6 +84,11 @@ bool qt_get_hex_rgb(const char *name, QRgb *rgb)
     } else if (len == 9) {
         r = hex2int(name);
         g = hex2int(name + 3);
+        b = hex2int(name + 6);
+    } else if (len == 8) {
+        a = hex2int(name);
+        r = hex2int(name + 2);
+        g = hex2int(name + 4);
         b = hex2int(name + 6);
     } else if (len == 6) {
         r = hex2int(name);
@@ -99,11 +101,11 @@ bool qt_get_hex_rgb(const char *name, QRgb *rgb)
     } else {
         r = g = b = -1;
     }
-    if ((uint)r > 255 || (uint)g > 255 || (uint)b > 255) {
+    if ((uint)r > 255 || (uint)g > 255 || (uint)b > 255 || (uint)a > 255) {
         *rgb = 0;
         return false;
     }
-    *rgb = qRgb(r, g ,b);
+    *rgb = qRgba(r, g ,b, a);
     return true;
 }
 
@@ -287,6 +289,11 @@ static const int rgbTblSize = sizeof(rgbTbl) / sizeof(RGBData);
 
 #undef rgb
 
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+inline bool operator<(const RGBData &data1, const RGBData &data2)
+{ return qstrcmp(data1.name, data2.name) < 0; }
+#endif
+
 inline bool operator<(const char *name, const RGBData &data)
 { return qstrcmp(name, data.name) < 0; }
 inline bool operator<(const RGBData &data, const char *name)
@@ -295,8 +302,8 @@ inline bool operator<(const RGBData &data, const char *name)
 static bool get_named_rgb(const char *name_no_space, QRgb *rgb)
 {
     QByteArray name = QByteArray(name_no_space).toLower();
-    const RGBData *r = qBinaryFind(rgbTbl, rgbTbl + rgbTblSize, name.constData());
-    if (r != rgbTbl + rgbTblSize) {
+    const RGBData *r = std::lower_bound(rgbTbl, rgbTbl + rgbTblSize, name.constData());
+    if ((r != rgbTbl + rgbTblSize) && !(name.constData() < *r)) {
         *rgb = r->value;
         return true;
     }

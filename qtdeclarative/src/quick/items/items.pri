@@ -72,7 +72,8 @@ HEADERS += \
     $$PWD/qquickitemview_p_p.h \
     $$PWD/qquickitemviewtransition_p.h \
     $$PWD/qquickscreen_p.h \
-    $$PWD/qquickwindowmodule_p.h
+    $$PWD/qquickwindowmodule_p.h \
+    $$PWD/qquickframebufferobject.h
 
 SOURCES += \
     $$PWD/qquickevents.cpp \
@@ -123,7 +124,8 @@ SOURCES += \
     $$PWD/qquickitemview.cpp \
     $$PWD/qquickitemviewtransition.cpp \
     $$PWD/qquickwindowmodule.cpp \
-    $$PWD/qquickscreen.cpp
+    $$PWD/qquickscreen.cpp \
+    $$PWD/qquickframebufferobject.cpp
 
 SOURCES += \
     $$PWD/qquickshadereffect.cpp \
@@ -137,6 +139,21 @@ HEADERS += \
     $$PWD/qquickshadereffectnode_p.h \
     $$PWD/qquickshadereffectsource_p.h \
 
+OTHER_FILES += \
+    $$PWD/shaders/sprite.vert \
+    $$PWD/shaders/sprite.frag \
+    $$PWD/shaders/shadereffect.vert \
+    $$PWD/shaders/shadereffect.frag \
+    $$PWD/shaders/shadereffectfallback.vert \
+    $$PWD/shaders/shadereffectfallback.frag \
+    $$PWD/shaders/sprite_core.vert \
+    $$PWD/shaders/sprite_core.frag \
+    $$PWD/shaders/shadereffect_core.vert \
+    $$PWD/shaders/shadereffect_core.frag \
+    $$PWD/shaders/shadereffectfallback_core.vert \
+    $$PWD/shaders/shadereffectfallback_core.frag
+
+RESOURCES += \
+    $$PWD/items.qrc
+
 include(context2d/context2d.pri)
-
-

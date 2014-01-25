@@ -138,7 +138,7 @@ The painting of these icons can be mirrored with a dedicated \c mirror property 
 
 \section1 Default layout direction
 
-The \l {QtQml2::Qt::application}{Qt.application.layoutDirection} property can be used to query the active layout direction of the
+The \l {QtQml::Qt::application}{Qt.application.layoutDirection} property can be used to query the active layout direction of the
 application. It is based on QApplication::layoutDirection(), which most commonly determines the layout
 direction from the active language translation file.
 
@@ -185,7 +185,7 @@ command-line parameter "-reverse":
 qmlviewer myapp.qml -reverse
 \endcode
 
-The layout direction can also be set from C++ by calling the static function \l QApplication::setLayoutDirection():
+The layout direction can also be set from C++ by calling the static function \l QGuiApplication::setLayoutDirection():
 
 \code
 QApplication app(argc, argv);

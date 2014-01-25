@@ -3,7 +3,11 @@
 #include <QtQml/QtQmlDepends>
 #include "qtqmlglobal.h"
 #include "qqmldebug.h"
+#include "qjsengine.h"
+#include "qjsvalue.h"
+#include "qjsvalueiterator.h"
 #include "qqml.h"
+#include "qqmlabstracturlinterceptor.h"
 #include "qqmlapplicationengine.h"
 #include "qqmlcomponent.h"
 #include "qqmlcontext.h"
@@ -13,6 +17,7 @@
 #include "qqmlextensioninterface.h"
 #include "qqmlextensionplugin.h"
 #include "qqmlfile.h"
+#include "qqmlfileselector.h"
 #include "qqmlincubator.h"
 #include "qqmlinfo.h"
 #include "qqmllist.h"
@@ -23,8 +28,5 @@
 #include "qqmlpropertyvaluesource.h"
 #include "qqmlscriptstring.h"
 #include "qqmlpropertymap.h"
-#include "qjsengine.h"
-#include "qjsvalue.h"
-#include "qjsvalueiterator.h"
 #include "qtqmlversion.h"
 #endif

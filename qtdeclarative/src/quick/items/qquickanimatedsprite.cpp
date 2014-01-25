@@ -57,39 +57,6 @@
 
 QT_BEGIN_NAMESPACE
 
-static const char vertexShaderCode[] =
-    "attribute highp vec2 vPos;\n"
-    "attribute highp vec2 vTex;\n"
-    "uniform highp vec3 animData;// w,h(premultiplied of anim), interpolation progress\n"
-    "uniform highp vec4 animPos;//x,y, x,y (two frames for interpolation)\n"
-    "\n"
-    "uniform highp mat4 qt_Matrix;\n"
-    "\n"
-    "varying highp vec4 fTexS;\n"
-    "varying lowp float progress;\n"
-    "\n"
-    "\n"
-    "void main() {\n"
-    "    progress = animData.z;\n"
-    "    //Calculate frame location in texture\n"
-    "    fTexS.xy = animPos.xy + vTex.xy * animData.xy;\n"
-    "    //Next frame is also passed, for interpolation\n"
-    "    fTexS.zw = animPos.zw + vTex.xy * animData.xy;\n"
-    "\n"
-    "    gl_Position = qt_Matrix * vec4(vPos.x, vPos.y, 0, 1);\n"
-    "}\n";
-
-static const char fragmentShaderCode[] =
-    "uniform sampler2D texture;\n"
-    "uniform lowp float qt_Opacity;\n"
-    "\n"
-    "varying highp vec4 fTexS;\n"
-    "varying lowp float progress;\n"
-    "\n"
-    "void main() {\n"
-    "    gl_FragColor = mix(texture2D(texture, fTexS.xy), texture2D(texture, fTexS.zw), progress) * qt_Opacity;\n"
-    "}\n";
-
 class QQuickAnimatedSpriteMaterial : public QSGMaterial
 {
 public:
@@ -134,16 +101,11 @@ QQuickAnimatedSpriteMaterial::~QQuickAnimatedSpriteMaterial()
 class AnimatedSpriteMaterialData : public QSGMaterialShader
 {
 public:
-    AnimatedSpriteMaterialData(const char * /* vertexFile */ = 0, const char * /* fragmentFile */ = 0)
+    AnimatedSpriteMaterialData()
+        : QSGMaterialShader()
     {
-    }
-
-    void deactivate() {
-        QSGMaterialShader::deactivate();
-
-        for (int i=0; i<8; ++i) {
-            program()->setAttributeArray(i, GL_FLOAT, chunkOfBytes, 1, 0);
-        }
+        setShaderSourceFile(QOpenGLShader::Vertex, QStringLiteral(":/items/shaders/sprite.vert"));
+        setShaderSourceFile(QOpenGLShader::Fragment, QStringLiteral(":/items/shaders/sprite.frag"));
     }
 
     virtual void updateState(const RenderState &state, QSGMaterial *newEffect, QSGMaterial *)
@@ -166,9 +128,6 @@ public:
         m_animPos_id = program()->uniformLocation("animPos");
     }
 
-    virtual const char *vertexShader() const { return vertexShaderCode; }
-    virtual const char *fragmentShader() const { return fragmentShaderCode; }
-
     virtual char const *const *attributeNames() const {
         static const char *attr[] = {
            "vPos",
@@ -182,11 +141,7 @@ public:
     int m_opacity_id;
     int m_animData_id;
     int m_animPos_id;
-
-    static float chunkOfBytes[1024];
 };
-
-float AnimatedSpriteMaterialData::chunkOfBytes[1024];
 
 QSGMaterialShader *QQuickAnimatedSpriteMaterial::createShader() const
 {
@@ -210,7 +165,7 @@ struct AnimatedSpriteVertices {
 /*!
     \qmltype AnimatedSprite
     \instantiates QQuickAnimatedSprite
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \inherits Item
     \ingroup qtquick-visual
     \brief Draws a sprite animation
@@ -219,13 +174,13 @@ struct AnimatedSpriteVertices {
     as multiple frames in the same image file. You can play it at a fixed speed, at the
     frame rate of your display, or manually advance and control the progress.
 
-    For details of how a sprite animation is defined see the \l{Sprite Animation} overview.
+    For details of how a sprite animation is defined see the \l{Sprite Animations} overview.
     Note that the AnimatedSprite type does not use Sprite types to define multiple animations,
     but instead encapsulates a single animation itself.
 */
 
 /*!
-    \qmlproperty bool QtQuick2::AnimatedSprite::running
+    \qmlproperty bool QtQuick::AnimatedSprite::running
 
     Whether the sprite is animating or not.
 
@@ -233,7 +188,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::AnimatedSprite::interpolate
+    \qmlproperty bool QtQuick::AnimatedSprite::interpolate
 
     If true, interpolation will occur between sprite frames to make the
     animation appear smoother.
@@ -242,7 +197,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty qreal QtQuick2::AnimatedSprite::frameRate
+    \qmlproperty qreal QtQuick::AnimatedSprite::frameRate
 
     Frames per second to show in the animation. Values equal to or below 0 are invalid.
 
@@ -253,7 +208,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameDuration
+    \qmlproperty int QtQuick::AnimatedSprite::frameDuration
 
     Duration of each frame of the animation. Values equal to or below 0 are invalid.
 
@@ -264,40 +219,40 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameCount
+    \qmlproperty int QtQuick::AnimatedSprite::frameCount
 
     Number of frames in this AnimatedSprite.
 */
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameHeight
+    \qmlproperty int QtQuick::AnimatedSprite::frameHeight
 
     Height of a single frame in this AnimatedSprite.
 
     May be omitted if it is the only sprite in the file.
 */
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameWidth
+    \qmlproperty int QtQuick::AnimatedSprite::frameWidth
 
     Width of a single frame in this AnimatedSprite.
 
     May be omitted if it is the only sprite in the file.
 */
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameX
+    \qmlproperty int QtQuick::AnimatedSprite::frameX
 
     The X coordinate in the image file of the first frame of the AnimatedSprite.
 
     May be omitted if the first frame starts in the upper left corner of the file.
 */
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::frameY
+    \qmlproperty int QtQuick::AnimatedSprite::frameY
 
     The Y coordinate in the image file of the first frame of the AnimatedSprite.
 
     May be omitted if the first frame starts in the upper left corner of the file.
 */
 /*!
-    \qmlproperty url QtQuick2::AnimatedSprite::source
+    \qmlproperty url QtQuick::AnimatedSprite::source
 
     The image source for the animation.
 
@@ -308,7 +263,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::AnimatedSprite::reverse
+    \qmlproperty bool QtQuick::AnimatedSprite::reverse
 
     If true, then the animation will be played in reverse.
 
@@ -316,7 +271,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::AnimatedSprite::frameSync
+    \qmlproperty bool QtQuick::AnimatedSprite::frameSync
 
     If true, then the animation will have no duration. Instead, the animation will advance
     one frame each time a frame is rendered to the screen. This synchronizes it with the painting
@@ -330,7 +285,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::loops
+    \qmlproperty int QtQuick::AnimatedSprite::loops
 
     After playing the animation this many times, the animation will automatically stop. Negative values are invalid.
 
@@ -340,7 +295,7 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::AnimatedSprite::paused
+    \qmlproperty bool QtQuick::AnimatedSprite::paused
 
     When paused, the current frame can be advanced manually.
 
@@ -348,14 +303,14 @@ struct AnimatedSpriteVertices {
 */
 
 /*!
-    \qmlproperty int QtQuick2::AnimatedSprite::currentFrame
+    \qmlproperty int QtQuick::AnimatedSprite::currentFrame
 
     When paused, the current frame can be advanced manually by setting this property or calling advance().
 
 */
 
 /*!
-    \qmlmethod int QtQuick2::AnimatedSprite::restart()
+    \qmlmethod int QtQuick::AnimatedSprite::restart()
 
     Stops, then starts the sprite animation.
 */
@@ -430,7 +385,7 @@ void QQuickAnimatedSprite::stop()
 }
 
 /*!
-    \qmlmethod int QtQuick2::AnimatedSprite::advance()
+    \qmlmethod int QtQuick::AnimatedSprite::advance()
 
     Advances the sprite animation by one frame.
 */
@@ -447,7 +402,7 @@ void QQuickAnimatedSprite::advance(int frames)
 }
 
 /*!
-    \qmlmethod int QtQuick2::AnimatedSprite::pause()
+    \qmlmethod int QtQuick::AnimatedSprite::pause()
 
     Pauses the sprite animation. This does nothing if
     \l paused is true.
@@ -464,7 +419,7 @@ void QQuickAnimatedSprite::pause()
 }
 
 /*!
-    \qmlmethod int QtQuick2::AnimatedSprite::resume()
+    \qmlmethod int QtQuick::AnimatedSprite::resume()
 
     Resumes the sprite animation if \l paused is true;
     otherwise, this does nothing.

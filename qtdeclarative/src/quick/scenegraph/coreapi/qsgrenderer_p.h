@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -84,7 +84,7 @@ public:
     };
     Q_DECLARE_FLAGS(ClearMode, ClearModeBit)
 
-    QSGRenderer(QSGContext *context);
+    QSGRenderer(QSGRenderContext *context);
     virtual ~QSGRenderer();
 
     void setRootNode(QSGRootNode *node);
@@ -117,9 +117,7 @@ public:
     void setClearColor(const QColor &color);
     QColor clearColor() const { return m_clear_color; }
 
-    QOpenGLContext *glContext() const { Q_ASSERT(m_context); return m_context->glContext(); }
-
-    QSGContext *context();
+    QSGRenderContext *context() const { return m_context; }
 
     void renderScene();
     void renderScene(const QSGBindable &bindable);
@@ -134,7 +132,7 @@ public:
     void setClearMode(ClearMode mode) { m_clear_mode = mode; }
     ClearMode clearMode() const { return m_clear_mode; }
 
-signals:
+Q_SIGNALS:
     void sceneGraphChanged(); // Add, remove, ChangeFlags changes...
 
 protected:
@@ -161,7 +159,7 @@ protected:
     QRect m_current_scissor_rect;
     int m_current_stencil_value;
 
-    QSGContext *m_context;
+    QSGRenderContext *m_context;
 
 private:
     QSGRootNode *m_root_node;

@@ -51,15 +51,13 @@ set(Qt5Core_MOC_EXECUTABLE Qt5::moc)
 set(Qt5Core_RCC_EXECUTABLE Qt5::rcc)
 
 set_property(TARGET Qt5::Core PROPERTY INTERFACE_QT_MAJOR_VERSION 5)
+set_property(TARGET Qt5::Core PROPERTY INTERFACE_QT_COORD_TYPE $$QT_COORD_TYPE)
 set_property(TARGET Qt5::Core APPEND PROPERTY
-  COMPATIBLE_INTERFACE_STRING QT_MAJOR_VERSION
+  COMPATIBLE_INTERFACE_STRING QT_MAJOR_VERSION QT_COORD_TYPE
 )
 
-!!IF isEmpty(CMAKE_HOST_DATA_DIR_IS_ABSOLUTE)
-set(_qt5_corelib_extra_includes \"${_qt5Core_install_prefix}/$${CMAKE_HOST_DATA_DIR}/mkspecs/$${CMAKE_MKSPEC}\")
-!!ELSE
-set(_qt5_corelib_extra_includes \"$${CMAKE_HOST_DATA_DIR}mkspecs/$${CMAKE_MKSPEC}\")
-!!ENDIF
+include(\"${CMAKE_CURRENT_LIST_DIR}/Qt5CoreConfigExtrasMkspecDir.cmake\")
+
 foreach(_dir ${_qt5_corelib_extra_includes})
     _qt5_Core_check_file_exists(${_dir})
 endforeach()
@@ -133,6 +131,11 @@ if (NOT TARGET Qt5::WinMain)
         set(_isPolicyNEW $<TARGET_POLICY:CMP0020>)
         get_target_property(_configs Qt5::Core IMPORTED_CONFIGURATIONS)
         foreach(_config ${_configs})
+            set_property(TARGET Qt5::Core APPEND PROPERTY
+                INTERFACE_LINK_LIBRARIES
+                    $<$<AND:${_isExe},${_isWin32},${_isNotExcluded},${_isPolicyNEW}>:Qt5::WinMain>
+            )
+            # For backward compatibility with CMake < 2.8.12
             set_property(TARGET Qt5::Core APPEND PROPERTY
                 IMPORTED_LINK_INTERFACE_LIBRARIES_${_config}
                     $<$<AND:${_isExe},${_isWin32},${_isNotExcluded},${_isPolicyNEW}>:Qt5::WinMain>

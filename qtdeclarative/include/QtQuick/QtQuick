@@ -3,6 +3,7 @@
 #include <QtQuick/QtQuickDepends>
 #include "qtquickglobal.h"
 #include "designersupport.h"
+#include "qquickframebufferobject.h"
 #include "qquickitem.h"
 #include "qquickpainteditem.h"
 #include "qquicktextdocument.h"

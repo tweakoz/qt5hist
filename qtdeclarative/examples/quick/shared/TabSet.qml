@@ -56,8 +56,10 @@ Item {
     Component.onCompleted: setZOrders()
 
     function setZOrders() {
-        for (var i = 0; i < stack.children.length; ++i)
+        for (var i = 0; i < stack.children.length; ++i) {
             stack.children[i].z = (i == current ? 1 : 0)
+            stack.children[i].enabled = (i == current)
+        }
     }
 
     Row {
@@ -67,7 +69,7 @@ Item {
             model: stack.children.length
             delegate: Rectangle {
                 width: tabWidget.width / stack.children.length
-                height: Math.max(Screen.logicalPixelDensity * 11, label.implicitHeight * 1.2)
+                height: Math.max(Screen.pixelDensity * 7, label.implicitHeight * 1.2)
 
                 Rectangle {
                     width: parent.width; height: 1

@@ -1661,7 +1661,7 @@ void QGraphicsView::invalidateScene(const QRectF &rect, QGraphicsScene::SceneLay
     view will not allow interaction, and any mouse or key events are ignored
     (i.e., it will act as a read-only view).
 
-    By default, this property is true.
+    By default, this property is \c true.
 */
 bool QGraphicsView::isInteractive() const
 {
@@ -3214,7 +3214,6 @@ void QGraphicsView::mouseDoubleClickEvent(QMouseEvent *event)
     mouseEvent.setLastScenePos(d->lastMouseMoveScenePoint);
     mouseEvent.setLastScreenPos(d->lastMouseMoveScreenPoint);
     mouseEvent.setButtons(event->buttons());
-    mouseEvent.setButtons(event->buttons());
     mouseEvent.setAccepted(false);
     mouseEvent.setButton(event->button());
     mouseEvent.setModifiers(event->modifiers());
@@ -3222,6 +3221,13 @@ void QGraphicsView::mouseDoubleClickEvent(QMouseEvent *event)
         qt_sendSpontaneousEvent(d->scene, &mouseEvent);
     else
         QApplication::sendEvent(d->scene, &mouseEvent);
+
+    // Update the original mouse event accepted state.
+    const bool isAccepted = mouseEvent.isAccepted();
+    event->setAccepted(isAccepted);
+
+    // Update the last mouse event accepted state.
+    d->lastMouseEvent.setAccepted(isAccepted);
 }
 
 /*!
@@ -3819,7 +3825,7 @@ QTransform QGraphicsView::viewportTransform() const
 /*!
     \since 4.6
 
-    Returns true if the view is transformed (i.e., a non-identity transform
+    Returns \c true if the view is transformed (i.e., a non-identity transform
     has been assigned, or the scrollbars are adjusted).
 
     \sa setTransform(), horizontalScrollBar(), verticalScrollBar()

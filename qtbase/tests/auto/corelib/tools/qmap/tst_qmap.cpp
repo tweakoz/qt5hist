@@ -59,6 +59,7 @@ private slots:
     void count();
     void clear();
     void beginEnd();
+    void firstLast();
     void key();
 
     void swap();
@@ -87,6 +88,7 @@ private slots:
     void initializerList();
     void testInsertWithHint();
     void testInsertMultiWithHint();
+    void eraseValidIteratorOnSharedMap();
 };
 
 typedef QMap<QString, QString> StringMap;
@@ -374,6 +376,34 @@ void tst_QMap::beginEnd()
     map2.insert( "2", "c" );
     QVERIFY( map.constBegin() == map.constBegin() );
     QVERIFY( map.constBegin() != map2.constBegin() );
+}
+
+void tst_QMap::firstLast()
+{
+    // sample string->string map
+    StringMap map;
+    map.insert("0", "a");
+    map.insert("1", "b");
+    map.insert("5", "e");
+
+    QCOMPARE(map.firstKey(), QStringLiteral("0"));
+    QCOMPARE(map.lastKey(), QStringLiteral("5"));
+    QCOMPARE(map.first(), QStringLiteral("a"));
+    QCOMPARE(map.last(), QStringLiteral("e"));
+
+    // const map
+    const StringMap const_map = map;
+    QCOMPARE(map.firstKey(), const_map.firstKey());
+    QCOMPARE(map.lastKey(), const_map.lastKey());
+    QCOMPARE(map.first(), const_map.first());
+    QCOMPARE(map.last(), const_map.last());
+
+    map.take(map.firstKey());
+    QCOMPARE(map.firstKey(), QStringLiteral("1"));
+    QCOMPARE(map.lastKey(), QStringLiteral("5"));
+
+    map.take(map.lastKey());
+    QCOMPARE(map.lastKey(), map.lastKey());
 }
 
 void tst_QMap::key()
@@ -1289,6 +1319,62 @@ void tst_QMap::testInsertMultiWithHint()
     QCOMPARE(map.size(), 14);
 }
 
+void tst_QMap::eraseValidIteratorOnSharedMap()
+{
+    QMap<int, int> a, b;
+    a.insert(10, 10);
+    a.insertMulti(10, 40);
+    a.insertMulti(10, 25);
+    a.insertMulti(10, 30);
+    a.insert(20, 20);
+
+    QMap<int, int>::iterator i = a.begin();
+    while (i.value() != 25)
+        ++i;
+
+    b = a;
+    a.erase(i);
+
+    QCOMPARE(b.size(), 5);
+    QCOMPARE(a.size(), 4);
+
+    for (i = a.begin(); i != a.end(); ++i)
+        QVERIFY(i.value() != 25);
+
+    int itemsWith10 = 0;
+    for (i = b.begin(); i != b.end(); ++i)
+        itemsWith10 += (i.key() == 10);
+
+    QCOMPARE(itemsWith10, 4);
+
+    // Border cases
+    QMap <QString, QString> ms1, ms2, ms3;
+    ms1.insert("foo", "bar");
+    ms1.insertMulti("foo", "quux");
+    ms1.insertMulti("foo", "bar");
+
+    QMap <QString, QString>::iterator si = ms1.begin();
+    ms2 = ms1;
+    ms1.erase(si);
+    si = ms1.begin();
+    QCOMPARE(si.value(), QString("quux"));
+    ++si;
+    QCOMPARE(si.value(), QString("bar"));
+
+    si = ms2.begin();
+    ++si;
+    ++si;
+    ms3 = ms2;
+    ms2.erase(si);
+    si = ms2.begin();
+    QCOMPARE(si.value(), QString("bar"));
+    ++si;
+    QCOMPARE(si.value(), QString("quux"));
+
+    QCOMPARE(ms1.size(), 2);
+    QCOMPARE(ms2.size(), 2);
+    QCOMPARE(ms3.size(), 3);
+}
 
 QTEST_APPLESS_MAIN(tst_QMap)
 #include "tst_qmap.moc"

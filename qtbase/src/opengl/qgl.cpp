@@ -422,7 +422,7 @@ QGLFormat::~QGLFormat()
 /*!
     \fn bool QGLFormat::doubleBuffer() const
 
-    Returns true if double buffering is enabled; otherwise returns
+    Returns \c true if double buffering is enabled; otherwise returns
     false. Double buffering is enabled by default.
 
     \sa setDoubleBuffer()
@@ -456,7 +456,7 @@ void QGLFormat::setDoubleBuffer(bool enable)
 /*!
     \fn bool QGLFormat::depth() const
 
-    Returns true if the depth buffer is enabled; otherwise returns
+    Returns \c true if the depth buffer is enabled; otherwise returns
     false. The depth buffer is enabled by default.
 
     \sa setDepth(), setDepthBufferSize()
@@ -486,7 +486,7 @@ void QGLFormat::setDepth(bool enable)
 /*!
     \fn bool QGLFormat::rgba() const
 
-    Returns true if RGBA color mode is set. Returns false if color
+    Returns \c true if RGBA color mode is set. Returns \c false if color
     index mode is set. The default color mode is RGBA.
 
     \sa setRgba()
@@ -517,8 +517,8 @@ void QGLFormat::setRgba(bool enable)
 /*!
     \fn bool QGLFormat::alpha() const
 
-    Returns true if the alpha buffer in the framebuffer is enabled;
-    otherwise returns false. The alpha buffer is disabled by default.
+    Returns \c true if the alpha buffer in the framebuffer is enabled;
+    otherwise returns \c false. The alpha buffer is disabled by default.
 
     \sa setAlpha(), setAlphaBufferSize()
 */
@@ -545,8 +545,8 @@ void QGLFormat::setAlpha(bool enable)
 /*!
     \fn bool QGLFormat::accum() const
 
-    Returns true if the accumulation buffer is enabled; otherwise
-    returns false. The accumulation buffer is disabled by default.
+    Returns \c true if the accumulation buffer is enabled; otherwise
+    returns \c false. The accumulation buffer is disabled by default.
 
     \sa setAccum(), setAccumBufferSize()
 */
@@ -572,7 +572,7 @@ void QGLFormat::setAccum(bool enable)
 /*!
     \fn bool QGLFormat::stencil() const
 
-    Returns true if the stencil buffer is enabled; otherwise returns
+    Returns \c true if the stencil buffer is enabled; otherwise returns
     false. The stencil buffer is enabled by default.
 
     \sa setStencil(), setStencilBufferSize()
@@ -599,7 +599,7 @@ void QGLFormat::setStencil(bool enable)
 /*!
     \fn bool QGLFormat::stereo() const
 
-    Returns true if stereo buffering is enabled; otherwise returns
+    Returns \c true if stereo buffering is enabled; otherwise returns
     false. Stereo buffering is disabled by default.
 
     \sa setStereo()
@@ -626,7 +626,7 @@ void QGLFormat::setStereo(bool enable)
 /*!
     \fn bool QGLFormat::directRendering() const
 
-    Returns true if direct rendering is enabled; otherwise returns
+    Returns \c true if direct rendering is enabled; otherwise returns
     false.
 
     Direct rendering is enabled by default.
@@ -655,8 +655,8 @@ void QGLFormat::setDirectRendering(bool enable)
 /*!
     \fn bool QGLFormat::sampleBuffers() const
 
-    Returns true if multisample buffer support is enabled; otherwise
-    returns false.
+    Returns \c true if multisample buffer support is enabled; otherwise
+    returns \c false.
 
     The multisample buffer is disabled by default.
 
@@ -742,7 +742,7 @@ int QGLFormat::swapInterval() const
 /*!
     \fn bool QGLFormat::hasOverlay() const
 
-    Returns true if overlay plane is enabled; otherwise returns false.
+    Returns \c true if overlay plane is enabled; otherwise returns \c false.
 
     Overlay is disabled by default.
 
@@ -814,7 +814,7 @@ void QGLFormat::setOption(QGL::FormatOptions opt)
 
 
 /*!
-    Returns true if format option \a opt is set; otherwise returns false.
+    Returns \c true if format option \a opt is set; otherwise returns \c false.
 
     \sa setOption()
 */
@@ -1107,8 +1107,8 @@ QGLFormat::OpenGLContextProfile QGLFormat::profile() const
 /*!
     \fn bool QGLFormat::hasOpenGL()
 
-    Returns true if the window system has any OpenGL support;
-    otherwise returns false.
+    Returns \c true if the window system has any OpenGL support;
+    otherwise returns \c false.
 
     \warning This function must not be called until the QApplication
     object has been created.
@@ -1119,8 +1119,8 @@ QGLFormat::OpenGLContextProfile QGLFormat::profile() const
 /*!
     \fn bool QGLFormat::hasOpenGLOverlays()
 
-    Returns true if the window system supports OpenGL overlays;
-    otherwise returns false.
+    Returns \c true if the window system supports OpenGL overlays;
+    otherwise returns \c false.
 
     \warning This function must not be called until the QApplication
     object has been created.
@@ -1459,8 +1459,8 @@ void QGLFormat::setDefaultOverlayFormat(const QGLFormat &f)
 
 
 /*!
-    Returns true if all the options of the two QGLFormat objects
-    \a a and \a b are equal; otherwise returns false.
+    Returns \c true if all the options of the two QGLFormat objects
+    \a a and \a b are equal; otherwise returns \c false.
 
     \relates QGLFormat
 */
@@ -1511,8 +1511,8 @@ QDebug operator<<(QDebug dbg, const QGLFormat &f)
 
 
 /*!
-    Returns false if all the options of the two QGLFormat objects
-    \a a and \a b are equal; otherwise returns true.
+    Returns \c false if all the options of the two QGLFormat objects
+    \a a and \a b are equal; otherwise returns \c true.
 
     \relates QGLFormat
 */
@@ -1638,6 +1638,7 @@ QGLContext* QGLContext::currentCtx = 0;
 
 static void convertFromGLImage(QImage &img, int w, int h, bool alpha_format, bool include_alpha)
 {
+    Q_ASSERT(!img.isNull());
     if (QSysInfo::ByteOrder == QSysInfo::BigEndian) {
         // OpenGL gives RGBA; Qt wants ARGB
         uint *p = (uint*)img.bits();
@@ -1682,6 +1683,8 @@ QImage qt_gl_read_frame_buffer(const QSize &size, bool alpha_format, bool includ
 {
     QImage img(size, (alpha_format && include_alpha) ? QImage::Format_ARGB32_Premultiplied
                                                      : QImage::Format_RGB32);
+    if (img.isNull())
+        return QImage();
     int w = size.width();
     int h = size.height();
     glReadPixels(0, 0, w, h, GL_RGBA, GL_UNSIGNED_BYTE, img.bits());
@@ -1692,6 +1695,8 @@ QImage qt_gl_read_frame_buffer(const QSize &size, bool alpha_format, bool includ
 QImage qt_gl_read_texture(const QSize &size, bool alpha_format, bool include_alpha)
 {
     QImage img(size, alpha_format ? QImage::Format_ARGB32_Premultiplied : QImage::Format_RGB32);
+    if (img.isNull())
+        return QImage();
     int w = size.width();
     int h = size.height();
 #if !defined(QT_OPENGL_ES_2)
@@ -2303,10 +2308,18 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
 
     QImage::Format target_format = img.format();
     bool premul = options & QGLContext::PremultipliedAlphaBindOption;
+    bool needsbyteswap = true;
     GLenum externalFormat;
     GLuint pixel_type;
-    if (qgl_extensions()->hasOpenGLExtension(QOpenGLExtensions::BGRATextureFormat)) {
+    if (target_format == QImage::Format_RGBA8888
+        || target_format == QImage::Format_RGBA8888_Premultiplied
+        || target_format == QImage::Format_RGBX8888) {
+        externalFormat = GL_RGBA;
+        pixel_type = GL_UNSIGNED_BYTE;
+        needsbyteswap = false;
+    } else if (qgl_extensions()->hasOpenGLExtension(QOpenGLExtensions::BGRATextureFormat)) {
         externalFormat = GL_BGRA;
+        needsbyteswap = false;
         if (QGLFormat::openGLVersionFlags() & QGLFormat::OpenGL_Version_1_2)
             pixel_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         else
@@ -2333,14 +2346,34 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
 #endif
         }
         break;
+    case QImage::Format_RGBA8888:
+        if (premul) {
+            img = img.convertToFormat(target_format = QImage::Format_RGBA8888_Premultiplied);
+#ifdef QGL_BIND_TEXTURE_DEBUG
+            printf(" - converted RGBA8888 -> RGBA8888_Premultiplied (%d ms) \n", time.elapsed());
+#endif
+        }
+        break;
+    case QImage::Format_RGBA8888_Premultiplied:
+        if (!premul) {
+            img = img.convertToFormat(target_format = QImage::Format_RGBA8888);
+#ifdef QGL_BIND_TEXTURE_DEBUG
+            printf(" - converted RGBA8888_Premultiplied -> RGBA8888 (%d ms) \n", time.elapsed());
+#endif
+        }
+        break;
     case QImage::Format_RGB16:
         pixel_type = GL_UNSIGNED_SHORT_5_6_5;
         externalFormat = GL_RGB;
         internalFormat = GL_RGB;
+        needsbyteswap = false;
         break;
     case QImage::Format_RGB32:
+    case QImage::Format_RGBX8888:
         break;
     default:
+        // Ideally more formats would be converted directly to an RGBA8888 format,
+        // but we are only guaranteed to have a fast conversion to an ARGB format.
         if (img.hasAlphaChannel()) {
             img = img.convertToFormat(premul
                                       ? QImage::Format_ARGB32_Premultiplied
@@ -2378,10 +2411,10 @@ QGLTexture* QGLContextPrivate::bindTexture(const QImage &image, GLenum target, G
 #endif
     }
 
-    if (externalFormat == GL_RGBA) {
+    if (needsbyteswap) {
         // The only case where we end up with a depth different from
-        // 32 in the switch above is for the RGB16 case, where we set
-        // the format to GL_RGB
+        // 32 in the switch above is for the RGB16 case, where we do
+        // not need a byteswap.
         Q_ASSERT(img.depth() == 32);
         qgl_byteSwapImage(img, pixel_type);
 #ifdef QGL_BIND_TEXTURE_DEBUG
@@ -2903,8 +2936,8 @@ void QGLContext::setDevice(QPaintDevice *pDev)
 /*!
     \fn bool QGLContext::isValid() const
 
-    Returns true if a GL rendering context has been successfully
-    created; otherwise returns false.
+    Returns \c true if a GL rendering context has been successfully
+    created; otherwise returns \c false.
 */
 
 /*!
@@ -2917,16 +2950,16 @@ void QGLContext::setDevice(QPaintDevice *pDev)
 /*!
     \fn bool QGLContext::isSharing() const
 
-    Returns true if this context is sharing its GL context with
+    Returns \c true if this context is sharing its GL context with
     another QGLContext, otherwise false is returned. Note that context
     sharing might not be supported between contexts with different
     formats.
 */
 
 /*!
-    Returns true if \a context1 and \a context2 are sharing their
+    Returns \c true if \a context1 and \a context2 are sharing their
     GL resources such as textures, shader programs, etc;
-    otherwise returns false.
+    otherwise returns \c false.
 
     \since 4.6
 */
@@ -2940,15 +2973,15 @@ bool QGLContext::areSharing(const QGLContext *context1, const QGLContext *contex
 /*!
     \fn bool QGLContext::deviceIsPixmap() const
 
-    Returns true if the paint device of this context is a pixmap;
-    otherwise returns false.
+    Returns \c true if the paint device of this context is a pixmap;
+    otherwise returns \c false.
 */
 
 /*!
     \fn bool QGLContext::windowCreated() const
 
-    Returns true if a window has been created for this context;
-    otherwise returns false.
+    Returns \c true if a window has been created for this context;
+    otherwise returns \c false.
 
     \sa setWindowCreated()
 */
@@ -2975,9 +3008,9 @@ bool QGLContext::areSharing(const QGLContext *context1, const QGLContext *contex
 /*!
     \fn bool QGLContext::initialized() const
 
-    Returns true if this context has been initialized, i.e. if
+    Returns \c true if this context has been initialized, i.e. if
     QGLWidget::initializeGL() has been performed on it; otherwise
-    returns false.
+    returns \c false.
 
     \sa setInitialized()
 */
@@ -3008,7 +3041,7 @@ bool QGLContext::areSharing(const QGLContext *context1, const QGLContext *contex
     If this context is a valid context in an overlay plane, returns
     the plane's transparent color. Otherwise returns an \l{QColor::isValid()}{invalid} color.
 
-    The returned color's \l{QColor::pixel()}{pixel} value is
+    The returned color's \l{QColormap::pixel()}{pixel} value is
     the index of the transparent color in the colormap of the overlay
     plane. (Naturally, the color's RGB values are meaningless.)
 
@@ -3021,9 +3054,9 @@ bool QGLContext::areSharing(const QGLContext *context1, const QGLContext *contex
 
 
 /*!
-    Creates the GL context. Returns true if it was successful in
+    Creates the GL context. Returns \c true if it was successful in
     creating a valid GL rendering context on the paint device
-    specified in the constructor; otherwise returns false (i.e. the
+    specified in the constructor; otherwise returns \c false (i.e. the
     context is invalid).
 
     If the OpenGL implementation on your system does not support the requested
@@ -3627,8 +3660,8 @@ QGLWidget::~QGLWidget()
 /*!
     \fn bool QGLWidget::doubleBuffer() const
 
-    Returns true if the contained GL rendering context has double
-    buffering; otherwise returns false.
+    Returns \c true if the contained GL rendering context has double
+    buffering; otherwise returns \c false.
 
     \sa QGLFormat::doubleBuffer()
 */
@@ -3651,8 +3684,8 @@ QGLWidget::~QGLWidget()
 /*!
     \fn bool QGLWidget::autoBufferSwap() const
 
-    Returns true if the widget is doing automatic GL buffer swapping;
-    otherwise returns false.
+    Returns \c true if the widget is doing automatic GL buffer swapping;
+    otherwise returns \c false.
 
     \sa setAutoBufferSwap()
 */
@@ -3668,8 +3701,8 @@ QGLWidget::~QGLWidget()
 /*!
     \fn bool QGLWidget::isValid() const
 
-    Returns true if the widget has a valid GL rendering context;
-    otherwise returns false. A widget will be invalid if the system
+    Returns \c true if the widget has a valid GL rendering context;
+    otherwise returns \c false. A widget will be invalid if the system
     has no \l{QGLFormat::hasOpenGL()}{OpenGL support}.
 */
 
@@ -3682,7 +3715,7 @@ bool QGLWidget::isValid() const
 /*!
     \fn bool QGLWidget::isSharing() const
 
-    Returns true if this widget's GL context is shared with another GL
+    Returns \c true if this widget's GL context is shared with another GL
     context, otherwise false is returned. Context sharing might not be
     possible if the widgets use different formats.
 
@@ -4467,13 +4500,13 @@ void QGLWidget::renderText(double x, double y, double z, const QString &str, con
 
     int width = d->glcx->device()->width();
     int height = d->glcx->device()->height();
-    GLdouble model[4][4], proj[4][4];
+    GLdouble model[4 * 4], proj[4 * 4];
     GLint view[4];
-    glGetDoublev(GL_MODELVIEW_MATRIX, &model[0][0]);
-    glGetDoublev(GL_PROJECTION_MATRIX, &proj[0][0]);
+    glGetDoublev(GL_MODELVIEW_MATRIX, &model[0]);
+    glGetDoublev(GL_PROJECTION_MATRIX, &proj[0]);
     glGetIntegerv(GL_VIEWPORT, &view[0]);
     GLdouble win_x = 0, win_y = 0, win_z = 0;
-    qgluProject(x, y, z, &model[0][0], &proj[0][0], &view[0],
+    qgluProject(x, y, z, &model[0], &proj[0], &view[0],
                 &win_x, &win_y, &win_z);
     win_y = height - win_y; // y is inverted
 

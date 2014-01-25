@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -44,6 +45,7 @@
 
 #include <qpa/qwindowsysteminterface.h>
 
+#include <QtCore/QCoreApplication>
 #include <QtCore/QStack>
 #include <QtCore/QDebug>
 
@@ -83,6 +85,7 @@ bool QWindowsGuiEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags fl
 
 void QWindowsGuiEventDispatcher::sendPostedEvents()
 {
+    QCoreApplication::sendPostedEvents();
     QWindowSystemInterface::sendWindowSystemEvents(m_flags);
 }
 
@@ -174,6 +177,10 @@ messageDebugEntries[] = {
     {WM_IME_ENDCOMPOSITION, "WM_IME_ENDCOMPOSITION", true},
     {WM_IME_NOTIFY, "WM_IME_NOTIFY", true},
     {WM_IME_REQUEST, "WM_IME_REQUEST", true},
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+    {WM_QUERYENDSESSION, "WM_QUERYENDSESSION", true},
+    {WM_ENDSESSION, "WM_ENDSESSION", true},
+#endif
     {WM_DISPLAYCHANGE, "WM_DISPLAYCHANGE", true},
     {WM_THEMECHANGED, "WM_THEMECHANGED", true}
 };

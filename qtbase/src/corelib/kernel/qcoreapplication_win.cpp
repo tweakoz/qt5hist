@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -54,8 +55,21 @@
 
 QT_BEGIN_NAMESPACE
 
-bool usingWinMain = false;  // whether the qWinMain() is used or not
 int appCmdShow = 0;
+
+#if defined(Q_OS_WINRT)
+
+Q_CORE_EXPORT QString qAppFileName()
+{
+    return QFileInfo(QCoreApplication::arguments().first()).filePath();
+}
+
+QString QCoreApplicationPrivate::appName() const
+{
+    return QFileInfo(QCoreApplication::arguments().first()).baseName();
+}
+
+#else
 
 Q_CORE_EXPORT HINSTANCE qWinAppInst()                // get Windows app handle
 {
@@ -147,7 +161,6 @@ void qWinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdParam,
         return;
     }
     already_called = true;
-    usingWinMain = true;
 
     // Create command line
     argv = qWinCmdLine<char>(cmdParam, int(strlen(cmdParam)), argc);
@@ -818,6 +831,11 @@ QString decodeMSG(const MSG& msg)
             }
             break;
 #endif
+#ifdef WM_INPUTLANGCHANGE
+        case WM_INPUTLANGCHANGE:
+            parameters = QStringLiteral("Keyboard layout changed");
+            break;
+#endif // WM_INPUTLANGCHANGE
 #ifdef WM_NCACTIVATE
         case WM_NCACTIVATE:
             {
@@ -978,6 +996,24 @@ QString decodeMSG(const MSG& msg)
             }
             break;
 #endif
+#ifdef WM_QUERYENDSESSION
+#ifndef ENDSESSION_CLOSEAPP
+#define ENDSESSION_CLOSEAPP 0x00000001
+#endif
+#ifndef ENDSESSION_CRITICAL
+#define ENDSESSION_CRITICAL 0x40000000
+#endif
+        case WM_QUERYENDSESSION:
+            {
+                QString logoffOption = valueCheck(wParam,
+                                                  FLAG_STRING(ENDSESSION_CLOSEAPP, "Close application"),
+                                                  FLAG_STRING(ENDSESSION_CRITICAL, "Force application end"),
+                                                  FLAG_STRING(ENDSESSION_LOGOFF,   "User logoff"),
+                                                  FLAG_STRING());
+                parameters.sprintf("End session: %s", logoffOption.toLatin1().data());
+            }
+           break;
+#endif
         default:
             parameters.sprintf("wParam(0x%p) lParam(0x%p)", (void *)wParam, (void *)lParam);
             break;
@@ -1001,5 +1037,7 @@ QDebug operator<<(QDebug dbg, const MSG &msg)
 #endif
 
 #endif // QT_NO_QOBJECT
+
+#endif // !defined(Q_OS_WINRT)
 
 QT_END_NAMESPACE

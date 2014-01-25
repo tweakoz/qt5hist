@@ -40,15 +40,18 @@
 ****************************************************************************/
 
 #include "qiosintegration.h"
+#include "qioseventdispatcher.h"
+#include "qiosglobal.h"
 #include "qioswindow.h"
 #include "qiosbackingstore.h"
 #include "qiosscreen.h"
-#include "qioseventdispatcher.h"
 #include "qioscontext.h"
 #include "qiosinputcontext.h"
 #include "qiostheme.h"
+#include "qiosservices.h"
 
 #include <QtPlatformSupport/private/qcoretextfontdatabase_p.h>
+#include <QDir>
 
 #include <QtDebug>
 
@@ -58,18 +61,19 @@ QIOSIntegration::QIOSIntegration()
     : m_fontDatabase(new QCoreTextFontDatabase)
     , m_inputContext(new QIOSInputContext)
     , m_screen(new QIOSScreen(QIOSScreen::MainScreen))
+    , m_platformServices(new QIOSServices)
 {
     if (![UIApplication sharedApplication]) {
         qWarning()
             << "Error: You are creating QApplication before calling UIApplicationMain.\n"
             << "If you are writing a native iOS application, and only want to use Qt for\n"
             << "parts of the application, a good place to create QApplication is from within\n"
-            << "'applicationDidFinishLaunching' inside your UIApplication delegate.\n"
-            << "If you instead create a cross-platform Qt application and do not intend to call\n"
-            << "UIApplicationMain, you need to link in libqtmain.a, and substitute main with qt_main.\n"
-            << "This is normally done automatically by qmake.\n";
+            << "'applicationDidFinishLaunching' inside your UIApplication delegate.\n";
         exit(-1);
     }
+
+    // Set current directory to app bundle folder
+    QDir::setCurrent(QString::fromUtf8([[[NSBundle mainBundle] bundlePath] UTF8String]));
 
     screenAdded(m_screen);
 
@@ -79,12 +83,34 @@ QIOSIntegration::QIOSIntegration()
     QWindowSystemInterface::registerTouchDevice(m_touchDevice);
 }
 
+QIOSIntegration::~QIOSIntegration()
+{
+    delete m_fontDatabase;
+    m_fontDatabase = 0;
+
+    delete m_inputContext;
+    m_inputContext = 0;
+
+    delete m_screen;
+    m_screen = 0;
+
+    delete m_platformServices;
+    m_platformServices = 0;
+}
+
 bool QIOSIntegration::hasCapability(Capability cap) const
 {
     switch (cap) {
+    case BufferQueueingOpenGL:
+        return true;
     case OpenGL:
+    case ThreadedOpenGL:
+        return true;
+    case ThreadedPixmaps:
         return true;
     case MultipleWindows:
+        return true;
+    case ApplicationState:
         return true;
     default:
         return QPlatformIntegration::hasCapability(cap);
@@ -105,13 +131,15 @@ QPlatformBackingStore *QIOSIntegration::createPlatformBackingStore(QWindow *wind
 // Used when the QWindow's surface type is set by the client to QSurface::OpenGLSurface
 QPlatformOpenGLContext *QIOSIntegration::createPlatformOpenGLContext(QOpenGLContext *context) const
 {
-    Q_UNUSED(context);
     return new QIOSContext(context);
 }
 
-QAbstractEventDispatcher *QIOSIntegration::guiThreadEventDispatcher() const
+QAbstractEventDispatcher *QIOSIntegration::createEventDispatcher() const
 {
-    return new QIOSEventDispatcher();
+    if (isQtApplication())
+        return new QIOSEventDispatcher;
+    else
+        return new QEventDispatcherCoreFoundation;
 }
 
 QPlatformFontDatabase * QIOSIntegration::fontDatabase() const
@@ -124,10 +152,17 @@ QPlatformInputContext *QIOSIntegration::inputContext() const
     return m_inputContext;
 }
 
+QPlatformServices *QIOSIntegration::services() const
+{
+    return m_platformServices;
+}
+
 QVariant QIOSIntegration::styleHint(StyleHint hint) const
 {
     switch (hint) {
-    case ShowIsFullScreen:
+    case ShowIsMaximized:
+        return true;
+    case SetFocusOnTouchRelease:
         return true;
     default:
         return QPlatformIntegration::styleHint(hint);

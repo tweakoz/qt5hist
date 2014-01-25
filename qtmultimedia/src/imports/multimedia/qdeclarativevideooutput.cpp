@@ -43,6 +43,7 @@
 
 #include "qdeclarativevideooutput_render_p.h"
 #include "qdeclarativevideooutput_window_p.h"
+#include <private/qvideooutputorientationhandler_p.h>
 #include <QtMultimedia/qmediaobject.h>
 #include <QtMultimedia/qmediaservice.h>
 
@@ -57,7 +58,7 @@ QT_BEGIN_NAMESPACE
 
     \ingroup multimedia_qml
     \ingroup multimedia_video_qml
-    \inqmlmodule QtMultimedia 5.0
+    \inqmlmodule QtMultimedia
 
     \c VideoOutput is part of the \b{QtMultimedia 5.0} module.
 
@@ -127,7 +128,9 @@ QDeclarativeVideoOutput::QDeclarativeVideoOutput(QQuickItem *parent) :
     m_sourceType(NoSource),
     m_fillMode(PreserveAspectFit),
     m_geometryDirty(true),
-    m_orientation(0)
+    m_orientation(0),
+    m_autoOrientation(false),
+    m_screenOrientationHandler(0)
 {
     setFlag(ItemHasContents, true);
 }
@@ -140,7 +143,7 @@ QDeclarativeVideoOutput::~QDeclarativeVideoOutput()
 }
 
 /*!
-    \qmlproperty variant QtMultimedia5::VideoOutput::source
+    \qmlproperty variant QtMultimedia::VideoOutput::source
 
     This property holds the source item providing the video frames like MediaPlayer or Camera.
 
@@ -262,7 +265,7 @@ void QDeclarativeVideoOutput::_q_updateMediaObject()
 }
 
 /*!
-    \qmlproperty enumeration QtMultimedia5::VideoOutput::fillMode
+    \qmlproperty enumeration QtMultimedia::VideoOutput::fillMode
 
     Set this property to define how the video is scaled to fit the target area.
 
@@ -349,8 +352,14 @@ void QDeclarativeVideoOutput::_q_updateGeometry()
     if (m_contentRect != oldContentRect)
         emit contentRectChanged();
 }
+
+void QDeclarativeVideoOutput::_q_screenOrientationChanged(int orientation)
+{
+    setOrientation(orientation);
+}
+
 /*!
-    \qmlproperty int QtMultimedia5::VideoOutput::orientation
+    \qmlproperty int QtMultimedia::VideoOutput::orientation
 
     In some cases the source video stream requires a certain
     orientation to be correct.  This includes
@@ -411,7 +420,46 @@ void QDeclarativeVideoOutput::setOrientation(int orientation)
 }
 
 /*!
-    \qmlproperty rectangle QtMultimedia5::VideoOutput::contentRect
+    \qmlproperty int QtMultimedia::VideoOutput::autoOrientation
+
+    This property allows you to enable and disable auto orientation
+    of the video stream, so that its orientation always matches
+    the orientation of the screen. If \c autoOrientation is enabled,
+    the \c orientation property is overwritten.
+
+    By default \c autoOrientation is disabled.
+
+    \since QtMultimedia 5.2
+*/
+bool QDeclarativeVideoOutput::autoOrientation() const
+{
+    return m_autoOrientation;
+}
+
+void QDeclarativeVideoOutput::setAutoOrientation(bool autoOrientation)
+{
+    if (autoOrientation == m_autoOrientation)
+        return;
+
+    m_autoOrientation = autoOrientation;
+    if (m_autoOrientation) {
+        m_screenOrientationHandler = new QVideoOutputOrientationHandler(this);
+        connect(m_screenOrientationHandler, SIGNAL(orientationChanged(int)),
+                this, SLOT(_q_screenOrientationChanged(int)));
+
+        _q_screenOrientationChanged(m_screenOrientationHandler->currentOrientation());
+    } else {
+        disconnect(m_screenOrientationHandler, SIGNAL(orientationChanged(int)),
+                   this, SLOT(_q_screenOrientationChanged(int)));
+        m_screenOrientationHandler->deleteLater();
+        m_screenOrientationHandler = 0;
+    }
+
+    emit autoOrientationChanged();
+}
+
+/*!
+    \qmlproperty rectangle QtMultimedia::VideoOutput::contentRect
 
     This property holds the item coordinates of the area that
     would contain video to render.  With certain fill modes,
@@ -432,7 +480,7 @@ QRectF QDeclarativeVideoOutput::contentRect() const
 }
 
 /*!
-    \qmlproperty rectangle QtMultimedia5::VideoOutput::sourceRect
+    \qmlproperty rectangle QtMultimedia::VideoOutput::sourceRect
 
     This property holds the area of the source video
     content that is considered for rendering.  The
@@ -472,7 +520,7 @@ QRectF QDeclarativeVideoOutput::sourceRect() const
 }
 
 /*!
-    \qmlmethod QPointF QtMultimedia5::VideoOutput::mapNormalizedPointToItem (const QPointF &point) const
+    \qmlmethod QPointF QtMultimedia::VideoOutput::mapNormalizedPointToItem (const QPointF &point) const
 
     Given normalized coordinates \a point (that is, each
     component in the range of 0 to 1.0), return the mapped point
@@ -509,7 +557,7 @@ QPointF QDeclarativeVideoOutput::mapNormalizedPointToItem(const QPointF &point) 
 }
 
 /*!
-    \qmlmethod QRectF QtMultimedia5::VideoOutput::mapNormalizedRectToItem(const QRectF &rectangle) const
+    \qmlmethod QRectF QtMultimedia::VideoOutput::mapNormalizedRectToItem(const QRectF &rectangle) const
 
     Given a rectangle \a rectangle in normalized
     coordinates (that is, each component in the range of 0 to 1.0),
@@ -526,7 +574,7 @@ QRectF QDeclarativeVideoOutput::mapNormalizedRectToItem(const QRectF &rectangle)
 }
 
 /*!
-    \qmlmethod QPointF QtMultimedia5::VideoOutput::mapPointToItem(const QPointF &point) const
+    \qmlmethod QPointF QtMultimedia::VideoOutput::mapPointToItem(const QPointF &point) const
 
     Given a point \a point in item coordinates, return the
     corresponding point in source coordinates.  This mapping is
@@ -546,7 +594,7 @@ QPointF QDeclarativeVideoOutput::mapPointToSource(const QPointF &point) const
 }
 
 /*!
-    \qmlmethod QRectF QtMultimedia5::VideoOutput::mapRectToSource(const QRectF &rectangle) const
+    \qmlmethod QRectF QtMultimedia::VideoOutput::mapRectToSource(const QRectF &rectangle) const
 
     Given a rectangle \a rectangle in item coordinates, return the
     corresponding rectangle in source coordinates.  This mapping is
@@ -564,7 +612,7 @@ QRectF QDeclarativeVideoOutput::mapRectToSource(const QRectF &rectangle) const
 }
 
 /*!
-    \qmlmethod QPointF QtMultimedia5::VideoOutput::mapPointToItemNormalized(const QPointF &point) const
+    \qmlmethod QPointF QtMultimedia::VideoOutput::mapPointToItemNormalized(const QPointF &point) const
 
     Given a point \a point in item coordinates, return the
     corresponding point in normalized source coordinates.  This mapping is
@@ -599,7 +647,7 @@ QPointF QDeclarativeVideoOutput::mapPointToSourceNormalized(const QPointF &point
 }
 
 /*!
-    \qmlmethod QRectF QtMultimedia5::VideoOutput::mapRectToSourceNormalized(const QRectF &rectangle) const
+    \qmlmethod QRectF QtMultimedia::VideoOutput::mapRectToSourceNormalized(const QRectF &rectangle) const
 
     Given a rectangle \a rectangle in item coordinates, return the
     corresponding rectangle in normalized source coordinates.  This mapping is
@@ -622,7 +670,7 @@ QDeclarativeVideoOutput::SourceType QDeclarativeVideoOutput::sourceType() const
 }
 
 /*!
-    \qmlmethod QPointF QtMultimedia5::VideoOutput::mapPointToItem(const QPointF &point) const
+    \qmlmethod QPointF QtMultimedia::VideoOutput::mapPointToItem(const QPointF &point) const
 
     Given a point \a point in source coordinates, return the
     corresponding point in item coordinates.  This mapping is
@@ -645,7 +693,7 @@ QPointF QDeclarativeVideoOutput::mapPointToItem(const QPointF &point) const
 }
 
 /*!
-    \qmlmethod QRectF QtMultimedia5::VideoOutput::mapRectToItem(const QRectF &rectangle) const
+    \qmlmethod QRectF QtMultimedia::VideoOutput::mapRectToItem(const QRectF &rectangle) const
 
     Given a rectangle \a rectangle in source coordinates, return the
     corresponding rectangle in item coordinates.  This mapping is

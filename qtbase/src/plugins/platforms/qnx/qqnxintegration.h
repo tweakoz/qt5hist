@@ -1,6 +1,6 @@
 /***************************************************************************
 **
-** Copyright (C) 2011 - 2012 Research In Motion
+** Copyright (C) 2011 - 2013 BlackBerry Limited. All rights reserved.
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -51,7 +51,9 @@
 QT_BEGIN_NAMESPACE
 
 class QQnxBpsEventFilter;
+#if defined(QQNX_SCREENEVENTTHREAD)
 class QQnxScreenEventThread;
+#endif
 class QQnxFileDialogHelper;
 class QQnxNativeInterface;
 class QQnxWindow;
@@ -80,7 +82,13 @@ typedef QHash<screen_window_t, QWindow *> QQnxWindowMapper;
 class QQnxIntegration : public QPlatformIntegration
 {
 public:
-    QQnxIntegration();
+    enum Option { // Options to be passed on command line.
+        NoOptions = 0x0,
+        FullScreenApplication = 0x1,
+        RootWindow = 0x2
+    };
+    Q_DECLARE_FLAGS(Options, Option)
+    explicit QQnxIntegration(const QStringList &paramList);
     ~QQnxIntegration();
 
     bool hasCapability(QPlatformIntegration::Capability cap) const;
@@ -100,7 +108,7 @@ public:
 
     bool supportsNavigatorEvents() const;
 
-    QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+    QAbstractEventDispatcher *createEventDispatcher() const;
 
     QPlatformFontDatabase *fontDatabase() const { return m_fontDatabase; }
 
@@ -129,6 +137,8 @@ public:
     void createDisplay(screen_display_t display, bool isPrimary);
     void removeDisplay(QQnxScreen *screen);
     QQnxScreen *primaryDisplay() const;
+    Options options() const;
+
 private:
     void createDisplays();
     void destroyDisplays();
@@ -137,7 +147,9 @@ private:
     static void removeWindow(screen_window_t qnxWindow);
 
     screen_context_t m_screenContext;
+#if defined(QQNX_SCREENEVENTTHREAD)
     QQnxScreenEventThread *m_screenEventThread;
+#endif
     QQnxNavigatorEventHandler *m_navigatorEventHandler;
     QQnxAbstractVirtualKeyboard *m_virtualKeyboard;
 #if defined(QQNX_PPS)
@@ -147,7 +159,7 @@ private:
 #endif
     QQnxServices *m_services;
     QPlatformFontDatabase *m_fontDatabase;
-    QAbstractEventDispatcher *m_eventDispatcher;
+    mutable QAbstractEventDispatcher *m_eventDispatcher;
 #if defined(Q_OS_BLACKBERRY)
     QQnxBpsEventFilter *m_bpsEventFilter;
 #endif
@@ -163,6 +175,8 @@ private:
 #endif
     static QQnxWindowMapper ms_windowMapper;
     static QMutex ms_windowMapperMutex;
+
+    const Options m_options;
 
     friend class QQnxWindow;
 };

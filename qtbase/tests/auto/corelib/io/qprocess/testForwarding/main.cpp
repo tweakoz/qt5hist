@@ -39,30 +39,49 @@
 **
 ****************************************************************************/
 
+#include <QtCore/QCoreApplication>
 #include <QtCore/QProcess>
 
-int main()
+#include <stdlib.h>
+
+int main(int argc, char **argv)
 {
+    QCoreApplication app(argc, argv);
+
+    if (argc < 3)
+        return 13;
+
 #ifndef QT_NO_PROCESS
     QProcess process;
-    process.setProcessChannelMode(QProcess::ForwardedChannels);
-    if (process.processChannelMode() != QProcess::ForwardedChannels)
-        return -1;
 
-    process.start("testProcessEcho/testProcessEcho");
+    QProcess::ProcessChannelMode mode = (QProcess::ProcessChannelMode)atoi(argv[1]);
+    process.setProcessChannelMode(mode);
+    if (process.processChannelMode() != mode)
+        return 1;
+
+    QProcess::InputChannelMode inmode = (QProcess::InputChannelMode)atoi(argv[2]);
+    process.setInputChannelMode(inmode);
+    if (process.inputChannelMode() != inmode)
+        return 11;
+
+    process.start("testProcessEcho2/testProcessEcho2");
 
     if (!process.waitForStarted(5000))
-        return -1;
+        return 2;
 
-    if (process.write("forwarded\n") != 10)
-        return -1;
-
-    process.waitForReadyRead(250);
-    if (process.bytesAvailable() != 0)
-        return -1;
+    if (inmode == QProcess::ManagedInputChannel && process.write("forwarded") != 9)
+        return 3;
 
     process.closeWriteChannel();
-    process.waitForFinished(5000);
+    if (!process.waitForFinished(5000))
+        return 4;
+
+    if ((mode == QProcess::ForwardedOutputChannel || mode == QProcess::ForwardedChannels)
+            && !process.readAllStandardOutput().isEmpty())
+        return 5;
+    if ((mode == QProcess::ForwardedErrorChannel || mode == QProcess::ForwardedChannels)
+            && !process.readAllStandardError().isEmpty())
+        return 6;
 #endif
     return 0;
 }

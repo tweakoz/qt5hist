@@ -81,6 +81,11 @@ int runConfigure( int argc, char** argv )
     if (!app.isOk())
         return 3;
 
+    // Generate qdevice.pri
+    app.generateQDevicePri();
+    if (!app.isOk())
+        return 3;
+
     // Prepare the config test build directory.
     app.prepareConfigTests();
     if (!app.isOk())
@@ -88,9 +93,6 @@ int runConfigure( int argc, char** argv )
 
     // Auto-detect modules and settings.
     app.autoDetection();
-
-    // ... and the CPU architectures.
-    app.detectArch();
 
     // After reading all command-line arguments, and doing all the
     // auto-detection, it's time to do some last minute validation.

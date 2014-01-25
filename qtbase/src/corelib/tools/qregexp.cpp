@@ -56,6 +56,7 @@
 #include "private/qfunctions_p.h"
 
 #include <limits.h>
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -284,7 +285,7 @@ int qFindString(const QChar *haystack, int haystackLen, int from,
     \row \li \b{\\W}
          \li Matches a non-word character.
     \row \li \b{\\\e{n}}
-         \li The \e{n}-th \l backreference, e.g. \\1, \\2, etc.
+         \li The \e{n}-th backreference, e.g. \\1, \\2, etc.
     \endtable
 
     \b{Note:} The C++ compiler transforms backslashes in strings.
@@ -1537,7 +1538,7 @@ void QRegExpEngine::addPlusTransitions(const QVector<int> &from, const QVector<i
             for (int j = 0; j < to.size(); j++) {
                 // ### st.reenter.contains(to.at(j)) check looks suspicious
                 if (!st.reenter.contains(to.at(j)) &&
-                     qBinaryFind(oldOuts.constBegin(), oldOuts.constEnd(), to.at(j)) == oldOuts.end())
+                     !std::binary_search(oldOuts.constBegin(), oldOuts.constEnd(), to.at(j)))
                     st.reenter.insert(to.at(j), atom);
             }
         }
@@ -1793,7 +1794,7 @@ static bool isBetterCapture(int ncap, const int *begin1, const int *end1, const 
 #endif
 
 /*
-  Returns true if anchor a matches at position pos + i in the input
+  Returns \c true if anchor a matches at position pos + i in the input
   string, otherwise false.
 */
 bool QRegExpMatchState::testAnchor(int i, int a, const int *capBegin)
@@ -2882,6 +2883,8 @@ static const struct CategoriesRangeMapEntry {
     { "YijingHexagramSymbols",                0x4DC0, 0x4DFF }
 };
 
+inline bool operator<(const CategoriesRangeMapEntry &entry1, const CategoriesRangeMapEntry &entry2)
+{ return qstrcmp(entry1.name, entry2.name) < 0; }
 inline bool operator<(const char *name, const CategoriesRangeMapEntry &entry)
 { return qstrcmp(name, entry.name) < 0; }
 inline bool operator<(const CategoriesRangeMapEntry &entry, const char *name)
@@ -3245,8 +3248,9 @@ int QRegExpEngine::getEscape()
                 }
             } else if (catlen > 2 && category.at(0) == 'I' && category.at(1) == 's') {
                 static const int N = sizeof(categoriesRangeMap) / sizeof(categoriesRangeMap[0]);
-                const CategoriesRangeMapEntry *r = qBinaryFind(categoriesRangeMap, categoriesRangeMap + N, category.constData() + 2);
-                if (r != categoriesRangeMap + N)
+                const char * const categoryFamily = category.constData() + 2;
+                const CategoriesRangeMapEntry *r = std::lower_bound(categoriesRangeMap, categoriesRangeMap + N, categoryFamily);
+                if (r != categoriesRangeMap + N && qstrcmp(r->name, categoryFamily) == 0)
                     yyCharClass->addRange(r->first, r->second);
                 else
                     error(RXERR_CATEGORY);
@@ -4009,6 +4013,14 @@ QRegExp &QRegExp::operator=(const QRegExp &rx)
 }
 
 /*!
+    \fn QRegExp &QRegExp::operator=(QRegExp &&other)
+
+    Move-assigns \a other to this QRegExp instance.
+
+    \since 5.2
+*/
+
+/*!
     \fn void QRegExp::swap(QRegExp &other)
     \since 4.8
 
@@ -4017,8 +4029,8 @@ QRegExp &QRegExp::operator=(const QRegExp &rx)
 */
 
 /*!
-    Returns true if this regular expression is equal to \a rx;
-    otherwise returns false.
+    Returns \c true if this regular expression is equal to \a rx;
+    otherwise returns \c false.
 
     Two QRegExp objects are equal if they have the same pattern
     strings and the same settings for case sensitivity, wildcard and
@@ -4032,18 +4044,18 @@ bool QRegExp::operator==(const QRegExp &rx) const
 /*!
     \fn bool QRegExp::operator!=(const QRegExp &rx) const
 
-    Returns true if this regular expression is not equal to \a rx;
-    otherwise returns false.
+    Returns \c true if this regular expression is not equal to \a rx;
+    otherwise returns \c false.
 
     \sa operator==()
 */
 
 /*!
-    Returns true if the pattern string is empty; otherwise returns
+    Returns \c true if the pattern string is empty; otherwise returns
     false.
 
     If you call exactMatch() with an empty pattern on an empty string
-    it will return true; otherwise it returns false since it operates
+    it will return true; otherwise it returns \c false since it operates
     over the whole string. If you call indexIn() with an empty pattern
     on \e any string it will return the start offset (0 by default)
     because the empty pattern matches the 'emptiness' at the start of
@@ -4059,7 +4071,7 @@ bool QRegExp::isEmpty() const
 }
 
 /*!
-    Returns true if the regular expression is valid; otherwise returns
+    Returns \c true if the regular expression is valid; otherwise returns
     false. An invalid regular expression never matches.
 
     The pattern \b{[a-z} is an example of an invalid pattern, since
@@ -4169,8 +4181,8 @@ void QRegExp::setPatternSyntax(PatternSyntax syntax)
 }
 
 /*!
-    Returns true if minimal (non-greedy) matching is enabled;
-    otherwise returns false.
+    Returns \c true if minimal (non-greedy) matching is enabled;
+    otherwise returns \c false.
 
     \sa caseSensitivity(), setMinimal()
 */
@@ -4203,8 +4215,8 @@ void QRegExp::setMinimal(bool minimal)
 
 // ### Qt 5: make non-const
 /*!
-    Returns true if \a str is matched exactly by this regular
-    expression; otherwise returns false. You can determine how much of
+    Returns \c true if \a str is matched exactly by this regular
+    expression; otherwise returns \c false. You can determine how much of
     the string was matched by calling matchedLength().
 
     For a given regexp string R, exactMatch("R") is the equivalent of
@@ -4213,8 +4225,8 @@ void QRegExp::setMinimal(bool minimal)
     sets matchedLength() differently.
 
     For example, if the regular expression is \b{blue}, then
-    exactMatch() returns true only for input \c blue. For inputs \c
-    bluebell, \c blutak and \c lightblue, exactMatch() returns false
+    exactMatch() returns \c true only for input \c blue. For inputs \c
+    bluebell, \c blutak and \c lightblue, exactMatch() returns \c false
     and matchedLength() will return 4, 3 and 0 respectively.
 
     Although const, this function sets matchedLength(),

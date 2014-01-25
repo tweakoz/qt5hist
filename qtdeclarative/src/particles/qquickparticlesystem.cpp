@@ -46,7 +46,7 @@
 #include "qquickparticlepainter_p.h"
 #include <private/qquickspriteengine_p.h>
 #include <private/qquicksprite_p.h>
-#include "qquickv8particledata_p.h"
+#include "qquickv4particledata_p.h"
 #include "qquickparticlegroup_p.h"
 
 #include "qquicktrailemitter_p.h"//###For auto-follow on states, perhaps should be in emitter?
@@ -110,7 +110,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlproperty bool QtQuick.Particles2::ParticleSystem::running
+    \qmlproperty bool QtQuick.Particles::ParticleSystem::running
 
     If running is set to false, the particle system will stop the simulation. All particles
     will be destroyed when the system is set to running again.
@@ -120,7 +120,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 
 
 /*!
-    \qmlproperty bool QtQuick.Particles2::ParticleSystem::paused
+    \qmlproperty bool QtQuick.Particles::ParticleSystem::paused
 
     If paused is set to true, the particle system will not advance the simulation. When
     paused is set to false again, the simulation will resume from the same point it was
@@ -133,7 +133,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlproperty bool QtQuick.Particles2::ParticleSystem::empty
+    \qmlproperty bool QtQuick.Particles::ParticleSystem::empty
 
     empty is set to true when there are no live particles left in the system.
 
@@ -145,19 +145,19 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlproperty list<Sprite> QtQuick.Particles2::ParticleSystem::particleStates
+    \qmlproperty list<Sprite> QtQuick.Particles::ParticleSystem::particleStates
 
     You can define a sub-set of particle groups in this property in order to provide them
     with stochastic state transitions.
 
-    Each QtQuick2::Sprite in this list is interpreted as corresponding to the particle group
+    Each QtQuick::Sprite in this list is interpreted as corresponding to the particle group
     with ths same name. Any transitions defined in these sprites will take effect on the particle
     groups as well. Additionally TrailEmitters, Affectors and ParticlePainters definined
     inside one of these sprites are automatically associated with the corresponding particle group.
 */
 
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::pause()
+    \qmlmethod QtQuick.Particles::ParticleSystem::pause()
 
     Pauses the simulation if it is running.
 
@@ -165,7 +165,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::resume()
+    \qmlmethod QtQuick.Particles::ParticleSystem::resume()
 
     Resumes the simulation if it is paused.
 
@@ -173,7 +173,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::start()
+    \qmlmethod QtQuick.Particles::ParticleSystem::start()
 
     Starts the simulation if it has not already running.
 
@@ -181,7 +181,7 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::stop()
+    \qmlmethod QtQuick.Particles::ParticleSystem::stop()
 
     Stops the simulation if it is running.
 
@@ -189,14 +189,14 @@ DEFINE_BOOL_CONFIG_OPTION(qmlParticlesDebug, QML_PARTICLES_DEBUG)
 */
 
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::restart()
+    \qmlmethod QtQuick.Particles::ParticleSystem::restart()
 
     Stops the simulation if it is running, and then starts it.
 
     \sa stop, restart, running
 */
 /*!
-    \qmlmethod QtQuick.Particles2::ParticleSystem::reset()
+    \qmlmethod QtQuick.Particles::ParticleSystem::reset()
 
     Discards all currently existing particles.
 
@@ -527,11 +527,11 @@ void QQuickParticleData::clone(const QQuickParticleData& other)
     animationOwner = other.animationOwner;
 }
 
-QQmlV8Handle QQuickParticleData::v8Value()
+QQmlV4Handle QQuickParticleData::v4Value()
 {
     if (!v8Datum)
-        v8Datum = new QQuickV8ParticleData(QQmlEnginePrivate::getV8Engine(qmlEngine(system)), this);
-    return v8Datum->v8Value();
+        v8Datum = new QQuickV4ParticleData(QQmlEnginePrivate::getV8Engine(qmlEngine(system)), this);
+    return v8Datum->v4Value();
 }
 //sets the x accleration without affecting the instantaneous x velocity or position
 void QQuickParticleData::setInstantaneousAX(qreal ax)

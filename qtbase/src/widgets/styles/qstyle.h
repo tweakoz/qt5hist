@@ -698,6 +698,10 @@ public:
         SH_RequestSoftwareInputPanel,
         SH_ScrollBar_Transient,
         SH_Menu_SupportsSections,
+        SH_ToolTip_WakeUpDelay,
+        SH_ToolTip_FallAsleepDelay,
+        SH_Widget_Animate,
+        SH_Splitter_OpaqueResize,
         // Add new style hint values here
 
         SH_CustomBase = 0xf0000000
@@ -777,6 +781,7 @@ public:
         SP_MediaSeekBackward,
         SP_MediaVolume,
         SP_MediaVolumeMuted,
+        SP_LineEditClearButton,
         // do not add any values below/greater than this
         SP_CustomBase = 0xf0000000
     };

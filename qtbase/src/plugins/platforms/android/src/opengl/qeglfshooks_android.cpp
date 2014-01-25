@@ -57,9 +57,11 @@ public:
     QSize screenSize() const;
     QSizeF physicalScreenSize() const;
     QDpi logicalDpi() const;
+    Qt::ScreenOrientation orientation() const;
+    Qt::ScreenOrientation nativeOrientation() const;
     int screenDepth() const;
     QSurfaceFormat surfaceFormatFor(const QSurfaceFormat &inputFormat) const;
-    EGLNativeWindowType createNativeWindow(const QSize &size, const QSurfaceFormat &format);
+    EGLNativeWindowType createNativeWindow(QPlatformWindow *platformWindow, const QSize &size, const QSurfaceFormat &format);
     void destroyNativeWindow(EGLNativeWindowType window);
     bool hasCapability(QPlatformIntegration::Capability cap) const;
     QEglFSCursor *createCursor(QEglFSScreen *screen) const;
@@ -80,7 +82,7 @@ EGLNativeDisplayType QEglFSAndroidHooks::platformDisplay() const
 
 QSize QEglFSAndroidHooks::screenSize() const
 {
-    return QtAndroid::nativeWindowSize();
+    return QAndroidPlatformIntegration::defaultDesktopSize();
 }
 
 QSizeF QEglFSAndroidHooks::physicalScreenSize() const
@@ -90,14 +92,25 @@ QSizeF QEglFSAndroidHooks::physicalScreenSize() const
 
 QDpi QEglFSAndroidHooks::logicalDpi() const
 {
-    qreal lDpi = QtAndroid::scaledDensity() * 100;
+    qreal lDpi = QtAndroid::scaledDensity() * 72;
     return QDpi(lDpi, lDpi);
 }
 
-
-EGLNativeWindowType QEglFSAndroidHooks::createNativeWindow(const QSize &size, const QSurfaceFormat &format)
+Qt::ScreenOrientation QEglFSAndroidHooks::orientation() const
 {
+    return QAndroidPlatformIntegration::m_orientation;
+}
+
+Qt::ScreenOrientation QEglFSAndroidHooks::nativeOrientation() const
+{
+    return QAndroidPlatformIntegration::m_nativeOrientation;
+}
+
+EGLNativeWindowType QEglFSAndroidHooks::createNativeWindow(QPlatformWindow *platformWindow, const QSize &size, const QSurfaceFormat &format)
+{
+    Q_UNUSED(platformWindow);
     Q_UNUSED(size);
+    Q_UNUSED(format);
     ANativeWindow *window = QtAndroid::nativeWindow();
     if (window != 0)
         ANativeWindow_acquire(window);
@@ -107,7 +120,8 @@ EGLNativeWindowType QEglFSAndroidHooks::createNativeWindow(const QSize &size, co
 
 void QEglFSAndroidHooks::destroyNativeWindow(EGLNativeWindowType window)
 {
-    ANativeWindow_release(window);
+    if (window != 0)
+        ANativeWindow_release(window);
 }
 
 bool QEglFSAndroidHooks::hasCapability(QPlatformIntegration::Capability capability) const

@@ -221,7 +221,7 @@ void QDBusPendingCallPrivate::checkReceivedSignature()
         return;                 // no signature to validate against
 
     // can't use startsWith here because a null string doesn't start or end with an empty string
-    if (!replyMessage.signature().indexOf(expectedReplySignature) == 0) {
+    if (replyMessage.signature().indexOf(expectedReplySignature) != 0) {
         QString errorMsg = QLatin1String("Unexpected reply signature: got \"%1\", "
                                          "expected \"%2\"");
         replyMessage = QDBusMessage::createError(
@@ -256,6 +256,11 @@ QDBusPendingCall::QDBusPendingCall(const QDBusPendingCall &other)
 QDBusPendingCall::QDBusPendingCall(QDBusPendingCallPrivate *dd)
     : d(dd)
 {
+    if (dd) {
+        bool r = dd->ref.deref();
+        Q_ASSERT(r);
+        Q_UNUSED(r);
+    }
 }
 
 /*!
@@ -297,7 +302,7 @@ QDBusPendingCall &QDBusPendingCall::operator=(const QDBusPendingCall &other)
 /*!
     \fn bool QDBusPendingCallWatcher::isFinished() const
 
-    Returns true if the pending call has finished processing and the
+    Returns \c true if the pending call has finished processing and the
     reply has been received.
 
     Note that this function only changes state if you call
@@ -309,8 +314,8 @@ QDBusPendingCall &QDBusPendingCall::operator=(const QDBusPendingCall &other)
 /*!
     \fn bool QDBusPendingReply::isFinished() const
 
-    Returns true if the pending call has finished processing and the
-    reply has been received. If this function returns true, the
+    Returns \c true if the pending call has finished processing and the
+    reply has been received. If this function returns \c true, the
     isError(), error() and reply() methods should return valid
     information.
 
@@ -338,7 +343,7 @@ void QDBusPendingCall::waitForFinished()
 /*!
     \fn bool QDBusPendingReply::isValid() const
 
-    Returns true if the reply contains a normal reply message, false
+    Returns \c true if the reply contains a normal reply message, false
     if it contains anything else.
 
     If the pending call has not finished processing, this function
@@ -355,11 +360,11 @@ bool QDBusPendingCall::isValid() const
 /*!
     \fn bool QDBusPendingReply::isError() const
 
-    Returns true if the reply contains an error message, false if it
+    Returns \c true if the reply contains an error message, false if it
     contains a normal method reply.
 
     If the pending call has not finished processing, this function
-    also returns true.
+    also returns \c true.
 */
 bool QDBusPendingCall::isError() const
 {
@@ -420,7 +425,7 @@ QDBusMessage QDBusPendingCall::reply() const
 
     The callback will not be called if the reply is an error message.
 
-    This function returns true if it could set the callback, false
+    This function returns \c true if it could set the callback, false
     otherwise. It is not a guarantee that the callback will be
     called.
 
@@ -469,6 +474,7 @@ QDBusPendingCall QDBusPendingCall::fromCompletedCall(const QDBusMessage &msg)
         msg.type() == QDBusMessage::ReplyMessage) {
         d = new QDBusPendingCallPrivate(QDBusMessage(), 0);
         d->replyMessage = msg;
+        d->ref.store(1);
     }
 
     return QDBusPendingCall(d);

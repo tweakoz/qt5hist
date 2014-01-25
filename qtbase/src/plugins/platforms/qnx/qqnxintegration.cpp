@@ -1,6 +1,6 @@
 /***************************************************************************
 **
-** Copyright (C) 2011 - 2012 Research In Motion
+** Copyright (C) 2011 - 2013 BlackBerry Limited. All rights reserved.
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -40,7 +40,9 @@
 ****************************************************************************/
 
 #include "qqnxintegration.h"
+#if defined(QQNX_SCREENEVENTTHREAD)
 #include "qqnxscreeneventthread.h"
+#endif
 #include "qqnxnativeinterface.h"
 #include "qqnxrasterbackingstore.h"
 #include "qqnxscreen.h"
@@ -50,6 +52,11 @@
 #include "qqnxabstractnavigator.h"
 #include "qqnxabstractvirtualkeyboard.h"
 #include "qqnxservices.h"
+
+#include "qqnxrasterwindow.h"
+#if !defined(QT_NO_OPENGL)
+#include "qqnxeglwindow.h"
+#endif
 
 #if defined(Q_OS_BLACKBERRY)
 #include "qqnxbpseventfilter.h"
@@ -84,6 +91,8 @@
 #include <qpa/qplatformwindow.h>
 #include <qpa/qwindowsysteminterface.h>
 
+#include <QtGui/private/qguiapplication_p.h>
+
 #if !defined(QT_NO_OPENGL)
 #include "qqnxglcontext.h"
 #include <QtGui/QOpenGLContext>
@@ -107,9 +116,31 @@ QT_BEGIN_NAMESPACE
 QQnxWindowMapper QQnxIntegration::ms_windowMapper;
 QMutex QQnxIntegration::ms_windowMapperMutex;
 
-QQnxIntegration::QQnxIntegration()
+static inline QQnxIntegration::Options parseOptions(const QStringList &paramList)
+{
+    QQnxIntegration::Options options = QQnxIntegration::NoOptions;
+    if (!paramList.contains(QLatin1String("no-fullscreen"))) {
+        options |= QQnxIntegration::FullScreenApplication;
+    }
+
+// On Blackberry the first window is treated as a root window
+#ifdef Q_OS_BLACKBERRY
+    if (!paramList.contains(QLatin1String("no-rootwindow"))) {
+        options |= QQnxIntegration::RootWindow;
+    }
+#else
+    if (paramList.contains(QLatin1String("rootwindow"))) {
+        options |= QQnxIntegration::RootWindow;
+    }
+#endif
+    return options;
+}
+
+QQnxIntegration::QQnxIntegration(const QStringList &paramList)
     : QPlatformIntegration()
+#if defined(QQNX_SCREENEVENTTHREAD)
     , m_screenEventThread(0)
+#endif
     , m_navigatorEventHandler(new QQnxNavigatorEventHandler())
     , m_virtualKeyboard(0)
 #if defined(QQNX_PPS)
@@ -134,6 +165,7 @@ QQnxIntegration::QQnxIntegration()
 #if !defined(QT_NO_DRAGANDDROP)
     , m_drag(new QSimpleDrag())
 #endif
+    , m_options(parseOptions(paramList))
 {
     qIntegrationDebug() << Q_FUNC_INFO;
     // Open connection to QNX composition manager
@@ -185,8 +217,13 @@ QQnxIntegration::QQnxIntegration()
 
 #if defined(Q_OS_BLACKBERRY)
     QQnxVirtualKeyboardBps* virtualKeyboardBps = new QQnxVirtualKeyboardBps;
-    m_bpsEventFilter = new QQnxBpsEventFilter(m_navigatorEventHandler,
-            (m_screenEventThread ? 0 : m_screenEventHandler), virtualKeyboardBps);
+
+#if defined(QQNX_SCREENEVENTTHREAD)
+    m_bpsEventFilter = new QQnxBpsEventFilter(m_navigatorEventHandler, 0, virtualKeyboardBps);
+#else
+    m_bpsEventFilter = new QQnxBpsEventFilter(m_navigatorEventHandler, m_screenEventHandler, virtualKeyboardBps);
+#endif
+
     m_bpsEventFilter->installOnEventDispatcher(m_eventDispatcher);
 
     m_virtualKeyboard = virtualKeyboardBps;
@@ -268,6 +305,9 @@ QQnxIntegration::~QQnxIntegration()
     delete m_bpsEventFilter;
 #endif
 
+    // In case the event-dispatcher was never transferred to QCoreApplication
+    delete m_eventDispatcher;
+
     delete m_screenEventHandler;
 
     // Destroy all displays
@@ -294,9 +334,10 @@ bool QQnxIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 {
     qIntegrationDebug() << Q_FUNC_INFO;
     switch (cap) {
+    case MultipleWindows:
     case ThreadedPixmaps:
         return true;
-#if defined(QT_OPENGL_ES)
+#if !defined(QT_NO_OPENGL)
     case OpenGL:
     case ThreadedOpenGL:
     case BufferQueueingOpenGL:
@@ -310,7 +351,19 @@ bool QQnxIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 QPlatformWindow *QQnxIntegration::createPlatformWindow(QWindow *window) const
 {
     qIntegrationDebug() << Q_FUNC_INFO;
-    return new QQnxWindow(window, m_screenContext);
+    QSurface::SurfaceType surfaceType = window->surfaceType();
+    const bool needRootWindow = options() & RootWindow;
+    switch (surfaceType) {
+    case QSurface::RasterSurface:
+        return new QQnxRasterWindow(window, m_screenContext, needRootWindow);
+#if !defined(QT_NO_OPENGL)
+    case QSurface::OpenGLSurface:
+        return new QQnxEglWindow(window, m_screenContext, needRootWindow);
+#endif
+    default:
+        qFatal("QQnxWindow: unsupported window API");
+    }
+    return 0;
 }
 
 QPlatformBackingStore *QQnxIntegration::createPlatformBackingStore(QWindow *window) const
@@ -349,10 +402,15 @@ void QQnxIntegration::moveToScreen(QWindow *window, int screen)
     platformWindow->setScreen(platformScreen);
 }
 
-QAbstractEventDispatcher *QQnxIntegration::guiThreadEventDispatcher() const
+QAbstractEventDispatcher *QQnxIntegration::createEventDispatcher() const
 {
     qIntegrationDebug() << Q_FUNC_INFO;
-    return m_eventDispatcher;
+
+    // We transfer ownersip of the event-dispatcher to QtCoreApplication
+    QAbstractEventDispatcher *eventDispatcher = m_eventDispatcher;
+    m_eventDispatcher = 0;
+
+    return eventDispatcher;
 }
 
 QPlatformNativeInterface *QQnxIntegration::nativeInterface() const
@@ -383,7 +441,7 @@ QPlatformDrag *QQnxIntegration::drag() const
 QVariant QQnxIntegration::styleHint(QPlatformIntegration::StyleHint hint) const
 {
     qIntegrationDebug() << Q_FUNC_INFO;
-    if (hint == ShowIsFullScreen)
+    if ((hint == ShowIsFullScreen) && (m_options & FullScreenApplication))
         return true;
 
     return QPlatformIntegration::styleHint(hint);
@@ -524,6 +582,11 @@ QQnxScreen *QQnxIntegration::screenForNative(screen_display_t qnxScreen) const
 QQnxScreen *QQnxIntegration::primaryDisplay() const
 {
     return m_screens.first();
+}
+
+QQnxIntegration::Options QQnxIntegration::options() const
+{
+    return m_options;
 }
 
 bool QQnxIntegration::supportsNavigatorEvents() const

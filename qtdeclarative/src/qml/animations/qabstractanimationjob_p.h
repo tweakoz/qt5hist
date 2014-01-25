@@ -113,11 +113,17 @@ public:
     QAbstractAnimationJob *nextSibling() const { return m_nextSibling; }
     QAbstractAnimationJob *previousSibling() const { return m_previousSibling; }
 
+    bool isGroup() const { return m_isGroup; }
+    bool isRenderThreadJob() const { return m_isRenderThreadJob; }
+    bool isRenderThreadProxy() const { return m_isRenderThreadProxy; }
+
 protected:
     virtual void updateCurrentTime(int) {}
     virtual void updateState(QAbstractAnimationJob::State newState, QAbstractAnimationJob::State oldState);
     virtual void updateDirection(QAbstractAnimationJob::Direction direction);
     virtual void topLevelAnimationLoopChanged() {}
+
+    void fireTopLevelAnimationLoopChanged();
 
     void setState(QAbstractAnimationJob::State state);
 
@@ -139,6 +145,7 @@ protected:
     int m_currentLoop;
     //records the finish time for an uncontrolled animation (used by animation groups)
     int m_uncontrolledFinishTime;
+    int m_currentLoopStartTime; // used together with m_uncontrolledFinishTime
 
     struct ChangeListener {
         ChangeListener(QAnimationJobChangeListener *l, QAbstractAnimationJob::ChangeTypes t) : listener(l), types(t) {}
@@ -157,6 +164,8 @@ protected:
     bool m_isGroup:1;
     bool m_disableUserControl:1;
     bool m_hasCurrentTimeChangeListeners:1;
+    bool m_isRenderThreadJob:1;
+    bool m_isRenderThreadProxy:1;
 
     friend class QQmlAnimationTimer;
     friend class QAnimationGroupJob;

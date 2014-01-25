@@ -55,7 +55,8 @@
 
 #include <QtCore/qglobal.h>
 #include <QtCore/qstring.h>
-#include <private/qv8_p.h>
+#include <private/qv4string_p.h>
+#include <private/qv4scopedvalue_p.h>
 
 #include <private/qflagpointer_p.h>
 
@@ -84,8 +85,6 @@ public:
     inline quint32 hash() const;
     inline quint32 existingHash() const;
 
-    static inline bool isUpper(const QChar &);
-
     static bool compare(const QChar *lhs, const QChar *rhs, int length);
     static inline bool compare(const QChar *lhs, const char *rhs, int length);
     static inline bool compare(const char *lhs, const char *rhs, int length);
@@ -95,29 +94,6 @@ private:
 
     void computeHash() const;
     mutable quint32 m_hash;
-};
-
-class Q_AUTOTEST_EXPORT QHashedV8String 
-{
-public:
-    inline QHashedV8String();
-    explicit inline QHashedV8String(v8::Handle<v8::String>);
-    inline QHashedV8String(const QHashedV8String &string);
-    inline QHashedV8String &operator=(const QHashedV8String &other);
-
-    inline bool operator==(const QHashedV8String &string);
-
-    inline quint32 hash() const;
-    inline int length() const; 
-    inline quint32 symbolId() const;
-
-    inline v8::Handle<v8::String> string() const;
-
-    inline QString toString() const;
-
-private:
-    v8::String::CompleteHashData m_hash;
-    v8::Handle<v8::String> m_string;
 };
 
 class QHashedCStringRef;
@@ -160,18 +136,13 @@ public:
 
     inline bool isLatin1() const;
 
-    inline int utf8length() const;
-    QByteArray toUtf8() const;
-    void writeUtf8(char *) const;
 private:
     friend class QHashedString;
 
     void computeHash() const;
-    void computeUtf8Length() const;
 
     const QChar *m_data;
     int m_length;
-    mutable int m_utf8length;
     mutable quint32 m_hash;
 };
 
@@ -191,7 +162,7 @@ public:
     QString toUtf16() const;
     inline int utf16length() const;
     inline void writeUtf16(QChar *) const;
-    inline void writeUtf16(uint16_t *) const;
+    inline void writeUtf16(quint16 *) const;
 private:
     friend class QHashedStringRef;
 
@@ -259,23 +230,31 @@ public:
     void setQString(bool v) { if (v) next.setFlag(); else next.clearFlag(); }
 
     inline char *cStrData() const { return (char *)ckey; }
-    inline uint16_t *utf16Data() const { return (uint16_t *)strData->data(); }
+    inline quint16 *utf16Data() const { return (quint16 *)strData->data(); }
 
-    inline bool equals(v8::Handle<v8::String> string) const {
-        v8::Local<v8::String> data = isQString() ? v8::String::New(utf16Data(), length)
-                                                 : v8::String::New(cStrData(), length);
-        return string->Equals(data);
+    inline bool equals(const QV4::ValueRef string) const {
+        QString s = string->toQStringNoThrow();
+        if (isQString()) {
+            QStringDataPtr dd;
+            dd.ptr = strData;
+            strData->ref.ref();
+            return QString(dd) == s;
+        } else {
+            return QLatin1String(cStrData(), length) == s;
+        }
     }
 
-    inline bool symbolEquals(const QHashedV8String &string) const {
-        Q_ASSERT(string.symbolId() != 0);
-        return length == string.length() && hash == string.hash() && 
-               (string.symbolId() == symbolId || equals(string.string()));
-    }
-
-    inline bool equals(const QHashedV8String &string) const {
-        return length == string.length() && hash == string.hash() && 
-               equals(string.string());
+    inline bool equals(const QV4::String *string) const {
+        if (length != string->length() || hash != string->hashValue())
+                return false;
+        if (isQString()) {
+            QStringDataPtr dd;
+            dd.ptr = strData;
+            strData->ref.ref();
+            return QString(dd) == string->toQString();
+        } else {
+            return QLatin1String(cStrData(), length) == string->toQString();
+        }
     }
 
     inline bool equals(const QHashedStringRef &string) const {
@@ -332,7 +311,8 @@ struct HashedForm {};
 template<> struct HashedForm<QString> { typedef QHashedString Type; };
 template<> struct HashedForm<QStringRef> { typedef QHashedStringRef Type; };
 template<> struct HashedForm<QHashedString> { typedef const QHashedString &Type; };
-template<> struct HashedForm<QHashedV8String> { typedef const QHashedV8String &Type; };
+template<> struct HashedForm<QV4::String *> { typedef const QV4::String *Type; };
+template<> struct HashedForm<const QV4::String *> { typedef const QV4::String *Type; };
 template<> struct HashedForm<QHashedStringRef> { typedef const QHashedStringRef &Type; };
 template<> struct HashedForm<QLatin1String> { typedef QHashedCStringRef Type; };
 template<> struct HashedForm<QHashedCStringRef> { typedef const QHashedCStringRef &Type; };
@@ -343,7 +323,8 @@ public:
     static HashedForm<QString>::Type hashedString(const QString &s) { return QHashedString(s);}
     static HashedForm<QStringRef>::Type hashedString(const QStringRef &s) { return QHashedStringRef(s.constData(), s.size());}
     static HashedForm<QHashedString>::Type hashedString(const QHashedString &s) { return s; }
-    static HashedForm<QHashedV8String>::Type hashedString(const QHashedV8String &s) { return s; }
+    static HashedForm<QV4::String *>::Type hashedString(QV4::String *s) { return s; }
+    static HashedForm<const QV4::String *>::Type hashedString(const QV4::String *s) { return s; }
     static HashedForm<QHashedStringRef>::Type hashedString(const QHashedStringRef &s) { return s; }
 
     static HashedForm<QLatin1String>::Type hashedString(const QLatin1String &s) { return QHashedCStringRef(s.data(), s.size()); }
@@ -351,14 +332,15 @@ public:
 
     static const QString &toQString(const QString &s) { return s; }
     static const QString &toQString(const QHashedString &s) { return s; }
-    static QString toQString(const QHashedV8String &s) { return s.toString(); }
+    static QString toQString(const QV4::String *s) { return s->toQString(); }
     static QString toQString(const QHashedStringRef &s) { return s.toString(); }
 
     static QString toQString(const QLatin1String &s) { return QString(s); }
     static QString toQString(const QHashedCStringRef &s) { return s.toUtf16(); }
 
     static inline quint32 hashOf(const QHashedStringRef &s) { return s.hash(); }
-    static inline quint32 hashOf(const QHashedV8String &s) { return s.hash(); }
+    static inline quint32 hashOf(QV4::String *s) { return s->hashValue(); }
+    static inline quint32 hashOf(const QV4::String *s) { return s->hashValue(); }
 
     template<typename K>
     static inline quint32 hashOf(const K &key) { return hashedString(key).hash(); }
@@ -400,8 +382,6 @@ public:
 
     template<typename K>
     inline Node *findNode(const K &) const;
-
-    inline Node *findSymbolNode(const QHashedV8String &) const;
 
     inline Node *createNode(const Node &o);
 
@@ -472,7 +452,7 @@ public:
     template<typename K>
     inline T *value(const K &) const;
 
-    inline T *value(const QHashedV8String &string) const;
+    inline T *value(const QV4::String *string) const;
     inline T *value(const ConstIterator &) const;
 
     template<typename K>
@@ -866,21 +846,6 @@ typename QStringHash<T>::Node *QStringHash<T>::findNode(const K &key) const
 }
 
 template<class T>
-typename QStringHash<T>::Node *QStringHash<T>::findSymbolNode(const QHashedV8String &string) const
-{
-    Q_ASSERT(string.symbolId() != 0);
-
-    QStringHashNode *node = data.numBuckets?data.buckets[hashOf(string) % data.numBuckets]:0;
-    while (node && !node->symbolEquals(string))
-        node = (*node->next);
-
-    if (node)
-        node->symbolId = string.symbolId();
-
-    return (Node *)node;
-}
-
-template<class T>
 template<class K>
 T *QStringHash<T>::value(const K &key) const
 {
@@ -896,9 +861,9 @@ T *QStringHash<T>::value(const ConstIterator &iter) const
 }
 
 template<class T>
-T *QStringHash<T>::value(const QHashedV8String &string) const
+T *QStringHash<T>::value(const QV4::String *string) const
 {
-    Node *n = string.symbolId()?findSymbolNode(string):findNode(string);
+    Node *n = findNode(string);
     return n?&n->value:0;
 }
 
@@ -1122,110 +1087,38 @@ quint32 QHashedString::existingHash() const
     return m_hash;
 }
 
-bool QHashedString::isUpper(const QChar &qc)
-{
-    ushort c = qc.unicode();
-    // Optimize for _, a-z and A-Z.
-    return ((c != '_' ) && (!(c >= 'a' && c <= 'z')) &&
-           ((c >= 'A' && c <= 'Z') || QChar::category(c) == QChar::Letter_Uppercase));
-}
-
-QHashedV8String::QHashedV8String()
-{
-}
-
-QHashedV8String::QHashedV8String(v8::Handle<v8::String> string)
-: m_hash(string->CompleteHash()), m_string(string)
-{
-    Q_ASSERT(!m_string.IsEmpty());
-}
-
-QHashedV8String::QHashedV8String(const QHashedV8String &string)
-: m_hash(string.m_hash), m_string(string.m_string)
-{
-}
-
-QHashedV8String &QHashedV8String::operator=(const QHashedV8String &other)
-{
-    m_hash = other.m_hash;
-    m_string = other.m_string;
-    return *this;
-}
-
-bool QHashedV8String::operator==(const QHashedV8String &string)
-{
-    return m_hash.hash == string.m_hash.hash && m_hash.length == string.m_hash.length &&
-           m_string.IsEmpty() == m_string.IsEmpty() && 
-           (m_string.IsEmpty() || m_string->StrictEquals(string.m_string));
-}
-
-quint32 QHashedV8String::hash() const
-{
-    return m_hash.hash;
-}
-
-int QHashedV8String::length() const
-{
-    return m_hash.length;
-}
-
-quint32 QHashedV8String::symbolId() const
-{
-    return m_hash.symbol_id;
-}
-
-v8::Handle<v8::String> QHashedV8String::string() const
-{
-    return m_string;
-}
-
-QString QHashedV8String::toString() const
-{
-    QString result;
-    result.reserve(m_hash.length);
-
-    v8::String::Value value(m_string);
-    Q_ASSERT(*value != NULL);
-    uint16_t* string = *value;
-    for (int i = 0; i < m_hash.length; ++i)
-        result.append(string[i]);
-
-    return result;
-}
-
 QHashedStringRef::QHashedStringRef() 
-: m_data(0), m_length(0), m_utf8length(-1), m_hash(0) 
+: m_data(0), m_length(0), m_hash(0)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QString &str)
-: m_data(str.constData()), m_length(str.length()), m_utf8length(0), m_hash(0)
+: m_data(str.constData()), m_length(str.length()), m_hash(0)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QStringRef &str)
-: m_data(str.constData()), m_length(str.length()), m_utf8length(0), m_hash(0)
+: m_data(str.constData()), m_length(str.length()), m_hash(0)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QChar *data, int length)
-: m_data(data), m_length(length), m_utf8length(0), m_hash(0)
+: m_data(data), m_length(length), m_hash(0)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QChar *data, int length, quint32 hash)
-: m_data(data), m_length(length), m_utf8length(0), m_hash(hash)
+: m_data(data), m_length(length), m_hash(hash)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QHashedString &string)
-: m_data(string.constData()), m_length(string.length()), m_utf8length(0), m_hash(string.m_hash)
+: m_data(string.constData()), m_length(string.length()), m_hash(string.m_hash)
 {
 }
 
 QHashedStringRef::QHashedStringRef(const QHashedStringRef &string)
-: m_data(string.m_data), m_length(string.m_length), m_utf8length(string.m_utf8length), 
-  m_hash(string.m_hash)
+: m_data(string.m_data), m_length(string.m_length), m_hash(string.m_hash)
 {
 }
 
@@ -1233,7 +1126,6 @@ QHashedStringRef &QHashedStringRef::operator=(const QHashedStringRef &o)
 {
     m_data = o.m_data;
     m_length = o.m_length;
-    m_utf8length = o.m_utf8length;
     m_hash = o.m_hash;
     return *this;
 }
@@ -1318,13 +1210,6 @@ int QHashedStringRef::length() const
     return m_length;
 }
 
-int QHashedStringRef::utf8length() const
-{
-    if (m_utf8length < m_length)
-        computeUtf8Length();
-    return m_utf8length;
-}
-
 bool QHashedStringRef::isLatin1() const
 {
     for (int ii = 0; ii < m_length; ++ii)
@@ -1335,7 +1220,7 @@ bool QHashedStringRef::isLatin1() const
 bool QHashedStringRef::startsWithUpper() const
 {
     if (m_length < 1) return false;
-    return QHashedString::isUpper(m_data[0]);
+    return m_data[0].isUpper();
 }
 
 quint32 QHashedStringRef::hash() const
@@ -1387,10 +1272,10 @@ int QHashedCStringRef::utf16length() const
 
 void QHashedCStringRef::writeUtf16(QChar *output) const
 {
-    writeUtf16((uint16_t *)output);
+    writeUtf16((quint16 *)output);
 }
 
-void QHashedCStringRef::writeUtf16(uint16_t *output) const
+void QHashedCStringRef::writeUtf16(quint16 *output) const
 {
     int l = m_length;
     const char *d = m_data;

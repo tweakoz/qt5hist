@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -61,7 +61,6 @@
 #include <QtCore/qcoreapplication.h>
 
 #include <private/qquickanimation_p_p.h>
-#include <private/qqmlguard_p.h>
 #include <private/qqmldelegatemodel_p.h>
 #include <private/qquicktimeline_p_p.h>
 
@@ -132,7 +131,7 @@ public:
 
     QQuickPath *path;
     int currentIndex;
-    QQmlGuard<QQuickItem> currentItem;
+    QPointer<QQuickItem> currentItem;
     qreal currentItemOffset;
     qreal startPc;
     QPointF startPoint;
@@ -169,7 +168,7 @@ public:
     qreal requestedZ;
     QList<QQuickItem *> items;
     QList<QQuickItem *> itemCache;
-    QQmlGuard<QQmlInstanceModel> model;
+    QPointer<QQmlInstanceModel> model;
     QVariant modelVariant;
     enum MovementReason { Other, SetIndex, Mouse };
     MovementReason moveReason;

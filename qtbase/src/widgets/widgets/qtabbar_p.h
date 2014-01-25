@@ -126,11 +126,9 @@ public:
             TabBarAnimation(Tab *t, QTabBarPrivate *_priv) : tab(t), priv(_priv)
             { setEasingCurve(QEasingCurve::InOutQuad); }
 
-            void updateCurrentValue(const QVariant &current)
-            { priv->moveTab(priv->tabList.indexOf(*tab), current.toInt()); }
+            void updateCurrentValue(const QVariant &current);
 
-            void updateState(State, State newState)
-            { if (newState == Stopped) priv->moveTabFinished(priv->tabList.indexOf(*tab)); }
+            void updateState(State, State newState);
         private:
             //these are needed for the callbacks
             Tab *tab;
@@ -138,6 +136,10 @@ public:
         } *animation;
 
         void startAnimation(QTabBarPrivate *priv, int duration) {
+            if (!priv->isAnimated()) {
+                priv->moveTabFinished(priv->tabList.indexOf(*this));
+                return;
+            }
             if (!animation)
                 animation = new TabBarAnimation(this, priv);
             animation->setStartValue(dragOffset);
@@ -162,6 +164,7 @@ public:
 
     int indexAtPos(const QPoint &p) const;
 
+    inline bool isAnimated() const { Q_Q(const QTabBar); return q->style()->styleHint(QStyle::SH_Widget_Animate, 0, q); }
     inline bool validIndex(int index) const { return index >= 0 && index < tabList.count(); }
     void setCurrentNextEnabledIndex(int offset);
 

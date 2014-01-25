@@ -158,8 +158,8 @@ Qt::Orientation QSplitterHandle::orientation() const
 
 
 /*!
-    Returns true if widgets are resized dynamically (opaquely), otherwise
-    returns false. This value is controlled by the QSplitter.
+    Returns \c true if widgets are resized dynamically (opaquely), otherwise
+    returns \c false. This value is controlled by the QSplitter.
 
     \sa QSplitter::opaqueResize()
 
@@ -1070,7 +1070,7 @@ void QSplitter::setCollapsible(int index, bool collapse)
 }
 
 /*!
-    Returns true if the widget at \a index is collapsible, otherwise returns false.
+    Returns \c true if the widget at \a index is collapsible, otherwise returns \c false.
 */
 bool QSplitter::isCollapsible(int index) const
 {
@@ -1404,19 +1404,24 @@ int QSplitter::closestLegalPosition(int pos, int index)
     \property QSplitter::opaqueResize
     \brief whether resizing is opaque
 
-    Opaque resizing is on by default.
+    The default resize behavior is style dependent (determined by the
+    SH_Splitter_OpaqueResize style hint). However, you can override it
+    by calling setOpaqueResize()
+
+    \sa QStyle::StyleHint
 */
 
 bool QSplitter::opaqueResize() const
 {
     Q_D(const QSplitter);
-    return d->opaque;
+    return d->opaqueResizeSet ? d->opaque : style()->styleHint(QStyle::SH_Splitter_OpaqueResize, 0, this);
 }
 
 
 void QSplitter::setOpaqueResize(bool on)
 {
     Q_D(QSplitter);
+    d->opaqueResizeSet = true;
     d->opaque = on;
 }
 
@@ -1589,7 +1594,7 @@ static const qint32 SplitterMagic = 0xff;
 QByteArray QSplitter::saveState() const
 {
     Q_D(const QSplitter);
-    int version = 0;
+    int version = 1;
     QByteArray data;
     QDataStream stream(&data, QIODevice::WriteOnly);
 
@@ -1605,12 +1610,13 @@ QByteArray QSplitter::saveState() const
     stream << qint32(handleWidth());
     stream << opaqueResize();
     stream << qint32(orientation());
+    stream << d->opaqueResizeSet;
     return data;
 }
 
 /*!
     Restores the splitter's layout to the \a state specified.
-    Returns true if the state is restored; otherwise returns false.
+    Returns \c true if the state is restored; otherwise returns \c false.
 
     Typically this is used in conjunction with QSettings to restore the size
     from a past session. Here is an example:
@@ -1627,7 +1633,7 @@ QByteArray QSplitter::saveState() const
 bool QSplitter::restoreState(const QByteArray &state)
 {
     Q_D(QSplitter);
-    int version = 0;
+    int version = 1;
     QByteArray sd = state;
     QDataStream stream(&sd, QIODevice::ReadOnly);
     QList<int> list;
@@ -1638,7 +1644,7 @@ bool QSplitter::restoreState(const QByteArray &state)
 
     stream >> marker;
     stream >> v;
-    if (marker != SplitterMagic || v != version)
+    if (marker != SplitterMagic || v > version)
         return false;
 
     stream >> list;
@@ -1656,6 +1662,9 @@ bool QSplitter::restoreState(const QByteArray &state)
     stream >> i;
     setOrientation(Qt::Orientation(i));
     d->doResize();
+
+    if (v >= 1)
+        stream >> d->opaqueResizeSet;
 
     return true;
 }

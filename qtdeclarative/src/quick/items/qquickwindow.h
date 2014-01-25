@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -64,7 +64,7 @@ class Q_QUICK_EXPORT QQuickWindow : public QWindow
     Q_OBJECT
     Q_PRIVATE_PROPERTY(QQuickWindow::d_func(), QQmlListProperty<QObject> data READ data DESIGNABLE false)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
-    Q_PROPERTY(QQuickItem* contentItem READ contentItem CONSTANT FINAL)
+    Q_PROPERTY(QQuickItem* contentItem READ contentItem CONSTANT)
     Q_PROPERTY(QQuickItem* activeFocusItem READ activeFocusItem NOTIFY activeFocusItemChanged REVISION 1)
     Q_CLASSINFO("DefaultProperty", "data")
     Q_DECLARE_PRIVATE(QQuickWindow)
@@ -72,7 +72,8 @@ public:
     enum CreateTextureOption {
         TextureHasAlphaChannel  = 0x0001,
         TextureHasMipmaps       = 0x0002,
-        TextureOwnsGLTexture    = 0x0004
+        TextureOwnsGLTexture    = 0x0004,
+        TextureCanUseAtlas      = 0x0008
     };
 
     Q_DECLARE_FLAGS(CreateTextureOptions, CreateTextureOption)
@@ -99,6 +100,8 @@ public:
     uint renderTargetId() const;
     QSize renderTargetSize() const;
 
+    void resetOpenGLState();
+
     QQmlIncubationController *incubationController() const;
 
 #ifndef QT_NO_ACCESSIBILITY
@@ -107,6 +110,7 @@ public:
 
     // Scene graph specific functions
     QSGTexture *createTextureFromImage(const QImage &image) const;
+    QSGTexture *createTextureFromImage(const QImage &image, CreateTextureOptions options) const;
     QSGTexture *createTextureFromId(uint id, const QSize &size, CreateTextureOptions options = CreateTextureOption(0)) const;
 
     void setClearBeforeRendering(bool enabled);
@@ -168,11 +172,12 @@ protected:
 private Q_SLOTS:
     void maybeUpdate();
     void cleanupSceneGraph();
+    void forcePolish();
     void setTransientParent_helper(QQuickWindow *window);
 
 private:
     friend class QQuickItem;
-    friend class QQuickWindowRenderLoop;
+    friend class QQuickAnimatorController;
     Q_DISABLE_COPY(QQuickWindow)
 };
 

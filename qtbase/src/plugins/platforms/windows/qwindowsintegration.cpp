@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -65,12 +66,15 @@
 #endif
 #include "qwindowsinputcontext.h"
 #include "qwindowskeymapper.h"
-#  ifndef QT_NO_ACCESSIBILITY
-#include "accessible/qwindowsaccessibility.h"
+#ifndef QT_NO_ACCESSIBILITY
+#  include "accessible/qwindowsaccessibility.h"
 #endif
 
 #include <qpa/qplatformnativeinterface.h>
 #include <qpa/qwindowsysteminterface.h>
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+#  include "qwindowssessionmanager.h"
+#endif
 #include <QtGui/QBackingStore>
 #include <QtGui/private/qpixmap_raster_p.h>
 #include <QtGui/private/qguiapplication_p.h>
@@ -311,7 +315,6 @@ struct QWindowsIntegrationPrivate
     QWindowsDrag m_drag;
 #  endif
 #endif
-    QWindowsGuiEventDispatcher *m_eventDispatcher;
 #if defined(QT_OPENGL_ES_2)
     QEGLStaticContextPtr m_staticEGLContext;
 #elif !defined(QT_NO_OPENGL)
@@ -342,6 +345,8 @@ static inline unsigned parseOptions(const QStringList &paramList)
             }
         } else if (param == QLatin1String("gl=gdi")) {
             options |= QWindowsIntegration::DisableArb;
+        } else if (param == QLatin1String("mousefromtouch")) {
+            options |= QWindowsIntegration::PassOsMouseEventsSynthesizedFromTouch;
         }
     }
     return options;
@@ -350,7 +355,6 @@ static inline unsigned parseOptions(const QStringList &paramList)
 QWindowsIntegrationPrivate::QWindowsIntegrationPrivate(const QStringList &paramList)
     : m_options(parseOptions(paramList))
     , m_fontDatabase(0)
-    , m_eventDispatcher(new QWindowsGuiEventDispatcher)
 {
 }
 
@@ -363,7 +367,6 @@ QWindowsIntegrationPrivate::~QWindowsIntegrationPrivate()
 QWindowsIntegration::QWindowsIntegration(const QStringList &paramList) :
     d(new QWindowsIntegrationPrivate(paramList))
 {
-    QGuiApplicationPrivate::instance()->setEventDispatcher(d->m_eventDispatcher);
 #ifndef QT_NO_CLIPBOARD
     d->m_clipboard.registerViewer();
 #endif
@@ -394,6 +397,8 @@ bool QWindowsIntegration::hasCapability(QPlatformIntegration::Capability cap) co
     case WindowMasks:
         return true;
     case MultipleWindows:
+        return true;
+    case ForeignWindows:
         return true;
     default:
         return QPlatformIntegration::hasCapability(cap);
@@ -555,13 +560,15 @@ QVariant QWindowsIntegration::styleHint(QPlatformIntegration::StyleHint hint) co
         break;
     case QPlatformIntegration::UseRtlExtensions:
         return QVariant(d->m_context.useRTLExtensions());
-#ifdef Q_OS_WINCE
     case QPlatformIntegration::SynthesizeMouseFromTouchEvents:
+#ifdef Q_OS_WINCE
         // We do not want Qt to synthesize mouse events as Windows also does that.
         // Alternatively, Windows-generated touch mouse events can be identified and
         // ignored by checking GetMessageExtraInfo() for MI_WP_SIGNATURE (0xFF515700).
        return false;
-#endif // Q_OS_WINCE
+#else // Q_OS_WINCE
+        return QVariant(!(d->m_options & PassOsMouseEventsSynthesizedFromTouch));
+#endif // !Q_OS_WINCE
     default:
         break;
     }
@@ -618,9 +625,16 @@ unsigned QWindowsIntegration::options() const
     return d->m_options;
 }
 
-QAbstractEventDispatcher * QWindowsIntegration::guiThreadEventDispatcher() const
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+QPlatformSessionManager *QWindowsIntegration::createPlatformSessionManager(const QString &id, const QString &key) const
 {
-    return d->m_eventDispatcher;
+    return new QWindowsSessionManager(id, key);
+}
+#endif
+
+QAbstractEventDispatcher * QWindowsIntegration::createEventDispatcher() const
+{
+    return new QWindowsGuiEventDispatcher;
 }
 
 QStringList QWindowsIntegration::themeNames() const

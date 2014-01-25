@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -62,8 +62,18 @@ class QQuickDropEvent : public QObject
     Q_PROPERTY(QObject *source READ source)
     Q_PROPERTY(QStringList keys READ keys)
     Q_PROPERTY(Qt::DropActions supportedActions READ supportedActions)
+    Q_PROPERTY(Qt::DropActions proposedAction READ proposedAction)
     Q_PROPERTY(Qt::DropAction action READ action WRITE setAction RESET resetAction)
     Q_PROPERTY(bool accepted READ accepted WRITE setAccepted)
+    Q_PROPERTY(bool hasColor READ hasColor)
+    Q_PROPERTY(bool hasHtml READ hasHtml)
+    Q_PROPERTY(bool hasText READ hasText)
+    Q_PROPERTY(bool hasUrls READ hasUrls)
+    Q_PROPERTY(QVariant colorData READ colorData)
+    Q_PROPERTY(QString html READ html)
+    Q_PROPERTY(QString text READ text)
+    Q_PROPERTY(QList<QUrl> urls READ urls)
+    Q_PROPERTY(QStringList formats READ formats)
 public:
     QQuickDropEvent(QQuickDropAreaPrivate *d, QDropEvent *event) : d(d), event(event) {}
 
@@ -73,6 +83,7 @@ public:
     QObject *source();
 
     Qt::DropActions supportedActions() const { return event->possibleActions(); }
+    Qt::DropActions proposedAction() const { return event->proposedAction(); }
     Qt::DropAction action() const { return event->dropAction(); }
     void setAction(Qt::DropAction action) { event->setDropAction(action); }
     void resetAction() { event->setDropAction(event->proposedAction()); }
@@ -82,7 +93,19 @@ public:
     bool accepted() const { return event->isAccepted(); }
     void setAccepted(bool accepted) { event->setAccepted(accepted); }
 
-    Q_INVOKABLE void accept(QQmlV8Function *);
+    bool hasColor() const;
+    bool hasHtml() const;
+    bool hasText() const;
+    bool hasUrls() const;
+    QVariant colorData() const;
+    QString html() const;
+    QString text() const;
+    QList<QUrl> urls() const;
+    QStringList formats() const;
+
+    Q_INVOKABLE void getDataAsString(QQmlV4Function *);
+    Q_INVOKABLE void acceptProposedAction(QQmlV4Function *);
+    Q_INVOKABLE void accept(QQmlV4Function *);
 
 private:
     QQuickDropAreaPrivate *d;

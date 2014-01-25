@@ -84,7 +84,7 @@ public:
     QBackingStore might be used by an application that wants to use QPainter
     without OpenGL acceleration and without the extra overhead of using the
     QWidget or QGraphicsView UI stacks. For an example of how to use
-    QBackingStore see the \l{gui/rasterwindow}{Raster Window} example.
+    QBackingStore see the \l{Raster Window Example}.
 */
 
 /*!
@@ -97,6 +97,11 @@ void QBackingStore::flush(const QRegion &region, QWindow *win, const QPoint &off
 {
     if (!win)
         win = window();
+    if (!win->handle()) {
+        qWarning() << "QBackingStore::flush() called for "
+            << win << " which does not have a handle.";
+        return;
+    }
 
 #ifdef QBACKINGSTORE_DEBUG
     if (win && win->isTopLevel() && !qt_window_private(win)->receivedExpose) {
@@ -189,7 +194,7 @@ QSize QBackingStore::size() const
     Scrolls the given \a area \a dx pixels to the right and \a dy
     downward; both \a dx and \a dy may be negative.
 
-    Returns true if the area was scrolled successfully; false otherwise.
+    Returns \c true if the area was scrolled successfully; false otherwise.
 */
 bool QBackingStore::scroll(const QRegion &area, int dx, int dy)
 {

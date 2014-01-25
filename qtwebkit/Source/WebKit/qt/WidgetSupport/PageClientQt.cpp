@@ -64,6 +64,7 @@ void PageClientQWidget::update(const QRect & dirtyRect)
 void PageClientQWidget::repaintViewport()
 {
     update(view->rect());
+    QMetaObject::invokeMethod(page, "repaintRequested", Qt::QueuedConnection, Q_ARG(QRect, view->rect()));
 }
 
 void PageClientQWidget::setInputMethodEnabled(bool enable)
@@ -175,6 +176,7 @@ void PageClientQGraphicsWidget::update(const QRect& dirtyRect)
 void PageClientQGraphicsWidget::repaintViewport()
 {
     update(view->boundingRect().toAlignedRect());
+    QMetaObject::invokeMethod(page, "repaintRequested", Qt::QueuedConnection, Q_ARG(QRect, view->boundingRect().toAlignedRect()));
 }
 
 bool PageClientQGraphicsWidget::makeOpenGLContextCurrentIfAvailable()
@@ -252,9 +254,12 @@ QRect PageClientQGraphicsWidget::geometryRelativeToOwnerWidget() const
 
 QPoint PageClientQGraphicsWidget::mapToOwnerWindow(const QPoint& point) const
 {
-    if (const QGraphicsView* graphicsView = firstGraphicsView())
+    if (const QGraphicsView* graphicsView = firstGraphicsView()) {
         if (const QWidget *nativeParent = graphicsView->nativeParentWidget())
             return graphicsView->mapTo(nativeParent, graphicsView->mapFromScene(view->mapToScene(point)));
+        else
+            return graphicsView->mapFromScene(view->mapToScene(point));
+    }
     return point;
 }
 

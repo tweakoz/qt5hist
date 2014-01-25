@@ -83,6 +83,16 @@ QX11Info::QX11Info()
 }
 
 /*!
+    Returns true if the application is currently running on X11.
+
+    \since 5.2
+ */
+bool QX11Info::isPlatformX11()
+{
+    return QGuiApplication::platformName() == QLatin1String("xcb");
+}
+
+/*!
     Returns the horizontal resolution of the given \a screen in terms of the
     number of dots per inch.
 
@@ -168,14 +178,27 @@ unsigned long QX11Info::appRootWindow(int screen)
     Returns the number of the screen where the application is being
     displayed.
 
+    This method refers to screens in the original X11 meaning with a
+    different DISPLAY environment variable per screen.
+    This information is only useful if your application needs to know
+    on which X screen it is running.
+
+    In a typical multi-head configuration, multiple physical monitors
+    are combined in one X11 screen. This means this method returns the
+    same number for each of the physical monitors. In such a setup you
+    are interested in the monitor information as provided by the X11
+    RandR extension. This is available through QDesktopWidget and QScreen.
+
     \sa display(), screen()
 */
 int QX11Info::appScreen()
 {
     if (!qApp)
         return 0;
-    QDesktopWidget *desktop = QApplication::desktop();
-    return desktop->primaryScreen();
+    QPlatformNativeInterface *native = qApp->platformNativeInterface();
+    if (!native)
+        return 0;
+    return reinterpret_cast<qintptr>(native->nativeResourceForIntegration(QByteArrayLiteral("x11screen")));
 }
 
 /*!
@@ -250,6 +273,25 @@ void QX11Info::setAppUserTime(unsigned long time)
         func(screen, time);
     else
         qWarning("Internal error: QPA plugin doesn't implement setAppUserTime");
+}
+
+/*!
+    Fetches the current X11 time stamp from the X Server.
+
+    This method creates a property notify event and blocks till it is
+    received back from the X Server.
+
+    \since 5.2
+*/
+unsigned long QX11Info::getTimestamp()
+{
+    if (!qApp)
+        return 0;
+    QPlatformNativeInterface *native = qApp->platformNativeInterface();
+    if (!native)
+        return 0;
+    QScreen* screen = QGuiApplication::primaryScreen();
+    return static_cast<xcb_timestamp_t>(reinterpret_cast<quintptr>(native->nativeResourceForScreen("gettimestamp", screen)));
 }
 
 /*!

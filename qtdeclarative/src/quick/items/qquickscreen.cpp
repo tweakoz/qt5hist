@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -52,7 +52,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype Screen
     \instantiates QQuickScreenAttached
-    \inqmlmodule QtQuick.Window 2
+    \inqmlmodule QtQuick.Window
     \ingroup qtquick-visual-utility
     \brief The Screen attached object provides information about the Screen an Item or Window is displayed on.
 
@@ -80,28 +80,28 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlattachedproperty String QtQuick.Window2::Screen::name
+    \qmlattachedproperty string Screen::name
     \readonly
-    \since Qt 5.1
+    \since 5.1
 
     The name of the screen.
 */
 /*!
-    \qmlattachedproperty int QtQuick.Window2::Screen::width
+    \qmlattachedproperty int Screen::width
     \readonly
 
     This contains the width of the screen in pixels.
 */
 /*!
-    \qmlattachedproperty int QtQuick.Window2::Screen::height
+    \qmlattachedproperty int Screen::height
     \readonly
 
     This contains the height of the screen in pixels.
 */
 /*!
-    \qmlattachedproperty int QtQuick.Window2::Screen::desktopAvailableWidth
+    \qmlattachedproperty int Screen::desktopAvailableWidth
     \readonly
-    \since Qt 5.1
+    \since 5.1
 
     This contains the available width of the collection of screens which make
     up the virtual desktop, in pixels, excluding window manager reserved areas
@@ -113,9 +113,9 @@ QT_BEGIN_NAMESPACE
     \endqml
 */
 /*!
-    \qmlattachedproperty int QtQuick.Window2::Screen::desktopAvailableHeight
+    \qmlattachedproperty int Screen::desktopAvailableHeight
     \readonly
-    \since Qt 5.1
+    \since 5.1
 
     This contains the available height of the collection of screens which make
     up the virtual desktop, in pixels, excluding window manager reserved areas
@@ -127,16 +127,30 @@ QT_BEGIN_NAMESPACE
     \endqml
 */
 /*!
-    \qmlattachedproperty real QtQuick.Window2::Screen::logicalPixelDensity
+    \qmlattachedproperty real Screen::logicalPixelDensity
     \readonly
-    \since Qt 5.1
+    \since 5.1
+    \deprecated
 
-    The number of logical pixels per millimeter.  Logical pixels are the
-    usual units in QML; on some systems they may be different than physical
-    pixels.
+    The number of logical pixels per millimeter. This is the effective pixel
+    density provided by the platform to use in image scaling calculations.
+
+    Due to inconsistencies in how logical pixel density is handled across
+    the various platforms Qt supports, it is recommended to
+    use physical pixels instead (via the \c pixelDensity property) for
+    portability.
+
+    \sa pixelDensity
 */
 /*!
-    \qmlattachedproperty Qt::ScreenOrientation QtQuick.Window2::Screen::primaryOrientation
+    \qmlattachedproperty real Screen::pixelDensity
+    \readonly
+    \since 5.2
+
+    The number of physical pixels per millimeter.
+*/
+/*!
+    \qmlattachedproperty Qt::ScreenOrientation Screen::primaryOrientation
     \readonly
 
     This contains the primary orientation of the screen.  If the
@@ -153,7 +167,7 @@ QT_BEGIN_NAMESPACE
     automatically, so again you will see the primaryOrientation change.
 */
 /*!
-    \qmlattachedproperty Qt::ScreenOrientation QtQuick.Window2::Screen::orientation
+    \qmlattachedproperty Qt::ScreenOrientation Screen::orientation
     \readonly
 
     This contains the current orientation of the screen, from the accelerometer
@@ -167,7 +181,7 @@ QT_BEGIN_NAMESPACE
     \l Item.transform to rotate your content.
 */
 /*!
-    \qmlattachedmethod int QtQuick.Window2::Screen::angleBetween(Qt::ScreenOrientation a, Qt::ScreenOrientation b)
+    \qmlattachedmethod int Screen::angleBetween(Qt::ScreenOrientation a, Qt::ScreenOrientation b)
 
     Returns the rotation angle, in degrees, between the two specified angles.
 */
@@ -233,6 +247,13 @@ qreal QQuickScreenAttached::logicalPixelDensity() const
     return m_screen->logicalDotsPerInch() / 25.4;
 }
 
+qreal QQuickScreenAttached::pixelDensity() const
+{
+    if (!m_screen)
+        return 0.0;
+    return m_screen->physicalDotsPerInch() / 25.4;
+}
+
 Qt::ScreenOrientation QQuickScreenAttached::primaryOrientation() const
 {
     if (!m_screen)
@@ -291,6 +312,8 @@ void QQuickScreenAttached::screenChanged(QScreen *screen)
             emit desktopGeometryChanged();
         if (!oldScreen || screen->logicalDotsPerInch() != oldScreen->logicalDotsPerInch())
             emit logicalPixelDensityChanged();
+        if (!oldScreen || screen->physicalDotsPerInch() != oldScreen->physicalDotsPerInch())
+            emit pixelDensityChanged();
 
         connect(screen, SIGNAL(geometryChanged(QRect)),
                 this, SIGNAL(widthChanged()));
@@ -304,6 +327,8 @@ void QQuickScreenAttached::screenChanged(QScreen *screen)
                 this, SIGNAL(desktopGeometryChanged()));
         connect(screen, SIGNAL(logicalDotsPerInchChanged(qreal)),
                 this, SIGNAL(logicalPixelDensityChanged()));
+        connect(screen, SIGNAL(physicalDotsPerInchChanged(qreal)),
+                this, SIGNAL(pixelDensityChanged()));
     }
 }
 

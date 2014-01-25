@@ -90,7 +90,8 @@ QT_BEGIN_NAMESPACE
     specified.
 
     A color can be set by passing an RGB string (such as "#112233"),
-    or a color name (such as "blue"), to the setNamedColor() function.
+    or an ARGB string (such as "#ff112233") or a color name (such as "blue"),
+    to the setNamedColor() function.
     The color names are taken from the SVG 1.0 color names. The name()
     function returns the name of the color in the format
     "#RRGGBB". Colors can also be set using setRgb(), setHsv() and
@@ -301,6 +302,17 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
+    \enum QColor::NameFormat
+
+    How to format the output of the name() function
+
+    \value HexRgb #RRGGBB A "#" character followed by three two-digit hexadecimal numbers (i.e. \c{#RRGGBB}).
+    \value HexArgb #AARRGGBB A "#" character followed by four two-digit hexadecimal numbers (i.e. \c{#AARRGGBB}).
+
+    \sa name()
+*/
+
+/*!
     \fn Spec QColor::spec() const
 
     Returns how the color was specified.
@@ -477,7 +489,7 @@ QColor::QColor(Spec spec)
 /*!
     \fn bool QColor::isValid() const
 
-    Returns true if the color is valid; otherwise returns false.
+    Returns \c true if the color is valid; otherwise returns \c false.
 */
 
 /*!
@@ -489,8 +501,28 @@ QColor::QColor(Spec spec)
 
 QString QColor::name() const
 {
+    return name(HexRgb);
+}
+
+/*!
+    \since 5.2
+
+    Returns the name of the color in the specified \a format.
+
+    \sa setNamedColor(), NameFormat
+*/
+
+QString QColor::name(NameFormat format) const
+{
     QString s;
-    s.sprintf("#%02x%02x%02x", red(), green(), blue());
+    switch (format) {
+    case HexRgb:
+        s.sprintf("#%02x%02x%02x", red(), green(), blue());
+        break;
+    case HexArgb:
+        s.sprintf("#%02x%02x%02x%02x", alpha(), red(), green(), blue());
+        break;
+    }
     return s;
 }
 
@@ -501,6 +533,7 @@ QString QColor::name() const
     \list
     \li #RGB (each of R, G, and B is a single hex digit)
     \li #RRGGBB
+    \li #AARRGGBB (Since 5.2)
     \li #RRRGGGBBB
     \li #RRRRGGGGBBBB
     \li A name from the list of colors defined in the list of \l{http://www.w3.org/TR/SVG/types.html#ColorKeywords}{SVG color keyword names}
@@ -524,7 +557,7 @@ void QColor::setNamedColor(const QString &name)
 /*!
    \since 4.7
 
-   Returns true if the \a name is a valid color name and can
+   Returns \c true if the \a name is a valid color name and can
    be used to construct a valid QColor object, otherwise returns
    false.
 
@@ -545,9 +578,9 @@ bool QColor::setColorFromString(const QString &name)
     }
 
     if (name.startsWith(QLatin1Char('#'))) {
-        QRgb rgb;
-        if (qt_get_hex_rgb(name.constData(), name.length(), &rgb)) {
-            setRgb(rgb);
+        QRgb rgba;
+        if (qt_get_hex_rgb(name.constData(), name.length(), &rgba)) {
+            setRgba(rgba);
             return true;
         } else {
             invalidate();
@@ -2305,8 +2338,8 @@ QColor &QColor::operator=(Qt::GlobalColor color)
 }
 
 /*!
-    Returns true if this color has the same RGB and alpha values as \a color;
-    otherwise returns false.
+    Returns \c true if this color has the same RGB and alpha values as \a color;
+    otherwise returns \c false.
 */
 bool QColor::operator==(const QColor &color) const
 {
@@ -2333,8 +2366,8 @@ bool QColor::operator==(const QColor &color) const
 }
 
 /*!
-    Returns true if this color has a different RGB and alpha values from
-    \a color; otherwise returns false.
+    Returns \c true if this color has a different RGB and alpha values from
+    \a color; otherwise returns \c false.
 */
 bool QColor::operator!=(const QColor &color) const
 { return !operator==(color); }

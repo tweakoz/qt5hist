@@ -40,6 +40,7 @@
 **
 ****************************************************************************/
 
+#include <QtGui/private/qguiapplication_p.h>
 
 #include <dlfcn.h>
 #include <pthread.h>
@@ -55,9 +56,11 @@
 #include <stdlib.h>
 
 #include "androidjnimain.h"
+#include "androidjniaccessibility.h"
 #include "androidjniinput.h"
 #include "androidjniclipboard.h"
 #include "androidjnimenu.h"
+#include "qandroidplatformdialoghelpers.h"
 #include "qandroidplatformintegration.h"
 #include <QtWidgets/QApplication>
 
@@ -88,10 +91,16 @@ static AAssetManager *m_assetManager = NULL;
 static jobject m_resourcesObj;
 static jobject m_activityObject = NULL;
 
+static bool m_activityActive = true; // defaults to true because when the platform plugin is
+                                     // initialized, QtActivity::onResume() has already been called
+
 static jclass m_bitmapClass  = 0;
 static jmethodID m_createBitmapMethodID = 0;
 static jobject m_ARGB_8888_BitmapConfigValue = 0;
 static jobject m_RGB_565_BitmapConfigValue = 0;
+
+jmethodID m_setFullScreenMethodID = 0;
+static bool m_statusBarShowing = true;
 
 static jclass m_bitmapDrawableClass = 0;
 static jmethodID m_bitmapDrawableConstructorMethodID = 0;
@@ -107,8 +116,6 @@ static jobject m_surface = NULL;
 static EGLNativeWindowType m_nativeWindow = 0;
 static QSemaphore m_waitForWindowSemaphore;
 static bool m_waitForWindow = false;
-
-static jfieldID m_surfaceFieldID = 0;
 #endif
 
 
@@ -243,17 +250,6 @@ namespace QtAndroid
         m_surfaceMutex.unlock();
         return m_nativeWindow;
     }
-
-    QSize nativeWindowSize()
-    {
-        if (m_nativeWindow == 0)
-            return QAndroidPlatformIntegration::defaultDesktopSize();
-
-        int width = ANativeWindow_getWidth(m_nativeWindow);
-        int height = ANativeWindow_getHeight(m_nativeWindow);
-
-        return QSize(width, height);
-    }
 #endif
 
     void setAndroidPlatformIntegration(QAndroidPlatformIntegration *androidPlatformIntegration)
@@ -317,6 +313,42 @@ namespace QtAndroid
     jobject activity()
     {
         return m_activityObject;
+    }
+
+    void showStatusBar()
+    {
+        if (m_statusBarShowing)
+            return;
+
+        QtAndroid::AttachedJNIEnv env;
+        if (env.jniEnv == 0) {
+            qWarning("Failed to get JNI Environment.");
+            return;
+        }
+
+        env.jniEnv->CallStaticVoidMethod(m_applicationClass, m_setFullScreenMethodID, false);
+        m_statusBarShowing = true;
+    }
+
+    void hideStatusBar()
+    {
+        if (!m_statusBarShowing)
+            return;
+
+        QtAndroid::AttachedJNIEnv env;
+        if (env.jniEnv == 0) {
+            qWarning("Failed to get JNI Environment.");
+            return;
+        }
+
+        env.jniEnv->CallStaticVoidMethod(m_applicationClass, m_setFullScreenMethodID, true);
+        m_statusBarShowing = false;
+    }
+
+    void setApplicationActive()
+    {
+        if (m_activityActive)
+            QWindowSystemInterface::handleApplicationStateChanged(Qt::ApplicationActive);
     }
 
     jobject createBitmap(QImage img, JNIEnv *env)
@@ -409,14 +441,11 @@ static jboolean startQtAndroidPlugin(JNIEnv* /*env*/, jobject /*object*//*, jobj
 
 static void *startMainMethod(void */*data*/)
 {
-    char const **params;
-    params = static_cast<char const **>(malloc(m_applicationParams.length() * sizeof(char *)));
+    QVarLengthArray<const char *> params(m_applicationParams.size());
     for (int i = 0; i < m_applicationParams.size(); i++)
         params[i] = static_cast<const char *>(m_applicationParams[i].constData());
 
-    int ret = m_main(m_applicationParams.length(), const_cast<char **>(params));
-
-    free(params);
+    int ret = m_main(m_applicationParams.length(), const_cast<char **>(params.data()));
     Q_UNUSED(ret);
 
     if (m_mainLibraryHnd) {
@@ -445,7 +474,7 @@ static jboolean startQtApplication(JNIEnv *env, jobject /*object*/, jstring para
     env->ReleaseStringUTFChars(environmentString, nativeString);
     m_applicationParams=string.split('\t');
     foreach (string, m_applicationParams) {
-        if (putenv(string.constData()))
+        if (!string.isEmpty() && putenv(string.constData()))
             qWarning() << "Can't set environment" << string;
     }
 
@@ -557,12 +586,16 @@ static void setSurface(JNIEnv *env, jobject /*thiz*/, jobject jSurface)
         m_waitForWindowSemaphore.release();
 
     if (m_androidPlatformIntegration) {
-        QSize size = QtAndroid::nativeWindowSize();
+        // Use the desktop size.
+        // On some devices, the getters for the native window size gives wrong values
+        QSize size = QAndroidPlatformIntegration::defaultDesktopSize();
 
         QPlatformScreen *screen = m_androidPlatformIntegration->screen();
         QRect geometry(QPoint(0, 0), size);
-        QWindowSystemInterface::handleScreenAvailableGeometryChange(screen->screen(), geometry);
-        QWindowSystemInterface::handleScreenGeometryChange(screen->screen(), geometry);
+        if (screen) {
+            QWindowSystemInterface::handleScreenAvailableGeometryChange(screen->screen(), geometry);
+            QWindowSystemInterface::handleScreenGeometryChange(screen->screen(), geometry);
+        }
 
         if (!sameNativeWindow) {
             m_surfaceMutex.unlock();
@@ -655,17 +688,47 @@ static void updateWindow(JNIEnv */*env*/, jobject /*thiz*/)
 #endif
 }
 
-static void handleOrientationChanged(JNIEnv */*env*/, jobject /*thiz*/, jint newOrientation)
+static void updateApplicationState(JNIEnv */*env*/, jobject /*thiz*/, jint state)
 {
-    if (m_androidPlatformIntegration == 0)
+    m_activityActive = (state == Qt::ApplicationActive);
+
+    if (!m_androidPlatformIntegration || !QGuiApplicationPrivate::platformIntegration())
         return;
 
-    Qt::ScreenOrientation screenOrientation = newOrientation == 1
-                                              ? Qt::PortraitOrientation
-                                              : Qt::LandscapeOrientation;
-    QPlatformScreen *screen = m_androidPlatformIntegration->screen();
-    QWindowSystemInterface::handleScreenOrientationChange(screen->screen(),
-                                                          screenOrientation);
+    QWindowSystemInterface::handleApplicationStateChanged(Qt::ApplicationState(state));
+}
+
+static void handleOrientationChanged(JNIEnv */*env*/, jobject /*thiz*/, jint newRotation, jint nativeOrientation)
+{
+    // Array of orientations rotated in 90 degree increments, counterclockwise
+    // (same direction as Android measures angles)
+    static const Qt::ScreenOrientation orientations[] = {
+        Qt::PortraitOrientation,
+        Qt::LandscapeOrientation,
+        Qt::InvertedPortraitOrientation,
+        Qt::InvertedLandscapeOrientation
+    };
+
+    // The Android API defines the following constants:
+    // ROTATION_0 :   0
+    // ROTATION_90 :  1
+    // ROTATION_180 : 2
+    // ROTATION_270 : 3
+    // ORIENTATION_PORTRAIT :  1
+    // ORIENTATION_LANDSCAPE : 2
+
+    // and newRotation is how much the current orientation is rotated relative to nativeOrientation
+
+    // which means that we can be really clever here :)
+    Qt::ScreenOrientation screenOrientation = orientations[(nativeOrientation - 1 + newRotation) % 4];
+    Qt::ScreenOrientation native = orientations[nativeOrientation - 1];
+
+    QAndroidPlatformIntegration::setScreenOrientation(screenOrientation, native);
+    if (m_androidPlatformIntegration) {
+        QPlatformScreen *screen = m_androidPlatformIntegration->screen();
+        QWindowSystemInterface::handleScreenOrientationChange(screen->screen(),
+                                                              screenOrientation);
+    }
 }
 
 static JNINativeMethod methods[] = {
@@ -681,7 +744,8 @@ static JNINativeMethod methods[] = {
     {"lockSurface", "()V", (void *)lockSurface},
     {"unlockSurface", "()V", (void *)unlockSurface},
     {"updateWindow", "()V", (void *)updateWindow},
-    {"handleOrientationChanged", "(I)V", (void *)handleOrientationChanged}
+    {"updateApplicationState", "(I)V", (void *)updateApplicationState},
+    {"handleOrientationChanged", "(II)V", (void *)handleOrientationChanged}
 };
 
 #define FIND_AND_CHECK_CLASS(CLASS_NAME) \
@@ -724,6 +788,7 @@ static int registerNatives(JNIEnv *env)
     jclass clazz;
     FIND_AND_CHECK_CLASS("org/qtproject/qt5/android/QtNative");
     m_applicationClass = static_cast<jclass>(env->NewGlobalRef(clazz));
+    GET_AND_CHECK_STATIC_METHOD(m_setFullScreenMethodID, m_applicationClass, "setFullScreen", "(Z)V");
 
     if (env->RegisterNatives(m_applicationClass, methods, sizeof(methods) / sizeof(methods[0])) < 0) {
         __android_log_print(ANDROID_LOG_FATAL,"Qt", "RegisterNatives failed");
@@ -731,11 +796,6 @@ static int registerNatives(JNIEnv *env)
     }
 
     GET_AND_CHECK_STATIC_METHOD(m_redrawSurfaceMethodID, m_applicationClass, "redrawSurface", "(IIII)V");
-
-#ifdef ANDROID_PLUGIN_OPENGL
-    FIND_AND_CHECK_CLASS("android/view/Surface");
-    GET_AND_CHECK_FIELD(m_surfaceFieldID, clazz, "mNativeSurface", "I");
-#endif
 
     jmethodID methodID;
     GET_AND_CHECK_STATIC_METHOD(methodID, m_applicationClass, "activity", "()Landroid/app/Activity;");
@@ -776,6 +836,15 @@ static int registerNatives(JNIEnv *env)
     return JNI_TRUE;
 }
 
+jint androidApiLevel(JNIEnv *env)
+{
+    jclass clazz;
+    FIND_AND_CHECK_CLASS("android/os/Build$VERSION");
+    jfieldID fieldId;
+    GET_AND_CHECK_STATIC_FIELD(fieldId, clazz, "SDK_INT", "I");
+    return env->GetStaticIntField(clazz, fieldId);
+}
+
 Q_DECL_EXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void */*reserved*/)
 {
     typedef union {
@@ -797,8 +866,16 @@ Q_DECL_EXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void */*reserved*/)
     if (!registerNatives(env)
             || !QtAndroidInput::registerNatives(env)
             || !QtAndroidClipboard::registerNatives(env)
-            || !QtAndroidMenu::registerNatives(env)) {
+            || !QtAndroidMenu::registerNatives(env)
+            || !QtAndroidAccessibility::registerNatives(env)
+            || !QtAndroidDialogHelpers::registerNatives(env)) {
         __android_log_print(ANDROID_LOG_FATAL, "Qt", "registerNatives failed");
+        return -1;
+    }
+
+    jint apiLevel = androidApiLevel(env);
+    if (apiLevel >= 16 && !QtAndroidAccessibility::registerNatives(env)) {
+        __android_log_print(ANDROID_LOG_FATAL, "Qt A11y", "registerNatives failed");
         return -1;
     }
 

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -87,13 +87,13 @@ class QSGGuiThreadRenderLoop : public QSGRenderLoop
     Q_OBJECT
 public:
     QSGGuiThreadRenderLoop();
+    ~QSGGuiThreadRenderLoop();
 
     void show(QQuickWindow *window);
     void hide(QQuickWindow *window);
 
     void windowDestroyed(QQuickWindow *window);
 
-    void initializeGL();
     void renderWindow(QQuickWindow *window);
     void exposureChanged(QQuickWindow *window);
     QImage grab(QQuickWindow *window);
@@ -106,6 +106,7 @@ public:
     QAnimationDriver *animationDriver() const { return 0; }
 
     QSGContext *sceneGraphContext() const;
+    QSGRenderContext *createRenderContext(QSGContext *) const { return rc; }
 
     bool event(QEvent *);
 
@@ -118,30 +119,38 @@ public:
 
     QOpenGLContext *gl;
     QSGContext *sg;
+    QSGRenderContext *rc;
 
     QImage grabContent;
 
     bool eventPending;
 };
 
+bool QSGRenderLoop::useConsistentTiming()
+{
+    bool bufferQueuing = QGuiApplicationPrivate::platformIntegration()->hasCapability(QPlatformIntegration::BufferQueueingOpenGL);
+    // Enable fixed animation steps...
+    QByteArray fixed = qgetenv("QSG_FIXED_ANIMATION_STEP");
+    bool fixedAnimationSteps = bufferQueuing;
+    if (fixed == "no")
+        fixedAnimationSteps = false;
+    else if (fixed.length())
+        fixedAnimationSteps = true;
+    return fixedAnimationSteps;
+}
 
 QSGRenderLoop *QSGRenderLoop::instance()
 {
     if (!s_instance) {
-
         s_instance = QSGContext::createWindowManager();
 
-        bool bufferQueuing = QGuiApplicationPrivate::platformIntegration()->hasCapability(QPlatformIntegration::BufferQueueingOpenGL);
+        bool info = qEnvironmentVariableIsSet("QSG_INFO");
 
-        // Enable fixed animation steps...
-        QByteArray fixed = qgetenv("QML_FIXED_ANIMATION_STEP");
-        bool fixedAnimationSteps = bufferQueuing;
-        if (fixed == "no")
-            fixedAnimationSteps = false;
-        else if (fixed.length())
-            fixedAnimationSteps = true;
-        if (fixedAnimationSteps)
+        if (useConsistentTiming()) {
             QUnifiedTimer::instance(true)->setConsistentTiming(true);
+            if (info)
+                qDebug() << "QSG: using fixed animation steps";
+        }
 
         if (!s_instance) {
 
@@ -174,12 +183,15 @@ QSGRenderLoop *QSGRenderLoop::instance()
 
             switch (loopType) {
             case ThreadedRenderLoop:
+                if (info) qDebug() << "QSG: threaded render loop";
                 s_instance = new QSGThreadedRenderLoop();
                 break;
             case WindowsRenderLoop:
+                if (info) qDebug() << "QSG: windows render loop";
                 s_instance = new QSGWindowsRenderLoop();
                 break;
             default:
+                if (info) qDebug() << "QSG: basic render loop";
                 s_instance = new QSGGuiThreadRenderLoop();
                 break;
             }
@@ -199,8 +211,14 @@ QSGGuiThreadRenderLoop::QSGGuiThreadRenderLoop()
     , eventPending(false)
 {
     sg = QSGContext::createDefaultContext();
+    rc = new QSGRenderContext(sg);
 }
 
+QSGGuiThreadRenderLoop::~QSGGuiThreadRenderLoop()
+{
+    delete rc;
+    delete sg;
+}
 
 void QSGGuiThreadRenderLoop::show(QQuickWindow *window)
 {
@@ -223,7 +241,8 @@ void QSGGuiThreadRenderLoop::hide(QQuickWindow *window)
 
     if (m_windows.size() == 0) {
         if (!cd->persistentSceneGraph) {
-            sg->invalidate();
+            rc->invalidate();
+            QCoreApplication::sendPostedEvents(0, QEvent::DeferredDelete);
             if (!cd->persistentGLContext) {
                 delete gl;
                 gl = 0;
@@ -236,7 +255,8 @@ void QSGGuiThreadRenderLoop::windowDestroyed(QQuickWindow *window)
 {
     hide(window);
     if (m_windows.size() == 0) {
-        sg->invalidate();
+        rc->invalidate();
+        QCoreApplication::sendPostedEvents(0, QEvent::DeferredDelete);
         delete gl;
         gl = 0;
     }
@@ -254,13 +274,17 @@ void QSGGuiThreadRenderLoop::renderWindow(QQuickWindow *window)
     if (!gl) {
         gl = new QOpenGLContext();
         gl->setFormat(window->requestedFormat());
+        if (QSGContext::sharedOpenGLContext())
+            gl->setShareContext(QSGContext::sharedOpenGLContext());
         if (!gl->create()) {
+            qWarning("QtQuick: failed to create OpenGL context");
             delete gl;
             gl = 0;
+        } else {
+            current = gl->makeCurrent(window);
         }
-        current = gl->makeCurrent(window);
         if (current)
-            sg->initialize(gl);
+            QQuickWindowPrivate::get(window)->context->initialize(gl);
     } else {
         current = gl->makeCurrent(window);
     }

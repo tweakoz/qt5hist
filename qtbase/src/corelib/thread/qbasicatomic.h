@@ -60,11 +60,11 @@
 // Processor dependent implementation
 #elif defined(Q_PROCESSOR_ALPHA)
 #  include "QtCore/qatomic_alpha.h"
-#elif defined(Q_PROCESSOR_ARM_V7)
+#elif defined(Q_PROCESSOR_ARM_V7) && defined(Q_PROCESSOR_ARM_32)
 # include "QtCore/qatomic_armv7.h"
-#elif defined(Q_PROCESSOR_ARM_V6)
+#elif defined(Q_PROCESSOR_ARM_V6) && defined(Q_PROCESSOR_ARM_32)
 # include "QtCore/qatomic_armv6.h"
-#elif defined(Q_PROCESSOR_ARM_V5)
+#elif defined(Q_PROCESSOR_ARM_V5) && defined(Q_PROCESSOR_ARM_32)
 # include "QtCore/qatomic_armv5.h"
 #elif defined(Q_PROCESSOR_BFIN)
 #  include "QtCore/qatomic_bfin.h"
@@ -137,11 +137,10 @@ public:
 
     typename Ops::Type _q_value;
 
-    // Non-atomic API
+    // Everything below is either implemented in ../arch/qatomic_XXX.h or (as fallback) in qgenericatomic.h
+
     T load() const Q_DECL_NOTHROW { return Ops::load(_q_value); }
     void store(T newValue) Q_DECL_NOTHROW { Ops::store(_q_value, newValue); }
-
-    // Atomic API, implemented in qatomic_XXX.h
 
     T loadAcquire() const Q_DECL_NOTHROW { return Ops::loadAcquire(_q_value); }
     void storeRelease(T newValue) Q_DECL_NOTHROW { Ops::storeRelease(_q_value, newValue); }

@@ -573,9 +573,12 @@ typedef enum { Q_FileIdInfo = 18 } Q_FILE_INFO_BY_HANDLE_CLASS;
 
 #  if defined(Q_CC_MINGW) || (defined(Q_CC_MSVC) && _MSC_VER < 1700)
 
+// MinGW-64 defines FILE_ID_128 as of gcc-4.8.1 along with FILE_SUPPORTS_INTEGRITY_STREAMS
+#    if !(defined(Q_CC_MINGW) && defined(FILE_SUPPORTS_INTEGRITY_STREAMS))
 typedef struct _FILE_ID_128 {
     BYTE  Identifier[16];
 } FILE_ID_128, *PFILE_ID_128;
+#    endif // !(Q_CC_MINGW && FILE_SUPPORTS_INTEGRITY_STREAMS)
 
 typedef struct _FILE_ID_INFO {
     ULONGLONG VolumeSerialNumber;
@@ -614,7 +617,8 @@ QByteArray fileIdWin8(HANDLE handle)
                                          &infoEx, sizeof(FILE_ID_INFO))) {
             result = QByteArray::number(infoEx.VolumeSerialNumber, 16);
             result += ':';
-            result += QByteArray((char *)infoEx.FileId.Identifier, sizeof(infoEx.FileId.Identifier)).toHex();
+            // Note: MinGW-64's definition of FILE_ID_128 differs from the MSVC one.
+            result += QByteArray((char *)&infoEx.FileId, sizeof(infoEx.FileId)).toHex();
         }
     }
     return result;
@@ -961,8 +965,10 @@ bool QFileSystemEngine::fillMetaData(const QFileSystemEntry &entry, QFileSystemM
     return data.hasFlags(what);
 }
 
-static inline bool mkDir(const QString &path)
+static inline bool mkDir(const QString &path, DWORD *lastError = 0)
 {
+    if (lastError)
+        *lastError = 0;
 #if defined(Q_OS_WINCE)
     // Unfortunately CreateDirectory returns true for paths longer than
     // 256, but does not create a directory. It starts to fail, when
@@ -982,7 +988,11 @@ static inline bool mkDir(const QString &path)
     if (platformId == 1 && QFSFileEnginePrivate::longFileName(path).size() > 256)
         return false;
 #endif
-    return ::CreateDirectory((wchar_t*)QFSFileEnginePrivate::longFileName(path).utf16(), 0);
+    const QString longPath = QFSFileEnginePrivate::longFileName(path);
+    const bool result = ::CreateDirectory((wchar_t*)longPath.utf16(), 0);
+    if (lastError) // Capture lastError before any QString is freed since custom allocators might change it.
+        *lastError = GetLastError();
+    return result;
 }
 
 static inline bool rmDir(const QString &path)
@@ -1047,9 +1057,9 @@ bool QFileSystemEngine::createDirectory(const QFileSystemEntry &entry, bool crea
                 slash = dirName.length();
             }
             if (slash) {
+                DWORD lastError;
                 QString chunk = dirName.left(slash);
-                if (!mkDir(chunk)) {
-                    const DWORD lastError = GetLastError();
+                if (!mkDir(chunk, &lastError)) {
                     if (lastError == ERROR_ALREADY_EXISTS || lastError == ERROR_ACCESS_DENIED) {
                         bool existed = false;
                         if (isDirPath(chunk, &existed) && existed)

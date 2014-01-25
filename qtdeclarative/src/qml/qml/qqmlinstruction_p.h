@@ -116,10 +116,7 @@ QT_BEGIN_NAMESPACE
     F(StoreImportedScript, storeScript) \
     F(StoreScriptString, storeScriptString) \
     F(BeginObject, begin) \
-    F(InitV8Bindings, initV8Bindings) \
     F(StoreBinding, assignBinding) \
-    F(StoreV8Binding, assignBinding) \
-    F(StoreV4Binding, assignV4Binding) \
     F(StoreValueSource, assignValueSource) \
     F(StoreValueInterceptor, assignValueInterceptor) \
     F(StoreObjectQList, common) \
@@ -237,28 +234,10 @@ union QQmlInstruction
         QQmlPropertyRawData property;
         int castValue;
     };
-    struct instr_initV8Bindings {
-        QML_INSTR_HEADER
-        ushort programIndex;
-        ushort line;
-    };
-    struct instr_assignV4Binding {
-        QML_INSTR_HEADER
-        int property;   // ((value type sub-property index << 16) | property index)
-        int propType;
-        int value;
-        int fallbackValue;
-        short context;
-        short owner;
-        bool isRoot:1;
-        bool isAlias:1;
-        ushort line;
-        ushort column;
-    };
     struct instr_assignBinding {
         QML_INSTR_HEADER
         QQmlPropertyRawData property;
-        int value;
+        int functionIndex; // index in CompiledData::runtimeFunctions
         short context;
         short owner;
         bool isRoot:1;
@@ -366,18 +345,13 @@ union QQmlInstruction
     struct instr_storeTime {
         QML_INSTR_HEADER
         int propertyIndex;
-        struct QTime {
-            int mds;
-#if defined(Q_OS_WINCE)
-            int startTick;
-#endif
-        } time;
+        int time; // QTime::fromMSecsSinceStartOfDay
     };
     struct instr_storeDateTime {
         QML_INSTR_HEADER
         int propertyIndex;
         int date;
-        instr_storeTime::QTime time;
+        int time;
     };
     struct instr_storeRect {
         QML_INSTR_HEADER
@@ -413,9 +387,11 @@ union QQmlInstruction
     };
     struct instr_storeSignal {
         QML_INSTR_HEADER
+        int runtimeFunctionIndex;
+        int handlerName;
+        int parameters;
         int signalIndex;
         int value;
-        int parameterCount;
         short context;
         ushort line;
         ushort column;
@@ -510,8 +486,6 @@ union QQmlInstruction
     instr_setId setId;
     instr_assignValueSource assignValueSource;
     instr_assignValueInterceptor assignValueInterceptor;
-    instr_initV8Bindings initV8Bindings;
-    instr_assignV4Binding assignV4Binding;
     instr_assignBinding assignBinding;
     instr_fetch fetch;
     instr_fetchValue fetchValue;
@@ -561,7 +535,7 @@ struct QQmlInstructionMeta {
         enum { Size = QML_INSTR_SIZE(I, FMT) }; \
         typedef QQmlInstruction::instr_##FMT DataType; \
         static const DataType &data(const QQmlInstruction &instr) { return instr.FMT; } \
-        static void setData(QQmlInstruction &instr, const DataType &v) { instr.FMT = v; } \
+        static void setData(QQmlInstruction &instr, const DataType &v) { memcpy(&instr.FMT, &v, Size); } \
     }; 
 FOR_EACH_QML_INSTR(QML_INSTR_META_TEMPLATE);
 #undef QML_INSTR_META_TEMPLATE

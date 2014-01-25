@@ -41,6 +41,7 @@
 
 #include "qquickaction_p.h"
 #include "qquickexclusivegroup_p.h"
+#include "qquickmenuitem_p.h"
 
 #include <QtGui/qguiapplication.h>
 #include <QtQuick/qquickitem.h>
@@ -54,7 +55,7 @@ QT_BEGIN_NAMESPACE
     \qmltype Action
     \instantiates QQuickAction
     \ingroup applicationwindow
-    \inqmlmodule QtQuick.Controls 1.0
+    \inqmlmodule QtQuick.Controls
     \brief Action provides an abstract user interface action that can be bound to items
 
     In applications many common commands can be invoked via menus, toolbar buttons, and keyboard
@@ -156,21 +157,34 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlproperty string Action::shortcut
+    \qmlproperty keysequence Action::shortcut
 
-    Shortcut bound to the action. Defaults to the empty string.
+    Shortcut bound to the action. The keysequence can be a string
+    or a \l {QKeySequence::StandardKey}{standard key}.
+
+    Defaults to an empty string.
+
+    \qml
+    Action {
+        id: copyAction
+        text: qsTr("&Copy")
+        shortcut: StandardKey.Copy
+    }
+    \endqml
 */
 
-/*! \qmlsignal Action::triggered()
+/*! \qmlsignal Action::triggered(QObject *source)
 
-    Emitted when either the menu item or its bound action have been activated.
+    Emitted when either the menu item or its bound action have been activated. Includes
+    the object that triggered the event if relevant (e.g. a Button or MenuItem).
     You shouldn't need to emit this signal, use \l trigger() instead.
 */
 
-/*! \qmlmethod Action::trigger()
+/*! \qmlmethod Action::trigger(QObject *source)
 
-    Will emit the \l triggered signal if the action is enabled. Will also emit the
-    \l toggled signal if it is checkable.
+    Will emit the \l triggered signal if the action is enabled. You may provide a source
+    object if the Action would benefit from knowing the origin of the triggering (e.g.
+    for analytics). Will also emit the \l toggled signal if it is checkable.
 */
 
 /*! \qmlsignal Action::toggled(checked)
@@ -203,8 +217,13 @@ void QQuickAction::setText(const QString &text)
     emit textChanged();
 }
 
+namespace {
+
 bool qShortcutContextMatcher(QObject *o, Qt::ShortcutContext context)
 {
+    if (!static_cast<QQuickAction*>(o)->isEnabled())
+        return false;
+
     switch (context) {
     case Qt::ApplicationShortcut:
         return true;
@@ -226,14 +245,54 @@ bool qShortcutContextMatcher(QObject *o, Qt::ShortcutContext context)
     return false;
 }
 
-QString QQuickAction::shortcut() const
+bool qMnemonicContextMatcher(QObject *o, Qt::ShortcutContext context)
+{
+    if (!static_cast<QQuickAction*>(o)->isEnabled())
+        return false;
+
+    switch (context) {
+    case Qt::ApplicationShortcut:
+        return true;
+    case Qt::WindowShortcut: {
+        QObject *w = o;
+        while (w && !w->isWindowType()) {
+            w = w->parent();
+            if (QQuickItem * item = qobject_cast<QQuickItem*>(w))
+                w = item->window();
+            else if (QQuickMenuBase *mb = qobject_cast<QQuickMenuBase *>(w)) {
+                QQuickItem *vi = mb->visualItem();
+                if (vi && vi->isVisible())
+                    w = vi->window();
+                else
+                    break; // Non visible menu objects don't get mnemonic match
+            }
+        }
+        if (w && w == QGuiApplication::focusWindow())
+            return true;
+    }
+    case Qt::WidgetShortcut:
+    case Qt::WidgetWithChildrenShortcut:
+        break;
+    }
+
+    return false;
+}
+
+} // namespace
+
+QVariant QQuickAction::shortcut() const
 {
     return m_shortcut.toString(QKeySequence::NativeText);
 }
 
-void QQuickAction::setShortcut(const QString &arg)
+void QQuickAction::setShortcut(const QVariant &arg)
 {
-    QKeySequence sequence = QKeySequence::fromString(arg);
+    QKeySequence sequence;
+    if (arg.type() == QVariant::Int)
+        sequence = QKeySequence(static_cast<QKeySequence::StandardKey>(arg.toInt()));
+    else
+        sequence = QKeySequence::fromString(arg.toString());
+
     if (sequence == m_shortcut)
         return;
 
@@ -262,7 +321,7 @@ void QQuickAction::setMnemonicFromText(const QString &text)
 
     if (!m_mnemonic.isEmpty()) {
         Qt::ShortcutContext context = Qt::WindowShortcut;
-        QGuiApplicationPrivate::instance()->shortcutMap.addShortcut(this, m_mnemonic, context, qShortcutContextMatcher);
+        QGuiApplicationPrivate::instance()->shortcutMap.addShortcut(this, m_mnemonic, context, qMnemonicContextMatcher);
     }
 }
 
@@ -309,6 +368,7 @@ void QQuickAction::setEnabled(bool e)
     if (e == m_enabled)
         return;
     m_enabled = e;
+
     emit enabledChanged();
 }
 
@@ -379,7 +439,7 @@ bool QQuickAction::event(QEvent *e)
     return true;
 }
 
-void QQuickAction::trigger()
+void QQuickAction::trigger(QObject *source)
 {
     if (!m_enabled)
         return;
@@ -387,7 +447,7 @@ void QQuickAction::trigger()
     if (m_checkable && !(m_checked && m_exclusiveGroup))
         setChecked(!m_checked);
 
-    emit triggered();
+    emit triggered(source);
 }
 
 QT_END_NAMESPACE

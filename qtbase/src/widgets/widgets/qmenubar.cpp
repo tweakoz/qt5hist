@@ -1054,6 +1054,7 @@ void QMenuBar::mousePressEvent(QMouseEvent *e)
         if(QMenu *menu = d->activeMenu) {
             d->activeMenu = 0;
             menu->hide();
+            d->closePopupMode = 1;
         }
     } else {
         d->setCurrentAction(action, true);
@@ -1809,7 +1810,7 @@ QWidget *QMenuBar::cornerWidget(Qt::Corner corner) const
 
     This property specifies whether or not the menubar should be used as a native menubar on platforms
     that support it. The currently supported platforms are Mac OS X and Windows CE. On these platforms
-    if this property is true, the menubar is used in the native menubar and is not in the window of
+    if this property is \c true, the menubar is used in the native menubar and is not in the window of
     its parent, if false the menubar remains in the window. On other platforms the value of this
     attribute has no effect.
 

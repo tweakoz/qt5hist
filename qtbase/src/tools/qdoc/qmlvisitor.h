@@ -45,7 +45,6 @@
 #include <qstring.h>
 #include "qqmljsastvisitor_p.h"
 #include "node.h"
-#include "tree.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -72,12 +71,12 @@ public:
     QmlDocVisitor(const QString &filePath,
                   const QString &code,
                   QQmlJS::Engine *engine,
-                  QSet<QString> &commands,
-                  QSet<QString> &topics);
+                  const QSet<QString> &commands,
+                  const QSet<QString> &topics);
     virtual ~QmlDocVisitor();
 
-    bool visit(QQmlJS::AST::UiImportList *imports);
-    void endVisit(QQmlJS::AST::UiImportList *definition);
+    bool visit(QQmlJS::AST::UiImport *import);
+    void endVisit(QQmlJS::AST::UiImport *definition);
 
     bool visit(QQmlJS::AST::UiObjectDefinition *definition);
     void endVisit(QQmlJS::AST::UiObjectDefinition *definition);
@@ -113,12 +112,12 @@ private:
     QQmlJS::Engine *engine;
     quint32 lastEndOffset;
     quint32 nestingLevel;
-    QString filePath;
+    QString filePath_;
     QString name;
     QString document;
     ImportList importList;
-    QSet<QString> commands;
-    QSet<QString> topics;
+    QSet<QString> commands_;
+    QSet<QString> topics_;
     QSet<quint32> usedComments;
     InnerNode *current;
 };

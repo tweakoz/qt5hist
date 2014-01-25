@@ -1,13 +1,12 @@
 QT += qml quick
 TARGET = gallery
-qtHaveModule(widgets) {
-    QT += widgets
-}
+!android: !ios: !blackberry: qtHaveModule(widgets): QT += widgets
 
 include(src/src.pri)
 
 OTHER_FILES += \
     main.qml \
+    content/AboutDialog.qml \
     content/ChildWindow.qml \
     content/Controls.qml \
     content/ImageViewer.qml \

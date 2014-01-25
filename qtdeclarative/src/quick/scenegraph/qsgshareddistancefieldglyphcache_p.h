@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -44,7 +44,6 @@
 
 #include <QtCore/qwaitcondition.h>
 #include <private/qsgadaptationlayer_p.h>
-#include <private/qqmlguard_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -66,7 +65,7 @@ public:
 
     void requestGlyphs(const QSet<glyph_t> &glyphs);
     void referenceGlyphs(const QSet<glyph_t> &glyphs);
-    void storeGlyphs(const QHash<glyph_t, QImage> &glyphs);
+    void storeGlyphs(const QList<QDistanceField> &glyphs);
     void releaseGlyphs(const QSet<glyph_t> &glyphs);
 
 Q_SIGNALS:
@@ -116,7 +115,7 @@ private:
         Owner(const Owner &o) : item(o.item), ref(o.ref) {}
         Owner &operator =(const Owner &o) { item = o.item; ref = o.ref; return *this; }
 
-        QQmlGuard<QQuickItem> item;
+        QPointer<QQuickItem> item;
         int ref;
     };
 

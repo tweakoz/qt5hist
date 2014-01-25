@@ -221,6 +221,7 @@ public:
     void handleMoved();
     void handleResized(int wParam);
     void handleHidden();
+    void handleCompositionSettingsChanged();
 
     static inline HWND handleOf(const QWindow *w);
     static inline QWindowsWindow *baseWindowOf(const QWindow *w);
@@ -229,12 +230,14 @@ public:
     static inline void setUserDataOf(HWND hwnd, void *ud);
 
     static bool setWindowLayered(HWND hwnd, Qt::WindowFlags flags, bool hasAlpha, qreal opacity);
+    bool isLayered() const;
 
     HDC getDC();
     void releaseDC();
 #ifndef Q_OS_WINCE // maybe available on some SDKs revisit WM_GETMINMAXINFO
     void getSizeHints(MINMAXINFO *mmi) const;
-#endif
+    bool handleNonClientHitTest(const QPoint &globalPos, LRESULT *result) const;
+#endif // !Q_OS_WINCE
 
 #ifndef QT_NO_CURSOR
     QWindowsWindowCursor cursor() const { return m_cursor; }
@@ -372,6 +375,15 @@ inline void QWindowsWindow::destroyIcon()
         DestroyIcon(m_iconSmall);
         m_iconSmall = 0;
     }
+}
+
+inline bool QWindowsWindow::isLayered() const
+{
+#ifndef Q_OS_WINCE
+    return GetWindowLongPtr(m_data.hwnd, GWL_EXSTYLE) & WS_EX_LAYERED;
+#else
+    return false;
+#endif
 }
 
 QT_END_NAMESPACE

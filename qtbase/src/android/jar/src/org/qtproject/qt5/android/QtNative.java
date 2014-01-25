@@ -50,7 +50,6 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.os.Build;
 import android.text.ClipboardManager;
 import android.util.Log;
 import android.view.ContextMenu;
@@ -110,9 +109,13 @@ public class QtNative
 
     public static void openURL(String url)
     {
-        Uri uri = Uri.parse(url);
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        activity().startActivity(intent);
+        try {
+            Uri uri = Uri.parse(url);
+            Intent intent = new Intent(Intent.ACTION_VIEW, uri);
+            activity().startActivity(intent);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     // this method loads full path libs
@@ -204,9 +207,9 @@ public class QtNative
                               m_displayMetricsXDpi,
                               m_displayMetricsYDpi,
                               m_displayMetricsScaledDensity);
-            if (params.length() > 0)
+            if (params.length() > 0 && !params.startsWith("\t"))
                 params = "\t" + params;
-            startQtApplication(f.getAbsolutePath() + "\t" + params, environment);
+            startQtApplication(f.getAbsolutePath() + params, environment);
             m_started = true;
         }
         return res;
@@ -297,8 +300,8 @@ public class QtNative
         if (action == MotionEvent.ACTION_MOVE) {
             int hsz = event.getHistorySize();
             if (hsz > 0) {
-                if (Math.abs(event.getX(index) - event.getHistoricalX(index, hsz-1)) > 1
-                        || Math.abs(event.getY(index) - event.getHistoricalY(index, hsz-1)) > 1) {
+                if (event.getX(index) != event.getHistoricalX(index, hsz-1)
+                    || event.getY(index) != event.getHistoricalY(index, hsz-1)) {
                     return 1;
                 } else {
                     return 2;
@@ -343,28 +346,6 @@ public class QtNative
                 touchEnd(id,1);
         }
         //@ANDROID-5
-
-        switch (event.getAction()) {
-            case MotionEvent.ACTION_UP:
-                mouseUp(id,(int) event.getX(), (int) event.getY());
-                break;
-
-            case MotionEvent.ACTION_DOWN:
-                mouseDown(id,(int) event.getX(), (int) event.getY());
-                m_oldx = (int) event.getX();
-                m_oldy = (int) event.getY();
-                break;
-
-            case MotionEvent.ACTION_MOVE:
-                int dx = (int) (event.getX() - m_oldx);
-                int dy = (int) (event.getY() - m_oldy);
-                if (Math.abs(dx) > m_moveThreshold || Math.abs(dy) > m_moveThreshold) {
-                    mouseMove(id, (int) event.getX(), (int) event.getY());
-                    m_oldx = (int) event.getX();
-                    m_oldy = (int) event.getY();
-                }
-                break;
-        }
     }
 
     static public void sendTrackballEvent(MotionEvent event, int id)
@@ -441,30 +422,21 @@ public class QtNative
 
     private static boolean isSoftwareKeyboardVisible()
     {
-        Semaphore semaphore = new Semaphore(1);
-        Boolean ret = false;
-        class RunnableRes implements Runnable {
-            @SuppressWarnings("unused")
-            Boolean returnValue = null;
-            Semaphore semaphore = null;
-            RunnableRes(Boolean ret, Semaphore sem) {
-                semaphore = sem;
-                returnValue = ret;
-            }
+        final Semaphore semaphore = new Semaphore(0);
+        final Boolean[] ret = {false};
+        runAction(new Runnable() {
             @Override
             public void run() {
-                returnValue = m_activityDelegate.isSoftwareKeyboardVisible();
+                ret[0] = m_activityDelegate.isSoftwareKeyboardVisible();
                 semaphore.release();
             }
-        }
-
-        runAction(new RunnableRes(ret, semaphore));
+        });
         try {
             semaphore.acquire();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return ret;
+        return ret[0];
     }
 
     private static void setFullScreen(final boolean fullScreen)
@@ -480,7 +452,7 @@ public class QtNative
 
     private static void registerClipboardManager()
     {
-        final Semaphore semaphore = new Semaphore(1);
+        final Semaphore semaphore = new Semaphore(0);
         runAction(new Runnable() {
             @Override
             public void run() {
@@ -575,7 +547,7 @@ public class QtNative
                                                 double XDpi,
                                                 double YDpi,
                                                 double scaledDensity);
-    public static native void handleOrientationChanged(int newOrientation);
+    public static native void handleOrientationChanged(int newRotation, int nativeOrientation);
     // screen methods
 
     // pointer methods
@@ -591,6 +563,7 @@ public class QtNative
     // keyboard methods
     public static native void keyDown(int key, int unicode, int modifier);
     public static native void keyUp(int key, int unicode, int modifier);
+    public static native void keyboardVisibilityChanged(boolean visibility);
     // keyboard methods
 
     // surface methods
@@ -603,6 +576,9 @@ public class QtNative
     // window methods
     public static native void updateWindow();
     // window methods
+
+    // application methods
+    public static native void updateApplicationState(int state);
 
     // menu methods
     public static native boolean onPrepareOptionsMenu(Menu menu);

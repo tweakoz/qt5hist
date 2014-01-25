@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -64,6 +64,7 @@ class Q_AUTOTEST_EXPORT QQuickScreenAttached : public QObject
     Q_PROPERTY(int desktopAvailableWidth READ desktopAvailableWidth NOTIFY desktopGeometryChanged REVISION 1)
     Q_PROPERTY(int desktopAvailableHeight READ desktopAvailableHeight NOTIFY desktopGeometryChanged REVISION 1)
     Q_PROPERTY(qreal logicalPixelDensity READ logicalPixelDensity NOTIFY logicalPixelDensityChanged REVISION 1)
+    Q_PROPERTY(qreal pixelDensity READ pixelDensity NOTIFY pixelDensityChanged REVISION 2)
     Q_PROPERTY(Qt::ScreenOrientation primaryOrientation READ primaryOrientation NOTIFY primaryOrientationChanged)
     Q_PROPERTY(Qt::ScreenOrientation orientation READ orientation NOTIFY orientationChanged)
 
@@ -76,6 +77,7 @@ public:
     int desktopAvailableWidth() const;
     int desktopAvailableHeight() const;
     qreal logicalPixelDensity() const;
+    qreal pixelDensity() const;
     Qt::ScreenOrientation primaryOrientation() const;
     Qt::ScreenOrientation orientation() const;
 
@@ -90,10 +92,11 @@ Q_SIGNALS:
     void heightChanged();
     Q_REVISION(1) void desktopGeometryChanged();
     Q_REVISION(1) void logicalPixelDensityChanged();
+    Q_REVISION(2) void pixelDensityChanged();
     void primaryOrientationChanged();
     void orientationChanged();
 
-protected slots:
+protected Q_SLOTS:
     void screenChanged(QScreen*);
 
 private:

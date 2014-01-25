@@ -104,10 +104,9 @@ public:
     void setWidth(int) { }
 };
 
-void MyQmlObject::v8function(QQmlV8Function *)
+void MyQmlObject::v8function(QQmlV4Function *function)
 {
-    const char *error = "Exception thrown from within QObject slot";
-    v8::ThrowException(v8::Exception::Error(v8::String::New(error)));
+    QV8Engine::getV4(function->engine())->current->throwError(QStringLiteral("Exception thrown from within QObject slot"));
 }
 
 static QJSValue script_api(QQmlEngine *engine, QJSEngine *scriptEngine)
@@ -226,6 +225,31 @@ void MyWorkerObject::doIt()
     new MyWorkerObjectThread(this);
 }
 
+class MyDateClass : public QObject
+{
+    Q_OBJECT
+public:
+    Q_INVOKABLE QDateTime invalidDate()
+    {
+        return QDateTime();
+    }
+};
+
+class MiscTypeTestClass : public QObject
+{
+    Q_OBJECT
+public:
+    Q_INVOKABLE QUrl invalidUrl()
+    {
+        return QUrl();
+    }
+
+    Q_INVOKABLE QUrl validUrl()
+    {
+        return QUrl("http://wwww.qt-project.org");
+    }
+};
+
 class MyStringClass : public QObject
 {
     Q_OBJECT
@@ -248,11 +272,36 @@ public:
     }
 };
 
+static MyInheritedQmlObject *theSingletonObject = 0;
+
+static QObject *inheritedQmlObject_provider(QQmlEngine* /* engine */, QJSEngine* /* scriptEngine */)
+{
+    theSingletonObject = new MyInheritedQmlObject();
+    return theSingletonObject;
+}
+
+bool MyInheritedQmlObject::isItYouQObject(QObject *o)
+{
+    return o && o == theSingletonObject;
+}
+
+bool MyInheritedQmlObject::isItYouMyQmlObject(MyQmlObject *o)
+{
+    return o && o == theSingletonObject;
+}
+
+bool MyInheritedQmlObject::isItYouMyInheritedQmlObject(MyInheritedQmlObject *o)
+{
+    return o && o == theSingletonObject;
+}
+
 void registerTypes()
 {
     qmlRegisterType<MyQmlObject>("Qt.test", 1,0, "MyQmlObjectAlias");
     qmlRegisterType<MyQmlObject>("Qt.test", 1,0, "MyQmlObject");
+    qmlRegisterSingletonType<MyInheritedQmlObject>("Test", 1, 0, "MyInheritedQmlObjectSingleton", inheritedQmlObject_provider);
     qmlRegisterType<MyDeferredObject>("Qt.test", 1,0, "MyDeferredObject");
+    qmlRegisterType<MyVeryDeferredObject>("Qt.test", 1,0, "MyVeryDeferredObject");
     qmlRegisterType<MyQmlContainer>("Qt.test", 1,0, "MyQmlContainer");
     qmlRegisterExtendedType<MyBaseExtendedObject, BaseExtensionObject>("Qt.test", 1,0, "MyBaseExtendedObject");
     qmlRegisterExtendedType<MyExtendedObject, ExtensionObject>("Qt.test", 1,0, "MyExtendedObject");
@@ -300,7 +349,6 @@ void registerTypes()
     qRegisterMetaType<Qt::MouseButtons>("Qt::MouseButtons");
 
     qmlRegisterType<CircularReferenceObject>("Qt.test", 1, 0, "CircularReferenceObject");
-    qmlRegisterType<CircularReferenceHandle>("Qt.test", 1, 0, "CircularReferenceHandle");
 
     qmlRegisterType<MyDynamicCreationDestructionObject>("Qt.test", 1, 0, "MyDynamicCreationDestructionObject");
     qmlRegisterType<WriteCounter>("Qt.test", 1, 0, "WriteCounter");
@@ -318,7 +366,9 @@ void registerTypes()
     qmlRegisterType<FallbackBindingsTypeObject>("Qt.test.fallbackBindingsObject", 1, 0, "FallbackBindingsType");
     qmlRegisterType<FallbackBindingsTypeDerived>("Qt.test.fallbackBindingsDerived", 1, 0, "FallbackBindingsType");
 
+    qmlRegisterType<MyDateClass>("Qt.test", 1, 0, "MyDateClass");
     qmlRegisterType<MyStringClass>("Qt.test", 1, 0, "MyStringClass");
+    qmlRegisterType<MiscTypeTestClass>("Qt.test", 1, 0, "MiscTypeTest");
 
     qmlRegisterSingletonType<testImportOrderApi>("Qt.test.importOrderApi",1,0,"Data",testImportOrder_api);
     qmlRegisterSingletonType<testImportOrderApi>("NamespaceAndType",1,0,"NamespaceAndType",testImportOrder_api);

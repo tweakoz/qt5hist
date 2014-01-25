@@ -60,8 +60,10 @@
 #include <qatomic.h>
 #include <qstring.h>
 #include <qendian.h>
+#include <qnumeric.h>
 
 #include <limits.h>
+#include <limits>
 
 QT_BEGIN_NAMESPACE
 

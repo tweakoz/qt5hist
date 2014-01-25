@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -45,7 +45,6 @@
 #include <qqmlcontext.h>
 #include <qqmlexpression.h>
 #include <qqmlinfo.h>
-#include <private/qqmlguard_p.h>
 #include <private/qqmlcontext_p.h>
 #include <private/qqmlproperty_p.h>
 #include <private/qqmlbinding_p.h>
@@ -70,7 +69,7 @@ public:
 /*!
     \qmltype StateChangeScript
     \instantiates QQuickStateChangeScript
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-states
     \brief Specifies how to run a script in a state
 
@@ -93,7 +92,7 @@ QQuickStateChangeScript::~QQuickStateChangeScript()
 }
 
 /*!
-    \qmlproperty script QtQuick2::StateChangeScript::script
+    \qmlproperty script QtQuick::StateChangeScript::script
     This property holds the script to run when the state is current.
 */
 QQmlScriptString QQuickStateChangeScript::script() const
@@ -109,7 +108,7 @@ void QQuickStateChangeScript::setScript(const QQmlScriptString &s)
 }
 
 /*!
-    \qmlproperty string QtQuick2::StateChangeScript::name
+    \qmlproperty string QtQuick::StateChangeScript::name
     This property holds the name of the script. This name can be used by a
     ScriptAction to target a specific script.
 
@@ -141,13 +140,13 @@ void QQuickStateChangeScript::execute(Reason)
 QQuickStateChangeScript::ActionList QQuickStateChangeScript::actions()
 {
     ActionList rv;
-    QQuickAction a;
+    QQuickStateAction a;
     a.event = this;
     rv << a;
     return rv;
 }
 
-QQuickActionEvent::EventType QQuickStateChangeScript::type() const
+QQuickStateActionEvent::EventType QQuickStateChangeScript::type() const
 {
     return Script;
 }

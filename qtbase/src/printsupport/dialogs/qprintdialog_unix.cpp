@@ -64,6 +64,7 @@
 
 #if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
 #  include <private/qcups_p.h>
+#  include "qcupsjobwidget_p.h"
 #else
 #  include <QtCore/qlibrary.h>
 #  include <private/qprintengine_pdf_p.h>
@@ -102,6 +103,11 @@ Print dialog class declarations
                              Layout in qprintpropertieswidget.ui
 */
 
+static void initResources()
+{
+    Q_INIT_RESOURCE(qprintdialog);
+}
+
 QT_BEGIN_NAMESPACE
 
 class QOptionTreeItem;
@@ -125,8 +131,12 @@ protected:
     void showEvent(QShowEvent* event);
 
 private:
+    friend class QUnixPrintWidgetPrivate;
     Ui::QPrintPropertiesWidget widget;
     QDialogButtonBox *m_buttons;
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    QCupsJobWidget *m_jobOptions;
+#endif
 };
 
 class QUnixPrintWidgetPrivate;
@@ -191,9 +201,10 @@ public:
     /// copy printer properties to the widget
     void applyPrinterProperties();
 
-    void selectPrinter();
+    void selectPrinter(const QPrinter::OutputFormat outputFormat);
 
     void _q_chbPrintLastFirstToggled(bool);
+    void _q_togglePageSetCombo(bool);
 #ifndef QT_NO_MESSAGEBOX
     void _q_checkFields();
 #endif
@@ -209,6 +220,7 @@ public:
     QWidget *bottom;
     QDialogButtonBox *buttons;
     QPushButton *collapseButton;
+    QPrinter::OutputFormat printerOutputFormat;
 };
 
 
@@ -237,6 +249,13 @@ QPrintPropertiesDialog::QPrintPropertiesDialog(QAbstractPrintDialog *parent)
 
     connect(m_buttons->button(QDialogButtonBox::Ok), SIGNAL(clicked()), this, SLOT(accept()));
     connect(m_buttons->button(QDialogButtonBox::Cancel), SIGNAL(clicked()), this, SLOT(reject()));
+
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    if (QCUPSSupport::isAvailable()) {
+        m_jobOptions = new QCupsJobWidget();
+        widget.tabs->addTab(m_jobOptions, tr("Job Options"));
+    }
+#endif
 }
 
 QPrintPropertiesDialog::~QPrintPropertiesDialog()
@@ -246,11 +265,21 @@ QPrintPropertiesDialog::~QPrintPropertiesDialog()
 void QPrintPropertiesDialog::applyPrinterProperties(QPrinter *p)
 {
     widget.pageSetup->setPrinter(p);
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    if (QCUPSSupport::isAvailable()) {
+        m_jobOptions->setPrinter(p);
+    }
+#endif
 }
 
 void QPrintPropertiesDialog::setupPrinter() const
 {
     widget.pageSetup->setupPrinter();
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    if (QCUPSSupport::isAvailable()) {
+        m_jobOptions->setupPrinter();
+    }
+#endif
 }
 
 void QPrintPropertiesDialog::selectPrinter()
@@ -282,6 +311,7 @@ void QPrintPropertiesDialog::showEvent(QShowEvent* event)
 QPrintDialogPrivate::QPrintDialogPrivate()
     : top(0), bottom(0), buttons(0), collapseButton(0)
 {
+    initResources();
 }
 
 QPrintDialogPrivate::~QPrintDialogPrivate()
@@ -299,6 +329,16 @@ void QPrintDialogPrivate::init()
     options.color->setIcon(QIcon(QLatin1String(":/qt-project.org/dialogs/qprintdialog/images/status-color.png")));
     options.grayscale->setIconSize(QSize(32, 32));
     options.grayscale->setIcon(QIcon(QLatin1String(":/qt-project.org/dialogs/qprintdialog/images/status-gray-scale.png")));
+
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    // Add Page Set widget if CUPS is available
+    if (QCUPSSupport::isAvailable()) {
+        options.pageSetCombo->addItem(tr("All Pages"), QVariant::fromValue(QCUPSSupport::AllPages));
+        options.pageSetCombo->addItem(tr("Odd Pages"), QVariant::fromValue(QCUPSSupport::OddPages));
+        options.pageSetCombo->addItem(tr("Even Pages"), QVariant::fromValue(QCUPSSupport::EvenPages));
+    }
+#endif
+
     top->d->setOptionsPane(this);
 
     buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, Qt::Horizontal, q);
@@ -326,14 +366,21 @@ void QPrintDialogPrivate::init()
     QObject::connect(options.reverse, SIGNAL(toggled(bool)),
                      q, SLOT(_q_chbPrintLastFirstToggled(bool)));
 
+    QObject::connect(options.printSelection, SIGNAL(toggled(bool)),
+                     q, SLOT(_q_togglePageSetCombo(bool)));
+
+    QObject::connect(options.printCurrentPage, SIGNAL(toggled(bool)),
+                     q, SLOT(_q_togglePageSetCombo(bool)));
+
     QObject::connect(collapseButton, SIGNAL(released()), q, SLOT(_q_collapseOrExpandDialog()));
 }
 
 // initialize printer options
-void QPrintDialogPrivate::selectPrinter()
+void QPrintDialogPrivate::selectPrinter(const QPrinter::OutputFormat outputFormat)
 {
         Q_Q(QPrintDialog);
         QPrinter *p = q->printer();
+        printerOutputFormat = outputFormat;
 
         if (p->colorMode() == QPrinter::Color)
             options.color->setChecked(true);
@@ -352,6 +399,13 @@ void QPrintDialogPrivate::selectPrinter()
         options.copies->setValue(p->copyCount());
         options.collate->setChecked(p->collateCopies());
         options.reverse->setChecked(p->pageOrder() == QPrinter::LastPageFirst);
+
+        if (outputFormat == QPrinter::PdfFormat || options.printSelection->isChecked()
+            || options.printCurrentPage->isChecked())
+
+            options.pageSetCombo->setEnabled(false);
+        else
+            options.pageSetCombo->setEnabled(true);
 }
 
 void QPrintDialogPrivate::applyPrinterProperties()
@@ -387,9 +441,43 @@ void QPrintDialogPrivate::setupPrinter()
         p->setPrintRange(QPrinter::CurrentPage);
         p->setFromTo(0,0);
     } else if (options.printRange->isChecked()) {
-        p->setPrintRange(QPrinter::PageRange);
-        p->setFromTo(options.from->value(), qMax(options.from->value(), options.to->value()));
+        if (q->isOptionEnabled(QPrintDialog::PrintPageRange)) {
+            p->setPrintRange(QPrinter::PageRange);
+            p->setFromTo(options.from->value(), qMax(options.from->value(), options.to->value()));
+        } else {
+            // This case happens when CUPS server-side page range is enabled
+            // Setting the range to the printer occurs below
+            p->setPrintRange(QPrinter::AllPages);
+            p->setFromTo(0,0);
+        }
     }
+
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    // page set
+    if (QCUPSSupport::isAvailable()) {
+        if (p->printRange() == QPrinter::AllPages || p->printRange() == QPrinter::PageRange) {
+            //If the application is selecting pages and the first page number is even then need to adjust the odd-even accordingly
+            QCUPSSupport::PageSet pageSet = options.pageSetCombo->itemData(options.pageSetCombo->currentIndex()).value<QCUPSSupport::PageSet>();
+            if (q->isOptionEnabled(QPrintDialog::PrintPageRange)
+                && p->printRange() == QPrinter::PageRange
+                && (q->fromPage() % 2 == 0)) {
+
+                if (pageSet == QCUPSSupport::OddPages)
+                    QCUPSSupport::setPageSet(p, QCUPSSupport::EvenPages);
+                else if (pageSet == QCUPSSupport::EvenPages)
+                    QCUPSSupport::setPageSet(p, QCUPSSupport::OddPages);
+            } else if (pageSet != QCUPSSupport::AllPages) {
+                QCUPSSupport::setPageSet(p, pageSet);
+            }
+
+        }
+
+        // server-side page range, since we set the page range on the printer to 0-0/AllPages above,
+        // we need to take the values directly from the widget as q->fromPage() will return 0
+        if (!q->isOptionEnabled(QPrintDialog::PrintPageRange) && options.printRange->isChecked())
+            QCUPSSupport::setPageRange(p, options.from->value(), qMax(options.from->value(), options.to->value()));
+    }
+#endif
 
     // copies
     p->setCopyCount(options.copies->value());
@@ -405,6 +493,14 @@ void QPrintDialogPrivate::_q_chbPrintLastFirstToggled(bool checked)
         q->printer()->setPageOrder(QPrinter::LastPageFirst);
     else
         q->printer()->setPageOrder(QPrinter::FirstPageFirst);
+}
+
+void QPrintDialogPrivate::_q_togglePageSetCombo(bool checked)
+{
+    if (printerOutputFormat == QPrinter::PdfFormat)
+        return;
+
+    options.pageSetCombo->setDisabled(checked);
 }
 
 void QPrintDialogPrivate::_q_collapseOrExpandDialog()
@@ -447,19 +543,47 @@ void QPrintDialogPrivate::updateWidgets()
     options.printCurrentPage->setVisible(q->isOptionEnabled(QPrintDialog::PrintCurrentPage));
     options.collate->setVisible(q->isOptionEnabled(QPrintDialog::PrintCollateCopies));
 
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    if (QCUPSSupport::isAvailable()) {
+        // Don't display Page Set if only Selection or Current Page are enabled
+        if (!q->isOptionEnabled(QPrintDialog::PrintPageRange) && (
+            q->isOptionEnabled(QPrintDialog::PrintSelection) ||
+            q->isOptionEnabled(QPrintDialog::PrintCurrentPage))) {
+
+            options.pageSetCombo->setVisible(false);
+            options.pageSetLabel->setVisible(false);
+        } else {
+            options.pageSetCombo->setVisible(true);
+            options.pageSetLabel->setVisible(true);
+        }
+
+        if (!q->isOptionEnabled(QPrintDialog::PrintPageRange)) {
+            // If we can do CUPS server side pages selection,
+            // display the page range widgets
+            options.gbPrintRange->setVisible(true);
+            options.printRange->setEnabled(true);
+        }
+    }
+#endif
+
     switch (q->printRange()) {
     case QPrintDialog::AllPages:
         options.printAll->setChecked(true);
+        options.pageSetCombo->setEnabled(true);
         break;
     case QPrintDialog::Selection:
         options.printSelection->setChecked(true);
+        options.pageSetCombo->setEnabled(false);
         break;
     case QPrintDialog::PageRange:
         options.printRange->setChecked(true);
+        options.pageSetCombo->setEnabled(true);
         break;
     case QPrintDialog::CurrentPage:
-        if (q->isOptionEnabled(QPrintDialog::PrintCurrentPage))
+        if (q->isOptionEnabled(QPrintDialog::PrintCurrentPage)) {
             options.printCurrentPage->setChecked(true);
+            options.pageSetCombo->setEnabled(false);
+        }
         break;
     default:
         break;
@@ -655,7 +779,7 @@ void QUnixPrintWidgetPrivate::_q_printerChanged(int index)
             widget.filename->setText(filename);
             widget.lOutput->setEnabled(true);
             if (optionsPane)
-                optionsPane->selectPrinter();
+                optionsPane->selectPrinter(QPrinter::PdfFormat);
             return;
         }
     }
@@ -668,7 +792,7 @@ void QUnixPrintWidgetPrivate::_q_printerChanged(int index)
         widget.location->setText(printerInfo.location());
         widget.type->setText(printerInfo.makeAndModel());
         if (optionsPane)
-            optionsPane->selectPrinter();
+            optionsPane->selectPrinter(QPrinter::NativeFormat);
     }
 }
 
@@ -676,7 +800,7 @@ void QUnixPrintWidgetPrivate::setOptionsPane(QPrintDialogPrivate *pane)
 {
     optionsPane = pane;
     if (optionsPane)
-        optionsPane->selectPrinter();
+        optionsPane->selectPrinter(QPrinter::NativeFormat);
 }
 
 void QUnixPrintWidgetPrivate::_q_btnBrowseClicked()
@@ -769,6 +893,22 @@ bool QUnixPrintWidgetPrivate::checkFields()
                 f.remove();
         }
     }
+
+#if !defined(QT_NO_CUPS) && !defined(QT_NO_LIBRARY)
+    if (propertiesDialogShown) {
+        QCUPSSupport::PagesPerSheet pagesPerSheet = propertiesDialog->widget.pageSetup->widget.pagesPerSheetCombo->currentData().value<QCUPSSupport::PagesPerSheet>();
+
+        QCUPSSupport::PageSet pageSet = optionsPane->options.pageSetCombo->currentData().value<QCUPSSupport::PageSet>();
+
+
+        if (pagesPerSheet != QCUPSSupport::OnePagePerSheet
+            && pageSet != QCUPSSupport::AllPages) {
+            QMessageBox::warning(q, q->windowTitle(),
+                                 QPrintDialog::tr("Options 'Pages Per Sheet' and 'Page Set' cannot be used together.\nPlease turn one of those options off."));
+            return false;
+        }
+    }
+#endif
 
     // Every test passed. Accept the dialog.
     return true;

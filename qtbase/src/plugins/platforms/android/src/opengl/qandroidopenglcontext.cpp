@@ -46,6 +46,8 @@
 #include <QtCore/qdebug.h>
 #include <qpa/qwindowsysteminterface.h>
 
+#include <QtGui/private/qopenglcontext_p.h>
+
 QT_BEGIN_NAMESPACE
 
 QAndroidOpenGLContext::QAndroidOpenGLContext(const QAndroidPlatformIntegration *integration,
@@ -69,10 +71,25 @@ void QAndroidOpenGLContext::swapBuffers(QPlatformSurface *surface)
         if (size.isValid()) {
             QRect geometry(QPoint(0, 0), size);
             window->setGeometry(geometry);
+            QWindowSystemInterface::handleGeometryChange(window->window(), geometry);
+            QWindowSystemInterface::handleExposeEvent(window->window(), QRegion(geometry));
             window->scheduleResize(QSize());
         }
         window->unlock();
     }
+}
+
+bool QAndroidOpenGLContext::makeCurrent(QPlatformSurface *surface)
+{
+    bool ret = QEglFSContext::makeCurrent(surface);
+
+    const char *rendererString = reinterpret_cast<const char *>(glGetString(GL_RENDERER));
+    if (rendererString != 0 && qstrncmp(rendererString, "Android Emulator", 16) == 0) {
+        QOpenGLContextPrivate *ctx_d = QOpenGLContextPrivate::get(context());
+        ctx_d->workaround_missingPrecisionQualifiers = true;
+    }
+
+    return ret;
 }
 
 QT_END_NAMESPACE

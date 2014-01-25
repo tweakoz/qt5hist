@@ -40,7 +40,7 @@
 
 import QtQuick 2.1
 import QtTest 1.0
-import QtQuick.Layouts 1.0
+import QtQuick.Layouts 1.1
 
 Item {
     id: container
@@ -521,8 +521,248 @@ Item {
             compare(itemRect(layout.children[3]), [45, 40, 10, 10]);
             compare(itemRect(layout.children[4]), [30, 60, 30, 30]);
 
+
+            layout.children[1].Layout.alignment = Qt.AlignTop
+            waitForRendering(layout)
+            compare(itemRect(layout.children[1]), [40,  0, 20, 20]);
+
+            layout.children[2].Layout.alignment = Qt.AlignLeft
+            waitForRendering(layout)
+            compare(itemRect(layout.children[2]), [0,  40, 20, 20]);
+
+            layout.children[3].Layout.alignment = Qt.AlignLeft|Qt.AlignVCenter
+            waitForRendering(layout)
+            compare(itemRect(layout.children[3]), [40, 45, 10, 10]);
+
+            layout.children[4].Layout.alignment = Qt.AlignLeft
+            waitForRendering(layout)
+            compare(itemRect(layout.children[4]), [0, 60, 30, 30]);
+
             layout.destroy();
         }
 
+
+        Component {
+            id: layout_rightToLeft_Component
+            GridLayout {
+                layoutDirection: Qt.RightToLeft
+                columnSpacing: 0
+                rowSpacing: 0
+                columns: 3
+                Rectangle {
+                    color: "#cbffc4"
+                    Layout.preferredWidth: 50
+                    Layout.preferredHeight: 50
+                    Layout.alignment: Qt.AlignCenter
+                }
+                Rectangle {
+                    color: "#c4d1ff"
+                    Layout.preferredWidth: 50
+                    Layout.preferredHeight: 50
+                    Layout.alignment: Qt.AlignRight
+                }
+                Rectangle {
+                    color: "#ffd5c4"
+                    Layout.preferredWidth: 50
+                    Layout.preferredHeight: 50
+                    Layout.alignment: Qt.AlignLeft
+                }
+            }
+        }
+
+        function verifyIsRightToLeft(layout)
+        {
+            compare(itemRect(layout.children[0]), [125, 0, 50, 50]);
+            compare(itemRect(layout.children[1]), [60,  0, 50, 50]);
+            compare(itemRect(layout.children[2]), [10,  0, 50, 50]);
+        }
+
+        function verifyIsLeftToRight(layout)
+        {
+            compare(itemRect(layout.children[0]), [5,   0, 50, 50]);
+            compare(itemRect(layout.children[1]), [70,  0, 50, 50]);
+            compare(itemRect(layout.children[2]), [120, 0, 50, 50]);
+        }
+
+        function test_rightToLeft()
+        {
+            var layout = layout_rightToLeft_Component.createObject(container);
+            layout.width = 180;
+            layout.height = 50;
+
+            // Right To Left
+            verifyIsRightToLeft(layout)
+            layout.LayoutMirroring.enabled = true
+            layout.layoutDirection = Qt.LeftToRight
+            waitForRendering(layout)
+            verifyIsRightToLeft(layout)
+
+
+            // Left To Right
+            layout.LayoutMirroring.enabled = false
+            layout.layoutDirection = Qt.LeftToRight
+            waitForRendering(layout)
+            layout.LayoutMirroring.enabled = true
+            layout.layoutDirection = Qt.RightToLeft
+            waitForRendering(layout)
+
+            layout.destroy();
+        }
+
+        Component {
+            id: layout_columnsOrRowsChanged_Component
+            GridLayout {
+                id: layout
+                rowSpacing: 0
+                columnSpacing: 0
+                Repeater {
+                    model: 4
+                    Rectangle {
+                        width: 10
+                        height: 10
+                        color: "#ff0000"
+                    }
+                }
+            }
+        }
+
+        function test_columnsChanged()
+        {
+            var layout = layout_columnsOrRowsChanged_Component.createObject(container);
+            layout.width = 40;
+            layout.height = 20;
+            waitForRendering(layout)
+            compare(itemRect(layout.children[0]), [ 0,  5,  10, 10])
+            compare(itemRect(layout.children[1]), [10,  5,  10, 10])
+            compare(itemRect(layout.children[2]), [20,  5,  10, 10])
+            compare(itemRect(layout.children[3]), [30,  5,  10, 10])
+
+            layout.columns = 2
+            waitForRendering(layout)
+            compare(itemRect(layout.children[0]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[1]), [20,  0,  10, 10])
+            compare(itemRect(layout.children[2]), [ 0, 10,  10, 10])
+            compare(itemRect(layout.children[3]), [20, 10,  10, 10])
+        }
+
+        function test_rowsChanged()
+        {
+            var layout = layout_columnsOrRowsChanged_Component.createObject(container);
+            layout.flow = GridLayout.TopToBottom
+            layout.width = 20;
+            layout.height = 40;
+            waitForRendering(layout)
+            compare(itemRect(layout.children[0]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[1]), [ 0, 10,  10, 10])
+            compare(itemRect(layout.children[2]), [ 0, 20,  10, 10])
+            compare(itemRect(layout.children[3]), [ 0, 30,  10, 10])
+
+            layout.rows = 2
+            waitForRendering(layout)
+            compare(itemRect(layout.children[0]), [ 0,  5,  10, 10])
+            compare(itemRect(layout.children[1]), [ 0, 25,  10, 10])
+            compare(itemRect(layout.children[2]), [10,  5,  10, 10])
+            compare(itemRect(layout.children[3]), [10, 25,  10, 10])
+        }
+
+        Component {
+            id: layout_columnOrRowChanged_Component
+            GridLayout {
+                id: layout
+                rowSpacing: 0
+                columnSpacing: 0
+                Rectangle {
+                    width: 10
+                    height: 10
+                    Layout.column: 0
+                    color: "#ff0000"
+                }
+                Rectangle {
+                    Layout.column: 1
+                    width: 10
+                    height: 10
+                    color: "#ff0000"
+                }
+                Rectangle {
+                    //Layout.column: 2
+                    width: 10
+                    height: 10
+                    color: "#ff0000"
+                }
+            }
+        }
+
+        function test_columnOrRowChanged()
+        {
+            var layout = layout_columnOrRowChanged_Component.createObject(container);
+            layout.width = layout.implicitWidth
+            layout.height = layout.implicitHeight
+            waitForRendering(layout)
+            // c0-c1-c2
+            compare(itemRect(layout.children[0]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[1]), [10,  0,  10, 10])
+            compare(itemRect(layout.children[2]), [20,  0,  10, 10])
+
+            layout.children[0].Layout.column = 3
+            waitForRendering(layout)
+            //c1-c2-c0
+            compare(itemRect(layout.children[0]), [20,  0,  10, 10])
+            compare(itemRect(layout.children[1]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[2]), [10,  0,  10, 10])
+
+            layout.children[2].Layout.column = 4
+            waitForRendering(layout)
+            //c1-c0-c2
+            compare(itemRect(layout.children[0]), [10,  0,  10, 10])
+            compare(itemRect(layout.children[1]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[2]), [20,  0,  10, 10])
+
+            layout.children[0].Layout.row = 1
+            // two rows, so we adjust it to its new implicitHeight
+            layout.height = layout.implicitHeight
+            waitForRendering(layout)
+            //c1  c2
+            //  c0
+            compare(itemRect(layout.children[0]), [10, 10,  10, 10])
+            compare(itemRect(layout.children[1]), [ 0,  0,  10, 10])
+            compare(itemRect(layout.children[2]), [20,  0,  10, 10])
+        }
+
+        Component {
+            id: layout_baselines_Component
+            GridLayout {
+                id: layout
+                columnSpacing: 0
+                Rectangle {
+                    implicitWidth: 10
+                    implicitHeight: 10
+                    baselineOffset: 10
+                }
+                Rectangle {
+                    implicitWidth: 10
+                    implicitHeight: 10
+                }
+            }
+        }
+        function test_baselines()
+        {
+            var layout = layout_baselines_Component.createObject(container);
+            waitForRendering(layout)
+            compare(itemRect(layout.children[0]), [ 0, 0, 10, 10])
+            compare(itemRect(layout.children[1]), [10, 0, 10, 10])
+            compare(layout.implicitWidth, 20)
+            compare(layout.implicitHeight, 10)
+
+
+            layout.children[0].Layout.alignment = Qt.AlignBaseline
+            layout.children[1].Layout.alignment = Qt.AlignBaseline
+
+            compare(itemRect(layout.children[0]), [ 0, 0, 10, 10])
+            compare(itemRect(layout.children[1]), [10, 10, 10, 10])
+            compare(layout.implicitWidth, 20)
+            compare(layout.implicitHeight, 20)
+
+            layout.destroy();
+        }
     }
 }

@@ -195,8 +195,8 @@ void QDBusAbstractAdaptor::setAutoRelaySignals(bool enable)
 }
 
 /*!
-    Returns true if automatic signal relaying from the real object (see object()) is enabled,
-    otherwiser returns false.
+    Returns \c true if automatic signal relaying from the real object (see object()) is enabled,
+    otherwiser returns \c false.
 
     \sa setAutoRelaySignals()
 */
@@ -274,7 +274,7 @@ void QDBusAdaptorConnector::polish()
     }
 
     // sort the adaptor list
-    qSort(adaptors);
+    std::sort(adaptors.begin(), adaptors.end());
 }
 
 void QDBusAdaptorConnector::relaySlot(void **argv)
@@ -307,15 +307,18 @@ void QDBusAdaptorConnector::relay(QObject *senderObj, int lastSignalIdx, void **
 
     // break down the parameter list
     QVector<int> types;
-    int inputCount = qDBusParametersForMethod(mm, types);
-    if (inputCount == -1)
+    QString errorMsg;
+    int inputCount = qDBusParametersForMethod(mm, types, errorMsg);
+    if (inputCount == -1) {
         // invalid signal signature
-        // qDBusParametersForMethod has already complained
+        qWarning("QDBusAbstractAdaptor: Cannot relay signal %s::%s: %s",
+                 senderMetaObject->className(), mm.methodSignature().constData(),
+                 qPrintable(errorMsg));
         return;
+    }
     if (inputCount + 1 != types.count() ||
         types.at(inputCount) == QDBusMetaTypeId::message()) {
         // invalid signal signature
-        // qDBusParametersForMethod has not yet complained about this one
         qWarning("QDBusAbstractAdaptor: Cannot relay signal %s::%s",
                  senderMetaObject->className(), mm.methodSignature().constData());
         return;

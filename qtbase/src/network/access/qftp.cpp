@@ -831,8 +831,8 @@ void QFtpPI::connectToHost(const QString &host, quint16 port)
   are all done the finished() signal is emitted. When an error occurs, the
   error() signal is emitted.
 
-  If there are pending commands in the queue this functions returns false and
-  the \a cmds are not added to the queue; otherwise it returns true.
+  If there are pending commands in the queue this functions returns \c false and
+  the \a cmds are not added to the queue; otherwise it returns \c true.
 */
 bool QFtpPI::sendCommands(const QStringList &cmds)
 {
@@ -987,7 +987,7 @@ void QFtpPI::readyRead()
 
   Process a reply from the FTP server.
 
-  Returns true if the reply was processed or false if the reply has to be
+  Returns \c true if the reply was processed or false if the reply has to be
   processed at a later point.
 */
 bool QFtpPI::processReply()
@@ -1042,18 +1042,10 @@ bool QFtpPI::processReply()
             if (static_cast<signed char>(replyCode[0]) < 0 || replyCode[0] > 5)
                 state = Failure;
             else
-#if defined(Q_OS_IRIX) && defined(Q_CC_GNU)
-            {
-                // work around a crash on 64 bit gcc IRIX
-                State *t = (State *) table;
-                state = t[replyCode[0] - 1];
-            }
-#else
             if (replyCodeInt == 202)
                 state = Failure;
             else
                 state = table[replyCode[0] - 1];
-#endif
             break;
         default:
             // ignore unrequested message
@@ -1167,8 +1159,8 @@ bool QFtpPI::processReply()
 /*
   \internal
 
-  Starts next pending command. Returns false if there are no pending commands,
-  otherwise it returns true.
+  Starts next pending command. Returns \c false if there are no pending commands,
+  otherwise it returns \c true.
 */
 bool QFtpPI::startNextCmd()
 {
@@ -2172,8 +2164,8 @@ QIODevice* QFtp::currentDevice() const
 
 /*!
     \internal
-    Returns true if there are any commands scheduled that have not yet
-    been executed; otherwise returns false.
+    Returns \c true if there are any commands scheduled that have not yet
+    been executed; otherwise returns \c false.
 
     The command that is being executed is \e not considered as a
     scheduled command.

@@ -53,6 +53,17 @@ contains(QT_CONFIG, opengl)|contains(QT_CONFIG, opengles2) {
                opengl/qopenglvertexarrayobject.cpp \
                opengl/qopengldebug.cpp
 
+    !wince* {
+        HEADERS += opengl/qopengltexture.h \
+                   opengl/qopengltexture_p.h \
+                   opengl/qopengltexturehelper_p.h \
+                   opengl/qopenglpixeltransferoptions.h
+
+        SOURCES += opengl/qopengltexture.cpp \
+                   opengl/qopengltexturehelper.cpp \
+                   opengl/qopenglpixeltransferoptions.cpp
+    }
+
     !contains(QT_CONFIG, opengles2) {
         HEADERS += opengl/qopenglfunctions_1_0.h \
                    opengl/qopenglfunctions_1_1.h \

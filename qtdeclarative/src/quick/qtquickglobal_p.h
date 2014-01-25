@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -56,5 +56,11 @@
 #include "qtquickglobal.h"
 
 #define Q_QUICK_PRIVATE_EXPORT Q_QUICK_EXPORT
+
+QT_BEGIN_NAMESPACE
+
+void QQuick_initializeProviders();
+
+QT_END_NAMESPACE
 
 #endif // QTQUICKGLOBAL_P_H

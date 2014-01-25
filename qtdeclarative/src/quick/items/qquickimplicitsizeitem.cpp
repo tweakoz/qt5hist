@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -47,32 +47,20 @@ QT_BEGIN_NAMESPACE
 void QQuickImplicitSizeItemPrivate::implicitWidthChanged()
 {
     Q_Q(QQuickImplicitSizeItem);
-    for (int ii = 0; ii < changeListeners.count(); ++ii) {
-        const QQuickItemPrivate::ChangeListener &change = changeListeners.at(ii);
-        if (change.types & QQuickItemPrivate::ImplicitWidth) {
-            change.listener->itemImplicitWidthChanged(q);
-        }
-    }
+    QQuickItemPrivate::implicitWidthChanged();
     emit q->implicitWidthChanged2();
 }
 
 void QQuickImplicitSizeItemPrivate::implicitHeightChanged()
 {
     Q_Q(QQuickImplicitSizeItem);
-    for (int ii = 0; ii < changeListeners.count(); ++ii) {
-        const QQuickItemPrivate::ChangeListener &change = changeListeners.at(ii);
-        if (change.types & QQuickItemPrivate::ImplicitHeight) {
-            change.listener->itemImplicitHeightChanged(q);
-        }
-    }
+    QQuickItemPrivate::implicitHeightChanged();
     emit q->implicitHeightChanged2();
 }
 
 QQuickImplicitSizeItem::QQuickImplicitSizeItem(QQuickImplicitSizeItemPrivate &dd, QQuickItem *parent)
     : QQuickItem(dd, parent)
 {
-    connect(this, SIGNAL(implicitHeightChanged2()), this, SIGNAL(implicitHeightChanged()));
-    connect(this, SIGNAL(implicitWidthChanged2()), this, SIGNAL(implicitWidthChanged()));
 }
 
 QT_END_NAMESPACE

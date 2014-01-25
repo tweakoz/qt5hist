@@ -48,5 +48,14 @@ contains(QT_CONFIG, system-zlib) {
     if(unix|win32-g++*):     LIBS_PRIVATE += -lz
     else:                    LIBS += zdll.lib
 } else {
-    INCLUDEPATH += $$[QT_INSTALL_HEADERS/get]/QtZlib
+    git_build: \
+        INCLUDEPATH += $$[QT_INSTALL_HEADERS/get]/QtZlib
+    else: \
+        INCLUDEPATH += $$[QT_INSTALL_HEADERS/src]/QtZlib
 }
+
+ANDROID_LIB_DEPENDENCIES = \
+    lib/libQt5Xml.so
+
+ANDROID_BUNDLED_FILES += \
+    lib/libQt5Xml.so

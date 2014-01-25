@@ -50,6 +50,7 @@
 
 QT_BEGIN_NAMESPACE
 
+class QTimeZone;
 
 class Q_CORE_EXPORT QDate
 {
@@ -168,6 +169,9 @@ public:
     bool operator>(const QTime &other) const { return mds > other.mds; }
     bool operator>=(const QTime &other) const { return mds >= other.mds; }
 
+    static inline QTime fromMSecsSinceStartOfDay(int msecs) { QTime t; t.mds = msecs; return t; }
+    inline int msecsSinceStartOfDay() const { return mds == NullTime ? 0 : mds; }
+
     static QTime currentTime();
 #ifndef QT_NO_DATESTRING
     static QTime fromString(const QString &s, Qt::DateFormat f = Qt::TextDate);
@@ -203,6 +207,11 @@ public:
     QDateTime();
     explicit QDateTime(const QDate &);
     QDateTime(const QDate &, const QTime &, Qt::TimeSpec spec = Qt::LocalTime);
+    // ### Qt 6: Merge with above with default offsetSeconds = 0
+    QDateTime(const QDate &date, const QTime &time, Qt::TimeSpec spec, int offsetSeconds);
+#ifndef QT_BOOTSTRAPPED
+    QDateTime(const QDate &date, const QTime &time, const QTimeZone &timeZone);
+#endif // QT_BOOTSTRAPPED
     QDateTime(const QDateTime &other);
     ~QDateTime();
 
@@ -216,13 +225,28 @@ public:
     QDate date() const;
     QTime time() const;
     Qt::TimeSpec timeSpec() const;
+    int offsetFromUtc() const;
+#ifndef QT_BOOTSTRAPPED
+    QTimeZone timeZone() const;
+#endif // QT_BOOTSTRAPPED
+    QString timeZoneAbbreviation() const;
+    bool isDaylightTime() const;
+
     qint64 toMSecsSinceEpoch() const;
+    // ### Qt 6: use quint64 instead of uint
     uint toTime_t() const;
+
     void setDate(const QDate &date);
     void setTime(const QTime &time);
     void setTimeSpec(Qt::TimeSpec spec);
+    void setOffsetFromUtc(int offsetSeconds);
+#ifndef QT_BOOTSTRAPPED
+    void setTimeZone(const QTimeZone &toZone);
+#endif // QT_BOOTSTRAPPED
     void setMSecsSinceEpoch(qint64 msecs);
+    // ### Qt 6: use quint64 instead of uint
     void setTime_t(uint secsSince1Jan1970UTC);
+
 #ifndef QT_NO_DATESTRING
     QString toString(Qt::DateFormat f = Qt::TextDate) const;
     QString toString(const QString &format) const;
@@ -232,9 +256,15 @@ public:
     QDateTime addYears(int years) const;
     QDateTime addSecs(qint64 secs) const;
     QDateTime addMSecs(qint64 msecs) const;
+
     QDateTime toTimeSpec(Qt::TimeSpec spec) const;
     inline QDateTime toLocalTime() const { return toTimeSpec(Qt::LocalTime); }
     inline QDateTime toUTC() const { return toTimeSpec(Qt::UTC); }
+    QDateTime toOffsetFromUtc(int offsetSeconds) const;
+#ifndef QT_BOOTSTRAPPED
+    QDateTime toTimeZone(const QTimeZone &toZone) const;
+#endif // QT_BOOTSTRAPPED
+
     qint64 daysTo(const QDateTime &) const;
     qint64 secsTo(const QDateTime &) const;
     qint64 msecsTo(const QDateTime &) const;
@@ -246,8 +276,10 @@ public:
     inline bool operator>(const QDateTime &other) const { return other < *this; }
     inline bool operator>=(const QDateTime &other) const { return !(*this < other); }
 
-    void setUtcOffset(int seconds);
-    int utcOffset() const;
+#if QT_DEPRECATED_SINCE(5, 2)
+    QT_DEPRECATED void setUtcOffset(int seconds);
+    QT_DEPRECATED int utcOffset() const;
+#endif // QT_DEPRECATED_SINCE
 
     static QDateTime currentDateTime();
     static QDateTime currentDateTimeUtc();
@@ -255,8 +287,20 @@ public:
     static QDateTime fromString(const QString &s, Qt::DateFormat f = Qt::TextDate);
     static QDateTime fromString(const QString &s, const QString &format);
 #endif
+    // ### Qt 6: use quint64 instead of uint
     static QDateTime fromTime_t(uint secsSince1Jan1970UTC);
+    // ### Qt 6: Merge with above with default spec = Qt::LocalTime
+    static QDateTime fromTime_t(uint secsSince1Jan1970UTC, Qt::TimeSpec spec,
+                                int offsetFromUtc = 0);
+#ifndef QT_BOOTSTRAPPED
+    static QDateTime fromTime_t(uint secsSince1Jan1970UTC, const QTimeZone &timeZone);
+#endif
     static QDateTime fromMSecsSinceEpoch(qint64 msecs);
+    // ### Qt 6: Merge with above with default spec = Qt::LocalTime
+    static QDateTime fromMSecsSinceEpoch(qint64 msecs, Qt::TimeSpec spec, int offsetFromUtc = 0);
+#ifndef QT_BOOTSTRAPPED
+    static QDateTime fromMSecsSinceEpoch(qint64 msecs, const QTimeZone &timeZone);
+#endif
     static qint64 currentMSecsSinceEpoch() Q_DECL_NOTHROW;
 
 private:
@@ -271,6 +315,10 @@ private:
 #ifndef QT_NO_DATASTREAM
     friend Q_CORE_EXPORT QDataStream &operator<<(QDataStream &, const QDateTime &);
     friend Q_CORE_EXPORT QDataStream &operator>>(QDataStream &, QDateTime &);
+#endif
+
+#if !defined(QT_NO_DEBUG_STREAM) && !defined(QT_NO_DATESTRING)
+    friend Q_CORE_EXPORT QDebug operator<<(QDebug, const QDateTime &);
 #endif
 };
 Q_DECLARE_SHARED(QDateTime)

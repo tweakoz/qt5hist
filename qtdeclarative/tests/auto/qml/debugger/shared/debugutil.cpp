@@ -43,6 +43,8 @@
 
 #include <QEventLoop>
 #include <QTimer>
+#include <QFileInfo>
+#include <QDir>
 
 bool QQmlDebugTest::waitForSignal(QObject *receiver, const char *member, int timeout) {
     QEventLoop loop;
@@ -95,6 +97,8 @@ QQmlDebugProcess::QQmlDebugProcess(const QString &executable, QObject *parent)
     m_timer.setSingleShot(true);
     m_timer.setInterval(5000);
     connect(&m_process, SIGNAL(readyReadStandardOutput()), this, SLOT(processAppOutput()));
+    connect(&m_process, SIGNAL(error(QProcess::ProcessError)),
+            this, SLOT(processError(QProcess::ProcessError)));
     connect(&m_timer, SIGNAL(timeout()), SLOT(timeout()));
 }
 
@@ -123,6 +127,17 @@ QString QQmlDebugProcess::state()
 
 void QQmlDebugProcess::start(const QStringList &arguments)
 {
+#ifdef Q_OS_MAC
+    // make sure m_executable points to the actual binary even if it's inside an app bundle
+    QFileInfo binFile(m_executable);
+    if (!binFile.isExecutable()) {
+        QDir bundleDir(m_executable + ".app");
+        if (bundleDir.exists()) {
+            m_executable = bundleDir.absoluteFilePath("Contents/MacOS/" + binFile.baseName());
+            //qDebug() << Q_FUNC_INFO << "found bundled binary" << m_executable;
+        }
+    }
+#endif
     m_mutex.lock();
     m_port = 0;
     m_process.setEnvironment(m_environment);
@@ -148,7 +163,7 @@ void QQmlDebugProcess::stop()
 void QQmlDebugProcess::timeout()
 {
     qWarning() << "Timeout while waiting for QML debugging messages "
-                  "in application output. Process is in state" << m_process.state() << ".";
+                  "in application output. Process is in state" << m_process.state() << ", Output:" << m_output << ".";
     m_eventLoop.quit();
 }
 
@@ -166,6 +181,16 @@ bool QQmlDebugProcess::waitForSessionStart()
 int QQmlDebugProcess::debugPort() const
 {
     return m_port;
+}
+
+bool QQmlDebugProcess::waitForFinished()
+{
+    return m_process.waitForFinished();
+}
+
+QProcess::ExitStatus QQmlDebugProcess::exitStatus() const
+{
+    return m_process.exitStatus();
 }
 
 void QQmlDebugProcess::setEnvironment(const QStringList &environment)
@@ -210,6 +235,9 @@ void QQmlDebugProcess::processAppOutput()
                 m_eventLoop.quit();
                 continue;
             }
+        } else if (line.startsWith("qml:")) {
+            // ### Can't enable quiet mode because that also suppresses application output
+            continue; //We don't use these, but they aren't output from the app either
         } else {
             // set to true if there is output not coming from the debugger
             outputFromAppItself = true;
@@ -219,4 +247,22 @@ void QQmlDebugProcess::processAppOutput()
 
     if (outputFromAppItself)
         emit readyReadStandardOutput();
+}
+
+void QQmlDebugProcess::processError(QProcess::ProcessError error)
+{
+    if (!m_eventLoop.isRunning())
+       return;
+
+    qDebug() << "An error occurred while waiting for debug process to become available:";
+    switch (error) {
+    case QProcess::FailedToStart: qDebug() << "Process failed to start."; break;
+    case QProcess::Crashed: qDebug() << "Process crashed."; break;
+    case QProcess::Timedout: qDebug() << "Process timed out."; break;
+    case QProcess::WriteError: qDebug() << "Error while writing to process."; break;
+    case QProcess::ReadError: qDebug() << "Error while reading from process."; break;
+    case QProcess::UnknownError: qDebug() << "Unknown process error."; break;
+    }
+
+    m_eventLoop.exit();
 }

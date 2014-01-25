@@ -644,6 +644,14 @@ QIcon &QIcon::operator=(const QIcon &other)
 }
 
 /*!
+    \fn QIcon &QIcon::operator=(QIcon &&other)
+
+    Move-assigns \a other to this QIcon instance.
+
+    \since 5.2
+*/
+
+/*!
     \fn void QIcon::swap(QIcon &other)
     \since 4.8
 
@@ -851,7 +859,7 @@ void QIcon::paint(QPainter *painter, const QRect &rect, Qt::Alignment alignment,
 */
 
 /*!
-    Returns true if the icon is empty; otherwise returns false.
+    Returns \c true if the icon is empty; otherwise returns \c false.
 
     An icon is empty if it has neither a pixmap nor a filename.
 
@@ -1068,7 +1076,6 @@ void QIcon::setThemeName(const QString &name)
 */
 QString QIcon::themeName()
 {
-    QIconLoader::instance()->ensureInitialized();
     return QIconLoader::instance()->themeName();
 }
 
@@ -1129,8 +1136,8 @@ QIcon QIcon::fromTheme(const QString &name, const QIcon &fallback)
 /*!
     \since 4.6
 
-    Returns true if there is an icon available for \a name in the
-    current icon theme, otherwise returns false.
+    Returns \c true if there is an icon available for \a name in the
+    current icon theme, otherwise returns \c false.
 
     \sa themeSearchPaths(), fromTheme(), setThemeName()
 */

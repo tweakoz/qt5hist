@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -123,7 +123,7 @@ void QQuickViewPrivate::itemGeometryChanged(QQuickItem *resizeItem, const QRectF
 
 /*!
     \class QQuickView
-    \since QtQuick 2.0
+    \since 5.0
     \brief The QQuickView class provides a window for displaying a Qt Quick user interface.
 
     \inmodule QtQuick

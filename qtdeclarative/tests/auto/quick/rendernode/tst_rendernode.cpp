@@ -44,6 +44,7 @@
 #include <QtQuick/qquickitem.h>
 #include <QtQuick/qquickview.h>
 #include <QtGui/qopenglcontext.h>
+#include <QtGui/qscreen.h>
 #include <private/qsgrendernode_p.h>
 
 #include "../../shared/util.h"
@@ -58,10 +59,13 @@ public:
     {
         QQuickView view;
         view.setSource(testFileUrl(fileName));
-
-        view.show();
+        view.setResizeMode(QQuickView::SizeViewToRootObject);
+        const QRect screenGeometry = view.screen()->availableGeometry();
+        const QSize size = view.size();
+        const QPoint offset = QPoint(size.width() / 2, size.height() / 2);
+        view.setFramePosition(screenGeometry.center() - offset);
+        view.showNormal();
         QTest::qWaitForWindowExposed(&view);
-
         return view.grabWindow();
     }
 
@@ -185,37 +189,54 @@ tst_rendernode::tst_rendernode()
     qmlRegisterType<MessUpItem>("Test", 1, 0, "MessUpItem");
 }
 
-static void fuzzyCompareColor(QRgb x, QRgb y)
+static bool fuzzyCompareColor(QRgb x, QRgb y, QByteArray *errorMessage)
 {
-    QVERIFY(qAbs(qRed(x) - qRed(y)) < 4);
-    QVERIFY(qAbs(qGreen(x) - qGreen(y)) < 4);
-    QVERIFY(qAbs(qBlue(x) - qBlue(y)) < 4);
+    enum { fuzz = 4 };
+    if (qAbs(qRed(x) - qRed(y)) >= fuzz || qAbs(qGreen(x) - qGreen(y)) >= fuzz || qAbs(qBlue(x) - qBlue(y)) >= fuzz) {
+        QString s;
+        QDebug(&s).nospace() << hex << "Color mismatch 0x" << x << " 0x" << y << dec << " (fuzz=" << fuzz << ").";
+        *errorMessage = s.toLocal8Bit();
+        return false;
+    }
+    return true;
 }
 
+static inline QByteArray msgColorMismatchAt(const QByteArray &colorMsg, int x, int y)
+{
+    return colorMsg + QByteArrayLiteral(" at ") + QByteArray::number(x) +',' + QByteArray::number(y);
+}
+
+/* The test draws four rects, each 100x100 and verifies
+ * that a rendernode which calls glClear() is stacked
+ * correctly. The red rectangles come under the white
+ * and are obscured.
+ */
 void tst_rendernode::renderOrder()
 {
+    if (QGuiApplication::primaryScreen()->depth() < 24)
+        QSKIP("This test does not work at display depths < 24");
     QImage fb = runTest("RenderOrder.qml");
-    int x1 = fb.width() / 8;
-    int x2 = fb.width() * 3 / 8;
-    int x3 = fb.width() * 5 / 8;
-    int x4 = fb.width() * 7 / 8;
-    int y1 = fb.height() / 8;
-    int y2 = fb.height() * 3 / 8;
-    int y3 = fb.height() * 5 / 8;
-    int y4 = fb.height() * 7 / 8;
 
-    fuzzyCompareColor(fb.pixel(x1, y1), qRgb(0x7f, 0x00, 0x00));
-    QCOMPARE(fb.pixel(x2, y2), qRgb(0xff, 0xff, 0xff));
-    QCOMPARE(fb.pixel(x3, y2), qRgb(0x00, 0x00, 0xff));
-    QCOMPARE(fb.pixel(x4, y1), qRgb(0x00, 0x00, 0xff));
-    QCOMPARE(fb.pixel(x1, y4), qRgb(0xff, 0x00, 0x00));
-    QCOMPARE(fb.pixel(x2, y3), qRgb(0xff, 0xff, 0xff));
-    fuzzyCompareColor(fb.pixel(x3, y3), qRgb(0x7f, 0x7f, 0xff));
-    fuzzyCompareColor(fb.pixel(x4, y4), qRgb(0x00, 0x00, 0x7f));
+    QCOMPARE(fb.width(), 200);
+    QCOMPARE(fb.height(), 200);
+
+    QCOMPARE(fb.pixel(50, 50), qRgb(0xff, 0xff, 0xff));
+    QCOMPARE(fb.pixel(50, 150), qRgb(0xff, 0xff, 0xff));
+    QCOMPARE(fb.pixel(150, 50), qRgb(0x00, 0x00, 0xff));
+
+    QByteArray errorMessage;
+    QVERIFY2(fuzzyCompareColor(fb.pixel(150, 150), qRgb(0x7f, 0x7f, 0xff), &errorMessage),
+             msgColorMismatchAt(errorMessage, 150, 150).constData());
 }
 
+/* The test uses a number of nested rectangles with clipping
+ * and rotation to verify that using a render node which messes
+ * with the state does not break rendering that comes after it.
+ */
 void tst_rendernode::messUpState()
 {
+    if (QGuiApplication::primaryScreen()->depth() < 24)
+        QSKIP("This test does not work at display depths < 24");
     QImage fb = runTest("MessUpState.qml");
     int x1 = 0;
     int x2 = fb.width() / 2;
@@ -231,7 +252,9 @@ void tst_rendernode::messUpState()
 
     QCOMPARE(fb.pixel(x2, y1), qRgb(0x00, 0x00, 0x00));
     QCOMPARE(fb.pixel(x2, y2), qRgb(0x00, 0x00, 0x00));
-    fuzzyCompareColor(fb.pixel(x2, y3), qRgb(0x7f, 0x00, 0x7f));
+    QByteArray errorMessage;
+    QVERIFY2(fuzzyCompareColor(fb.pixel(x2, y3), qRgb(0x7f, 0x00, 0x7f), &errorMessage),
+             msgColorMismatchAt(errorMessage, x2, y3).constData());
     QCOMPARE(fb.pixel(x2, y4), qRgb(0x00, 0x00, 0x00));
     QCOMPARE(fb.pixel(x2, y5), qRgb(0x00, 0x00, 0x00));
 }

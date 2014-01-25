@@ -135,6 +135,7 @@ void HelpProjectWriter::readSelectors(SubProject &subproject, const QStringList 
     typeHash["qmlsignal"] = Node::QmlSignal;
     typeHash["qmlsignalhandler"] = Node::QmlSignalHandler;
     typeHash["qmlmethod"] = Node::QmlMethod;
+    typeHash["qmlpropertygroup"] = Node::QmlPropertyGroup;
 
     QHash<QString, Node::SubType> subTypeHash;
     subTypeHash["example"] = Node::Example;
@@ -145,7 +146,6 @@ void HelpProjectWriter::readSelectors(SubProject &subproject, const QStringList 
     subTypeHash["page"] = Node::Page;
     subTypeHash["externalpage"] = Node::ExternalPage;
     subTypeHash["qmlclass"] = Node::QmlClass;
-    subTypeHash["qmlpropertygroup"] = Node::QmlPropertyGroup;
     subTypeHash["qmlbasictype"] = Node::QmlBasicType;
 
     QSet<Node::SubType> allSubTypes = QSet<Node::SubType>::fromList(subTypeHash.values());
@@ -225,7 +225,7 @@ QStringList HelpProjectWriter::keywordDetails(const Node *node) const
         details << node->name();
         details << node->name();
     }
-    details << gen_->fullDocumentLocation(node,true);
+    details << gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
     return details;
 }
 
@@ -285,12 +285,12 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
 
     case Node::Class:
         project.keywords.append(keywordDetails(node));
-        project.files.insert(gen_->fullDocumentLocation(node,true));
+        project.files.insert(gen_->fullDocumentLocation(node,Generator::useOutputSubdirs()));
         break;
 
     case Node::Namespace:
         project.keywords.append(keywordDetails(node));
-        project.files.insert(gen_->fullDocumentLocation(node,true));
+        project.files.insert(gen_->fullDocumentLocation(node,Generator::useOutputSubdirs()));
         break;
 
     case Node::Enum:
@@ -310,7 +310,7 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
                 details << item.name(); // "name"
                 details << item.name(); // "id"
             }
-            details << gen_->fullDocumentLocation(node,true);
+            details << gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
             project.keywords.append(details);
         }
     }
@@ -342,7 +342,7 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
 
         if (node->relates()) {
             project.memberStatus[node->relates()].insert(node->status());
-            project.files.insert(gen_->fullDocumentLocation(node->relates(),true));
+            project.files.insert(gen_->fullDocumentLocation(node->relates(),Generator::useOutputSubdirs()));
         } else if (node->parent())
             project.memberStatus[node->parent()].insert(node->status());
     }
@@ -356,7 +356,7 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
         // Use the location of any associated enum node in preference
         // to that of the typedef.
         if (enumNode)
-            typedefDetails[2] = gen_->fullDocumentLocation(enumNode,true);
+            typedefDetails[2] = gen_->fullDocumentLocation(enumNode,Generator::useOutputSubdirs());
 
         project.keywords.append(typedefDetails);
     }
@@ -364,7 +364,7 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
 
     case Node::Variable:
     {
-        QString location = gen_->fullDocumentLocation(node,true);
+        QString location = gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
         project.files.insert(location.left(location.lastIndexOf(QLatin1Char('#'))));
         project.keywords.append(keywordDetails(node));
     }
@@ -385,18 +385,18 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
                             QStringList details;
                             details << keyword->string()
                                     << keyword->string()
-                                    << gen_->fullDocumentLocation(node,true) +
+                                    << gen_->fullDocumentLocation(node,Generator::useOutputSubdirs()) +
                                        QLatin1Char('#') + Doc::canonicalTitle(keyword->string());
                             project.keywords.append(details);
                         } else
                             docNode->doc().location().warning(
-                                        tr("Bad keyword in %1").arg(gen_->fullDocumentLocation(node,true))
+                                        tr("Bad keyword in %1").arg(gen_->fullDocumentLocation(node,Generator::useOutputSubdirs()))
                                         );
                     }
                 }
                 project.keywords.append(keywordDetails(node));
             }
-            project.files.insert(gen_->fullDocumentLocation(node,true));
+            project.files.insert(gen_->fullDocumentLocation(node,Generator::useOutputSubdirs()));
         }
         break;
     }
@@ -422,6 +422,11 @@ bool HelpProjectWriter::generateSection(HelpProject &project,
 void HelpProjectWriter::generateSections(HelpProject &project,
                                          QXmlStreamWriter &writer, const Node *node)
 {
+    /*
+      Don't include index nodes in the help file. Or DITA map nodes.
+     */
+    if (node->isIndexNode() || node->subType() == Node::DitaMap)
+        return;
     if (!generateSection(project, writer, node))
         return;
 
@@ -431,29 +436,40 @@ void HelpProjectWriter::generateSections(HelpProject &project,
         // Ensure that we don't visit nodes more than once.
         QMap<QString, const Node*> childMap;
         foreach (const Node *childNode, inner->childNodes()) {
+            if (childNode->isIndexNode())
+                continue;
+
             if (childNode->access() == Node::Private)
                 continue;
 
             if (childNode->type() == Node::Document) {
+                childMap[static_cast<const DocNode *>(childNode)->fullTitle()] = childNode;
+            }
+            else if (childNode->type() == Node::QmlPropertyGroup) {
                 /*
                   Don't visit QML property group nodes,
                   but visit their children, which are all
                   QML property nodes.
+
+                  This is probably not correct anymore,
+                  because The Qml Property Group is an
+                  actual documented thing.
                  */
-                if (childNode->subType() == Node::QmlPropertyGroup) {
-                    const InnerNode* inner = static_cast<const InnerNode*>(childNode);
-                    foreach (const Node* n, inner->childNodes()) {
-                        if (n->access() == Node::Private)
-                            continue;
-                        childMap[n->fullDocumentName()] = n;
-                    }
+                const InnerNode* inner = static_cast<const InnerNode*>(childNode);
+                foreach (const Node* n, inner->childNodes()) {
+                    if (n->access() == Node::Private)
+                        continue;
+                    childMap[n->fullDocumentName()] = n;
                 }
-                else
-                    childMap[static_cast<const DocNode *>(childNode)->fullTitle()] = childNode;
             }
             else {
                 // Store member status of children
                 project.memberStatus[node].insert(childNode->status());
+                if (childNode->relates()) {
+                    project.memberStatus[childNode->relates()].insert(childNode->status());
+                    project.files.insert(gen_->fullDocumentLocation(childNode->relates(),
+                                                                    Generator::useOutputSubdirs()));
+                }
 
                 if (childNode->type() == Node::Function) {
                     const FunctionNode *funcNode = static_cast<const FunctionNode *>(childNode);
@@ -508,7 +524,7 @@ void HelpProjectWriter::writeSection(QXmlStreamWriter &writer, const QString &pa
 void HelpProjectWriter::addMembers(HelpProject &project, QXmlStreamWriter &writer,
                                           const Node *node, bool writeSections)
 {
-    QString href = gen_->fullDocumentLocation(node,true);
+    QString href = gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
     href = href.left(href.size()-5);
     if (href.isEmpty())
         return;
@@ -546,7 +562,7 @@ void HelpProjectWriter::addMembers(HelpProject &project, QXmlStreamWriter &write
 void HelpProjectWriter::writeNode(HelpProject &project, QXmlStreamWriter &writer,
                                   const Node *node)
 {
-    QString href = gen_->fullDocumentLocation(node,true);
+    QString href = gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
     QString objName = node->name();
 
     switch (node->type()) {
@@ -642,7 +658,7 @@ void HelpProjectWriter::generateProject(HelpProject &project)
         node = qdb_->findNode(QStringList("index.html"));
     QString indexPath;
     if (node)
-        indexPath = gen_->fullDocumentLocation(node,true);
+        indexPath = gen_->fullDocumentLocation(node,Generator::useOutputSubdirs());
     else
         indexPath = "index.html";
     writer.writeAttribute("ref", indexPath);
@@ -685,7 +701,8 @@ void HelpProjectWriter::generateProject(HelpProject &project)
 
                             const DocNode *page = qdb_->findDocNodeByTitle(atom->string());
                             writer.writeStartElement("section");
-                            QString indexPath = gen_->fullDocumentLocation(page,true);
+                            QString indexPath = gen_->fullDocumentLocation(page,
+                                                                           Generator::useOutputSubdirs());
                             writer.writeAttribute("ref", indexPath);
                             writer.writeAttribute("title", atom->string());
                             project.files.insert(indexPath);
@@ -710,7 +727,7 @@ void HelpProjectWriter::generateProject(HelpProject &project)
 
             if (!name.isEmpty()) {
                 writer.writeStartElement("section");
-                QString indexPath = gen_->fullDocumentLocation(qdb_->findDocNodeByTitle(subproject.indexTitle),true);
+                QString indexPath = gen_->fullDocumentLocation(qdb_->findDocNodeByTitle(subproject.indexTitle),Generator::useOutputSubdirs());
                 writer.writeAttribute("ref", indexPath);
                 writer.writeAttribute("title", subproject.title);
                 project.files.insert(indexPath);

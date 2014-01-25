@@ -270,6 +270,19 @@ QString QMakeGlobals::shadowedPath(const QString &fileName) const
     return QString();
 }
 
+QStringList QMakeGlobals::splitPathList(const QString &val) const
+{
+    QStringList ret;
+    if (!val.isEmpty()) {
+        QDir bdir;
+        QStringList vals = val.split(dirlist_sep);
+        ret.reserve(vals.length());
+        foreach (const QString &it, vals)
+            ret << QDir::cleanPath(bdir.absoluteFilePath(it));
+    }
+    return ret;
+}
+
 QString QMakeGlobals::getEnv(const QString &var) const
 {
 #ifdef PROEVALUATOR_SETENV
@@ -281,16 +294,7 @@ QString QMakeGlobals::getEnv(const QString &var) const
 
 QStringList QMakeGlobals::getPathListEnv(const QString &var) const
 {
-    QStringList ret;
-    QString val = getEnv(var);
-    if (!val.isEmpty()) {
-        QDir bdir;
-        QStringList vals = val.split(dirlist_sep);
-        ret.reserve(vals.length());
-        foreach (const QString &it, vals)
-            ret << QDir::cleanPath(bdir.absoluteFilePath(it));
-    }
-    return ret;
+    return splitPathList(getEnv(var));
 }
 
 QString QMakeGlobals::expandEnvVars(const QString &str) const
@@ -324,34 +328,46 @@ bool QMakeGlobals::initProperties()
         QT_PCLOSE(proc);
     }
 #endif
-    foreach (QByteArray line, data.split('\n'))
-        if (!line.startsWith("QMAKE_")) {
-            int off = line.indexOf(':');
-            if (off < 0) // huh?
-                continue;
-            if (line.endsWith('\r'))
-                line.chop(1);
-            QString name = QString::fromLatin1(line.left(off));
-            ProString value = ProString(QDir::fromNativeSeparators(
-                        QString::fromLocal8Bit(line.mid(off + 1))));
-            properties.insert(ProKey(name), value);
-            if (name.startsWith(QLatin1String("QT_")) && !name.contains(QLatin1Char('/'))) {
-                if (name.startsWith(QLatin1String("QT_INSTALL_"))) {
+    foreach (QByteArray line, data.split('\n')) {
+        int off = line.indexOf(':');
+        if (off < 0) // huh?
+            continue;
+        if (line.endsWith('\r'))
+            line.chop(1);
+        QString name = QString::fromLatin1(line.left(off));
+        ProString value = ProString(QDir::fromNativeSeparators(
+                    QString::fromLocal8Bit(line.mid(off + 1))));
+        properties.insert(ProKey(name), value);
+        if (name.startsWith(QLatin1String("QT_"))) {
+            bool plain = !name.contains(QLatin1Char('/'));
+            if (!plain) {
+                if (!name.endsWith(QLatin1String("/get")))
+                    continue;
+                name.chop(4);
+            }
+            if (name.startsWith(QLatin1String("QT_INSTALL_"))) {
+                if (plain) {
                     properties.insert(ProKey(name + QLatin1String("/raw")), value);
                     properties.insert(ProKey(name + QLatin1String("/get")), value);
-                    if (name == QLatin1String("QT_INSTALL_PREFIX")
-                        || name == QLatin1String("QT_INSTALL_DATA")
-                        || name == QLatin1String("QT_INSTALL_BINS")) {
-                        name.replace(3, 7, QLatin1String("HOST"));
+                }
+                properties.insert(ProKey(name + QLatin1String("/src")), value);
+                if (name == QLatin1String("QT_INSTALL_PREFIX")
+                    || name == QLatin1String("QT_INSTALL_DATA")
+                    || name == QLatin1String("QT_INSTALL_BINS")) {
+                    name.replace(3, 7, QLatin1String("HOST"));
+                    if (plain) {
                         properties.insert(ProKey(name), value);
                         properties.insert(ProKey(name + QLatin1String("/get")), value);
                     }
-                } else if (name.startsWith(QLatin1String("QT_HOST_"))) {
-                    properties.insert(ProKey(name + QLatin1String("/get")), value);
+                    properties.insert(ProKey(name + QLatin1String("/src")), value);
                 }
+            } else if (name.startsWith(QLatin1String("QT_HOST_"))) {
+                if (plain)
+                    properties.insert(ProKey(name + QLatin1String("/get")), value);
+                properties.insert(ProKey(name + QLatin1String("/src")), value);
             }
         }
-    properties.insert(ProKey("QMAKE_VERSION"), ProString("2.01a"));
+    }
     return true;
 }
 #else

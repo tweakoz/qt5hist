@@ -39,8 +39,8 @@
 ****************************************************************************/
 
 import QtQuick 2.1
-import QtQuick.Controls 1.0
-import QtQuick.Controls.Styles 1.0
+import QtQuick.Controls 1.1
+import QtQuick.Controls.Styles 1.1
 import QtQuick.Controls.Private 1.0
 
 Item {
@@ -49,14 +49,16 @@ Item {
     property Component toolbutton: ToolButton { text: "A ToolButton" }
     property Component radiobutton: RadioButton { text: "A RadioButton" }
     property Component textfield: TextField { }
+    property Component busyIndicator: BusyIndicator { }
     property Component spinbox: SpinBox {}
     property Component slider : Slider {}
     property Component combobox: ComboBox { model: testDataModel }
     property Component textarea: TextArea { text: loremIpsum }
     property Component toolbar: ToolBar { }
     property Component statusbar: StatusBar { }
+    property Component switchcontrol: Switch { }
     property Component label: Label {text: "I am a label" }
-    property Component tableview: TableView { model: testDataModel ; TableViewColumn {title: "Column 1"}}
+    property Component tableview: TableView { property bool movableColumns: true; model: testDataModel ; TableViewColumn {title: "Column 1"; movable: movableColumns} TableViewColumn {title: "Column 2"; movable: movableColumns} }
     property Component tabView: TabView { Repeater { model: 3 ; delegate:Tab { title: "Tab " + index } }}
     property Component scrollview: ScrollView {
         Rectangle {
@@ -106,7 +108,7 @@ Item {
     }
 
     property string loremIpsum:
-        "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "+
+        "<a href='lipsum.com'>Lorem ipsum</a> dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "+
         "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "+
         "incididunt ut labore et dolore magna aliqua.\n Ut enim ad minim veniam, quis nostrud "+
         "exercitation ullamco laboris nisi ut aliquip ex ea commodo cosnsequat. ";
@@ -114,11 +116,13 @@ Item {
     property var componentModel: ListModel {
         Component.onCompleted: {
             append({ name: "Button",        component: button});
+            append({ name: "BusyIndicator", component: busyIndicator});
             append({ name: "ToolButton",    component: toolbutton});
             append({ name: "CheckBox",      component: checkbox});
             append({ name: "ComboBox",      component: combobox});
             append({ name: "RadioButton",   component: radiobutton});
             append({ name: "Slider",        component: slider});
+            append({ name: "Switch",        component: switchcontrol});
             append({ name: "ProgressBar",   component: progressbar});
             append({ name: "TextField",     component: textfield});
             append({ name: "TextArea",      component: textarea});
@@ -141,24 +145,28 @@ Item {
     property Component sliderStyle: SliderStyle {}
     property Component progressbarStyle: ProgressBarStyle {}
     property Component textfieldStyle: TextFieldStyle {}
-    property Component textareaStyle: null
+    property Component textareaStyle: TextAreaStyle {}
     property Component spinboxStyle: SpinBoxStyle {}
     property Component toolbarStyle: ToolBarStyle {}
     property Component statusbarStyle: StatusBarStyle {}
+    property Component switchStyle: SwitchStyle {}
     property Component tableviewStyle: TableViewStyle {}
     property Component scrollviewStyle: ScrollViewStyle {}
     property Component groupboxStyle: GroupBoxStyle {}
     property Component tabViewStyle: TabViewStyle {}
+    property Component busyIndicatorStyle: BusyIndicatorStyle {}
     property Component labelStyle: null
 
     property var customStyles: ListModel {
         Component.onCompleted: {
             append({ name: "Button",        component: buttonStyle});
+            append({ name: "BusyIndicator", component: busyIndicatorStyle});
             append({ name: "ToolButton",    component: toolbuttonStyle});
             append({ name: "CheckBox",      component: checkboxStyle});
             append({ name: "ComboBox",      component: comboboxStyle});
             append({ name: "RadioButton",   component: radiobuttonStyle});
             append({ name: "Slider",        component: sliderStyle});
+            append({ name: "Switch",        component: switchStyle});
             append({ name: "ProgressBar",   component: progressbarStyle});
             append({ name: "TextField",     component: textfieldStyle});
             append({ name: "TextArea",      component: textareaStyle});

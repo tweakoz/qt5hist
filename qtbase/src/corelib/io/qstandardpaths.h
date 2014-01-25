@@ -69,7 +69,8 @@ public:
         RuntimeLocation,
         ConfigLocation,
         DownloadLocation,
-        GenericCacheLocation
+        GenericCacheLocation,
+        GenericConfigLocation
     };
 
     static QString writableLocation(StandardLocation type);
@@ -89,7 +90,10 @@ public:
 
     static QString findExecutable(const QString &executableName, const QStringList &paths = QStringList());
 
-    static void enableTestMode(bool testMode);
+#if QT_DEPRECATED_SINCE(5, 2)
+    static QT_DEPRECATED void enableTestMode(bool testMode);
+#endif
+    static void setTestModeEnabled(bool testMode);
     static bool isTestModeEnabled();
 
 private:

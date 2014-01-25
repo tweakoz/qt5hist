@@ -55,18 +55,18 @@ TestCase {
     height:400
 
     function test_isDefault() {
-        var tmp = Qt.createQmlObject('import QtQuick.Controls 1.0; Button {id: button1}', testCase, '');
+        var tmp = Qt.createQmlObject('import QtQuick.Controls 1.1; Button {id: button1}', testCase, '');
         compare(tmp.isDefault, false);
         tmp.destroy()
     }
 
     function test_text() {
-        var tmp1 = Qt.createQmlObject('import QtQuick.Controls 1.0; Button {id: button2_1}', testCase, '');
+        var tmp1 = Qt.createQmlObject('import QtQuick.Controls 1.1; Button {id: button2_1}', testCase, '');
         compare(tmp1.text, "");
         tmp1.text = "Hello";
         compare(tmp1.text, "Hello");
 
-        var tmp2 = Qt.createQmlObject('import QtQuick.Controls 1.0; Button {id: button2_2; text: "Hello"}', testCase, '');
+        var tmp2 = Qt.createQmlObject('import QtQuick.Controls 1.1; Button {id: button2_2; text: "Hello"}', testCase, '');
         compare(tmp2.text, "Hello");
         tmp1.destroy()
         tmp2.destroy()
@@ -80,7 +80,7 @@ TestCase {
     function test_action() {
         var test_actionStr =
            'import QtQuick 2.1;                     \
-            import QtQuick.Controls 1.0;            \
+            import QtQuick.Controls 1.1;            \
             Item {                                  \
                 property var testAction: Action {   \
                     id: testAction;                 \
@@ -110,7 +110,7 @@ TestCase {
     }
 
     function test_activeFocusOnPress(){
-        var control = Qt.createQmlObject('import QtQuick.Controls 1.0; Button {x: 20; y: 20; width: 100; height: 50}', container, '')
+        var control = Qt.createQmlObject('import QtQuick.Controls 1.1; Button {x: 20; y: 20; width: 100; height: 50}', container, '')
         control.activeFocusOnPress = false
         verify(!control.activeFocus)
         mouseClick(control, 30, 30)
@@ -127,7 +127,7 @@ TestCase {
             skip("This function doesn't support NOT iterating all.")
 
         var test_control = 'import QtQuick 2.1; \
-        import QtQuick.Controls 1.0;            \
+        import QtQuick.Controls 1.1;            \
         Item {                                  \
             width: 200;                         \
             height: 200;                        \
@@ -196,6 +196,87 @@ TestCase {
         verify(!control.control2.activeFocus)
         verify(!control.control3.activeFocus)
         control.destroy()
+    }
+
+    SignalSpy {
+        id: checkSpy
+        signalName: "checkedChanged"
+    }
+
+    function test_checked() {
+        var button = Qt.createQmlObject('import QtQuick.Controls 1.1; Button { checkable: true }', container, '')
+
+        var checkCount = 0
+
+        checkSpy.clear()
+        checkSpy.target = button
+        verify(checkSpy.valid)
+        verify(!button.checked)
+
+        // stays unchecked on press
+        mousePress(button, button.width / 2, button.height / 2)
+        verify(button.pressed)
+        verify(!button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // gets checked on release inside
+        mouseRelease(button, button.width / 2, button.height / 2)
+        verify(!button.pressed)
+        verify(button.checked)
+        compare(checkSpy.count, ++checkCount)
+
+        // stays checked on press
+        mousePress(button, button.width / 2, button.height / 2)
+        verify(button.pressed)
+        verify(button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // stays checked on release outside
+        mouseMove(button, button.width * 2, button.height * 2)
+        mouseRelease(button, button.width * 2, button.height * 2)
+        verify(!button.pressed)
+        verify(button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // stays checked on press
+        mousePress(button, button.width / 2, button.height / 2)
+        verify(button.pressed)
+        verify(button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // gets unchecked on release inside
+        mouseRelease(button, button.width / 2, button.height / 2)
+        verify(!button.pressed)
+        verify(!button.checked)
+        compare(checkSpy.count, ++checkCount)
+
+        // stays unchecked on press
+        mousePress(button, button.width / 2, button.height / 2)
+        verify(button.pressed)
+        verify(!button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // stays unchecked on release outside
+        mouseMove(button, button.width * 2, button.height * 2)
+        mouseRelease(button, button.width * 2, button.height * 2)
+        verify(!button.pressed)
+        verify(!button.checked)
+        compare(checkSpy.count, checkCount)
+
+        // keyboard toggle
+        button.forceActiveFocus()
+        keyClick(Qt.Key_Space)
+        verify(button.checked)
+        compare(checkSpy.count, ++checkCount)
+
+        // toggle on release
+        keyPress(Qt.Key_Space)
+        verify(button.checked)
+        keyRelease(Qt.Key_Space)
+        verify(!button.checked)
+        compare(checkSpy.count, ++checkCount)
+
+        button.destroy()
     }
 }
 }

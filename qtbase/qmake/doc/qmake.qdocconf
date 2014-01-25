@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QMake
 description             = QMake Manual
-url                     = http://qt-project.org/doc/qt-$QT_VER/qmake
+url                     = http://qt-project.org/doc/qt-$QT_VER
 
 qhp.projects            = qmake
 
@@ -22,6 +22,9 @@ language                = Cpp
 
 sources                 = src/qmake-manual.qdoc
 
+imagedirs               = images
+exampledirs             = snippets
+
 depends += \
     activeqt \
     qt3d \
@@ -31,6 +34,7 @@ depends += \
     qtcontacts \
     qtcore \
     qtdbus \
+    qtdoc \
     qtdesigner \
     qtfeedback \
     qtgraphicaleffects \
@@ -67,9 +71,7 @@ depends += \
     qtwebkit \
     qtwebkitexamples \
     qtwidgets \
+    qtwinextras \
     qtx11extras \
     qtxml \
     qtxmlpatterns
-
-imagedirs               = src/images
-exampledirs             = src

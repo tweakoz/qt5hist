@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -73,6 +73,12 @@ class Q_QUICK_PRIVATE_EXPORT QQuickAbstractAnimation : public QObject, public QQ
     Q_CLASSINFO("DefaultMethod", "start()")
 
 public:
+    enum ThreadingModel  {
+        GuiThread,
+        RenderThread,
+        AnyThread
+    };
+
     QQuickAbstractAnimation(QObject *parent=0);
     virtual ~QQuickAbstractAnimation();
 
@@ -101,6 +107,8 @@ public:
     bool userControlDisabled() const;
     void classBegin();
     void componentComplete();
+
+    virtual ThreadingModel threadingModel() const;
 
 Q_SIGNALS:
     void started();
@@ -421,6 +429,7 @@ public:
     virtual ~QQuickSequentialAnimation();
 
 protected:
+    virtual ThreadingModel threadingModel() const;
     virtual QAbstractAnimationJob* transition(QQuickStateActions &actions,
                             QQmlProperties &modified,
                             TransitionDirection direction,
@@ -437,6 +446,7 @@ public:
     virtual ~QQuickParallelAnimation();
 
 protected:
+    virtual ThreadingModel threadingModel() const;
     virtual QAbstractAnimationJob* transition(QQuickStateActions &actions,
                             QQmlProperties &modified,
                             TransitionDirection direction,

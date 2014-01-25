@@ -32,14 +32,20 @@
 
     \section1 Downloading and Installing Qt
 
-    The \l{Opensource Downloads}{Downloads} page contains Qt download links,
-    where Qt and Qt Creator can be downloaded for different development
-    platforms.
+    Qt framework and tools can be installed using an online installer,
+    standalone binary installers or using source packages and building
+    yourself. The open-source version is found from the Qt Project
+    \l {Opensource Downloads}{Downloads} page, which contains download
+    links for Qt and Qt Creator for different development platforms.
+
+    The commercial versions are available for free trial from
+    \l{Try Qt Enterprise}{Digia}.
 
     \section2 Installing with the Installation Program
 
     The Qt Installation Program can download the Qt libraries and tools as well
-    as the reference documentation and code samples. The \l{Qt Installation
+    as the reference documentation and code samples. The
+    \l{Qt Installation
     Program} page contains information about installation process.
 
     \section2 Installing from the Qt Sources
@@ -47,13 +53,13 @@
     Qt may also be installed from the sources. Simply download the sources
     (available from the \l{Opensource Downloads}{Downloads} page) and follow the
     instructions according to the development platform page here:
-    \l Installation.
+    \l{Building Qt Sources}.
 
     \section1 Exploring the Tools
 
-    \l{Qt Creator}, the Qt IDE, allows quick development time by integrating
-    tools such as a code editor, a UI designer, a debugger, and other project
-    management tools such as version control.
+    \l{Qt Creator}, the Qt IDE, integrates development tools such as a code
+    editor, a UI designer, a debugger, and other project management tools such
+    as version control.
 
     For more information, these pages describe the tools and processes involved:
     \list

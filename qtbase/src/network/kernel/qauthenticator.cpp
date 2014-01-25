@@ -189,7 +189,7 @@ QAuthenticator &QAuthenticator::operator=(const QAuthenticator &other)
         d->realm = other.d->realm;
         d->method = other.d->method;
         d->options = other.d->options;
-    } else {
+    } else if (d->phase == QAuthenticatorPrivate::Start) {
         delete d;
         d = 0;
     }
@@ -197,8 +197,8 @@ QAuthenticator &QAuthenticator::operator=(const QAuthenticator &other)
 }
 
 /*!
-    Returns true if this authenticator is identical to \a other; otherwise
-    returns false.
+    Returns \c true if this authenticator is identical to \a other; otherwise
+    returns \c false.
 */
 bool QAuthenticator::operator==(const QAuthenticator &other) const
 {
@@ -214,8 +214,8 @@ bool QAuthenticator::operator==(const QAuthenticator &other) const
 /*!
     \fn bool QAuthenticator::operator!=(const QAuthenticator &other) const
 
-    Returns true if this authenticator is different from \a other; otherwise
-    returns false.
+    Returns \c true if this authenticator is different from \a other; otherwise
+    returns \c false.
 */
 
 /*!
@@ -267,7 +267,8 @@ void QAuthenticator::detach()
         return;
     }
 
-    d->phase = QAuthenticatorPrivate::Start;
+    if (d->phase == QAuthenticatorPrivate::Done)
+        d->phase = QAuthenticatorPrivate::Start;
 }
 
 /*!
@@ -320,7 +321,7 @@ void QAuthenticator::setOption(const QString &opt, const QVariant &value)
 
 
 /*!
-    Returns true if the authenticator is null.
+    Returns \c true if the authenticator is null.
 */
 bool QAuthenticator::isNull() const
 {
@@ -1392,7 +1393,7 @@ static bool qNtlmDecodePhase2(const QByteArray& data, QNtlmPhase2Block& ch)
     ds >> ch.targetInfo;
 
     if (ch.targetName.len > 0) {
-        if (ch.targetName.len + ch.targetName.offset >= (unsigned)data.size())
+        if (ch.targetName.len + ch.targetName.offset > (unsigned)data.size())
             return false;
 
         ch.targetNameStr = qStringFromUcs2Le(data.mid(ch.targetName.offset, ch.targetName.len));

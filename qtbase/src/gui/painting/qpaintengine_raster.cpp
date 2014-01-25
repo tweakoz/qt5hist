@@ -72,6 +72,7 @@
 #include "qoutlinemapper_p.h"
 
 #include <limits.h>
+#include <algorithm>
 
 #ifdef Q_OS_WIN
 #  include <qvarlengtharray.h>
@@ -157,6 +158,9 @@ static const qreal aliasedCoordinateDelta = 0.5 - 0.015625;
 
 static inline bool winClearTypeFontsEnabled()
 {
+#ifdef Q_OS_WINRT
+    return false;
+#else // Q_OS_WINRT
     UINT result = 0;
 #if !defined(SPI_GETFONTSMOOTHINGTYPE) // MinGW
 #    define SPI_GETFONTSMOOTHINGTYPE  0x200A
@@ -164,6 +168,7 @@ static inline bool winClearTypeFontsEnabled()
 #endif
     SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE, 0, &result, 0);
     return result == FE_FONTSMOOTHINGCLEARTYPE;
+#endif // !Q_OS_WINRT
 }
 
 /*!
@@ -303,9 +308,9 @@ QRasterPaintEnginePrivate::QRasterPaintEnginePrivate() :
     of painting operations in Qt for Embedded Linux.
 
     Note that this functionality is only available in
-    \l{Qt for Embedded Linux}.
+    Qt for Embedded Linux.
 
-    In \l{Qt for Embedded Linux}, painting is a pure software
+    In Qt for Embedded Linux, painting is a pure software
     implementation. But starting with Qt 4.2, it is
     possible to add an accelerated graphics driver to take advantage
     of available hardware resources.
@@ -313,19 +318,15 @@ QRasterPaintEnginePrivate::QRasterPaintEnginePrivate() :
     Hardware acceleration is accomplished by creating a custom screen
     driver, accelerating the copying from memory to the screen, and
     implementing a custom paint engine accelerating the various
-    painting operations. Then a custom paint device (derived from the
-    QCustomRasterPaintDevice class) and a custom window surface
-    (derived from QWSWindowSurface) must be implemented to make
-    \l{Qt for Embedded Linux} aware of the accelerated driver.
+    painting operations. Then a custom paint device and a custom
+    window surface must be implemented to make
+    Qt for Embedded Linux aware of the accelerated driver.
 
     \note The QRasterPaintEngine class does not support 8-bit images.
     Instead, they need to be converted to a supported format, such as
     QImage::Format_ARGB32_Premultiplied.
 
-    See the \l {Adding an Accelerated Graphics Driver to Qt for Embedded Linux}
-    documentation for details.
-
-    \sa QCustomRasterPaintDevice, QPaintEngine
+    \sa QPaintEngine
 */
 
 /*!
@@ -435,6 +436,8 @@ void QRasterPaintEngine::init()
     case QImage::Format_ARGB4444_Premultiplied:
     case QImage::Format_ARGB32_Premultiplied:
     case QImage::Format_ARGB32:
+    case QImage::Format_RGBA8888_Premultiplied:
+    case QImage::Format_RGBA8888:
         gccaps |= PorterDuff;
         break;
     case QImage::Format_RGB32:
@@ -443,6 +446,7 @@ void QRasterPaintEngine::init()
     case QImage::Format_RGB666:
     case QImage::Format_RGB888:
     case QImage::Format_RGB16:
+    case QImage::Format_RGBX8888:
         break;
     default:
         break;
@@ -1850,7 +1854,7 @@ static bool splitPolygon(const QPointF *points, int pointCount, QVector<QPointF>
     for (int i = 0; i < pointCount; ++i)
         sorted << points + i;
 
-    qSort(sorted.begin(), sorted.end(), isAbove);
+    std::sort(sorted.begin(), sorted.end(), isAbove);
 
     qreal splitY = sorted.at(sorted.size() / 2)->y();
 
@@ -2261,6 +2265,7 @@ void QRasterPaintEngine::drawImage(const QRectF &r, const QImage &img, const QRe
         case QImage::Format_ARGB6666_Premultiplied:
         case QImage::Format_ARGB8555_Premultiplied:
         case QImage::Format_ARGB4444_Premultiplied:
+        case QImage::Format_RGBA8888_Premultiplied:
             // Combine premultiplied color with the opacity set on the painter.
             d->solid_color_filler.solid.color =
                 ((((color & 0x00ff00ff) * s->intOpacity) >> 8) & 0x00ff00ff)
@@ -2878,7 +2883,7 @@ bool QRasterPaintEngine::drawCachedGlyphs(int numGlyphs, const glyph_t *glyphs,
 
 
 /*!
- * Returns true if the rectangle is completely within the current clip
+ * Returns \c true if the rectangle is completely within the current clip
  * state of the paint engine.
  */
 bool QRasterPaintEnginePrivate::isUnclipped_normalized(const QRect &r) const

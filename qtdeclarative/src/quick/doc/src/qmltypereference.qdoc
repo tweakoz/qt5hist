@@ -36,7 +36,8 @@ interfaces and applications with QML.  This page lists every QML type provided
 by this module, organized according to category and purpose.
 
 
-\section1 Importing \c QtQuick
+\target importing-qtquick
+\section1 Importing Qt Quick
 
 The types provided by the \l {Qt Quick} module are only available in a QML document
 if that document imports the \c QtQuick namespace.
@@ -71,7 +72,7 @@ information about the concepts which are central to \c QtQuick.
     \li \l{Qt Quick Layouts QML Types}{Layouts} - contains types that are used
     to arrange items in the user interface
     \endlist
-
+\target basic-types
 \section1 Basic Types
 
 There are a number of basic types that are
@@ -80,15 +81,15 @@ There are a number of basic types that are
 
 In addition, the \c QtQuick module provides the following basic types:
 \annotatedlist qtquickbasictypes
-
+\target object-types
 \section1 Object Types
 
 All of the object types provided by \c QtQuick are based on the \l{Item} type,
-which itself derives from \l{QtQml2::QtObject}{QtObject}.  \l{qtqml-typereference-topic.html#object-types}
+which itself derives from \l{QtQml::QtObject}{QtObject}.  \l{qtqml-typereference-topic.html#object-types}
 {QML object types} provided by the Qt QML module
-(such as \l{QtQml2::QtObject}{QtObject} and \l{QtQml2::Component}{Component}) are also available when
+(such as \l{QtQml::QtObject}{QtObject} and \l{QtQml::Component}{Component}) are also available when
 you import \c QtQuick.
-
+\target visual-types
 \section2 Visual Types
 
 \list
@@ -129,7 +130,7 @@ Visual Item Transformations
 \li \l {Translate} - Assigns item translation behaviors
 \endlist
 
-
+\target user-input
 \section2 User Input
 
 \list
@@ -163,7 +164,7 @@ User Input Events
 \li \l {KeyEvent} - Provides information about a key press event
 \li \l {DragEvent} -Provides information about a drag event
 \endlist
-
+\target positioning
 \section2 Positioning
 
 \list
@@ -174,7 +175,7 @@ User Input Events
 \li \l {Flow} - Positions its children with wrapping support
 \li \l {LayoutMirroring} - Attached property used to mirror layout behavior
 \endlist
-
+\target states-transitions-and-animations
 \section2 States, Transitions and Animations
 
 States
@@ -211,6 +212,12 @@ Type-specific Animations
 \li \l {ParentAnimation} - Animates parent changes
 \li \l {AnchorAnimation} - Animates anchor changes
 \li \l {PathAnimation} - Animates position along a path
+\li \l {XAnimator} - Animates x position asynchronously
+\li \l {YAnimator} - Animates y position asynchronously
+\li \l {ScaleAnimator} - Animates scale asynchronously
+\li \l {RotationAnimator} - Animates rotation asynchronously
+\li \l {OpacityAnimator} - Animates opacity asynchronously
+\li \l {UniformAnimator} - Animates a \l ShaderEffect uniform asynchronously
 \endlist
 
 Lower-level Animation Types
@@ -231,7 +238,7 @@ Animation paths
 \li \l {PathAttribute} - Allows the setting of attributes along a \l {Path}
 \li \l {PathPercent} - Modifies the item distribution along a \l {Path}
 \endlist
-
+\target model-view-types-and-data-storage-and-access
 \section2 Model/View Types And Data Storage And Access
 
 QML Lists and Models
@@ -268,9 +275,10 @@ Views
 
 Data Storage
 \list
-\li \l {QtQuick.LocalStorage 2} - Singleton type providing simplified SQL access
+\li \l {Qt Quick Local Storage QML Types}{QtQuick.LocalStorage 2} - Singleton
+type providing simplified SQL access
 \endlist
-
+\target graphical-effects
 \section2 Graphical Effects
 
 \list
@@ -278,9 +286,10 @@ Data Storage
 \li \l {ShaderEffect} - Allows GLSL shaders to be used as graphical effects
 \li \l {ShaderEffectSource} - Usable as a texture in ShaderEffect
 \li \l {GridMesh} - Generates a grid mesh of vertices for use by ShaderEffect
-\li The \l{QtQuick.Particles 2} module provides a set of Particle System types for Qt Quick 2
+\li The \l{Qt Quick Particles QML Types}{QtQuick.Particles 2} module provides a
+set of Particle System types for Qt Quick 2
 \endlist
-
+\target convenience-types
 \section2 Convenience Types
 
 \list
@@ -289,7 +298,7 @@ Data Storage
 \li \l {Timer} - Provides timed triggers
 \li \l {WorkerScript} - Enables the use of threads in a Qt Quick application
 \endlist
-
+\target canvas-similar-to-html5-canvas
 \section2 Canvas (similar to HTML5 canvas)
 
 \list
@@ -304,15 +313,15 @@ Data Storage
 */
 
 /*!
-\qmlmodule QtQuick 2
-\brief The \c {QtQuick 2} module provides graphical primitives for use in QML.
+\qmlmodule QtQuick 2.2
+\brief The Provides graphical primitives for use in QML.
 
-The \c {QtQuick 2} module provides graphical primitive types. They can be used with the following import
+The \l{Qt Quick} module provides graphical primitive types. They can be used with the following import
 \code
-import QtQuick 2.1
+import QtQuick 2.2
 \endcode
 
-For a more detailed listing of types in the \c {QtQuick 2} import, see the \l{Qt Quick QML Types} page.
+For a more detailed listing of types in the \c {QtQuick} import, see the \l{Qt Quick QML Types} page.
 For more details about the module itself, see the \l{Qt Quick} module page.
 */
 
@@ -330,9 +339,9 @@ For more details about the module itself, see the \l{Qt Quick} module page.
     \li By a hexadecimal triplet or quad in the form \c "#RRGGBB" and \c "#AARRGGBB"
         respectively. For example, the color red corresponds to a triplet of \c "#FF0000"
         and a slightly transparent blue to a quad of \c "#800000FF".
-    \li Using the \l{QtQml2::Qt::rgba()}{Qt.rgba()}, \l{QtQml2::Qt::hsla()}{Qt.hsla()},
-        \l{QtQml2::Qt::darker()}{Qt.darker()}, \l{QtQml2::Qt::lighter()}{Qt.lighter()} or
-        \l{QtQml2::Qt::tint()}{Qt.tint()} functions.
+    \li Using the \l{QtQml::Qt::rgba()}{Qt.rgba()}, \l{QtQml::Qt::hsla()}{Qt.hsla()},
+        \l{QtQml::Qt::darker()}{Qt.darker()}, \l{QtQml::Qt::lighter()}{Qt.lighter()} or
+        \l{QtQml::Qt::tint()}{Qt.tint()} functions.
     \endlist
 
     Example:
@@ -354,7 +363,7 @@ For more details about the module itself, see the \l{Qt Quick} module page.
     }
     \endqml
 
-    To test color values for equality, use the \l{QtQml2::Qt::colorEqual()}{Qt.colorEqual()}
+    To test color values for equality, use the \l{QtQml::Qt::colorEqual()}{Qt.colorEqual()}
     function.  This allows colors to be accurately compared whether they are in property
     form or in any of the acceptable string specification forms.
 
@@ -595,7 +604,7 @@ console.log(c + " " + d); // false true
     Rotation { angle: 60; axis: "0,1,0" }
     \endqml
 
-    or with the \l{QtQml2::Qt::vector3d()}{Qt.vector3d()} function:
+    or with the \l{QtQml::Qt::vector3d()}{Qt.vector3d()} function:
 
     \qml
     Rotation { angle: 60; axis: Qt.vector3d(0, 1, 0) }
@@ -1057,4 +1066,18 @@ console.log(c + " " + d); // false true
     This basic type is provided by the QtQuick import.
 
     \sa {QML Basic Types}
+*/
+
+/*!
+\qmlmodule QtTest 1.0
+\title Qt Quick Test
+\brief This module provides QML types to unit test your QML application
+
+You can import this module using the following statement:
+\code
+import QtTest 1.0
+\endcode
+
+For more information about how to use these types, see
+\l{Qt Quick Test Reference Documentation}.
 */

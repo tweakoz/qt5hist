@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -197,7 +197,7 @@ public:
     void updateOpacity();
     void updateZ();
 
-signals:
+Q_SIGNALS:
     void enabledChanged(bool enabled);
     void sizeChanged(const QSize &size);
     void mipmapChanged(bool mipmap);
@@ -209,6 +209,9 @@ signals:
     void sourceRectChanged(const QRectF &sourceRect);
 
 private:
+    friend class QQuickTransformAnimatorJob;
+    friend class QQuickOpacityAnimatorJob;
+
     void activate();
     void deactivate();
     void activateEffect();
@@ -465,6 +468,7 @@ public:
     QQuickWindow *window;
     int windowRefCount;
     inline QSGContext *sceneGraphContext() const;
+    inline QSGRenderContext *sceneGraphRenderContext() const;
 
     QQuickItem *parentItem;
     QQmlNotifier parentNotifier;
@@ -526,7 +530,7 @@ public:
 
     void emitChildrenRectChanged(const QRectF &rect) {
         Q_Q(QQuickItem);
-        emit q->childrenRectChanged(rect);
+        Q_EMIT q->childrenRectChanged(rect);
     }
 
     QPointF computeTransformOrigin() const;
@@ -583,12 +587,6 @@ public:
     void itemChange(QQuickItem::ItemChange, const QQuickItem::ItemChangeData &);
 
     virtual void mirrorChange() {}
-
-    static qint64 consistentTime;
-    static void setConsistentTime(qint64 t);
-    static void start(QElapsedTimer &);
-    static qint64 elapsed(QElapsedTimer &);
-    static qint64 restart(QElapsedTimer &);
 
     void incrementCursorCount(int delta);
 };
@@ -759,7 +757,7 @@ public:
         Q_D(QQuickKeysAttached);
         if (enabled != d->enabled) {
             d->enabled = enabled;
-            emit enabledChanged();
+            Q_EMIT enabledChanged();
         }
     }
 
@@ -843,6 +841,12 @@ Qt::MouseButtons QQuickItemPrivate::acceptedMouseButtons() const
 QSGContext *QQuickItemPrivate::sceneGraphContext() const
 {
     Q_ASSERT(window);
+    return static_cast<QQuickWindowPrivate *>(QObjectPrivate::get(window))->context->sceneGraphContext();
+}
+
+QSGRenderContext *QQuickItemPrivate::sceneGraphRenderContext() const
+{
+    Q_ASSERT(window);
     return static_cast<QQuickWindowPrivate *>(QObjectPrivate::get(window))->context;
 }
 
@@ -867,9 +871,9 @@ QSGTransformNode *QQuickItemPrivate::itemNode()
     if (!itemNodeInstance) {
         itemNodeInstance = createTransformNode();
         itemNodeInstance->setFlag(QSGNode::OwnedByParent, false);
-#ifdef QML_RUNTIME_TESTING
+#ifdef QSG_RUNTIME_DESCRIPTION
         Q_Q(QQuickItem);
-        itemNodeInstance->description = QString::fromLatin1("QQuickItem(%1)").arg(QString::fromLatin1(q->metaObject()->className()));
+        qsgnode_set_description(itemNodeInstance, QString::fromLatin1("QQuickItem(%1)").arg(QString::fromLatin1(q->metaObject()->className())));
 #endif
     }
     return itemNodeInstance;
@@ -887,8 +891,8 @@ QSGNode *QQuickItemPrivate::childContainerNode()
             opacityNode()->appendChildNode(groupNode);
         else
             itemNode()->appendChildNode(groupNode);
-#ifdef QML_RUNTIME_TESTING
-        groupNode->description = QLatin1String("group");
+#ifdef QSG_RUNTIME_DESCRIPTION
+        qsgnode_set_description(groupNode, QLatin1String("group"));
 #endif
     }
     return groupNode;

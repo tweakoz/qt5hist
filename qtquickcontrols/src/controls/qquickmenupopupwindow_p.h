@@ -42,54 +42,33 @@
 #ifndef QQUICKMENUPOPUPWINDOW_H
 #define QQUICKMENUPOPUPWINDOW_H
 
-#include <QtQuick/qquickwindow.h>
+#include "qquickpopupwindow_p.h"
 
 QT_BEGIN_NAMESPACE
 
-class QEvent;
-class QQuickItem;
-
-class QQuickMenuPopupWindow : public QQuickWindow
+class QQuickMenuPopupWindow : public QQuickPopupWindow
 {
     Q_OBJECT
-    Q_PROPERTY(QQuickItem *contentItem READ menuContentItem WRITE setMenuContentItem)
-    Q_CLASSINFO("DefaultProperty", "contentItem")
-    Q_PROPERTY(QQuickItem *parentItem READ parentItem WRITE setParentItem)
 public:
-    QQuickMenuPopupWindow(QWindow *parent = 0);
-
-    QQuickItem *menuContentItem() const { return m_menuContentItem; }
-    void setMenuContentItem(QQuickItem *contentItem);
+    QQuickMenuPopupWindow();
 
     void setItemAt(QQuickItem *menuItem);
     void setParentWindow(QQuickWindow *parentWindow);
     void setGeometry(int posx, int posy, int w, int h);
 
-    QQuickItem *parentItem() const { return m_parentItem; }
     void setParentItem(QQuickItem *);
 
 public Q_SLOTS:
     void show();
-    void dismissMenu();
+
+protected Q_SLOTS:
     void updateSize();
     void updatePosition();
 
-Q_SIGNALS:
-    void menuDismissed();
-
-protected:
-    void mousePressEvent(QMouseEvent *);
-    void mouseReleaseEvent(QMouseEvent *);
-    void mouseMoveEvent(QMouseEvent *);
-
 private:
-    void forwardEventToTransientParent(QMouseEvent *);
-
-    bool m_mouseMoved;
     QQuickItem *m_itemAt;
     QPointF m_oldItemPos;
-    QQuickItem *m_parentItem;
-    QQuickItem *m_menuContentItem;
+    QPointF m_initialPos;
 };
 
 QT_END_NAMESPACE

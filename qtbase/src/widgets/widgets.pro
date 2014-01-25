@@ -7,8 +7,8 @@ DEFINES   += QT_NO_USING_NAMESPACE
 win32-msvc*|win32-icc:QMAKE_LFLAGS += /BASE:0x65000000
 irix-cc*:QMAKE_CXXFLAGS += -no_prelink -ptused
 
-MODULE_PLUGIN_TYPES = \
-    accessible
+MODULE_PLUGIN_TYPES += \
+    accessible/libqtaccessiblewidgets.so
 
 QMAKE_DOCS = $$PWD/doc/qtwidgets.qdocconf
 
@@ -43,8 +43,4 @@ QMAKE_DYNAMIC_LIST_FILE = $$PWD/QtWidgets.dynlist
 # extra compilers.
 testcocoon {
     load(testcocoon)
-}
-
-win32:!contains(QT_CONFIG, directwrite) {
-    DEFINES += QT_NO_DIRECTWRITE
 }

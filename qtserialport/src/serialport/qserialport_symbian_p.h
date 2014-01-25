@@ -50,19 +50,21 @@ QT_BEGIN_NAMESPACE
 
 class QSerialPortPrivate : public QSerialPortPrivateData
 {
+    Q_DECLARE_PUBLIC(QSerialPort)
+
 public:
     QSerialPortPrivate(QSerialPort *q);
 
     bool open(QIODevice::OpenMode mode);
     void close();
 
-    QSerialPort::PinoutSignals pinoutSignals() const;
+    QSerialPort::PinoutSignals pinoutSignals();
 
     bool setDataTerminalReady(bool set);
     bool setRequestToSend(bool set);
 
     bool flush();
-    bool clear(QSerialPort::Directions dir);
+    bool clear(QSerialPort::Directions directions);
 
     bool sendBreak(int duration);
     bool setBreakEnabled(bool set);
@@ -78,7 +80,7 @@ public:
     bool waitForReadyRead(int msec);
     bool waitForBytesWritten(int msec);
 
-    bool setBaudRate(qint32 baudRate, QSerialPort::Directions dir);
+    bool setBaudRate(qint32 baudRate, QSerialPort::Directions directions);
     bool setDataBits(QSerialPort::DataBits dataBits);
     bool setParity(QSerialPort::Parity parity);
     bool setStopBits(QSerialPort::StopBits stopBits);

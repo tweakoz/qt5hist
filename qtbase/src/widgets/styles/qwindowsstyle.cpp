@@ -130,7 +130,7 @@ QWindowsStylePrivate::QWindowsStylePrivate()
 #endif
 }
 
-// Returns true if the toplevel parent of \a widget has seen the Alt-key
+// Returns \c true if the toplevel parent of \a widget has seen the Alt-key
 bool QWindowsStylePrivate::hasSeenAlt(const QWidget *widget) const
 {
     widget = widget->window();
@@ -582,6 +582,12 @@ int QWindowsStyle::styleHint(StyleHint hint, const QStyleOption *opt, const QWid
                 ret = 1;
             }
         }
+#ifndef QT_NO_ACCESSIBILITY
+        if (!ret && opt && opt->type == QStyleOption::SO_MenuItem
+            && QStyleHelper::isInstanceOf(opt->styleObject, QAccessible::MenuItem)
+            && opt->styleObject->property("_q_showUnderlined").toBool())
+            ret = 1;
+#endif // QT_NO_ACCESSIBILITY
         break;
     }
 #endif

@@ -60,6 +60,8 @@
 
 QT_BEGIN_NAMESPACE
 
+class QmlObjectCreator;
+
 class Q_QML_PRIVATE_EXPORT QQmlAbstractBinding
 {
 public:
@@ -91,7 +93,7 @@ public:
 
     typedef QWeakPointer<QQmlAbstractBinding> Pointer;
 
-    enum BindingType { Binding = 0, V4 = 1, V8 = 2, ValueTypeProxy = 3 };
+    enum BindingType { Binding = 0, ValueTypeProxy = 1 };
     inline BindingType bindingType() const;
 
     // Destroy the binding.  Use this instead of calling delete.
@@ -149,8 +151,8 @@ private:
     friend class QQmlPropertyPrivate;
     friend class QQmlVME;
     friend class QtSharedPointer::ExternalRefCount<QQmlAbstractBinding>;
-    friend class QV8QObjectWrapper;
     friend class QV4Bindings;
+    friend class QmlObjectCreator;
 
     typedef QSharedPointer<QQmlAbstractBinding> SharedPointer;
     // To save memory, we also store the rarely used weakPointer() instance in here
@@ -172,7 +174,7 @@ private:
     // the vTables array are used for dispatching.
     // This saves a compiler-generated pointer to a compiler-generated vTable, and thus reduces
     // the binding object size by sizeof(void*).
-    uintptr_t m_nextBindingPtr;
+    qintptr m_nextBindingPtr;
 
     static VTable *vTables[];
     inline const VTable *vtable() const { return vTables[bindingType()]; }
@@ -201,7 +203,7 @@ QQmlAbstractBinding *QQmlAbstractBinding::nextBinding() const
 
 void QQmlAbstractBinding::setNextBinding(QQmlAbstractBinding *b)
 {
-    m_nextBindingPtr = uintptr_t(b) | (m_nextBindingPtr & 0x3);
+    m_nextBindingPtr = qintptr(b) | (m_nextBindingPtr & 0x3);
 }
 
 QQmlAbstractBinding::BindingType QQmlAbstractBinding::bindingType() const

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -49,13 +49,13 @@
 
 QT_BEGIN_NAMESPACE
 
-class QSGContext;
+class QSGRenderContext;
 class QSGDistanceFieldGlyphCacheManager;
 class QSGDistanceFieldTextMaterial;
 class QSGDistanceFieldGlyphNode: public QSGGlyphNode, public QSGDistanceFieldGlyphConsumer
 {
 public:
-    QSGDistanceFieldGlyphNode(QSGContext *context);
+    QSGDistanceFieldGlyphNode(QSGRenderContext *context);
     ~QSGDistanceFieldGlyphNode();
 
     virtual QPointF baseLine() const { return m_baseLine; }
@@ -86,7 +86,7 @@ private:
     DistanceFieldGlyphNodeType m_glyphNodeType;
     QColor m_color;
     QPointF m_baseLine;
-    QSGContext *m_context;
+    QSGRenderContext *m_context;
     QSGDistanceFieldTextMaterial *m_material;
     QPointF m_originalPosition;
     QPointF m_position;

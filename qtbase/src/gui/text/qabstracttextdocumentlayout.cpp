@@ -412,8 +412,6 @@ QAbstractTextDocumentLayout::~QAbstractTextDocumentLayout()
 }
 
 /*!
-    \fn void QAbstractTextDocumentLayout::registerHandler(int objectType, QObject *component)
-
     Registers the given \a component as a handler for items of the given \a objectType.
 
     \note registerHandler() has to be called once for each object type. This
@@ -422,7 +420,7 @@ QAbstractTextDocumentLayout::~QAbstractTextDocumentLayout()
 
     The text document layout does not take ownership of \c component.
 */
-void QAbstractTextDocumentLayout::registerHandler(int formatType, QObject *component)
+void QAbstractTextDocumentLayout::registerHandler(int objectType, QObject *component)
 {
     Q_D(QAbstractTextDocumentLayout);
 
@@ -435,7 +433,25 @@ void QAbstractTextDocumentLayout::registerHandler(int formatType, QObject *compo
     QTextObjectHandler h;
     h.iface = iface;
     h.component = component;
-    d->handlers.insert(formatType, h);
+    d->handlers.insert(objectType, h);
+}
+
+/*!
+    \since 5.2
+
+    Unregisters the given \a component as a handler for items of the given \a objectType, or
+    any handler if the \a component is not specified.
+*/
+void QAbstractTextDocumentLayout::unregisterHandler(int objectType, QObject *component)
+{
+    Q_D(QAbstractTextDocumentLayout);
+
+    HandlerHash::iterator it = d->handlers.find(objectType);
+    if (it != d->handlers.end() && (!component || component == it->component)) {
+        if (component)
+            disconnect(component, SIGNAL(destroyed(QObject*)), this, SLOT(_q_handlerDestroyed(QObject*)));
+        d->handlers.erase(it);
+    }
 }
 
 /*!

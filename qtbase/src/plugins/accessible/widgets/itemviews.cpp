@@ -46,7 +46,6 @@
 #include <qlistview.h>
 #include <qtreeview.h>
 #include <private/qtreewidget_p.h>
-#include <QtGui/private/qaccessible2_p.h>
 
 #ifndef QT_NO_ACCESSIBILITY
 
@@ -120,8 +119,6 @@ QHeaderView *QAccessibleTable::horizontalHeader() const
 #ifndef QT_NO_TREEVIEW
     } else if (const QTreeView *tv = qobject_cast<const QTreeView*>(view())) {
         header = tv->header();
-        if (header && header->isHidden())
-            header = 0;
 #endif
     }
     return header;
@@ -1010,15 +1007,6 @@ void QAccessibleTableCell::unselectCell()
     view->selectionModel()->select(m_index, QItemSelectionModel::Deselect);
 }
 
-void QAccessibleTableCell::rowColumnExtents(int *row, int *column, int *rowExtents, int *columnExtents, bool *selected) const
-{
-    *row = m_index.row();
-    *column = m_index.column();
-    *rowExtents = 1;
-    *columnExtents = 1;
-    *selected = isSelected();
-}
-
 QAccessibleInterface *QAccessibleTableCell::table() const
 {
     return QAccessible::queryAccessibleInterface(view);
@@ -1132,7 +1120,12 @@ QAccessible::Role QAccessibleTableHeaderCell::role() const
 
 QAccessible::State QAccessibleTableHeaderCell::state() const
 {
-    return QAccessible::State();
+    QAccessible::State s;
+    if (QHeaderView *h = headerView()) {
+        s.invisible = !h->testAttribute(Qt::WA_WState_Visible);
+        s.disabled = !h->isEnabled();
+    }
+    return s;
 }
 
 QRect QAccessibleTableHeaderCell::rect() const
@@ -1201,6 +1194,26 @@ QAccessibleInterface *QAccessibleTableHeaderCell::parent() const
 QAccessibleInterface *QAccessibleTableHeaderCell::child(int) const
 {
     return 0;
+}
+
+QHeaderView *QAccessibleTableHeaderCell::headerView() const
+{
+    QHeaderView *header = 0;
+    if (false) {
+#ifndef QT_NO_TABLEVIEW
+    } else if (const QTableView *tv = qobject_cast<const QTableView*>(view)) {
+        if (orientation == Qt::Horizontal) {
+            header = tv->horizontalHeader();
+        } else {
+            header = tv->verticalHeader();
+        }
+#endif
+#ifndef QT_NO_TREEVIEW
+    } else if (const QTreeView *tv = qobject_cast<const QTreeView*>(view)) {
+        header = tv->header();
+#endif
+    }
+    return header;
 }
 
 #endif // QT_NO_ITEMVIEWS

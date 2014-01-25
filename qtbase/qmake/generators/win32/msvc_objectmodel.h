@@ -511,6 +511,7 @@ public:
     callingConventionOption CallingConvention;
     CompileAsOptions        CompileAs;
     compileAsManagedOptions CompileAsManaged;
+    triState                CompileAsWinRT;
     triState                CompileOnly;
     debugOption             DebugInformationFormat;
     triState                DefaultCharIsUnsigned;
@@ -614,6 +615,7 @@ public:
     QStringList             IgnoreDefaultLibraryNames;
     triState                IgnoreEmbeddedIDL;
     triState                IgnoreImportLibrary;
+    triState                ImageHasSafeExceptionHandlers;
     QString                 ImportLibrary;
     addressAwarenessType    LargeAddressAware;
     triState                LinkDLL;
@@ -672,6 +674,10 @@ public:
     QString                 KeyContainer;
     QString                 KeyFile;
     QString                 LinkErrorReporting;
+
+    // VS2012
+    triState                GenerateWindowsMetadata;
+    QString                 WindowsMetadataFile;
 
     VCConfiguration*        config;
 };
@@ -862,6 +868,7 @@ public:
     ~VCConfiguration(){}
 
     DotNET                  CompilerVersion;
+    bool                    WinRT, WinPhone;
 
     // Variables
     triState                ATLMinimizesCRunTimeLibraryUsage;
@@ -994,6 +1001,7 @@ public:
     VCFilter                TranslationFiles;
     VCFilter                FormFiles;
     VCFilter                ResourceFiles;
+    VCFilter                DeploymentFiles;
     VCFilterList            ExtraCompilersFiles;
 
     bool                    flat_files;

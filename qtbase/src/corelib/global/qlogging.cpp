@@ -49,6 +49,8 @@
 #ifndef QT_BOOTSTRAPPED
 #include "qcoreapplication.h"
 #include "qthread.h"
+#include "qloggingcategory.h"
+#include "private/qloggingregistry_p.h"
 #endif
 #ifdef Q_OS_WIN
 #include <qt_windows.h>
@@ -84,6 +86,33 @@ static bool isFatal(QtMsgType msgType)
     return false;
 }
 
+#ifdef Q_OS_WIN
+
+// Do we have stderr for QDebug? - Either there is a console or we are running
+// with redirected stderr.
+#  if !defined(Q_OS_WINCE) && !defined(Q_OS_WINRT)
+static inline bool hasStdErr()
+{
+    if (GetConsoleWindow())
+        return true;
+    STARTUPINFO info;
+    GetStartupInfo(&info);
+    return (info.dwFlags & STARTF_USESTDHANDLES) && info.hStdError
+        && info.hStdError != INVALID_HANDLE_VALUE;
+}
+#  endif // !Q_OS_WINCE && !Q_OS_WINRT
+
+bool qWinLogToStderr()
+{
+#  if !defined(Q_OS_WINCE) && !defined(Q_OS_WINRT)
+    static const bool result = hasStdErr();
+    return result;
+#  else
+    return false;
+#  endif
+}
+#endif // Q_OS_WIN
+
 /*!
     \class QMessageLogContext
     \inmodule QtCore
@@ -114,11 +143,6 @@ static bool isFatal(QtMsgType msgType)
     \sa QMessageLogContext, qDebug(), qWarning(), qCritical(), qFatal()
 */
 
-#if defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB)
-// defined in qcoreapplication_win.cpp
-extern bool usingWinMain;
-#endif
-
 #ifdef Q_OS_WIN
 static inline void convert_to_wchar_t_elided(wchar_t *d, size_t space, const char *s) Q_DECL_NOEXCEPT
 {
@@ -146,7 +170,7 @@ static void qEmergencyOut(QtMsgType msgType, const char *msg, va_list ap) Q_DECL
 {
     char emergency_buf[256] = { '\0' };
     emergency_buf[sizeof emergency_buf - 1] = '\0';
-#if defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB) && defined(Q_OS_WINCE) \
+#if defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB) && (defined(Q_OS_WINCE) || defined(Q_OS_WINRT)) \
     || defined(Q_CC_MSVC) && defined(QT_DEBUG) && defined(_DEBUG) && defined(_CRT_ERROR)
     wchar_t emergency_bufL[sizeof emergency_buf];
 #endif
@@ -155,19 +179,19 @@ static void qEmergencyOut(QtMsgType msgType, const char *msg, va_list ap) Q_DECL
         qvsnprintf(emergency_buf, sizeof emergency_buf - 1, msg, ap);
 
 #if defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB)
-# ifdef Q_OS_WINCE
+# if defined(Q_OS_WINCE) || defined(Q_OS_WINRT)
     convert_to_wchar_t_elided(emergency_bufL, sizeof emergency_buf, emergency_buf);
     OutputDebugStringW(emergency_bufL);
 # else
-    if (usingWinMain) {
-        OutputDebugStringA(emergency_buf);
-    } else {
-        fprintf(stderr, "%s", emergency_buf);
+    if (qWinLogToStderr()) {
+        fprintf(stderr, "%s\n", emergency_buf);
         fflush(stderr);
+    } else {
+        OutputDebugStringA(emergency_buf);
     }
 # endif
 #else
-    fprintf(stderr, "%s", emergency_buf);
+    fprintf(stderr, "%s\n", emergency_buf);
     fflush(stderr);
 #endif
 
@@ -525,6 +549,7 @@ static const char functionTokenC[] = "%{function}";
 static const char pidTokenC[] = "%{pid}";
 static const char appnameTokenC[] = "%{appname}";
 static const char threadidTokenC[] = "%{threadid}";
+static const char ifCategoryTokenC[] = "%{if-category}";
 static const char ifDebugTokenC[] = "%{if-debug}";
 static const char ifWarningTokenC[] = "%{if-warning}";
 static const char ifCriticalTokenC[] = "%{if-critical}";
@@ -532,7 +557,7 @@ static const char ifFatalTokenC[] = "%{if-fatal}";
 static const char endifTokenC[] = "%{endif}";
 static const char emptyTokenC[] = "";
 
-static const char defaultPattern[] = "%{message}";
+static const char defaultPattern[] = "%{if-category}%{category}: %{endif}%{message}";
 
 
 struct QMessagePattern {
@@ -651,6 +676,7 @@ void QMessagePattern::setPattern(const QString &pattern)
                 tokens[i] = LEVEL; \
                 inIf = true; \
             }
+            IF_TOKEN(ifCategoryTokenC)
             IF_TOKEN(ifDebugTokenC)
             IF_TOKEN(ifWarningTokenC)
             IF_TOKEN(ifCriticalTokenC)
@@ -679,11 +705,11 @@ void QMessagePattern::setPattern(const QString &pattern)
     else if (inIf)
         error += QStringLiteral("QT_MESSAGE_PATTERN: missing %{endif}\n");
     if (!error.isEmpty()) {
-#if defined(Q_OS_WINCE)
+#if defined(Q_OS_WINCE) || defined(Q_OS_WINRT)
         OutputDebugString(reinterpret_cast<const wchar_t*>(error.utf16()));
         if (0)
 #elif defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB)
-        if (usingWinMain) {
+        if (!qWinLogToStderr()) {
             OutputDebugString(reinterpret_cast<const wchar_t*>(error.utf16()));
         } else
 #endif
@@ -812,6 +838,9 @@ Q_CORE_EXPORT QString qMessageFormatString(QtMsgType type, const QMessageLogCont
             message.append(QLatin1String("0x"));
             message.append(QString::number(qlonglong(QThread::currentThread()->currentThread()), 16));
 #endif
+        } else if (token == ifCategoryTokenC) {
+            if (!context.category || (strcmp(context.category, "default") == 0))
+                skip = true;
 #define HANDLE_IF_TOKEN(LEVEL)  \
         } else if (token == if##LEVEL##TokenC) { \
             skip = type != Qt##LEVEL##Msg;
@@ -850,8 +879,9 @@ static void android_default_message_handler(QtMsgType type,
     case QtFatalMsg: priority = ANDROID_LOG_FATAL; break;
     };
 
-    __android_log_print(priority, "Qt", "%s:%d (%s): %s", qPrintable(context.file), context.line,
-                        qPrintable(context.function), qPrintable(message));
+    __android_log_print(priority, "Qt", "%s:%d (%s): %s",
+                        context.file, context.line,
+                        context.function, qPrintable(message));
 }
 #endif //Q_OS_ANDROID
 
@@ -864,10 +894,7 @@ static void qDefaultMessageHandler(QtMsgType type, const QMessageLogContext &con
     QString logMessage = qMessageFormatString(type, context, buf);
 
 #if defined(Q_OS_WIN) && defined(QT_BUILD_CORE_LIB)
-#if !defined(Q_OS_WINCE)
-    if (usingWinMain)
-#endif
-    {
+    if (!qWinLogToStderr()) {
         OutputDebugString(reinterpret_cast<const wchar_t *>(logMessage.utf16()));
         return;
     }
@@ -900,6 +927,16 @@ static void qDefaultMsgHandler(QtMsgType type, const char *buf)
 
 static void qt_message_print(QtMsgType msgType, const QMessageLogContext &context, const QString &message)
 {
+#ifndef QT_BOOTSTRAPPED
+    // qDebug, qWarning, ... macros do not check whether category is enabled
+    if (!context.category || (strcmp(context.category, "default") == 0)) {
+        if (QLoggingCategory *defaultCategory = QLoggingCategory::defaultCategory()) {
+            if (!defaultCategory->isEnabled(msgType))
+                return;
+        }
+    }
+#endif
+
     if (!msgHandler)
         msgHandler = qDefaultMsgHandler;
     if (!messageHandler)
@@ -1074,6 +1111,7 @@ void qErrnoWarning(int code, const char *msg, ...)
     \table
     \header \li Placeholder \li Description
     \row \li \c %{appname} \li QCoreApplication::applicationName()
+    \row \li \c %{category} \li Logging category
     \row \li \c %{file} \li Path to source file
     \row \li \c %{function} \li Function
     \row \li \c %{line} \li Line in source file
@@ -1131,6 +1169,7 @@ void qSetMessagePattern(const QString &pattern)
         qMessagePattern()->setPattern(pattern);
 }
 
+
 /*!
     Copies context information from \a logContext into this QMessageLogContext
     \internal
@@ -1184,7 +1223,7 @@ void QMessageLogContext::copy(const QMessageLogContext &logContext)
     \internal
 
     Constructs a QMessageLogContext with for file \a fileName at line
-    \a lineNumber, in function \a functionName, and category \a CategoryName.
+    \a lineNumber, in function \a functionName, and category \a categoryName.
 */
 
 QT_END_NAMESPACE

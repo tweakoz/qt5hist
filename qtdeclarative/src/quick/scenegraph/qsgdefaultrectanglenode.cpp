@@ -4,7 +4,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -110,18 +110,25 @@ namespace
 class SmoothColorMaterialShader : public QSGMaterialShader
 {
 public:
+    SmoothColorMaterialShader();
+
     virtual void updateState(const RenderState &state, QSGMaterial *newEffect, QSGMaterial *oldEffect);
     virtual char const *const *attributeNames() const;
 
 private:
     virtual void initialize();
-    virtual const char *vertexShader() const;
-    virtual const char *fragmentShader() const;
 
     int m_matrixLoc;
     int m_opacityLoc;
     int m_pixelSizeLoc;
 };
+
+SmoothColorMaterialShader::SmoothColorMaterialShader()
+    : QSGMaterialShader()
+{
+    setShaderSourceFile(QOpenGLShader::Vertex, QStringLiteral(":/scenegraph/shaders/smoothcolor.vert"));
+    setShaderSourceFile(QOpenGLShader::Fragment, QStringLiteral(":/scenegraph/shaders/smoothcolor.frag"));
+}
 
 void SmoothColorMaterialShader::updateState(const RenderState &state, QSGMaterial *, QSGMaterial *oldEffect)
 {
@@ -154,61 +161,6 @@ void SmoothColorMaterialShader::initialize()
     m_matrixLoc = program()->uniformLocation("matrix");
     m_opacityLoc = program()->uniformLocation("opacity");
     m_pixelSizeLoc = program()->uniformLocation("pixelSize");
-}
-
-const char *SmoothColorMaterialShader::vertexShader() const
-{
-    return
-            "uniform highp vec2 pixelSize; \n"
-            "uniform highp mat4 matrix; \n"
-            "uniform lowp float opacity; \n"
-            "attribute highp vec4 vertex; \n"
-            "attribute lowp vec4 vertexColor; \n"
-            "attribute highp vec2 vertexOffset; \n"
-            "varying lowp vec4 color; \n"
-            "void main() { \n"
-            "    highp vec4 pos = matrix * vertex; \n"
-            "    gl_Position = pos; \n"
-
-            "    if (vertexOffset.x != 0.) { \n"
-            "        highp vec4 delta = matrix[0] * vertexOffset.x; \n"
-            "        highp vec2 dir = delta.xy * pos.w - pos.xy * delta.w; \n"
-            "        highp vec2 ndir = .5 * pixelSize * normalize(dir / pixelSize);  \n"
-            "        dir -= ndir * delta.w * pos.w; \n"
-            "        highp float numerator = dot(dir, ndir * pos.w * pos.w); \n"
-            "        highp float scale = 0.0; \n"
-            "        if (numerator < 0.0) \n"
-            "            scale = 1.0; \n"
-            "        else \n"
-            "            scale = min(1.0, numerator / dot(dir, dir)); \n"
-            "        gl_Position += scale * delta; \n"
-            "    } \n"
-
-            "    if (vertexOffset.y != 0.) { \n"
-            "        highp vec4 delta = matrix[1] * vertexOffset.y; \n"
-            "        highp vec2 dir = delta.xy * pos.w - pos.xy * delta.w; \n"
-            "        highp vec2 ndir = .5 * pixelSize * normalize(dir / pixelSize);  \n"
-            "        dir -= ndir * delta.w * pos.w; \n"
-            "        highp float numerator = dot(dir, ndir * pos.w * pos.w); \n"
-            "        highp float scale = 0.0; \n"
-            "        if (numerator < 0.0) \n"
-            "            scale = 1.0; \n"
-            "        else \n"
-            "            scale = min(1.0, numerator / dot(dir, dir)); \n"
-            "        gl_Position += scale * delta; \n"
-            "    } \n"
-
-            "    color = vertexColor * opacity; \n"
-            "}";
-}
-
-const char *SmoothColorMaterialShader::fragmentShader() const
-{
-    return
-            "varying lowp vec4 color; \n"
-            "void main() { \n"
-            "    gl_FragColor = color; \n"
-            "}";
 }
 
 QSGSmoothColorMaterial::QSGSmoothColorMaterial()
@@ -246,8 +198,8 @@ QSGDefaultRectangleNode::QSGDefaultRectangleNode()
     setGeometry(&m_geometry);
     setMaterial(&m_material);
 
-#ifdef QML_RUNTIME_TESTING
-    description = QLatin1String("rectangle");
+#ifdef QSG_RUNTIME_DESCRIPTION
+    qsgnode_set_description(this, QLatin1String("rectangle"));
 #endif
 }
 
@@ -339,7 +291,7 @@ void QSGDefaultRectangleNode::update()
         m_dirty_geometry = false;
     }
     m_material.setFlag(QSGMaterial::Blending, (m_gradient_stops.size() > 0 && !m_gradient_is_opaque)
-                                               || m_color.alpha() < 255
+                                               || (m_color.alpha() < 255 && m_color.alpha() != 0)
                                                || (m_pen_width > 0 && m_border_color.alpha() < 255));
 }
 

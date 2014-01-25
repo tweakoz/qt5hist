@@ -49,10 +49,7 @@
 #include <qtextstream.h>
 #include <qvariant.h>
 
-#if defined(Q_CC_BOR)
-// needed for qsort() because of a std namespace problem on Borland
-#include "qplatformdefs.h"
-#endif
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -745,6 +742,11 @@ static const struct XPMRGBData {
   { QRGB(139,139,  0),  "yellow4" },
   { QRGB(154,205, 50),  "yellowgreen" } };
 
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+inline bool operator<(const XPMRGBData &data1, const XPMRGBData &data2)
+{ return qstrcmp(data1.name, data2.name) < 0; }
+#endif
+
 inline bool operator<(const char *name, const XPMRGBData &data)
 { return qstrcmp(name, data.name) < 0; }
 inline bool operator<(const XPMRGBData &data, const char *name)
@@ -752,8 +754,8 @@ inline bool operator<(const XPMRGBData &data, const char *name)
 
 static inline bool qt_get_named_xpm_rgb(const char *name_no_space, QRgb *rgb)
 {
-    const XPMRGBData *r = qBinaryFind(xpmRgbTbl, xpmRgbTbl + xpmRgbTblSize, name_no_space);
-    if (r != xpmRgbTbl + xpmRgbTblSize) {
+    const XPMRGBData *r = std::lower_bound(xpmRgbTbl, xpmRgbTbl + xpmRgbTblSize, name_no_space);
+    if ((r != xpmRgbTbl + xpmRgbTblSize) && !(name_no_space < *r)) {
         *rgb = r->value;
         return true;
     } else {
@@ -1092,7 +1094,7 @@ static bool write_xpm_image(const QImage &sourceImage, QIODevice *device, const 
         return false;
 
     QImage image;
-    if (sourceImage.depth() != 32)
+    if (sourceImage.format() != QImage::Format_RGB32 || sourceImage.format() != QImage::Format_ARGB32 || sourceImage.format() != QImage::Format_ARGB32_Premultiplied)
         image = sourceImage.convertToFormat(QImage::Format_RGB32);
     else
         image = sourceImage;

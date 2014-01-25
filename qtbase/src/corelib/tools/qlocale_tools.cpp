@@ -1064,15 +1064,7 @@ static Bigint *pow5mult(Bigint *b, int k)
     static const int p05[3] = { 5, 25, 125 };
 
     if ((i = k & 3) != 0)
-#if defined(Q_OS_IRIX) && defined(Q_CC_GNU)
-    {
-        // work around a bug on 64 bit IRIX gcc
-        int *p = (int *) p05;
-        b = multadd(b, p[i-1], 0);
-    }
-#else
     b = multadd(b, p05[i-1], 0);
-#endif
 
     if (!(k >>= 2))
         return b;
@@ -1666,15 +1658,7 @@ Q_CORE_EXPORT double qstrtod(const char *s00, const char **se, bool *ok)
     k = nd < DBL_DIG + 1 ? nd : DBL_DIG + 1;
     rv = y;
     if (k > 9)
-#if defined(Q_OS_IRIX) && defined(Q_CC_GNU)
-    {
-        // work around a bug on 64 bit IRIX gcc
-        double *t = (double *) tens;
-        rv = t[k - 9] * rv + z;
-    }
-#else
     rv = tens[k - 9] * rv + z;
-#endif
 
     bd0 = 0;
     if (nd <= DBL_DIG
@@ -2370,10 +2354,9 @@ static char *_qdtoa( NEEDS_VOLATILE double d, int mode, int ndigits, int *decpt,
         }
 
     b = d2b(d, &be, &bbits);
-#ifdef Sudden_Underflow
     i = (int)(getWord0(d) >> Exp_shift1 & (Exp_mask>>Exp_shift1));
-#else
-    if ((i = int(getWord0(d) >> Exp_shift1 & (Exp_mask>>Exp_shift1))) != 0) {
+#ifndef Sudden_Underflow
+    if (i != 0) {
 #endif
         d2 = d;
         setWord0(&d2, getWord0(d2) & Frac_mask1);
@@ -2571,13 +2554,7 @@ static char *_qdtoa( NEEDS_VOLATILE double d, int mode, int ndigits, int *decpt,
         else {
 #endif
             /* Generate ilim digits, then fix them up. */
-#if defined(Q_OS_IRIX) && defined(Q_CC_GNU)
-            // work around a bug on 64 bit IRIX gcc
-            double *t = (double *) tens;
-            eps *= t[ilim-1];
-#else
             eps *= tens[ilim-1];
-#endif
             for(i = 1;; i++, d *= 10.) {
                 L = Long(d);
                 d -= L;

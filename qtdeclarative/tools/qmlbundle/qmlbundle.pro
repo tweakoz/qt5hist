@@ -1,4 +1,5 @@
-QT       = core qml-private v8-private core-private
+QT       = core qml-private  core-private
+CONFIG  += no_import_scan
 
 SOURCES += main.cpp
 

@@ -42,17 +42,18 @@
     The easiest way to develop with Qt for Android is to use
     \l{http://qt-project.org/doc/qtcreator/creator-developing-android.html}{Qt Creator}. When you apply
     a \b{Qt for Android Kit} to a Qt Creator project, it will create and maintain a set of files which
-    are required to make your app run on Android.
+    are required to make your application run on Android.
 
     The files added to your project are:
     \list
-    \li Java files which serve as the entry point into your app and which will automatically load Qt
-        and execute the native code in your app
-    \li AndroidManifest.xml which provides meta-information about your app
-    \li Other XML files detailing the dependencies of your app
+    \li \e .java files will serve as the entry point into your application and
+    automatically load Qt to execute the native code in your application
+    \li \e AndroidManifest.xml which provides meta-information about your
+    application
+    \li Other XML files detailing the dependencies of your application
     \li Resource files
-    \li Depending on the deployment method selected in Qt Creator, additional files like libraries
-    and QML files can be included in the project.
+    \li Depending on the deployment method selected in Qt Creator, additional
+    files like libraries and QML files can be included in the project.
     \endlist
 
     Qt Creator adds these files in a subdirectory of your project called \b android. The contents of
@@ -60,10 +61,11 @@
 
     \section1 Application Package
 
-    On Android, apps are distributed in packages called APK. Qt Creator will manage building the
-    APK for you, but if you for some reason want to do this manually, you must first make sure
-    that the appropriate packaging and build files are in place. As mentioned, Qt Creator will
-    place these files in the \b android subfolder in your project.
+    On Android, apps are distributed in packages called \e APK. Qt Creator
+    builds the \e APK for you, but if you for some reason want to do this
+    manually, you must first make sure that the appropriate packaging and build
+    files are in place. For more detailed information about how the packaging
+    is done, see \l{Deploying an Application on Android}.
 
     \section1 Deployment
 
@@ -116,7 +118,7 @@
     \section1 OpenGL Special Considerations
 
     Qt for Android provides two separate platform plugins: One which is suited for traditional
-    \l{Qt Widget}{widget-based} apps that do not require OpenGL support, and one which will be used
+    \l{Qt Widgets}{widget-based} apps that do not require OpenGL support, and one which will be used
     when OpenGL is required. When building and deploying your app, Qt Creator will detect whether the
     OpenGL-enabled plugin is required by checking if your app depends on either the \l{Qt OpenGL}
     module or the \l{Qt Quick} module.
@@ -131,6 +133,15 @@
 
     \note Embedding a QGLWidget inside a widget hierarchy is not supported. When QGLWidget is in use,
     it must be the top-level widget.
+
+    \section1 Multimedia Special Considerations
+
+    \l{Qt Multimedia}, like the rest of Qt, supports Android versions 2.3.3 (API level 10) or later.
+    There is however an exception for video output which requires Android versions 3.0 (API level 11)
+    or later. This affects camera preview and video player features.
+
+    Additionally, the \l{Qt Multimedia Widgets} module is not supported on Android, which means
+    video display is only available using the VideoOutput and \l{QtMultimedia::Video}{Video} QML items.
 
     \section1 Assets File System
 

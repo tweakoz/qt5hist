@@ -59,12 +59,14 @@ class QCompleter;
 class QStyleOptionFrame;
 class QAbstractSpinBox;
 class QDateTimeEdit;
+class QIcon;
+class QToolButton;
 
 class Q_WIDGETS_EXPORT QLineEdit : public QWidget
 {
     Q_OBJECT
 
-    Q_ENUMS(EchoMode)
+    Q_ENUMS(ActionPosition EchoMode)
     Q_PROPERTY(QString inputMask READ inputMask WRITE setInputMask)
     Q_PROPERTY(QString text READ text WRITE setText NOTIFY textChanged USER true)
     Q_PROPERTY(int maxLength READ maxLength WRITE setMaxLength)
@@ -83,8 +85,13 @@ class Q_WIDGETS_EXPORT QLineEdit : public QWidget
     Q_PROPERTY(bool acceptableInput READ hasAcceptableInput)
     Q_PROPERTY(QString placeholderText READ placeholderText WRITE setPlaceholderText)
     Q_PROPERTY(Qt::CursorMoveStyle cursorMoveStyle READ cursorMoveStyle WRITE setCursorMoveStyle)
-
+    Q_PROPERTY(bool clearButtonEnabled READ isClearButtonEnabled WRITE setClearButtonEnabled)
 public:
+    enum ActionPosition {
+        LeadingPosition,
+        TrailingPosition
+    };
+
     explicit QLineEdit(QWidget* parent=0);
     explicit QLineEdit(const QString &, QWidget* parent=0);
     ~QLineEdit();
@@ -101,6 +108,9 @@ public:
 
     void setFrame(bool);
     bool hasFrame() const;
+
+    void setClearButtonEnabled(bool enable);
+    bool isClearButtonEnabled() const;
 
     enum EchoMode { Normal, NoEcho, Password, PasswordEchoOnEdit };
     EchoMode echoMode() const;
@@ -163,6 +173,16 @@ public:
     void setTextMargins(const QMargins &margins);
     void getTextMargins(int *left, int *top, int *right, int *bottom) const;
     QMargins textMargins() const;
+
+#ifdef Q_NO_USING_KEYWORD
+    inline void addAction(QAction *action)
+    { QWidget::addAction(action); }
+#else
+    using QWidget::addAction;
+#endif
+
+    void addAction(QAction *action, ActionPosition position);
+    QAction *addAction(const QIcon &icon, ActionPosition position);
 
 public Q_SLOTS:
     void setText(const QString &);
@@ -240,6 +260,7 @@ private:
 #endif
     Q_PRIVATE_SLOT(d_func(), void _q_selectionChanged())
     Q_PRIVATE_SLOT(d_func(), void _q_updateNeeded(const QRect &))
+    Q_PRIVATE_SLOT(d_func(), void _q_textChanged(const QString &))
 };
 
 #endif // QT_NO_LINEEDIT

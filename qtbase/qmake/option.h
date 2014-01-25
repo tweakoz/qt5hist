@@ -43,6 +43,7 @@
 #define OPTION_H
 
 #include <qmakeglobals.h>
+#include <qmakevfs.h>
 #include <qmakeparser.h>
 #include <qmakeevaluator.h>
 
@@ -87,6 +88,7 @@ struct Option
 
     static QMakeGlobals *globals;
     static ProFileCache *proFileCache;
+    static QMakeVfs *vfs;
     static QMakeParser *parser;
 
     //simply global convenience
@@ -176,7 +178,6 @@ struct Option
     static QMAKE_MODE qmake_mode;
 
     //all modes
-    static QStringList qmake_args;
     static QFile output;
     static QString output_dir;
     static int debug_level;

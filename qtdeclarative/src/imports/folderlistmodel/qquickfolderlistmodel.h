@@ -69,11 +69,13 @@ class QQuickFolderListModel : public QAbstractListModel, public QQmlParserStatus
     Q_PROPERTY(QStringList nameFilters READ nameFilters WRITE setNameFilters)
     Q_PROPERTY(SortField sortField READ sortField WRITE setSortField)
     Q_PROPERTY(bool sortReversed READ sortReversed WRITE setSortReversed)
+    Q_PROPERTY(bool showFiles READ showFiles WRITE setShowFiles REVISION 1)
     Q_PROPERTY(bool showDirs READ showDirs WRITE setShowDirs)
     Q_PROPERTY(bool showDirsFirst READ showDirsFirst WRITE setShowDirsFirst)
     Q_PROPERTY(bool showDotAndDotDot READ showDotAndDotDot WRITE setShowDotAndDotDot)
+    Q_PROPERTY(bool showHidden READ showHidden WRITE setShowHidden REVISION 1)
     Q_PROPERTY(bool showOnlyReadable READ showOnlyReadable WRITE setShowOnlyReadable)
-    Q_PROPERTY(int count READ count NOTIFY rowCountChanged)
+    Q_PROPERTY(int count READ count NOTIFY countChanged)
 //![class props]
 
 //![abslistmodel]
@@ -89,7 +91,8 @@ public:
         FileSizeRole = Qt::UserRole + 5,
         FileLastModifiedRole = Qt::UserRole + 6,
         FileLastReadRole = Qt::UserRole +7,
-        FileIsDirRole = Qt::UserRole + 8
+        FileIsDirRole = Qt::UserRole + 8,
+        FileUrlRole = Qt::UserRole + 9
     };
 
     virtual int rowCount(const QModelIndex &parent = QModelIndex()) const;
@@ -121,12 +124,16 @@ public:
     bool sortReversed() const;
     void setSortReversed(bool rev);
 
+    bool showFiles() const;
+    void setShowFiles(bool showFiles);
     bool showDirs() const;
     void setShowDirs(bool showDirs);
     bool showDirsFirst() const;
     void setShowDirsFirst(bool showDirsFirst);
     bool showDotAndDotDot() const;
     void setShowDotAndDotDot(bool on);
+    bool showHidden() const;
+    void setShowHidden(bool on);
     bool showOnlyReadable() const;
     void setShowOnlyReadable(bool on);
 //![prop funcs]
@@ -145,6 +152,7 @@ public:
 Q_SIGNALS:
     void folderChanged();
     void rowCountChanged() const;
+    Q_REVISION(1) void countChanged() const;
 //![notifier]
 
 //![class end]

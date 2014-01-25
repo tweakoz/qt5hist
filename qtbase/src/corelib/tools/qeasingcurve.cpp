@@ -290,7 +290,7 @@
     \value BezierSpline Allows defining a custom easing curve using a cubic bezier spline
                         \sa addCubicBezierSegment()
     \value TCBSpline    Allows defining a custom easing curve using a TCB spline
-                        \sa addTCBSegment
+                        \sa addTCBSegment()
     \value Custom       This is returned if the user specified a custom curve type with
                         setCustomType(). Note that you cannot call setType() with this value,
                         but type() can return it.
@@ -608,14 +608,16 @@ struct BezierEase : public QEasingCurveFunction
             sign = -1;
         d = d * sign;
 
-        qreal t_i = _fast_cbrt(d);
+        qreal t = _fast_cbrt(d);
 
         //one step of Halley's Method to get a better approximation
-        const qreal t_i_cubic = t_i * t_i * t_i;
-        qreal t = t_i * (t_i_cubic + d + d) / (t_i_cubic + t_i_cubic + d);
+        const qreal t_cubic = t * t * t;
+        const qreal f = t_cubic + t_cubic + d;
+        if (f != qreal(0.0))
+            t = t * (t_cubic + d + d) / f;
 
         //another step
-        /*t_i = t;
+        /*qreal t_i = t;
          t_i_cubic = pow(t_i, 3);
          t = t_i * (t_i_cubic + d + d) / (t_i_cubic + t_i_cubic + d);*/
 
@@ -1064,6 +1066,15 @@ static QEasingCurveFunction *curveToFunctionObject(QEasingCurve::Type type)
 }
 
 /*!
+    \fn QEasingCurve::QEasingCurve(QEasingCurve &&other)
+
+    Move-constructs a QEasingCurve instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
+*/
+
+/*!
     Constructs an easing curve of the given \a type.
  */
 QEasingCurve::QEasingCurve(Type type)
@@ -1096,6 +1107,14 @@ QEasingCurve::~QEasingCurve()
  */
 
 /*!
+    \fn QEasingCurve &QEasingCurve::operator=(QEasingCurve &&other)
+
+    Move-assigns \a other to this QEasingCurve instance.
+
+    \since 5.2
+*/
+
+/*!
     \fn void QEasingCurve::swap(QEasingCurve &other)
     \since 5.0
 
@@ -1104,7 +1123,7 @@ QEasingCurve::~QEasingCurve()
 */
 
 /*!
-    Compare this easing curve with \a other and returns true if they are
+    Compare this easing curve with \a other and returns \c true if they are
     equal. It will also compare the properties of a curve.
  */
 bool QEasingCurve::operator==(const QEasingCurve &other) const
@@ -1128,7 +1147,7 @@ bool QEasingCurve::operator==(const QEasingCurve &other) const
 
 /*!
     \fn bool QEasingCurve::operator!=(const QEasingCurve &other) const
-    Compare this easing curve with \a other and returns true if they are not equal.
+    Compare this easing curve with \a other and returns \c true if they are not equal.
     It will also compare the properties of a curve.
 
     \sa operator==()

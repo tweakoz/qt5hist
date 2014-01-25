@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -308,7 +308,8 @@ void QSpringAnimation::updateCurrentTime(int time)
                                        QQmlPropertyPrivate::DontRemoveBinding);
 
     if (stopped && old_to == to) { // do not stop if we got restarted
-        stopTime = animationTemplate->elapsed.elapsed();
+        if (animationTemplate)
+            stopTime = animationTemplate->elapsed.elapsed();
         stop();
     }
 }
@@ -342,7 +343,7 @@ void QQuickSpringAnimationPrivate::updateMode()
 /*!
     \qmltype SpringAnimation
     \instantiates QQuickSpringAnimation
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-transitions-animations
     \inherits NumberAnimation
 
@@ -365,7 +366,7 @@ void QQuickSpringAnimationPrivate::updateMode()
     sources. The \l {Animation and Transitions in Qt Quick} documentation shows a
     variety of methods for creating animations.
 
-    \sa SmoothedAnimation, {Animation and Transitions in Qt Quick}, {declarative/animation/basics}{Animation basics example}, {declarative/toys/clocks}{Clocks example}
+    \sa SmoothedAnimation, {Animation and Transitions in Qt Quick}, {Qt Quick Examples - Animation}, {Qt Quick Demo - Clocks}
 */
 
 QQuickSpringAnimation::QQuickSpringAnimation(QObject *parent)
@@ -383,7 +384,7 @@ QQuickSpringAnimation::~QQuickSpringAnimation()
 }
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::velocity
+    \qmlproperty real QtQuick::SpringAnimation::velocity
 
     This property holds the maximum velocity allowed when tracking the source.
 
@@ -405,7 +406,7 @@ void QQuickSpringAnimation::setVelocity(qreal velocity)
 }
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::spring
+    \qmlproperty real QtQuick::SpringAnimation::spring
 
     This property describes how strongly the target is pulled towards the
     source. The default value is 0 (that is, the spring-like motion is disabled).
@@ -429,7 +430,7 @@ void QQuickSpringAnimation::setSpring(qreal spring)
 }
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::damping
+    \qmlproperty real QtQuick::SpringAnimation::damping
     This property holds the spring damping value.
 
     This value describes how quickly the spring-like motion comes to rest.
@@ -455,7 +456,7 @@ void QQuickSpringAnimation::setDamping(qreal damping)
 
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::epsilon
+    \qmlproperty real QtQuick::SpringAnimation::epsilon
     This property holds the spring epsilon.
 
     The epsilon is the rate and amount of change in the value which is close enough
@@ -477,7 +478,7 @@ void QQuickSpringAnimation::setEpsilon(qreal epsilon)
 }
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::modulus
+    \qmlproperty real QtQuick::SpringAnimation::modulus
     This property holds the modulus value. The default value is 0.
 
     Setting a \a modulus forces the target value to "wrap around" at the modulus.
@@ -501,7 +502,7 @@ void QQuickSpringAnimation::setModulus(qreal modulus)
 }
 
 /*!
-    \qmlproperty real QtQuick2::SpringAnimation::mass
+    \qmlproperty real QtQuick::SpringAnimation::mass
     This property holds the "mass" of the property being moved.
 
     The value is 1.0 by default.

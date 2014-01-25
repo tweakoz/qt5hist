@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -49,6 +49,7 @@ QT_BEGIN_NAMESPACE
 
 class QQuickWindow;
 class QSGContext;
+class QSGRenderContext;
 class QAnimationDriver;
 
 class Q_QUICK_PRIVATE_EXPORT QSGRenderLoop : public QObject
@@ -60,6 +61,7 @@ public:
 
     virtual void show(QQuickWindow *window) = 0;
     virtual void hide(QQuickWindow *window) = 0;
+    virtual void resize(QQuickWindow *) {};
 
     virtual void windowDestroyed(QQuickWindow *window) = 0;
 
@@ -72,6 +74,7 @@ public:
     virtual QAnimationDriver *animationDriver() const = 0;
 
     virtual QSGContext *sceneGraphContext() const = 0;
+    virtual QSGRenderContext *createRenderContext(QSGContext *) const = 0;
 
     virtual void releaseResources(QQuickWindow *window) = 0;
 
@@ -79,9 +82,11 @@ public:
     static QSGRenderLoop *instance();
     static void setInstance(QSGRenderLoop *instance);
 
+    static bool useConsistentTiming();
+
     virtual bool interleaveIncubation() const { return false; }
 
-signals:
+Q_SIGNALS:
     void timeToIncubate();
 
 private:

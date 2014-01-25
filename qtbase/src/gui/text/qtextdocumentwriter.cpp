@@ -52,6 +52,8 @@
 #include "qtextdocumentfragment_p.h"
 #include "qtextodfwriter_p.h"
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 class QTextDocumentWriterPrivate
@@ -86,7 +88,7 @@ public:
     later.
 
     Call write() to write the document to the device. If the document is
-    successfully written, this function returns true. However, if an error
+    successfully written, this function returns \c true. However, if an error
     occurs when writing the document, it will return false.
 
     Call supportedDocumentFormats() for a list of formats that
@@ -243,7 +245,7 @@ QString QTextDocumentWriter::fileName () const
 
 /*!
     Writes the given \a document to the assigned device or file and
-    returns true if successful; otherwise returns false.
+    returns \c true if successful; otherwise returns \c false.
 */
 bool QTextDocumentWriter::write(const QTextDocument *document)
 {
@@ -302,7 +304,7 @@ bool QTextDocumentWriter::write(const QTextDocument *document)
 
 /*!
     Writes the document fragment specified by \a fragment to the assigned device
-    or file and returns true if successful; otherwise returns false.
+    or file and returns \c true if successful; otherwise returns \c false.
 */
 bool QTextDocumentWriter::write(const QTextDocumentFragment &fragment)
 {
@@ -366,7 +368,7 @@ QList<QByteArray> QTextDocumentWriter::supportedDocumentFormats()
     answer << "ODF";
 #endif // QT_NO_TEXTODFWRITER
 
-    qSort(answer);
+    std::sort(answer.begin(), answer.end());
     return answer;
 }
 

@@ -114,6 +114,18 @@ QT_BEGIN_NAMESPACE
     possibly with a different version of OpenSSL.
 */
 
+namespace {
+void qsslSocketUnresolvedSymbolWarning(const char *functionName)
+{
+    qWarning("QSslSocket: cannot call unresolved function %s", functionName);
+}
+
+void qsslSocketCannotResolveSymbolWarning(const char *functionName)
+{
+    qWarning("QSslSocket: cannot resolve %s", functionName);
+}
+}
+
 #ifdef SSLEAY_MACROS
 DEFINEFUNC3(void *, ASN1_dup, i2d_of_void *a, a, d2i_of_void *b, b, char *c, c, return 0, return)
 #endif
@@ -332,11 +344,13 @@ DEFINEFUNC(void, OPENSSL_add_all_algorithms_conf, void, DUMMYARG, return, DUMMYA
 DEFINEFUNC3(int, SSL_CTX_load_verify_locations, SSL_CTX *ctx, ctx, const char *CAfile, CAfile, const char *CApath, CApath, return 0, return)
 DEFINEFUNC(long, SSLeay, void, DUMMYARG, return 0, return)
 DEFINEFUNC(const char *, SSLeay_version, int a, a, return 0, return)
+DEFINEFUNC2(int, i2d_SSL_SESSION, SSL_SESSION *in, in, unsigned char **pp, pp, return 0, return)
+DEFINEFUNC3(SSL_SESSION *, d2i_SSL_SESSION, SSL_SESSION **a, a, const unsigned char **pp, pp, long length, length, return 0, return)
 
 #define RESOLVEFUNC(func) \
     if (!(_q_##func = _q_PTR_##func(libs.first->resolve(#func)))     \
         && !(_q_##func = _q_PTR_##func(libs.second->resolve(#func)))) \
-        qWarning("QSslSocket: cannot resolve "#func);
+        qsslSocketCannotResolveSymbolWarning(#func);
 
 #if !defined QT_LINKED_OPENSSL
 
@@ -514,8 +528,6 @@ static QPair<QSystemLibrary*, QSystemLibrary*> loadOpenSslWin32()
 static QPair<QLibrary*, QLibrary*> loadOpenSsl()
 {
     QPair<QLibrary*,QLibrary*> pair;
-    pair.first = 0;
-    pair.second = 0;
 
 # if defined(Q_OS_UNIX)
     QLibrary *&libssl = pair.first;
@@ -548,7 +560,7 @@ static QPair<QLibrary*, QLibrary*> loadOpenSsl()
 #ifdef Q_OS_OPENBSD
     libcrypto->setLoadHints(QLibrary::ExportExternalSymbolsHint);
 #endif
-#ifdef SHLIB_VERSION_NUMBER
+#if defined(SHLIB_VERSION_NUMBER) && !defined(Q_OS_QNX) // on QNX, the libs are always libssl.so and libcrypto.so
     // first attempt: the canonical name is libssl.so.<SHLIB_VERSION_NUMBER>
     libssl->setFileNameAndVersion(QLatin1String("ssl"), QLatin1String(SHLIB_VERSION_NUMBER));
     libcrypto->setFileNameAndVersion(QLatin1String("crypto"), QLatin1String(SHLIB_VERSION_NUMBER));
@@ -801,6 +813,8 @@ bool q_resolveOpenSslSymbols()
     RESOLVEFUNC(SSL_CTX_load_verify_locations)
     RESOLVEFUNC(SSLeay)
     RESOLVEFUNC(SSLeay_version)
+    RESOLVEFUNC(i2d_SSL_SESSION)
+    RESOLVEFUNC(d2i_SSL_SESSION)
 
     symbolsResolved = true;
     delete libs.first;

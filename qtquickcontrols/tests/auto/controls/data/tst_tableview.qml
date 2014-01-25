@@ -40,7 +40,7 @@
 
 import QtQuick 2.1
 import QtTest 1.0
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
 import QtQuickControlsTests 1.0
 
 Item {
@@ -72,7 +72,7 @@ TestCase {
     function test_basic_setup() {
         var test_instanceStr =
            'import QtQuick 2.1;             \
-            import QtQuick.Controls 1.0;    \
+            import QtQuick.Controls 1.1;    \
             TableView {                     \
                 TableViewColumn {           \
                 }                           \
@@ -105,6 +105,256 @@ TestCase {
         verify(label !== undefined)
         compare(label.text, data.expected.toString());
         table.destroy();
+    }
+
+
+    function rangeTest(arr, table) {
+        var ranges = table.selection.__ranges
+        if (arr.length !== ranges.length)
+            return false;
+
+        for (var i = 0 ; i < ranges.length ; ++ i) {
+            if (!(arr[i][0] === ranges[i][0] && arr[i][1] === ranges[i][1]))
+                return false;
+        }
+        return true;
+    }
+
+
+    function test_keyboardSelection() {
+        var component = Qt.createComponent("tableview/table6_countmodel.qml")
+        compare(component.status, Component.Ready)
+        var table = component.createObject(container);
+        verify(table !== null, "table created is null")
+        table.model = 30
+        table.width = container.width
+        table.height = container.height
+        table.selectionMode = SelectionMode.SingleSelection
+        table.forceActiveFocus();
+        keyClick(Qt.Key_Down);
+        verify(table.selection.contains(1))
+        verify(table.selection.count === 1)
+        keyClick(Qt.Key_Down, Qt.ShiftModifier);
+        verify(table.selection.contains(2))
+        verify(table.selection.count === 1)
+        table.selectionMode = SelectionMode.ExtendedSelection
+        keyClick(Qt.Key_Down, Qt.ShiftModifier);
+        verify(table.selection.contains(2))
+        verify(table.selection.contains(3))
+        verify(table.selection.count === 2)
+        table.selectionMode = SelectionMode.MultiSelection
+        keyClick(Qt.Key_Down);
+        keyClick(Qt.Key_Down, Qt.ShiftModifier);
+        verify(table.selection.contains(4))
+        verify(table.selection.contains(5))
+        verify(table.selection.count === 2)
+        table.destroy()
+    }
+
+    function test_selection() {
+
+        var component = Qt.createComponent("tableview/table2_qabstractitemmodel.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(testCase);
+        verify(table !== null, "table created is null")
+        table.model = 100
+        table.selection.select(0, 0)
+
+        verify(rangeTest([[0,0]], table))
+        table.selection.select(4, 10)
+        verify(rangeTest([[0,0], [4, 10]], table))
+        table.selection.select(8, 10)
+        verify(rangeTest([[0,0], [4, 10]], table))
+        table.selection.select(2, 10)
+        verify(rangeTest([[0,0], [2, 10]], table))
+        table.selection.select(0, 1)
+        verify(rangeTest([[0,10]], table))
+        table.selection.deselect(0, 1)
+        verify(rangeTest([[2,10]], table))
+        table.selection.deselect(7, 4)
+        verify(rangeTest([[2,3],[8, 10]], table))
+        table.selection.deselect(1, 2)
+        verify(rangeTest([[3,3],[8, 10]], table))
+        table.selection.deselect(3, 3)
+        verify(rangeTest([[8, 10]], table))
+        table.selection.select(15, 13)
+        verify(rangeTest([[8, 10],[13, 15]], table))
+        table.selection.select(11, 11)
+        verify(rangeTest([[8, 11],[13, 15]], table))
+        table.selection.deselect(11, 11)
+        verify(rangeTest([[8, 10],[13, 15]], table))
+        table.selection.select(12, 15)
+        verify(rangeTest([[8, 10],[12, 15]], table))
+        table.selection.select(0, 3)
+        verify(rangeTest([[0, 3],[8, 10],[12, 15]], table))
+        table.selection.select(4, 7)
+        verify(rangeTest([[0, 10],[12, 15]], table))
+        table.selection.select(0, 99)
+        verify(rangeTest([[0, 99]], table))
+        table.selection.deselect(1, 1)
+        table.selection.deselect(4, 4)
+        verify(rangeTest([[0, 0],[2,3],[5, 99]], table))
+        table.selection.deselect(3, 88)
+        verify(rangeTest([[0, 0],[2,2],[89, 99]], table))
+        table.selection.deselect(88, 98)
+        verify(rangeTest([[0, 0],[2,2],[99, 99]], table))
+        table.selection.deselect(99, 99)
+        verify(rangeTest([[0, 0],[2,2]], table))
+        table.selection.select(0, 3)
+        verify(rangeTest([[0, 3]], table))
+        table.selection.deselect(0, 99)
+        verify(rangeTest([], table))
+        table.selection.select(5, 3)
+        table.selection.select(9, 8)
+        table.selection.select(1, 3)
+        verify(rangeTest([[1, 5],[8,9]], table))
+        table.selection.select(0, 99)
+        table.selection.deselect(0, 0)
+        table.selection.deselect(4, 4)
+        table.selection.deselect(9, 13)
+        verify(rangeTest([[1,3],[5,8],[14,99]], table))
+        table.selection.select(3, 14)
+        verify(rangeTest([[1,99]], table))
+
+        table.selection.clear()
+        table.selection.select(1, 1)
+        verify(rangeTest([[1,1]], table))
+        table.selection.select(5, 5)
+        verify(rangeTest([[1,1],[5,5]], table))
+        table.selection.select(9, 11)
+        verify(rangeTest([[1,1],[5,5],[9,11]], table))
+        table.selection.select(1, 3)
+        verify(rangeTest([[1,3],[5,5],[9,11]], table))
+
+        table.selection.clear()
+        compare(table.selection.__ranges.length, 0)
+        var i
+        for (i = 0 ; i < table.rowCount ; i += 2)
+            table.selection.select(i)
+        compare(table.selection.__ranges.length, 50)
+        for (i = 1 ; i < table.rowCount ; i += 2)
+            table.selection.select(i)
+        compare(table.selection.__ranges.length, 1)
+        for (i = 0 ; i < table.rowCount ; i += 2)
+            table.selection.deselect(i)
+        compare(table.selection.__ranges.length, 50)
+        for (i = 1 ; i < table.rowCount ; i += 2)
+            table.selection.deselect(i)
+        compare(table.selection.__ranges.length, 0)
+
+        table.selection.select(3, 14)
+        table.selection.select(19, 7)
+        verify(rangeTest([[3,19]], table))
+
+        table.model = 50 // clear selection on model change
+        compare(table.selection.__ranges.length, 0)
+
+        table.selection.selectAll()
+        compare(table.selection.__ranges.length, 1)
+        verify(rangeTest([[0,49]], table))
+    }
+
+    function test_selectionCount() {
+
+        var component = Qt.createComponent("tableview/table2_qabstractitemmodel.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(testCase);
+        verify(table !== null, "table created is null")
+        table.model = 100
+
+        table.selection.select(0, 0)
+        compare(table.selection.count, 1)
+        table.selection.select(4, 6)
+        compare(table.selection.count, 4)
+        table.selection.select(10, 13)
+        compare(table.selection.count, 8)
+        table.selection.select(0, 99)
+        compare(table.selection.count, 100)
+        table.model = 50
+        compare(table.selection.count, 0)
+    }
+
+    function test_selectionForeach() {
+        var component = Qt.createComponent("tableview/table2_qabstractitemmodel.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(testCase);
+        verify(table !== null, "table created is null")
+        table.model = 100
+
+        var iteration = 0
+        function tryMe() { iteration++ }
+        iteration = 0
+        table.selection.forEach(tryMe)
+        compare(iteration, 0)
+        table.selection.select(2, 5)
+        table.selection.select(10, 12)
+        table.selection.select(14, 22)
+        compare(table.selection.count, 16)
+        iteration = 0
+        table.selection.forEach(tryMe)
+        compare(iteration, 16)
+
+        iteration = 0
+        table.selection.select(0, 99)
+        table.selection.forEach(tryMe)
+        compare(iteration, 100)
+
+        function removeNext(index) {
+            table.selection.deselect(index + 1)
+            verify(index%2 == 1)
+            iteration++
+        }
+
+        iteration = 0
+        table.selection.clear()
+        table.selection.select(1, 7)
+        table.selection.forEach(removeNext)
+        compare(iteration, 4)
+
+
+        function deleteAll(index) {
+            table.selection.deselect(0, table.selection.count)
+            iteration++
+        }
+
+        iteration = 0
+        table.selection.clear()
+        table.selection.select(0)
+        table.selection.forEach(deleteAll)
+        compare(iteration, 1)
+
+        function addEven(index) {
+            if (index + 2 < table.rowCount)
+                table.selection.select(index + 2)
+            iteration++
+            verify (index %2 === 0)
+        }
+
+        iteration = 0
+        table.selection.clear()
+        table.selection.select(0)
+        table.selection.forEach(addEven)
+        compare(iteration, 50)
+    }
+
+    function test_selectionContains() {
+        var component = Qt.createComponent("tableview/table2_qabstractitemmodel.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(testCase);
+        verify(table !== null, "table created is null")
+        table.model = 100
+        table.selection.select(0, 0)
+        verify(table.selection.contains(0))
+        verify(!table.selection.contains(1))
+        verify(!table.selection.contains(10))
+        table.selection.select(3, 13)
+        verify(table.selection.contains(10))
+        verify(!table.selection.contains(2))
+        table.selection.deselect(5, 7)
+        verify(!table.selection.contains(5))
+        verify(!table.selection.contains(6))
+        verify(!table.selection.contains(7))
+        verify(table.selection.contains(8))
     }
 
     function test_usingcppqobjectmodel() {
@@ -353,7 +603,7 @@ TestCase {
     }
 
     function test_columnWidth() {
-        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.0; TableView { }', testCase, '');
+        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.1; TableView { }', testCase, '');
         compare(tableView.columnCount, 0)
         var column = newColumn.createObject(testCase, {title: "title 1"});
         verify(column.__view === null)
@@ -362,7 +612,7 @@ TestCase {
         tableView.addColumn(column)
         compare(column.__view, tableView)
         compare(column.width, tableView.viewport.width)
-        var tableView2 = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.0; TableView { }', testCase, '');
+        var tableView2 = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.1; TableView { }', testCase, '');
         ignoreWarning("TableView::insertColumn(): you cannot add a column to multiple views")
         tableView2.addColumn(column) // should not work
         compare(column.__view, tableView) //same as before
@@ -384,7 +634,7 @@ TestCase {
     }
 
     function test_addRemoveColumn() {
-        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.0; TableView { }', testCase, '');
+        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.1; TableView { }', testCase, '');
         compare(tableView.columnCount, 0)
         tableView.addColumn(newColumn.createObject(testCase, {title: "title 1"}))
         compare(tableView.columnCount, 1)
@@ -462,7 +712,7 @@ TestCase {
     }
 
     function test_moveColumn(data) {
-        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.0; TableView { }', testCase, '');
+        var tableView = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.1; TableView { }', testCase, '');
         compare(tableView.columnCount, 0)
 
         var titles = ["title 1", "title 2", "title 3"]
@@ -497,7 +747,7 @@ TestCase {
     function test_positionViewAtRow() {
         var test_instanceStr =
            'import QtQuick 2.1;             \
-            import QtQuick.Controls 1.0;    \
+            import QtQuick.Controls 1.1;    \
             TableView {                     \
                 TableViewColumn {           \
                 }                           \

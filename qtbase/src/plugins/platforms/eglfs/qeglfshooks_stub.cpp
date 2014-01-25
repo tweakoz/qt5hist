@@ -192,6 +192,16 @@ QDpi QEglFSHooks::logicalDpi() const
                 25.4 * s.height() / ps.height());
 }
 
+Qt::ScreenOrientation QEglFSHooks::nativeOrientation() const
+{
+    return Qt::PrimaryOrientation;
+}
+
+Qt::ScreenOrientation QEglFSHooks::orientation() const
+{
+    return Qt::PrimaryOrientation;
+}
+
 int QEglFSHooks::screenDepth() const
 {
     static int depth = qgetenv("QT_QPA_EGLFS_DEPTH").toInt();
@@ -234,8 +244,11 @@ bool QEglFSHooks::filterConfig(EGLDisplay, EGLConfig) const
     return true;
 }
 
-EGLNativeWindowType QEglFSHooks::createNativeWindow(const QSize &size, const QSurfaceFormat &format)
+EGLNativeWindowType QEglFSHooks::createNativeWindow(QPlatformWindow *platformWindow,
+                                                    const QSize &size,
+                                                    const QSurfaceFormat &format)
 {
+    Q_UNUSED(platformWindow);
     Q_UNUSED(size);
     Q_UNUSED(format);
     return 0;

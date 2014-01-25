@@ -105,12 +105,12 @@ QT_BEGIN_NAMESPACE
 class QWindowsIntegrationPlugin : public QPlatformIntegrationPlugin
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.1" FILE "windows.json")
+    Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.2" FILE "windows.json")
 public:
-    QPlatformIntegration *create(const QString&, const QStringList&);
+    QPlatformIntegration *create(const QString&, const QStringList&, int &, char **);
 };
 
-QPlatformIntegration *QWindowsIntegrationPlugin::create(const QString& system, const QStringList& paramList)
+QPlatformIntegration *QWindowsIntegrationPlugin::create(const QString& system, const QStringList& paramList, int &, char **)
 {
     if (system.compare(system, QStringLiteral("windows"), Qt::CaseInsensitive) == 0)
         return new QWindowsIntegration(paramList);

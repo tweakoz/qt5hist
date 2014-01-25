@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -58,6 +58,10 @@
 
 QT_BEGIN_NAMESPACE
 
+namespace QSGBatchRenderer {
+    class Renderer;
+}
+
 class Q_QUICK_PRIVATE_EXPORT QSGRenderNode : public QSGNode
 {
 public:
@@ -98,6 +102,7 @@ public:
 
 private:
     friend class QSGNodeUpdater;
+    friend class QSGBatchRenderer::Renderer;
 
     const QMatrix4x4 *m_matrix;
     const QSGClipNode *m_clip_list;

@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QtConcurrent
 description             = Qt Concurrent Reference Documentation
-url                     = http://qt-project.org/doc/qt-$QT_VER/qtconcurrent
+url                     = http://qt-project.org/doc/qt-$QT_VER
 version                 = $QT_VERSION
 
 examplesinstallpath     = qtconcurrent
@@ -27,7 +27,7 @@ qhp.QtConcurrent.subprojects.classes.sortPages = true
 
 tagfile                 = ../../../doc/qtconcurrent/qtconcurrent.tags
 
-depends                 += qtcore
+depends                 += qtcore qtdoc
 
 headerdirs  += ..
 
@@ -40,3 +40,6 @@ exampledirs += ../../../examples/qtconcurrent \
 excludedirs += ../../../examples/widgets/doc
 
 imagedirs   += images
+
+navigation.landingpage = "Qt Concurrent"
+navigation.cppclassespage = "Qt Concurrent C++ Classes"

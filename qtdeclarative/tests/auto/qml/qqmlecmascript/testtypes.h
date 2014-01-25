@@ -63,6 +63,7 @@
 
 #include <private/qqmlengine_p.h>
 #include <private/qv8engine_p.h>
+#include <private/qv4qobjectwrapper_p.h>
 
 class MyQmlAttachedObject : public QObject
 {
@@ -265,8 +266,9 @@ public slots:
     void myinvokable(MyQmlObject *o) { myinvokableObject = o; }
     void variantMethod(const QVariant &v) { m_variant = v; }
     void qjsvalueMethod(const QJSValue &v) { m_qjsvalue = v; }
-    void v8function(QQmlV8Function*);
+    void v8function(QQmlV4Function*);
     void registeredFlagMethod(Qt::MouseButtons v) { m_buttons = v; }
+    QString slotWithReturnValue(const QString &arg) { return arg; }
 
 private:
     friend class tst_qqmlecmascript;
@@ -288,6 +290,34 @@ private:
 Q_DECLARE_METATYPE(QQmlListProperty<MyQmlObject>)
 
 QML_DECLARE_TYPEINFO(MyQmlObject, QML_HAS_ATTACHED_PROPERTIES)
+
+class MyInheritedQmlObject : public MyQmlObject
+{
+    Q_OBJECT
+    Q_PROPERTY(MyInheritedQmlObject *myInheritedQmlObjectProperty READ myInheritedQmlObject WRITE setMyInheritedQmlObject)
+    Q_PROPERTY(MyQmlObject *myQmlObjectProperty READ myQmlObject WRITE setMyQmlObject)
+    Q_PROPERTY(QObject *qobjectProperty READ qobject WRITE setQObject)
+public:
+    MyInheritedQmlObject() : m_myInheritedQmlObject(0), m_myQmlObject(0), m_qobject(0) {}
+
+    MyInheritedQmlObject *myInheritedQmlObject() const { return m_myInheritedQmlObject; }
+    void setMyInheritedQmlObject(MyInheritedQmlObject * o) { m_myInheritedQmlObject = o; }
+
+    MyQmlObject *myQmlObject() const { return m_myQmlObject; }
+    void setMyQmlObject(MyQmlObject * o) { m_myQmlObject = o; }
+
+    QObject *qobject() const { return m_qobject; }
+    void setQObject(QObject * o) { m_qobject = o; }
+
+    Q_INVOKABLE bool isItYouQObject(QObject *o);
+    Q_INVOKABLE bool isItYouMyQmlObject(MyQmlObject *o);
+    Q_INVOKABLE bool isItYouMyInheritedQmlObject(MyInheritedQmlObject *o);
+private:
+    MyInheritedQmlObject *m_myInheritedQmlObject;
+    MyQmlObject *m_myQmlObject;
+    QObject *m_qobject;
+};
+QML_DECLARE_TYPE(MyInheritedQmlObject)
 
 class MyQmlContainer : public QObject
 {
@@ -373,6 +403,34 @@ private:
     int m_value;
     QObject *m_object;
     QObject *m_object2;
+};
+
+class MyVeryDeferredObject : public QObject
+{
+    Q_OBJECT
+    //For inDestruction test
+    Q_PROPERTY(int value READ value WRITE setValue NOTIFY valueChanged)
+    Q_PROPERTY(QObject *objectProperty READ objectProperty WRITE setObjectProperty)
+    Q_CLASSINFO("DeferredPropertyNames", "objectProperty")
+
+public:
+    MyVeryDeferredObject() : m_value(0), m_object(0) {}
+    ~MyVeryDeferredObject() {
+        qmlExecuteDeferred(this); //Not a realistic case, see QTBUG-33112 to see how this could happen in practice
+    }
+
+    int value() const { return m_value; }
+    void setValue(int v) { m_value = v; emit valueChanged(); }
+
+    QObject *objectProperty() const { return m_object; }
+    void setObjectProperty(QObject *obj) { m_object = obj; }
+
+signals:
+    void valueChanged();
+
+private:
+    int m_value;
+    QObject *m_object;
 };
 
 class MyBaseExtendedObject : public QObject
@@ -963,7 +1021,7 @@ class MyRevisionedClass : public MyRevisionedBaseClassUnregistered
     Q_PROPERTY(qreal prop2 READ prop2 WRITE setProp2 NOTIFY prop2Changed REVISION 1)
 
 public:
-    MyRevisionedClass() {}
+    MyRevisionedClass() : m_p1(0), m_p2(0) {}
 
     qreal prop1() const { return m_p1; }
     void setProp1(qreal p) {
@@ -1172,16 +1230,14 @@ private:
     int m_value;
 };
 
-class CircularReferenceObject : public QObject,
-                                public QV8GCCallback::Node
+class CircularReferenceObject : public QObject
 {
     Q_OBJECT
 
 public:
     CircularReferenceObject(QObject *parent = 0)
-        : QObject(parent), QV8GCCallback::Node(callback), m_referenced(0), m_dtorCount(0)
+        : QObject(parent), m_dtorCount(0)
     {
-        QV8GCCallback::addGcCallbackNode(this);
     }
 
     ~CircularReferenceObject()
@@ -1204,15 +1260,19 @@ public:
 
     Q_INVOKABLE void addReference(QObject *other)
     {
-        m_referenced = other;
-    }
+        QQmlData *ddata = QQmlData::get(this);
+        assert(ddata);
+        QV4::ExecutionEngine *v4 = ddata->jsWrapper.engine();
+        Q_ASSERT(v4);
+        QV4::Scope scope(v4);
+        QV4::Scoped<QV4::QObjectWrapper> thisObject(scope, ddata->jsWrapper.value());
+        Q_ASSERT(thisObject);
 
-    static void callback(QV8GCCallback::Node *n)
-    {
-        CircularReferenceObject *cro = static_cast<CircularReferenceObject*>(n);
-        if (cro->m_referenced) {
-            cro->m_engine->addRelationshipForGC(cro, cro->m_referenced);
-        }
+        QQmlData *otherDData = QQmlData::get(other);
+        Q_ASSERT(otherDData);
+
+        QV4::ScopedValue v(scope, otherDData->jsWrapper.value());
+        thisObject->defineDefaultProperty(QStringLiteral("autoTestStrongRef"), v);
     }
 
     void setEngine(QQmlEngine* declarativeEngine)
@@ -1221,70 +1281,10 @@ public:
     }
 
 private:
-    QObject *m_referenced;
     int *m_dtorCount;
     QV8Engine* m_engine;
 };
 Q_DECLARE_METATYPE(CircularReferenceObject*)
-
-class CircularReferenceHandle : public QObject,
-                                public QV8GCCallback::Node
-{
-    Q_OBJECT
-
-public:
-    CircularReferenceHandle(QObject *parent = 0)
-        : QObject(parent), QV8GCCallback::Node(gccallback), m_dtorCount(0), m_engine(0)
-    {
-        QV8GCCallback::addGcCallbackNode(this);
-    }
-
-    ~CircularReferenceHandle()
-    {
-        if (m_dtorCount) *m_dtorCount = *m_dtorCount + 1;
-    }
-
-    Q_INVOKABLE void setDtorCount(int *dtorCount)
-    {
-        m_dtorCount = dtorCount;
-    }
-
-    Q_INVOKABLE CircularReferenceHandle *generate(QObject *parent = 0)
-    {
-        CircularReferenceHandle *retn = new CircularReferenceHandle(parent);
-        retn->m_dtorCount = m_dtorCount;
-        retn->m_engine = m_engine;
-        return retn;
-    }
-
-    Q_INVOKABLE void addReference(v8::Persistent<v8::Value> handle)
-    {
-        m_referenced = qPersistentNew(handle);
-        m_referenced.MakeWeak(static_cast<void*>(this), wrcallback);
-    }
-
-    static void wrcallback(v8::Persistent<v8::Value> handle, void *)
-    {
-        qPersistentDispose(handle);
-    }
-
-    static void gccallback(QV8GCCallback::Node *n)
-    {
-        CircularReferenceHandle *crh = static_cast<CircularReferenceHandle*>(n);
-        crh->m_engine->addRelationshipForGC(crh, crh->m_referenced);
-    }
-
-    void setEngine(QQmlEngine* declarativeEngine)
-    {
-        m_engine = QQmlEnginePrivate::get(declarativeEngine)->v8engine();
-    }
-
-private:
-    v8::Persistent<v8::Value> m_referenced;
-    int *m_dtorCount;
-    QV8Engine* m_engine;
-};
-Q_DECLARE_METATYPE(CircularReferenceHandle*)
 
 class MyDynamicCreationDestructionObject : public QObject
 {

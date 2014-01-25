@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -66,6 +66,7 @@ class QImage;
 class TextureReference;
 class QSGDistanceFieldGlyphCacheManager;
 class QSGDistanceFieldGlyphNode;
+class QOpenGLContext;
 
 class Q_QUICK_PRIVATE_EXPORT QSGRectangleNode : public QSGGeometryNode
 {
@@ -230,7 +231,7 @@ protected:
     };
 
     virtual void requestGlyphs(const QSet<glyph_t> &glyphs) = 0;
-    virtual void storeGlyphs(const QHash<glyph_t, QImage> &glyphs) = 0;
+    virtual void storeGlyphs(const QList<QDistanceField> &glyphs) = 0;
     virtual void referenceGlyphs(const QSet<glyph_t> &glyphs) = 0;
     virtual void releaseGlyphs(const QSet<glyph_t> &glyphs) = 0;
 
@@ -246,7 +247,7 @@ protected:
 
     GlyphData &glyphData(glyph_t glyph);
 
-    QOpenGLContext *ctx;
+    inline bool isCoreProfile() const { return m_coreProfile; }
 
 private:
     QSGDistanceFieldGlyphCacheManager *m_manager;
@@ -255,6 +256,7 @@ private:
     int m_glyphCount;
 
     bool m_doubleGlyphResolution;
+    bool m_coreProfile;
 
     QList<Texture> m_textures;
     QHash<glyph_t, GlyphData> m_glyphsData;

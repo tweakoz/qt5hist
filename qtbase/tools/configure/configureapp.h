@@ -77,6 +77,7 @@ public:
     void generateConfigfiles();
     void detectArch();
     void generateQConfigPri();
+    void generateQDevicePri();
     void prepareConfigTests();
     void showSummary();
     QString firstLicensePath();
@@ -112,7 +113,6 @@ private:
     QStringList skipModules;
     QStringList licensedModules;
     QStringList allSqlDrivers;
-    QStringList allConfigs;
     QStringList disabledModules;
     QStringList enabledModules;
     QStringList modules;
@@ -157,6 +157,8 @@ private:
     int optionIndent;
     int descIndent;
     int outputWidth;
+
+    void substPrefix(QString *path);
 
     QString formatPath(const QString &path);
     QString formatPaths(const QStringList &paths);

@@ -208,6 +208,7 @@ public:
 #ifdef Q_QDOC
     static QMetaObject::Connection connect(const QObject *sender, PointerToMemberFunction signal, const QObject *receiver, PointerToMemberFunction method, Qt::ConnectionType type);
     static QMetaObject::Connection connect(const QObject *sender, PointerToMemberFunction signal, Functor functor);
+    static QMetaObject::Connection connect(const QObject *sender, PointerToMemberFunction signal, const QObject *context, Functor functor, Qt::ConnectionType type);
 #else
     //Connect a signal to a pointer to qobject member function
     template <typename Func1, typename Func2>
@@ -217,7 +218,9 @@ public:
     {
         typedef QtPrivate::FunctionPointer<Func1> SignalType;
         typedef QtPrivate::FunctionPointer<Func2> SlotType;
-        reinterpret_cast<typename SignalType::Object *>(0)->qt_check_for_QOBJECT_macro(*reinterpret_cast<typename SignalType::Object *>(0));
+
+        Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                          "No Q_OBJECT in the class with the signal");
 
         //compilation error if the arguments does not match.
         Q_STATIC_ASSERT_X(int(SignalType::ArgumentCount) >= int(SlotType::ArgumentCount),
@@ -243,8 +246,21 @@ public:
     static inline typename QtPrivate::QEnableIf<int(QtPrivate::FunctionPointer<Func2>::ArgumentCount) >= 0, QMetaObject::Connection>::Type
             connect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal, Func2 slot)
     {
+        return connect(sender, signal, sender, slot, Qt::DirectConnection);
+    }
+
+    //connect to a function pointer  (not a member)
+    template <typename Func1, typename Func2>
+    static inline typename QtPrivate::QEnableIf<int(QtPrivate::FunctionPointer<Func2>::ArgumentCount) >= 0 &&
+                                                !QtPrivate::FunctionPointer<Func2>::IsPointerToMemberFunction, QMetaObject::Connection>::Type
+            connect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal, const QObject *context, Func2 slot,
+                    Qt::ConnectionType type = Qt::AutoConnection)
+    {
         typedef QtPrivate::FunctionPointer<Func1> SignalType;
         typedef QtPrivate::FunctionPointer<Func2> SlotType;
+
+        Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                          "No Q_OBJECT in the class with the signal");
 
         //compilation error if the arguments does not match.
         Q_STATIC_ASSERT_X(int(SignalType::ArgumentCount) >= int(SlotType::ArgumentCount),
@@ -254,17 +270,30 @@ public:
         Q_STATIC_ASSERT_X((QtPrivate::AreArgumentsCompatible<typename SlotType::ReturnType, typename SignalType::ReturnType>::value),
                           "Return type of the slot is not compatible with the return type of the signal.");
 
-        return connectImpl(sender, reinterpret_cast<void **>(&signal), sender, 0,
+        const int *types = 0;
+        if (type == Qt::QueuedConnection || type == Qt::BlockingQueuedConnection)
+            types = QtPrivate::ConnectionTypes<typename SignalType::Arguments>::types();
+
+        return connectImpl(sender, reinterpret_cast<void **>(&signal), context, 0,
                            new QtPrivate::QStaticSlotObject<Func2,
                                                  typename QtPrivate::List_Left<typename SignalType::Arguments, SlotType::ArgumentCount>::Value,
                                                  typename SignalType::ReturnType>(slot),
-                           Qt::DirectConnection, 0, &SignalType::Object::staticMetaObject);
+                           type, types, &SignalType::Object::staticMetaObject);
     }
 
     //connect to a functor
     template <typename Func1, typename Func2>
     static inline typename QtPrivate::QEnableIf<QtPrivate::FunctionPointer<Func2>::ArgumentCount == -1, QMetaObject::Connection>::Type
             connect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal, Func2 slot)
+    {
+        return connect(sender, signal, sender, slot, Qt::DirectConnection);
+    }
+
+    //connect to a functor, with a "context" object defining in which event loop is going to be executed
+    template <typename Func1, typename Func2>
+    static inline typename QtPrivate::QEnableIf<QtPrivate::FunctionPointer<Func2>::ArgumentCount == -1, QMetaObject::Connection>::Type
+            connect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal, const QObject *context, Func2 slot,
+                    Qt::ConnectionType type = Qt::AutoConnection)
     {
 #if defined (Q_COMPILER_DECLTYPE) && defined (Q_COMPILER_VARIADIC_TEMPLATES)
         typedef QtPrivate::FunctionPointer<Func1> SignalType;
@@ -287,9 +316,10 @@ public:
         C++11 variadic templates
       */
 #ifndef Q_COMPILER_DECLTYPE  //Workaround the lack of decltype using another function as indirection
-        return connect_functor(sender, signal, slot, &Func2::operator()); }
+        return connect_functor(sender, signal, context, slot, &Func2::operator(), type); }
     template <typename Func1, typename Func2, typename Func2Operator>
-    static inline QMetaObject::Connection connect_functor(const QObject *sender, Func1 signal, Func2 slot, Func2Operator) {
+    static inline QMetaObject::Connection connect_functor(const QObject *sender, Func1 signal, const QObject *context,
+                                                          Func2 slot, Func2Operator, Qt::ConnectionType type) {
         typedef QtPrivate::FunctionPointer<Func2Operator> SlotType ;
 #else
         typedef QtPrivate::FunctionPointer<decltype(&Func2::operator())> SlotType ;
@@ -307,11 +337,18 @@ public:
         Q_STATIC_ASSERT_X((QtPrivate::AreArgumentsCompatible<SlotReturnType, typename SignalType::ReturnType>::value),
                           "Return type of the slot is not compatible with the return type of the signal.");
 
-        return connectImpl(sender, reinterpret_cast<void **>(&signal), sender, 0,
+        Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                          "No Q_OBJECT in the class with the signal");
+
+        const int *types = 0;
+        if (type == Qt::QueuedConnection || type == Qt::BlockingQueuedConnection)
+            types = QtPrivate::ConnectionTypes<typename SignalType::Arguments>::types();
+
+        return connectImpl(sender, reinterpret_cast<void **>(&signal), context, 0,
                            new QtPrivate::QFunctorSlotObject<Func2, SlotArgumentCount,
                                 typename QtPrivate::List_Left<typename SignalType::Arguments, SlotArgumentCount>::Value,
                                 typename SignalType::ReturnType>(slot),
-                           Qt::DirectConnection, 0, &SignalType::Object::staticMetaObject);
+                           type, types, &SignalType::Object::staticMetaObject);
     }
 #endif //Q_QDOC
 
@@ -335,7 +372,9 @@ public:
     {
         typedef QtPrivate::FunctionPointer<Func1> SignalType;
         typedef QtPrivate::FunctionPointer<Func2> SlotType;
-        reinterpret_cast<typename SignalType::Object *>(0)->qt_check_for_QOBJECT_macro(*reinterpret_cast<typename SignalType::Object *>(0));
+
+        Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                          "No Q_OBJECT in the class with the signal");
 
         //compilation error if the arguments does not match.
         Q_STATIC_ASSERT_X((QtPrivate::CheckCompatibleArguments<typename SignalType::Arguments, typename SlotType::Arguments>::value),
@@ -477,18 +516,18 @@ inline QT_DEPRECATED QList<T> qFindChildren(const QObject *o, const QRegExp &re)
 template <class T>
 inline T qobject_cast(QObject *object)
 {
-#if !defined(QT_NO_QOBJECT_CHECK)
-    reinterpret_cast<T>(object)->qt_check_for_QOBJECT_macro(*reinterpret_cast<T>(object));
-#endif
+    typedef typename QtPrivate::remove_cv<typename QtPrivate::remove_pointer<T>::type>::type ObjType;
+    Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<ObjType>::Value,
+                    "qobject_cast requires the type to have a Q_OBJECT macro");
     return static_cast<T>(reinterpret_cast<T>(object)->staticMetaObject.cast(object));
 }
 
 template <class T>
 inline T qobject_cast(const QObject *object)
 {
-#if !defined(QT_NO_QOBJECT_CHECK)
-    reinterpret_cast<T>(object)->qt_check_for_QOBJECT_macro(*reinterpret_cast<T>(const_cast<QObject *>(object)));
-#endif
+    typedef typename QtPrivate::remove_cv<typename QtPrivate::remove_pointer<T>::type>::type ObjType;
+    Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<ObjType>::Value,
+                      "qobject_cast requires the type to have a Q_OBJECT macro");
     return static_cast<T>(reinterpret_cast<T>(object)->staticMetaObject.cast(object));
 }
 

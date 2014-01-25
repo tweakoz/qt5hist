@@ -3,13 +3,15 @@ TEMPLATE = subdirs
 SUBDIRS += \
     folderlistmodel \
     localstorage \
-    models
+    models \
+    settings
 
 qtHaveModule(quick) {
     SUBDIRS += \
         qtquick2 \
         particles \
         window \
+        dialogs-private \
         dialogs \
         testlib
 }

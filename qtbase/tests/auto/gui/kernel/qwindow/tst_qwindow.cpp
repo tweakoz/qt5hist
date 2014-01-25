@@ -59,6 +59,7 @@ class tst_QWindow: public QObject
 
 private slots:
     void eventOrderOnShow();
+    void resizeEventAfterResize();
     void mapGlobal();
     void positioning();
     void isExposed();
@@ -168,6 +169,25 @@ void tst_QWindow::eventOrderOnShow()
     QVERIFY(window.eventIndex(QEvent::Resize) < window.eventIndex(QEvent::Expose));
 }
 
+void tst_QWindow::resizeEventAfterResize()
+{
+    // Some platforms enforce minimum widths for windows, which can cause extra resize
+    // events, so set the width to suitably large value to avoid those.
+    QRect geometry(QGuiApplication::primaryScreen()->availableGeometry().topLeft() + QPoint(20, 20), QSize(300, 40));
+
+    Window window;
+    window.setGeometry(geometry);
+    window.showNormal();
+
+    QTRY_COMPARE(window.received(QEvent::Resize), 1);
+
+    // QTBUG-32706
+    // Make sure we get a resizeEvent after calling resize
+    window.resize(400, 100);
+
+    QTRY_COMPARE(window.received(QEvent::Resize), 2);
+}
+
 void tst_QWindow::positioning()
 {
     if (!QGuiApplicationPrivate::platformIntegration()->hasCapability(
@@ -203,7 +223,7 @@ void tst_QWindow::positioning()
 
     window.setWindowState(Qt::WindowFullScreen);
     QCoreApplication::processEvents();
-#ifdef Q_OS_MACX
+#ifdef Q_OS_OSX
     QEXPECT_FAIL("", "Multiple failures in this test on Mac OS X, see QTBUG-23059", Abort);
 #endif
     QTRY_COMPARE(window.received(QEvent::Resize), 2);
@@ -823,7 +843,10 @@ void tst_QWindow::activateAndClose()
 {
     for (int i = 0; i < 10; ++i)  {
        QWindow window;
-       window.show();
+       // qWaitForWindowActive will block for the duration of
+       // of the timeout if the window is at 0,0
+       window.setGeometry(QGuiApplication::primaryScreen()->availableGeometry().adjusted(1, 1, -1, -1));
+       window.showNormal();
        window.requestActivate();
        QVERIFY(QTest::qWaitForWindowActive(&window));
        QCOMPARE(qGuiApp->focusWindow(), &window);

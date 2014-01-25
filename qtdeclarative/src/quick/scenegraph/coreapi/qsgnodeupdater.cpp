@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -102,16 +102,11 @@ void QSGNodeUpdater::updateStates(QSGNode *n)
 
 bool QSGNodeUpdater::isNodeBlocked(QSGNode *node, QSGNode *root) const
 {
-    qreal opacity = 1;
     while (node != root && node != 0) {
-        if (node->type() == QSGNode::OpacityNodeType) {
-            opacity *= static_cast<QSGOpacityNode *>(node)->opacity();
-            if (opacity < 0.001)
-                return true;
-        }
+        if (node->isSubtreeBlocked())
+            return true;
         node = node->parent();
     }
-
     return false;
 }
 

@@ -62,19 +62,19 @@ QT_BEGIN_NAMESPACE
 
 
 /*!
-    \qmlproperty real QtQuick.Particles2::PointAttractor::pointX
+    \qmlproperty real QtQuick.Particles::PointAttractor::pointX
 
     The x coordinate of the attracting point. This is relative
     to the x coordinate of the Attractor.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::PointAttractor::pointY
+    \qmlproperty real QtQuick.Particles::PointAttractor::pointY
 
     The y coordinate of the attracting point. This is relative
     to the y coordinate of the Attractor.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::PointAttractor::strength
+    \qmlproperty real QtQuick.Particles::PointAttractor::strength
 
     The pull, in units per second, to be exerted on an item one pixel away.
 
@@ -83,7 +83,7 @@ QT_BEGIN_NAMESPACE
     distance.
 */
 /*!
-    \qmlproperty AffectableParameter QtQuick.Particles2::Attractor::affectedParameter
+    \qmlproperty AffectableParameter QtQuick.Particles::Attractor::affectedParameter
 
     What attribute of particles is directly affected.
     \list
@@ -93,7 +93,7 @@ QT_BEGIN_NAMESPACE
     \endlist
 */
 /*!
-    \qmlproperty Proportion QtQuick.Particles2::Attractor::proportionalToDistance
+    \qmlproperty Proportion QtQuick.Particles::Attractor::proportionalToDistance
 
     How the distance from the particle to the point affects the strength of the attraction.
 
@@ -119,8 +119,8 @@ bool QQuickAttractorAffector::affectParticle(QQuickParticleData *d, qreal dt)
         return false;
     qreal dx = m_x+m_offset.x() - d->curX();
     qreal dy = m_y+m_offset.y() - d->curY();
-    qreal r = sqrt((dx*dx) + (dy*dy));
-    qreal theta = atan2(dy,dx);
+    qreal r = std::sqrt((dx*dx) + (dy*dy));
+    qreal theta = std::atan2(dy,dx);
     qreal ds = 0;
     switch (m_proportionalToDistance){
     case InverseQuadratic:
@@ -139,8 +139,8 @@ bool QQuickAttractorAffector::affectParticle(QQuickParticleData *d, qreal dt)
         ds = m_strength;
     }
     ds *= dt;
-    dx = ds * cos(theta);
-    dy = ds * sin(theta);
+    dx = ds * std::cos(theta);
+    dy = ds * std::sin(theta);
     qreal vx,vy;
     switch (m_physics){
     case Position:

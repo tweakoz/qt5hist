@@ -71,6 +71,7 @@ class QTextCursor;
 
 template<typename T> class QVector;
 
+#ifndef Q_QDOC // Workaround for QTBUG-35230
 namespace Qt
 {
     Q_GUI_EXPORT bool mightBeRichText(const QString&);
@@ -80,6 +81,7 @@ namespace Qt
     Q_GUI_EXPORT QTextCodec *codecForHtml(const QByteArray &ba);
 #endif
 }
+#endif // Q_QDOC
 
 class Q_GUI_EXPORT QAbstractUndoItem
 {
@@ -260,7 +262,7 @@ public:
     void setDefaultCursorMoveStyle(Qt::CursorMoveStyle style);
 
 Q_SIGNALS:
-    void contentsChange(int from, int charsRemoves, int charsAdded);
+    void contentsChange(int from, int charsRemoved, int charsAdded);
     void contentsChanged();
     void undoAvailable(bool);
     void redoAvailable(bool);

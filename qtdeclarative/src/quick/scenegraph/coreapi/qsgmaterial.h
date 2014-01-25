@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -48,6 +48,11 @@
 QT_BEGIN_NAMESPACE
 
 class QSGMaterial;
+class QSGMaterialShaderPrivate;
+
+namespace QSGBatchRenderer {
+    class ShaderManager;
+}
 
 class Q_QUICK_EXPORT QSGMaterialShader
 {
@@ -84,7 +89,7 @@ public:
     };
 
     QSGMaterialShader();
-    virtual ~QSGMaterialShader() {};
+    virtual ~QSGMaterialShader();
 
     virtual void activate();
     virtual void deactivate();
@@ -95,18 +100,24 @@ public:
     inline QOpenGLShaderProgram *program() { return &m_program; }
 
 protected:
+    Q_DECLARE_PRIVATE(QSGMaterialShader)
+    QSGMaterialShader(QSGMaterialShaderPrivate &dd);
 
     friend class QSGContext;
+    friend class QSGBatchRenderer::ShaderManager;
+
+    void setShaderSourceFile(QOpenGLShader::ShaderType type, const QString &sourceFile);
+    void setShaderSourceFiles(QOpenGLShader::ShaderType type, const QStringList &sourceFiles);
 
     virtual void compile();
     virtual void initialize() { }
 
-    virtual const char *vertexShader() const = 0;
-    virtual const char *fragmentShader() const = 0;
+    virtual const char *vertexShader() const;
+    virtual const char *fragmentShader() const;
 
 private:
     QOpenGLShaderProgram m_program;
-    void *m_reserved;
+    QScopedPointer<QSGMaterialShaderPrivate> d_ptr;
 };
 
 struct QSGMaterialType { };
@@ -118,7 +129,9 @@ public:
         Blending            = 0x0001,
         RequiresDeterminant = 0x0002, // Allow precalculated translation and 2D rotation
         RequiresFullMatrixExceptTranslate = 0x0004 | RequiresDeterminant, // Allow precalculated translation
-        RequiresFullMatrix  = 0x0008 | RequiresFullMatrixExceptTranslate
+        RequiresFullMatrix  = 0x0008 | RequiresFullMatrixExceptTranslate,
+
+        CustomCompileStep   = 0x0010
     };
     Q_DECLARE_FLAGS(Flags, Flag)
 

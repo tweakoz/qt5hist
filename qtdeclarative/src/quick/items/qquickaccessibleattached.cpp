@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -52,7 +52,7 @@ QT_BEGIN_NAMESPACE
     \instantiates QQuickAccessibleAttached
     \brief Enables accessibility of QML items
 
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual-utility
     \ingroup accessibility
 
@@ -71,7 +71,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlproperty string QtQuick2::Accessible::name
+    \qmlproperty string QtQuick::Accessible::name
 
     This property sets an accessible name.
     For a button for example, this should have a binding to its text.
@@ -81,7 +81,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlproperty string QtQuick2::Accessible::description
+    \qmlproperty string QtQuick::Accessible::description
 
     This property sets an accessible description.
     Similar to the name it describes the item. The description
@@ -90,7 +90,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::Accessible::role
+    \qmlproperty enumeration QtQuick::Accessible::role
 
     This flags sets the semantic type of the widget.
     A button for example would have "Button" as type.

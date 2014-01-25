@@ -26,7 +26,7 @@ win32-msvc*: QMAKE_CXXFLAGS += -wd4396 -wd4099
 wince* {
     INCLUDEPATH += $$WEBKITDIR/JavaScriptCore/os-wince
     INCLUDEPATH += $$WEBKITDIR/JavaScriptCore/os-win32
-    LIBS += -lmmtimer
+    LIBS_PRIVATE += -lmmtimer
 }
 
 mac {
@@ -78,3 +78,5 @@ integrity {
 # WebKit doesn't compile in C++0x mode
 *-g++*:QMAKE_CXXFLAGS -= -std=c++0x -std=gnu++0x
 CONFIG -= c++11
+
+TR_EXCLUDE = $$WEBKITDIR/*

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -159,7 +159,7 @@ public:
                     };
 
     //Auxilliary functions needed to control the TextInput from QML
-    Q_INVOKABLE void positionAt(QQmlV8Function *args) const;
+    Q_INVOKABLE void positionAt(QQmlV4Function *args) const;
     Q_INVOKABLE QRectF positionToRectangle(int pos) const;
     Q_INVOKABLE void moveCursorSelection(int pos);
     Q_INVOKABLE void moveCursorSelection(int pos, SelectionMode mode);
@@ -284,6 +284,7 @@ Q_SIGNALS:
     void selectedTextChanged();
     void accepted();
     void acceptableInputChanged();
+    Q_REVISION(2) void editingFinished();
     void colorChanged();
     void selectionColorChanged();
     void selectedTextColorChanged();

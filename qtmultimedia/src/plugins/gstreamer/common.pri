@@ -23,12 +23,7 @@ maemo*:PKGCONFIG +=gstreamer-plugins-bad-0.10
 
 config_resourcepolicy {
     DEFINES += HAVE_RESOURCE_POLICY
-    PKGCONFIG += libresourceqt1
-}
-
-config_xvideo:qtHaveModule(widgets) {
-    DEFINES += HAVE_XVIDEO
-    LIBS += -lXv -lX11 -lXext
+    PKGCONFIG += libresourceqt5
 }
 
 config_gstreamer_appsrc {

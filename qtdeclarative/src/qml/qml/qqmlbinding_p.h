@@ -76,23 +76,17 @@ class Q_QML_PRIVATE_EXPORT QQmlBinding : public QQmlJavaScriptExpression,
                                          public QQmlAbstractBinding
 {
 public:
-    enum EvaluateFlag { None = 0x00, RequiresThisObject = 0x01 };
-    Q_DECLARE_FLAGS(EvaluateFlags, EvaluateFlag)
-
     QQmlBinding(const QString &, QObject *, QQmlContext *);
     QQmlBinding(const QQmlScriptString &, QObject *, QQmlContext *);
     QQmlBinding(const QString &, QObject *, QQmlContextData *);
-    QQmlBinding(const QString &, bool isRewritten, QObject *, QQmlContextData *, 
+    QQmlBinding(const QString &, QObject *, QQmlContextData *,
                 const QString &url, quint16 lineNumber, quint16 columnNumber);
-    QQmlBinding(void *, QObject *, QQmlContextData *,
+    QQmlBinding(const QV4::ValueRef, QObject *, QQmlContextData *,
                 const QString &url, quint16 lineNumber, quint16 columnNumber);
 
     void setTarget(const QQmlProperty &);
     void setTarget(QObject *, const QQmlPropertyData &, QQmlContextData *);
     QQmlProperty property() const;
-
-    void setEvaluateFlags(EvaluateFlags flags);
-    EvaluateFlags evaluateFlags() const;
 
     void setNotifyOnValueChanged(bool);
 
@@ -131,7 +125,7 @@ protected:
     ~QQmlBinding();
 
 private:
-    v8::Persistent<v8::Function> v8function;
+    QV4::PersistentValue v4function;
 
     inline bool updatingFlag() const;
     inline void setUpdatingFlag(bool);
@@ -176,8 +170,6 @@ void QQmlBinding::setEnabledFlag(bool v)
 {
     m_ctxt.setFlag2Value(v);
 }
-
-Q_DECLARE_OPERATORS_FOR_FLAGS(QQmlBinding::EvaluateFlags)
 
 QT_END_NAMESPACE
 

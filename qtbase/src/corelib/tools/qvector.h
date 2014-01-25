@@ -56,6 +56,8 @@
 #include <initializer_list>
 #endif
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 class QRegion;
@@ -150,6 +152,11 @@ public:
     bool contains(const T &t) const;
     int count(const T &t) const;
 
+    // QList compatibility
+    void removeAt(int i) { remove(i); }
+    int length() const { return size(); }
+    T takeAt(int i) { T t = at(i); remove(i); return t; }
+
     // STL-style
     typedef typename Data::iterator iterator;
     typedef typename Data::const_iterator const_iterator;
@@ -185,7 +192,7 @@ public:
     inline const T &last() const { Q_ASSERT(!isEmpty()); return *(end()-1); }
     inline bool startsWith(const T &t) const { return !isEmpty() && first() == t; }
     inline bool endsWith(const T &t) const { return !isEmpty() && last() == t; }
-    QVector<T> mid(int pos, int length = -1) const;
+    QVector<T> mid(int pos, int len = -1) const;
 
     T value(int i) const;
     T value(int i, const T &defaultValue) const;
@@ -227,18 +234,22 @@ public:
     static QVector<T> fromList(const QList<T> &list);
 
     static inline QVector<T> fromStdVector(const std::vector<T> &vector)
-    { QVector<T> tmp; tmp.reserve(int(vector.size())); qCopy(vector.begin(), vector.end(), std::back_inserter(tmp)); return tmp; }
+    { QVector<T> tmp; tmp.reserve(int(vector.size())); std::copy(vector.begin(), vector.end(), std::back_inserter(tmp)); return tmp; }
     inline std::vector<T> toStdVector() const
-    { std::vector<T> tmp; tmp.reserve(size()); qCopy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
+    { std::vector<T> tmp; tmp.reserve(size()); std::copy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
 private:
     friend class QRegion; // Optimization for QRegion::rects()
 
     void reallocData(const int size, const int alloc, QArrayData::AllocationOptions options = QArrayData::Default);
+    void reallocData(const int sz) { reallocData(sz, d->alloc); }
     void freeData(Data *d);
     void defaultConstruct(T *from, T *to);
     void copyConstruct(const T *srcFrom, const T *srcTo, T *dstFrom);
     void destruct(T *from, T *to);
-
+    bool isValidIterator(const iterator &i) const
+    {
+        return (i <= d->end()) && (d->begin() <= i);
+    }
     class AlignmentDummy { Data header; T array[1]; };
 };
 
@@ -532,7 +543,7 @@ void QVector<T>::reallocData(const int asize, const int aalloc, QArrayData::Allo
 template<typename T>
 Q_OUTOFLINE_TEMPLATE T QVector<T>::value(int i) const
 {
-    if (i < 0 || i >= d->size) {
+    if (uint(i) >= uint(d->size)) {
         return T();
     }
     return d->begin()[i];
@@ -540,7 +551,7 @@ Q_OUTOFLINE_TEMPLATE T QVector<T>::value(int i) const
 template<typename T>
 Q_OUTOFLINE_TEMPLATE T QVector<T>::value(int i, const T &defaultValue) const
 {
-    return ((i < 0 || i >= d->size) ? defaultValue : d->begin()[i]);
+    return uint(i) >= uint(d->size) ? defaultValue : d->begin()[i];
 }
 
 template <typename T>
@@ -560,24 +571,25 @@ void QVector<T>::append(const T &t)
 }
 
 template <typename T>
-inline void QVector<T>::removeLast()
+void QVector<T>::removeLast()
 {
     Q_ASSERT(!isEmpty());
+    Q_ASSERT(d->alloc);
 
-    if (d->alloc) {
-        if (d->ref.isShared()) {
-            reallocData(d->size - 1, int(d->alloc));
-            return;
-        }
-        if (QTypeInfo<T>::isComplex)
-            (d->data() + d->size - 1)->~T();
+    if (!d->ref.isShared()) {
         --d->size;
+        if (QTypeInfo<T>::isComplex)
+            (d->data() + d->size)->~T();
+    } else {
+        reallocData(d->size - 1);
     }
 }
 
 template <typename T>
 typename QVector<T>::iterator QVector<T>::insert(iterator before, size_type n, const T &t)
 {
+    Q_ASSERT_X(isValidIterator(before),  "QVector::insert", "The specified iterator argument 'before' is invalid");
+
     int offset = std::distance(d->begin(), before);
     if (n != 0) {
         const T copy(t);
@@ -611,6 +623,9 @@ typename QVector<T>::iterator QVector<T>::insert(iterator before, size_type n, c
 template <typename T>
 typename QVector<T>::iterator QVector<T>::erase(iterator abegin, iterator aend)
 {
+    Q_ASSERT_X(isValidIterator(abegin), "QVector::erase", "The specified iterator argument 'abegin' is invalid");
+    Q_ASSERT_X(isValidIterator(aend), "QVector::erase", "The specified iterator argument 'aend' is invalid");
+
     const int itemsToErase = aend - abegin;
 
     if (!itemsToErase)
@@ -634,7 +649,7 @@ typename QVector<T>::iterator QVector<T>::erase(iterator abegin, iterator aend)
             iterator moveEnd = d->end();
             while (moveBegin != moveEnd) {
                 if (QTypeInfo<T>::isComplex)
-                    abegin->~T();
+                    static_cast<T *>(abegin)->~T();
                 new (abegin++) T(*moveBegin++);
             }
             if (abegin < d->end()) {
@@ -762,17 +777,17 @@ int QVector<T>::count(const T &t) const
 }
 
 template <typename T>
-Q_OUTOFLINE_TEMPLATE QVector<T> QVector<T>::mid(int pos, int length) const
+Q_OUTOFLINE_TEMPLATE QVector<T> QVector<T>::mid(int pos, int len) const
 {
-    if (length < 0)
-        length = size() - pos;
-    if (pos == 0 && length == size())
+    if (len < 0)
+        len = size() - pos;
+    if (pos == 0 && len == size())
         return *this;
-    if (pos + length > size())
-        length = size() - pos;
+    if (pos + len > size())
+        len = size() - pos;
     QVector<T> copy;
-    copy.reserve(length);
-    for (int i = pos; i < pos + length; ++i)
+    copy.reserve(len);
+    for (int i = pos; i < pos + len; ++i)
         copy += at(i);
     return copy;
 }

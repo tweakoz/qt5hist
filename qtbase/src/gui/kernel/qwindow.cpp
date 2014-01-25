@@ -126,8 +126,8 @@ QT_BEGIN_NAMESPACE
     to a window with type QSurface::RasterSurface, and QOpenGLContext for
     rendering with OpenGL to a window with type QSurface::OpenGLSurface.
 
-    The application can start rendering as soon as isExposed() returns true,
-    and can keep rendering until it isExposed() returns false. To find out when
+    The application can start rendering as soon as isExposed() returns \c true,
+    and can keep rendering until it isExposed() returns \c false. To find out when
     isExposed() changes, reimplement exposeEvent(). The window will always get
     a resize event before the first expose event.
 
@@ -227,6 +227,8 @@ QWindow::~QWindow()
         QGuiApplicationPrivate::focus_window = 0;
     if (QGuiApplicationPrivate::currentMouseWindow == this)
         QGuiApplicationPrivate::currentMouseWindow = 0;
+    if (QGuiApplicationPrivate::tabletPressTarget == this)
+        QGuiApplicationPrivate::tabletPressTarget = 0;
     QGuiApplicationPrivate::window_list.removeAll(this);
     destroy();
 }
@@ -348,8 +350,9 @@ void QWindowPrivate::updateVisibility()
 void QWindowPrivate::setScreen(QScreen *newScreen, bool recreate)
 {
     Q_Q(QWindow);
-    if (newScreen != q->screen()) {
-        const bool shouldRecreate = recreate && platformWindow != 0;
+    if (newScreen != screen) {
+        const bool shouldRecreate = recreate && platformWindow != 0
+            && !(screen && screen->virtualSiblings().contains(newScreen));
         if (shouldRecreate)
             q->destroy();
         if (screen)
@@ -362,6 +365,10 @@ void QWindowPrivate::setScreen(QScreen *newScreen, bool recreate)
         }
         emit q->screenChanged(newScreen);
     }
+}
+
+void QWindowPrivate::clearFocusObject()
+{
 }
 
 /*!
@@ -501,10 +508,7 @@ WId QWindow::winId() const
     if(!d->platformWindow)
         const_cast<QWindow *>(this)->create();
 
-    WId id = d->platformWindow->winId();
-    // See the QPlatformWindow::winId() documentation
-    Q_ASSERT(id != WId(0));
-    return id;
+    return d->platformWindow->winId();
 }
 
 /*!
@@ -905,7 +909,7 @@ bool QWindow::isExposed() const
 */
 
 /*!
-    Returns true if the window should appear active from a style perspective.
+    Returns \c true if the window should appear active from a style perspective.
 
     This is the case for the window that has input focus as well as windows
     that are in the same parent / transient parent chain as the focus window.
@@ -958,11 +962,9 @@ void QWindow::reportContentOrientationChange(Qt::ScreenOrientation orientation)
     Q_D(QWindow);
     if (d->contentOrientation == orientation)
         return;
-    if (!d->platformWindow)
-        create();
-    Q_ASSERT(d->platformWindow);
+    if (d->platformWindow)
+        d->platformWindow->handleContentOrientationChange(orientation);
     d->contentOrientation = orientation;
-    d->platformWindow->handleContentOrientationChange(orientation);
     emit contentOrientationChanged(orientation);
 }
 
@@ -984,8 +986,13 @@ Qt::ScreenOrientation QWindow::contentOrientation() const
 qreal QWindow::devicePixelRatio() const
 {
     Q_D(const QWindow);
+
+    // If there is no platform window, do the second best thing and
+    // return the app global devicePixelRatio. This is the highest
+    // devicePixelRatio found on the system screens, and will be
+    // correct for single-display systems (a very common case).
     if (!d->platformWindow)
-        return 1.0;
+        return qApp->devicePixelRatio();
     return d->platformWindow->devicePixelRatio();
 }
 
@@ -1071,7 +1078,7 @@ QWindow *QWindow::transientParent() const
 */
 
 /*!
-    Returns true if the window is an ancestor of the given \a child. If \a mode
+    Returns \c true if the window is an ancestor of the given \a child. If \a mode
     is IncludeTransients, then transient parents are also considered ancestors.
 */
 bool QWindow::isAncestorOf(const QWindow *child, AncestorMode mode) const
@@ -1644,17 +1651,18 @@ QObject *QWindow::focusObject() const
 /*!
     Shows the window.
 
-    This equivalent to calling showFullScreen() or showNormal(), depending
-    on whether the platform defaults to windows being fullscreen or not, and
-    whether the window is a popup.
+    This is equivalent to calling showFullScreen(), showMaximized(), or showNormal(),
+    depending on the platform's default behavior for the window type and flags.
 
-    \sa showFullScreen(), showNormal(), hide(), QStyleHints::showIsFullScreen(), flags()
+    \sa showFullScreen(), showMaximized(), showNormal(), hide(), QStyleHints::showIsFullScreen(), flags()
 */
 void QWindow::show()
 {
-    bool isPopup = d_func()->windowFlags & Qt::Popup & ~Qt::Window;
-    if (!isPopup && qApp->styleHints()->showIsFullScreen())
+    Qt::WindowState defaultState = QGuiApplicationPrivate::platformIntegration()->defaultWindowState(d_func()->windowFlags);
+    if (defaultState == Qt::WindowFullScreen)
         showFullScreen();
+    else if (defaultState == Qt::WindowMaximized)
+        showMaximized();
     else
         showNormal();
 }
@@ -1732,7 +1740,7 @@ void QWindow::showNormal()
     Close the window.
 
     This closes the window, effectively calling destroy(), and potentially
-    quitting the application. Returns true on success, false if it has a parent
+    quitting the application. Returns \c true on success, false if it has a parent
     window (in which case the top level window should be closed instead).
 
     \sa destroy(), QGuiApplication::quitOnLastWindowClosed()
@@ -1781,7 +1789,7 @@ void QWindow::exposeEvent(QExposeEvent *ev)
 }
 
 /*!
-    Override this to handle mouse events (\a ev).
+    Override this to handle window move events (\a ev).
 */
 void QWindow::moveEvent(QMoveEvent *ev)
 {

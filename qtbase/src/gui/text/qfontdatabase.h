@@ -60,6 +60,7 @@ class Q_GUI_EXPORT QFontDatabase
 {
     Q_GADGET
     Q_ENUMS(WritingSystem)
+    Q_ENUMS(SystemFont)
 public:
     // do not re-order or delete entries from this enum without updating the
     // QPF2 format and makeqpf!!
@@ -106,6 +107,13 @@ public:
         WritingSystemsCount
     };
 
+    enum SystemFont {
+        GeneralFont,
+        FixedFont,
+        TitleFont,
+        SmallestReadableFont
+    };
+
     static QList<int> standardSizes();
 
     QFontDatabase();
@@ -142,7 +150,11 @@ public:
     static bool removeApplicationFont(int id);
     static bool removeAllApplicationFonts();
 
-    static bool supportsThreadedFontRendering();
+#if QT_DEPRECATED_SINCE(5, 2)
+    QT_DEPRECATED static bool supportsThreadedFontRendering();
+#endif
+
+    static QFont systemFont(SystemFont type);
 
 private:
     static void createDatabase();

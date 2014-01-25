@@ -55,6 +55,8 @@ QQuickMenuBase::QQuickMenuBase(QObject *parent)
     : QObject(parent), m_visible(true), m_parentMenu(0), m_container(0), m_visualItem(0)
 {
     m_platformItem = QGuiApplicationPrivate::platformTheme()->createPlatformMenuItem();
+    if (m_platformItem)
+        m_platformItem->setRole(QPlatformMenuItem::TextHeuristicRole);
 }
 
 QQuickMenuBase::~QQuickMenuBase()
@@ -80,6 +82,13 @@ void QQuickMenuBase::setVisible(bool v)
 
         emit visibleChanged();
     }
+}
+
+QObject *QQuickMenuBase::parentMenuOrMenuBar() const
+{
+    if (!m_parentMenu)
+        return parent();
+    return m_parentMenu;
 }
 
 QQuickMenu *QQuickMenuBase::parentMenu() const
@@ -126,7 +135,7 @@ void QQuickMenuBase::setVisualItem(QQuickItem *item)
 /*!
     \qmltype MenuSeparator
     \instantiates QQuickMenuSeparator
-    \inqmlmodule QtQuick.Controls 1.0
+    \inqmlmodule QtQuick.Controls
     \ingroup menus
     \brief MenuSeparator provides a separator for items inside a menu.
 
@@ -244,7 +253,7 @@ void QQuickMenuText::updateIcon()
     \qmltype MenuItem
     \instantiates QQuickMenuItem
     \ingroup menus
-    \inqmlmodule QtQuick.Controls 1.0
+    \inqmlmodule QtQuick.Controls
     \brief MenuItem provides an item to add in a menu or a menu bar.
 
     \code
@@ -340,9 +349,20 @@ void QQuickMenuText::updateIcon()
 */
 
 /*!
-    \qmlproperty string MenuItem::shortcut
+    \qmlproperty keysequence MenuItem::shortcut
 
-    Shorcut bound to the menu item. Defaults to the empty string.
+    Shortcut bound to the menu item. The keysequence can be a string
+    or a \l {QKeySequence::StandardKey}{standard key}.
+
+    Defaults to an empty string.
+
+    \qml
+    MenuItem {
+        id: copyItem
+        text: qsTr("&Copy")
+        shortcut: StandardKey.Copy
+    }
+    \endqml
 
     \sa Action::shortcut
 */
@@ -401,7 +421,7 @@ QQuickMenuItem::QQuickMenuItem(QObject *parent)
 {
     connect(this, SIGNAL(__textChanged()), this, SIGNAL(textChanged()));
 
-    connect(action(), SIGNAL(shortcutChanged(QString)), this, SLOT(updateShortcut()));
+    connect(action(), SIGNAL(shortcutChanged(QVariant)), this, SLOT(updateShortcut()));
     connect(action(), SIGNAL(triggered()), this, SIGNAL(triggered()));
     connect(action(), SIGNAL(toggled(bool)), this, SLOT(updateChecked()));
     if (platformItem())
@@ -433,7 +453,7 @@ void QQuickMenuItem::bindToAction(QQuickAction *action)
     connect(m_boundAction, SIGNAL(exclusiveGroupChanged()), this, SIGNAL(exclusiveGroupChanged()));
     connect(m_boundAction, SIGNAL(enabledChanged()), this, SLOT(updateEnabled()));
     connect(m_boundAction, SIGNAL(textChanged()), this, SLOT(updateText()));
-    connect(m_boundAction, SIGNAL(shortcutChanged(QString)), this, SLOT(updateShortcut()));
+    connect(m_boundAction, SIGNAL(shortcutChanged(QVariant)), this, SLOT(updateShortcut()));
     connect(m_boundAction, SIGNAL(checkableChanged()), this, SIGNAL(checkableChanged()));
     connect(m_boundAction, SIGNAL(iconNameChanged()), this, SLOT(updateIcon()));
     connect(m_boundAction, SIGNAL(iconNameChanged()), this, SIGNAL(iconNameChanged()));
@@ -469,7 +489,7 @@ void QQuickMenuItem::unbindFromAction(QObject *o)
     disconnect(action, SIGNAL(exclusiveGroupChanged()), this, SIGNAL(exclusiveGroupChanged()));
     disconnect(action, SIGNAL(enabledChanged()), this, SLOT(updateEnabled()));
     disconnect(action, SIGNAL(textChanged()), this, SLOT(updateText()));
-    disconnect(action, SIGNAL(shortcutChanged(QString)), this, SLOT(updateShortcut()));
+    disconnect(action, SIGNAL(shortcutChanged(QVariant)), this, SLOT(updateShortcut()));
     disconnect(action, SIGNAL(checkableChanged()), this, SIGNAL(checkableChanged()));
     disconnect(action, SIGNAL(iconNameChanged()), this, SLOT(updateIcon()));
     disconnect(action, SIGNAL(iconNameChanged()), this, SIGNAL(iconNameChanged()));
@@ -532,12 +552,12 @@ QIcon QQuickMenuItem::icon() const
     return m_boundAction ? m_boundAction->icon() : QIcon();
 }
 
-QString QQuickMenuItem::shortcut() const
+QVariant QQuickMenuItem::shortcut() const
 {
     return action()->shortcut();
 }
 
-void QQuickMenuItem::setShortcut(const QString &shortcut)
+void QQuickMenuItem::setShortcut(const QVariant &shortcut)
 {
     if (!m_boundAction)
         action()->setShortcut(shortcut);
@@ -546,7 +566,13 @@ void QQuickMenuItem::setShortcut(const QString &shortcut)
 void QQuickMenuItem::updateShortcut()
 {
     if (platformItem()) {
-        platformItem()->setShortcut(QKeySequence(shortcut()));
+        QKeySequence sequence;
+        QVariant var = shortcut();
+        if (var.type() == QVariant::Int)
+            sequence = QKeySequence(static_cast<QKeySequence::StandardKey>(var.toInt()));
+        else
+            sequence = QKeySequence::fromString(var.toString(), QKeySequence::NativeText);
+        platformItem()->setShortcut(sequence);
         syncWithPlatformMenu();
     }
     emit shortcutChanged();
@@ -604,7 +630,7 @@ void QQuickMenuItem::setEnabled(bool enabled)
 
 void QQuickMenuItem::trigger()
 {
-    action()->trigger();
+    action()->trigger(this);
 }
 
 QT_END_NAMESPACE

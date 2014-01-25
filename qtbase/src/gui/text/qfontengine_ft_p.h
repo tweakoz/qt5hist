@@ -63,10 +63,6 @@
 #include <unistd.h>
 #endif
 
-#ifndef QT_NO_FONTCONFIG
-#include <fontconfig/fontconfig.h>
-#endif
-
 #include <qmutex.h>
 
 QT_BEGIN_NAMESPACE
@@ -75,11 +71,12 @@ class QFontEngineFTRawFont;
 class QFontconfigDatabase;
 
 /*
- * This struct represents one font file on disk (like Arial.ttf) and is shared between all the font engines
+ * This class represents one font file on disk (like Arial.ttf) and is shared between all the font engines
  * that show this font file (at different pixel sizes).
  */
-struct QFreetypeFace
+class QFreetypeFace
 {
+public:
     void computeSize(const QFontDef &fontDef, int *xsize, int *ysize, bool *outline_drawing);
     QFontEngine::Properties properties() const;
     bool getSfntTable(uint tag, uchar *buffer, uint *length) const;
@@ -99,7 +96,6 @@ struct QFreetypeFace
     }
 
     FT_Face face;
-    void *hbFace;
     int xsize; // 26.6
     int ysize; // 26.6
     FT_Matrix matrix;
@@ -124,6 +120,9 @@ private:
     QAtomicInt ref;
     QMutex _lock;
     QByteArray fontData;
+
+    void *hbFace;
+    qt_destroy_func_t hbFace_destroy_func;
 };
 
 // If this is exported this breaks compilation of the windows

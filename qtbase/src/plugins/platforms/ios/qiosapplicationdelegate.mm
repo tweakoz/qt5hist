@@ -39,58 +39,74 @@
 **
 ****************************************************************************/
 
-#import "qiosapplicationdelegate.h"
+#include "qiosapplicationdelegate.h"
+
+#include "qiosintegration.h"
+#include "qiosservices.h"
+#include "qiosviewcontroller.h"
 #include "qioswindow.h"
+
+#include <QtGui/private/qguiapplication_p.h>
+#include <qpa/qplatformintegration.h>
+
 #include <QtCore/QtCore>
 
 @implementation QIOSApplicationDelegate
 
 @synthesize window;
-@synthesize qiosViewController;
 
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions
 {
-    Q_UNUSED(application)
-    Q_UNUSED(launchOptions)
+    Q_UNUSED(application);
+    Q_UNUSED(launchOptions);
+
+    self.window = [[[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]] autorelease];
+    self.window.rootViewController = [[[QIOSViewController alloc] init] autorelease];
+
+#if QT_IOS_DEPLOYMENT_TARGET_BELOW(__IPHONE_7_0)
+    QSysInfo::MacVersion iosVersion = QSysInfo::MacintoshVersion;
+
+    // We prefer to keep the root viewcontroller in fullscreen layout, so that
+    // we don't have to compensate for the viewcontroller position. This also
+    // gives us the same behavior on iOS 5/6 as on iOS 7, where full screen layout
+    // is the only way.
+    if (iosVersion < QSysInfo::MV_IOS_7_0)
+        self.window.rootViewController.wantsFullScreenLayout = YES;
+
+    // Use translucent statusbar by default on iOS6 iPhones (unless the user changed
+    // the default in the Info.plist), so that windows placed under the stausbar are
+    // still visible, just like on iOS7.
+    if (iosVersion >= QSysInfo::MV_IOS_6_0 && iosVersion < QSysInfo::MV_IOS_7_0
+        && [UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPhone
+        && [UIApplication sharedApplication].statusBarStyle == UIStatusBarStyleDefault)
+        [[UIApplication sharedApplication] setStatusBarStyle:UIStatusBarStyleBlackTranslucent];
+#endif
+
+    self.window.hidden = NO;
 
     return YES;
 }
 
-- (void)applicationWillResignActive:(UIApplication *)application
+- (BOOL)application:(UIApplication *)application openURL:(NSURL *)url sourceApplication:(NSString *)sourceApplication annotation:(id)annotation
 {
-    Q_UNUSED(application)
-}
+    Q_UNUSED(application);
+    Q_UNUSED(sourceApplication);
+    Q_UNUSED(annotation);
 
-- (void)applicationDidEnterBackground:(UIApplication *)application
-{
-    Q_UNUSED(application)
-}
+    if (!QGuiApplication::instance())
+        return NO;
 
-- (void)applicationWillEnterForeground:(UIApplication *)application
-{
-    Q_UNUSED(application)
-    // Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.
-}
+    QIOSIntegration *iosIntegration = static_cast<QIOSIntegration *>(QGuiApplicationPrivate::platformIntegration());
+    QIOSServices *iosServices = static_cast<QIOSServices *>(iosIntegration->services());
 
-- (void)applicationDidBecomeActive:(UIApplication *)application
-{
-    Q_UNUSED(application)
-    // Restart any tasks that were paused (or not yet started) while the application was inactive. If the application was previously in the background, optionally refresh the user interface.
-}
-
-- (void)applicationWillTerminate:(UIApplication *)application
-{
-    Q_UNUSED(application)
-    // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
+    return iosServices->handleUrl(QUrl::fromNSURL(url));
 }
 
 - (void)dealloc
 {
-    [qiosViewController release];
     [window release];
     [super dealloc];
 }
 
 @end
-
 

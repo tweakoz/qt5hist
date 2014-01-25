@@ -69,6 +69,7 @@ public:
     void setWidgetResizable(bool resizable);
 
     QSize sizeHint() const;
+
     bool focusNextPrevChild(bool next);
 
     Qt::Alignment alignment() const;
@@ -83,6 +84,8 @@ protected:
     bool eventFilter(QObject *, QEvent *);
     void resizeEvent(QResizeEvent *);
     void scrollContentsBy(int dx, int dy);
+
+    QSize viewportSizeHint() const Q_DECL_OVERRIDE;
 
 private:
     Q_DECLARE_PRIVATE(QScrollArea)

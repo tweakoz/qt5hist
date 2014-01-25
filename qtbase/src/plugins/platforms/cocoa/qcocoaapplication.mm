@@ -87,12 +87,12 @@ QT_USE_NAMESPACE
 
 - (void)QT_MANGLE_NAMESPACE(qt_setDockMenu):(NSMenu *)newMenu
 {
-    [[QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) sharedDelegate] setDockMenu:newMenu];
+    [[QCocoaApplicationDelegate sharedDelegate] setDockMenu:newMenu];
 }
 
 - (QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *)QT_MANGLE_NAMESPACE(qt_qcocoamenuLoader)
 {
-    return [[QT_MANGLE_NAMESPACE(QCocoaApplicationDelegate) sharedDelegate] menuLoader];
+    return [[QCocoaApplicationDelegate sharedDelegate] menuLoader];
 }
 
 - (int)QT_MANGLE_NAMESPACE(qt_validModesForFontPanel):(NSFontPanel *)fontPanel
@@ -115,8 +115,8 @@ QT_USE_NAMESPACE
     QCocoaPostMessageArgs *args = reinterpret_cast<QCocoaPostMessageArgs *>(lower | (upper << 32));
     // Special case for convenience: if the argument is an NSNumber, we unbox it directly.
     // Use NSValue instead if this behaviour is unwanted.
-    id a1 = ([args->arg1 isKindOfClass:[NSNumber class]]) ? (id)[args->arg1 intValue] : args->arg1;
-    id a2 = ([args->arg2 isKindOfClass:[NSNumber class]]) ? (id)[args->arg2 intValue] : args->arg2;
+    id a1 = ([args->arg1 isKindOfClass:[NSNumber class]]) ? (id)[args->arg1 longValue] : args->arg1;
+    id a2 = ([args->arg2 isKindOfClass:[NSNumber class]]) ? (id)[args->arg2 longValue] : args->arg2;
     switch (args->argCount) {
     case 0:
         [args->target performSelector:args->selector];
@@ -155,7 +155,7 @@ static const QByteArray q_macLocalEventType = QByteArrayLiteral("mac_generic_NSE
 
 @end
 
-@implementation QT_MANGLE_NAMESPACE(QNSApplication)
+@implementation QNSApplication
 
 - (void)qt_sendEvent_original:(NSEvent *)event
 {
@@ -189,7 +189,7 @@ QT_BEGIN_NAMESPACE
 
 void qt_redirectNSApplicationSendEvent()
 {
-    if ([NSApp isMemberOfClass:[QT_MANGLE_NAMESPACE(QNSApplication) class]]) {
+    if ([NSApp isMemberOfClass:[QNSApplication class]]) {
         // No need to change implementation since Qt
         // already controls a subclass of NSApplication
         return;
@@ -202,7 +202,7 @@ void qt_redirectNSApplicationSendEvent()
     qt_cocoa_change_implementation(
             [NSApplication class],
             @selector(sendEvent:),
-            [QT_MANGLE_NAMESPACE(QNSApplication) class],
+            [QNSApplication class],
             @selector(qt_sendEvent_replacement:),
             @selector(qt_sendEvent_original:));
  }

@@ -1,5 +1,5 @@
 TARGET = QtMultimedia
-QT = core-private network gui
+QT = core-private network gui-private
 
 QMAKE_DOCS = $$PWD/doc/qtmultimedia.qdocconf
 
@@ -52,20 +52,24 @@ include(recording/recording.pri)
 include(video/video.pri)
 
 ANDROID_BUNDLED_JAR_DEPENDENCIES = \
-    jar/QtMultimedia-bundled.jar
+    jar/QtMultimedia-bundled.jar:org.qtproject.qt5.android.multimedia.QtMultimediaUtils
 ANDROID_JAR_DEPENDENCIES = \
-    jar/QtMultimedia.jar
+    jar/QtMultimedia.jar:org.qtproject.qt5.android.multimedia.QtMultimediaUtils
 ANDROID_LIB_DEPENDENCIES = \
-    plugins/mediaservice/libandroidmediaplayer.so \
+    plugins/mediaservice/libqtmedia_android.so \
     lib/libQt5MultimediaQuick_p.so:Qt5Quick
 ANDROID_BUNDLED_FILES += \
     lib/libQt5MultimediaQuick_p.so
+ANDROID_PERMISSIONS += \
+    android.permission.CAMERA \
+    android.permission.RECORD_AUDIO
+ANDROID_FEATURES += \
+    android.hardware.camera
 MODULE_PLUGIN_TYPES = \
-    mediaservice
+    mediaservice \
+    audio \
+    video/videonode
 
-mac {
-   LIBS += -framework AppKit -framework QuartzCore -framework QTKit
-}
-win32:LIBS += -luuid
+win32: LIBS_PRIVATE += -luuid
 
 HEADERS += $$PUBLIC_HEADERS $$PRIVATE_HEADERS

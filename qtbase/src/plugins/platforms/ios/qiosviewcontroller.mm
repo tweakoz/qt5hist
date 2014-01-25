@@ -42,52 +42,74 @@
 #import "qiosviewcontroller.h"
 
 #include <QtGui/QGuiApplication>
+#include <QtGui/QWindow>
 #include <QtGui/QScreen>
 #include "qiosscreen.h"
 #include "qiosglobal.h"
+#include "qioswindow.h"
 
 @implementation QIOSViewController
 
-- (void)viewDidLoad
-{
-#ifdef QT_DEBUG
-    if (!self.nibName)
-        self.view.backgroundColor = [UIColor magentaColor];
-#endif
-}
-
 -(BOOL)shouldAutorotate
 {
-    // For now we assume that if the application doesn't listen to orientation
-    // updates it means it would like to enable auto-rotation, and vice versa.
-    if (QGuiApplication *guiApp = qobject_cast<QGuiApplication *>(qApp))
-        return !guiApp->primaryScreen()->orientationUpdateMask();
-    else
-        return YES; // Startup case: QGuiApplication is not ready yet.
-
-    // FIXME: Investigate a proper Qt API for auto-rotation and orientation locking
+    // Until a proper orientation and rotation API is in place, we always auto rotate.
+    // If auto rotation is not wanted, you would need to switch it off manually from Info.plist.
+    return YES;
 }
 
+#if QT_IOS_PLATFORM_SDK_EQUAL_OR_ABOVE(__IPHONE_6_0)
 -(NSUInteger)supportedInterfaceOrientations
 {
     // We need to tell iOS that we support all orientations in order to set
     // status bar orientation when application content orientation changes.
     return UIInterfaceOrientationMaskAll;
 }
+#endif
 
-- (void)willRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration
+#if QT_IOS_DEPLOYMENT_TARGET_BELOW(__IPHONE_6_0)
+-(BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation
+{
+    Q_UNUSED(interfaceOrientation);
+    return YES;
+}
+#endif
+
+- (void)willAnimateRotationToInterfaceOrientation:(UIInterfaceOrientation)interfaceOrientation duration:(NSTimeInterval)duration
 {
     Q_UNUSED(duration);
+    Q_UNUSED(interfaceOrientation);
 
     if (!QCoreApplication::instance())
         return; // FIXME: Store orientation for later (?)
 
-    Qt::ScreenOrientation orientation = toQtScreenOrientation(UIDeviceOrientation(toInterfaceOrientation));
-    if (orientation == -1)
-        return;
-
     QIOSScreen *qiosScreen = static_cast<QIOSScreen *>(QGuiApplication::primaryScreen()->handle());
-    qiosScreen->setPrimaryOrientation(orientation);
+    qiosScreen->updateProperties();
+}
+
+#if QT_IOS_PLATFORM_SDK_EQUAL_OR_ABOVE(__IPHONE_7_0)
+- (UIStatusBarStyle)preferredStatusBarStyle
+{
+    // Since we don't place anything behind the status bare by default, we
+    // end up with a black area, so we have to enable the white text mode
+    // of the iOS7 statusbar.
+    return UIStatusBarStyleLightContent;
+
+    // FIXME: Try to detect the content underneath the statusbar and choose
+    // an appropriate style, and/or expose Qt APIs to control the style.
+}
+#endif
+
+- (BOOL)prefersStatusBarHidden
+{
+    static bool hiddenFromPlist = infoPlistValue(@"UIStatusBarHidden", false);
+    if (hiddenFromPlist)
+        return YES;
+    QWindow *focusWindow = QGuiApplication::focusWindow();
+    if (!focusWindow || !focusWindow->handle())
+        return [UIApplication sharedApplication].statusBarHidden;
+
+    QWindow *topLevel = static_cast<QIOSWindow *>(focusWindow->handle())->topLevelWindow();
+    return topLevel->windowState() == Qt::WindowFullScreen;
 }
 
 @end

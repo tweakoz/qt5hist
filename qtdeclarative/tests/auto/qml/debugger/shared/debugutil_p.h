@@ -95,6 +95,9 @@ public:
     bool waitForSessionStart();
     int debugPort() const;
 
+    bool waitForFinished();
+    QProcess::ExitStatus exitStatus() const;
+
     QString output() const;
     void stop();
 
@@ -104,6 +107,7 @@ signals:
 private slots:
     void timeout();
     void processAppOutput();
+    void processError(QProcess::ProcessError error);
 
 private:
     QString m_executable;

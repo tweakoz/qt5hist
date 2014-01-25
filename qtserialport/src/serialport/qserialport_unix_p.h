@@ -45,31 +45,65 @@
 
 #include "qserialport_p.h"
 
+#include <QtCore/qlockfile.h>
+#include <QtCore/qscopedpointer.h>
+#include <QtCore/qfileinfo.h>
+#include <QtCore/qstringlist.h>
+
 #include <limits.h>
 #include <termios.h>
+#ifndef Q_OS_ANDROID
 #ifdef Q_OS_LINUX
 #  include <linux/serial.h>
 #endif
+#else
+struct serial_struct {
+    int     type;
+    int     line;
+    unsigned int    port;
+    int     irq;
+    int     flags;
+    int     xmit_fifo_size;
+    int     custom_divisor;
+    int     baud_base;
+    unsigned short  close_delay;
+    char    io_type;
+    char    reserved_char[1];
+    int     hub6;
+    unsigned short  closing_wait;
+    unsigned short  closing_wait2;
+    unsigned char   *iomem_base;
+    unsigned short  iomem_reg_shift;
+    unsigned int    port_high;
+    unsigned long   iomap_base;
+};
+#define ASYNC_SPD_CUST  0x0030
+#define ASYNC_SPD_MASK  0x1030
+#endif
 
 QT_BEGIN_NAMESPACE
+
+QString serialPortLockFilePath(const QString &portName);
 
 class QSocketNotifier;
 
 class QSerialPortPrivate : public QSerialPortPrivateData
 {
+    Q_DECLARE_PUBLIC(QSerialPort)
+
 public:
     QSerialPortPrivate(QSerialPort *q);
 
     bool open(QIODevice::OpenMode mode);
     void close();
 
-    QSerialPort::PinoutSignals pinoutSignals() const;
+    QSerialPort::PinoutSignals pinoutSignals();
 
     bool setDataTerminalReady(bool set);
     bool setRequestToSend(bool set);
 
     bool flush();
-    bool clear(QSerialPort::Directions dir);
+    bool clear(QSerialPort::Directions directions);
 
     bool sendBreak(int duration);
     bool setBreakEnabled(bool set);
@@ -85,7 +119,7 @@ public:
     bool waitForReadyRead(int msecs);
     bool waitForBytesWritten(int msecs);
 
-    bool setBaudRate(qint32 baudRate, QSerialPort::Directions dir);
+    bool setBaudRate(qint32 baudRate, QSerialPort::Directions directions);
     bool setDataBits(QSerialPort::DataBits dataBits);
     bool setParity(QSerialPort::Parity parity);
     bool setStopBits(QSerialPort::StopBits stopBits);
@@ -94,7 +128,7 @@ public:
 
     bool readNotification();
     bool writeNotification(int maxSize = INT_MAX);
-    bool exceptionNotification();
+    void exceptionNotification();
 
     static QString portNameToSystemLocation(const QString &port);
     static QString portNameFromSystemLocation(const QString &location);
@@ -123,6 +157,8 @@ public:
 
     bool emittedReadyRead;
     bool emittedBytesWritten;
+
+    QScopedPointer<QLockFile> lockFileScopedPointer;
 
 private:
     bool updateTermios();

@@ -71,7 +71,7 @@
 #include <private/qv8engine_p.h>
 #include <private/qflagpointer_p.h>
 
-#include <private/qv8_p.h>
+#include <private/qv4value_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -119,9 +119,8 @@ struct QQmlVMEMetaData
     };
 
     struct MethodData {
+        int runtimeFunctionIndex;
         int parameterCount;
-        int bodyOffset;
-        int bodyLength;
         quint16 lineNumber;
     };
 
@@ -153,24 +152,23 @@ public:
     int m_index : 31;
 };
 
-class QV8QObjectWrapper;
 class QQmlVMEVariant;
 class QQmlRefCount;
 class QQmlVMEMetaObjectEndpoint;
-class Q_QML_PRIVATE_EXPORT QQmlVMEMetaObject : public QAbstractDynamicMetaObject,
-                                                    public QV8GCCallback::Node
+class Q_QML_PRIVATE_EXPORT QQmlVMEMetaObject : public QAbstractDynamicMetaObject
 {
 public:
-    QQmlVMEMetaObject(QObject *obj, QQmlPropertyCache *cache, const QQmlVMEMetaData *data);
+    QQmlVMEMetaObject(QObject *obj, QQmlPropertyCache *cache, const QQmlVMEMetaData *data,
+                      QV4::ExecutionContext *qmlBindingContext = 0, QQmlCompiledData *compiledData = 0);
     ~QQmlVMEMetaObject();
 
     bool aliasTarget(int index, QObject **target, int *coreIndex, int *valueTypeIndex) const;
     void registerInterceptor(int index, int valueIndex, QQmlPropertyValueInterceptor *interceptor);
-    v8::Handle<v8::Function> vmeMethod(int index);
+    QV4::ReturnedValue vmeMethod(int index);
     quint16 vmeMethodLineNumber(int index);
-    void setVmeMethod(int index, v8::Persistent<v8::Function>);
-    v8::Handle<v8::Value> vmeProperty(int index);
-    void setVMEProperty(int index, v8::Handle<v8::Value> v);
+    void setVmeMethod(int index, QV4::ValueRef function);
+    QV4::ReturnedValue vmeProperty(int index);
+    void setVMEProperty(int index, const QV4::ValueRef v);
 
     void connectAliasSignal(int index, bool indexInSignalRange);
 
@@ -203,24 +201,26 @@ public:
     QQmlVMEVariant *data;
     QQmlVMEMetaObjectEndpoint *aliasEndpoints;
 
-    v8::Persistent<v8::Array> varProperties;
+    QV4::WeakValue varProperties;
     int firstVarPropertyIndex;
     bool varPropertiesInitialized;
-    static void VarPropertiesWeakReferenceCallback(v8::Persistent<v8::Value> object, void* parameter);
-    static void GcPrologueCallback(QV8GCCallback::Node *node);
     inline void allocateVarPropertiesArray();
     inline bool ensureVarPropertiesAllocated();
+
+    void ensureQObjectWrapper();
+
+    void mark(QV4::ExecutionEngine *e);
 
     void connectAlias(int aliasId);
     QBitArray aConnected;
 
     QQmlPropertyValueInterceptor *interceptors;
 
-    v8::Persistent<v8::Function> *v8methods;
-    v8::Handle<v8::Function> method(int);
+    QV4::PersistentValue *v8methods;
+    QV4::ReturnedValue method(int);
 
-    v8::Handle<v8::Value> readVarProperty(int);
-    void writeVarProperty(int, v8::Handle<v8::Value>);
+    QV4::ReturnedValue readVarProperty(int);
+    void writeVarProperty(int, const QV4::ValueRef);
     QVariant readPropertyAsVariant(int);
     void writeProperty(int, const QVariant &);
 
@@ -250,7 +250,6 @@ public:
     QQmlVMEVariantQObjectPtr *getQObjectGuardForProperty(int) const;
 
     friend class QV8GCCallback;
-    friend class QV8QObjectWrapper;
 };
 
 QQmlVMEMetaObject *QQmlVMEMetaObject::get(QObject *obj)

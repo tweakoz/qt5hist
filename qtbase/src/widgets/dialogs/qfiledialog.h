@@ -44,6 +44,7 @@
 
 #include <QtCore/qdir.h>
 #include <QtCore/qstring.h>
+#include <QtCore/qurl.h>
 #include <QtWidgets/qdialog.h>
 
 QT_BEGIN_NAMESPACE
@@ -58,7 +59,6 @@ class QFileIconProvider;
 class QFileDialogPrivate;
 class QAbstractItemDelegate;
 class QAbstractProxyModel;
-class QUrl;
 
 class Q_WIDGETS_EXPORT QFileDialog : public QDialog
 {
@@ -84,13 +84,14 @@ public:
 
     enum Option
     {
-        ShowDirsOnly          = 0x00000001,
-        DontResolveSymlinks   = 0x00000002,
-        DontConfirmOverwrite  = 0x00000004,
-        DontUseSheet          = 0x00000008,
-        DontUseNativeDialog   = 0x00000010,
-        ReadOnly              = 0x00000020,
-        HideNameFilterDetails = 0x00000040
+        ShowDirsOnly                = 0x00000001,
+        DontResolveSymlinks         = 0x00000002,
+        DontConfirmOverwrite        = 0x00000004,
+        DontUseSheet                = 0x00000008,
+        DontUseNativeDialog         = 0x00000010,
+        ReadOnly                    = 0x00000020,
+        HideNameFilterDetails       = 0x00000040,
+        DontUseCustomDirectoryIcons = 0x00000080
     };
     Q_DECLARE_FLAGS(Options, Option)
 
@@ -105,8 +106,14 @@ public:
     inline void setDirectory(const QDir &directory);
     QDir directory() const;
 
+    void setDirectoryUrl(const QUrl &directory);
+    QUrl directoryUrl() const;
+
     void selectFile(const QString &filename);
     QStringList selectedFiles() const;
+
+    void selectUrl(const QUrl &url);
+    QList<QUrl> selectedUrls() const;
 
     void setNameFilterDetailsVisible(bool enabled);
     bool isNameFilterDetailsVisible() const;
@@ -116,6 +123,10 @@ public:
     QStringList nameFilters() const;
     void selectNameFilter(const QString &filter);
     QString selectedNameFilter() const;
+
+    void setMimeTypeFilters(const QStringList &filters);
+    QStringList mimeTypeFilters() const;
+    void selectMimeTypeFilter(const QString &filter);
 
     QDir::Filters filter() const;
     void setFilter(QDir::Filters filters);
@@ -184,6 +195,12 @@ Q_SIGNALS:
     void filesSelected(const QStringList &files);
     void currentChanged(const QString &path);
     void directoryEntered(const QString &directory);
+
+    void urlSelected(const QUrl &url);
+    void urlsSelected(const QList<QUrl> &urls);
+    void currentUrlChanged(const QUrl &url);
+    void directoryUrlEntered(const QUrl &directory);
+
     void filterSelected(const QString &filter);
 
 public:
@@ -195,6 +212,14 @@ public:
                                    QString *selectedFilter = 0,
                                    Options options = 0);
 
+    static QUrl getOpenFileUrl(QWidget *parent = 0,
+                               const QString &caption = QString(),
+                               const QUrl &dir = QUrl(),
+                               const QString &filter = QString(),
+                               QString *selectedFilter = 0,
+                               Options options = 0,
+                               const QStringList &supportedSchemes = QStringList());
+
     static QString getSaveFileName(QWidget *parent = 0,
                                    const QString &caption = QString(),
                                    const QString &dir = QString(),
@@ -202,10 +227,24 @@ public:
                                    QString *selectedFilter = 0,
                                    Options options = 0);
 
+    static QUrl getSaveFileUrl(QWidget *parent = 0,
+                               const QString &caption = QString(),
+                               const QUrl &dir = QUrl(),
+                               const QString &filter = QString(),
+                               QString *selectedFilter = 0,
+                               Options options = 0,
+                               const QStringList &supportedSchemes = QStringList());
+
     static QString getExistingDirectory(QWidget *parent = 0,
                                         const QString &caption = QString(),
                                         const QString &dir = QString(),
                                         Options options = ShowDirsOnly);
+
+    static QUrl getExistingDirectoryUrl(QWidget *parent = 0,
+                                        const QString &caption = QString(),
+                                        const QUrl &dir = QUrl(),
+                                        Options options = ShowDirsOnly,
+                                        const QStringList &supportedSchemes = QStringList());
 
     static QStringList getOpenFileNames(QWidget *parent = 0,
                                         const QString &caption = QString(),
@@ -213,6 +252,14 @@ public:
                                         const QString &filter = QString(),
                                         QString *selectedFilter = 0,
                                         Options options = 0);
+
+    static QList<QUrl> getOpenFileUrls(QWidget *parent = 0,
+                                       const QString &caption = QString(),
+                                       const QUrl &dir = QUrl(),
+                                       const QString &filter = QString(),
+                                       QString *selectedFilter = 0,
+                                       Options options = 0,
+                                       const QStringList &supportedSchemes = QStringList());
 
 
 protected:
@@ -240,7 +287,10 @@ private:
     Q_PRIVATE_SLOT(d_func(), void _q_updateOkButton())
     Q_PRIVATE_SLOT(d_func(), void _q_currentChanged(const QModelIndex &index))
     Q_PRIVATE_SLOT(d_func(), void _q_enterDirectory(const QModelIndex &index))
-    Q_PRIVATE_SLOT(d_func(), void _q_nativeEnterDirectory(const QString&))
+    Q_PRIVATE_SLOT(d_func(), void _q_nativeFileSelected(const QUrl &))
+    Q_PRIVATE_SLOT(d_func(), void _q_nativeFilesSelected(const QList<QUrl> &))
+    Q_PRIVATE_SLOT(d_func(), void _q_nativeCurrentChanged(const QUrl &))
+    Q_PRIVATE_SLOT(d_func(), void _q_nativeEnterDirectory(const QUrl&))
     Q_PRIVATE_SLOT(d_func(), void _q_goToDirectory(const QString &path))
     Q_PRIVATE_SLOT(d_func(), void _q_useNameFilter(int index))
     Q_PRIVATE_SLOT(d_func(), void _q_selectionChanged())

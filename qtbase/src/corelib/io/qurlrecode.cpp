@@ -113,59 +113,6 @@ static const uchar defaultActionTable[96] = {
 // 0x00 if it belongs to this category
 // 0xff if it doesn't
 
-static const uchar delimsMask[96] = {
-    0xff, // space
-    0x00, // '!' (sub-delim)
-    0xff, // '"'
-    0x00, // '#' (gen-delim)
-    0x00, // '$' (gen-delim)
-    0xff, // '%' (percent)
-    0x00, // '&' (gen-delim)
-    0x00, // "'" (sub-delim)
-    0x00, // '(' (sub-delim)
-    0x00, // ')' (sub-delim)
-    0x00, // '*' (sub-delim)
-    0x00, // '+' (sub-delim)
-    0x00, // ',' (sub-delim)
-    0xff, // '-' (unreserved)
-    0xff, // '.' (unreserved)
-    0x00, // '/' (gen-delim)
-
-    0xff, 0xff, 0xff, 0xff, 0xff,  // '0' to '4' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // '5' to '9' (unreserved)
-    0x00, // ':' (gen-delim)
-    0x00, // ';' (sub-delim)
-    0xff, // '<'
-    0x00, // '=' (sub-delim)
-    0xff, // '>'
-    0x00, // '?' (gen-delim)
-
-    0x00, // '@' (gen-delim)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'A' to 'E' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'F' to 'J' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'K' to 'O' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'P' to 'T' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // 'U' to 'Z' (unreserved)
-    0x00, // '[' (gen-delim)
-    0xff, // '\'
-    0x00, // ']' (gen-delim)
-    0xff, // '^'
-    0xff, // '_' (unreserved)
-
-    0xff, // '`'
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'a' to 'e' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'f' to 'j' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'k' to 'o' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff,  // 'p' to 't' (unreserved)
-    0xff, 0xff, 0xff, 0xff, 0xff, 0xff,  // 'u' to 'z' (unreserved)
-    0xff, // '{'
-    0xff, // '|'
-    0xff, // '}'
-    0xff, // '~' (unreserved)
-
-    0xff  // BSKP
-};
-
 static const uchar reservedMask[96] = {
     0xff, // space
     0xff, // '!' (sub-delim)
@@ -357,7 +304,7 @@ static bool encodedUtf8ToUtf16(QString &result, ushort *&output, const ushort *b
     // we've decoded something; safety-check it
     if (uc < min_uc)
         return false;
-    if (QChar::isSurrogate(uc) || QChar::isNonCharacter(uc) || uc > QChar::LastValidCodePoint)
+    if (QChar::isSurrogate(uc) || uc > QChar::LastValidCodePoint)
         return false;
 
     if (!QChar::requiresSurrogates(uc)) {
@@ -463,10 +410,9 @@ static int recode(QString &result, const ushort *begin, const ushort *end, QUrl:
     const ushort *input = begin;
     ushort *output = 0;
 
+    EncodingAction action = EncodeCharacter;
     for ( ; input != end; ++input) {
         ushort c;
-        EncodingAction action;
-
         // try a run where no change is necessary
         for ( ; input != end; ++input) {
             c = *input;
@@ -560,6 +506,27 @@ non_trivial:
     return 0;
 }
 
+/*!
+    \since 5.0
+    \internal
+
+    This function decodes a percent-encoded string located from \a begin to \a
+    end, by appending each character to \a appendTo. It returns the number of
+    characters appended. Each percent-encoded sequence is decoded as follows:
+
+    \list
+      \li from %00 to %7F: the exact decoded value is appended;
+      \li from %80 to %FF: QChar::ReplacementCharacter is appended;
+      \li bad encoding: original input is copied to the output, undecoded.
+    \endlist
+
+    Given the above, it's important for the input to already have all UTF-8
+    percent sequences decoded by qt_urlRecode (that is, the input should not
+    have been processed with QUrl::EncodeUnicode).
+
+    The input should also be a valid percent-encoded sequence (the output of
+    qt_urlRecode is always valid).
+*/
 static int decode(QString &appendTo, const ushort *begin, const ushort *end)
 {
     const int origSize = appendTo.size();
@@ -573,6 +540,13 @@ static int decode(QString &appendTo, const ushort *begin, const ushort *end)
             continue;
         }
 
+        if (Q_UNLIKELY(end - input < 3 || !isHex(input[1]) || !isHex(input[2]))) {
+            // badly-encoded data
+            appendTo.resize(origSize + (end - begin));
+            memcpy(appendTo.begin() + origSize, begin, (end - begin) * sizeof(ushort));
+            return end - begin;
+        }
+
         if (Q_UNLIKELY(!output)) {
             // detach
             appendTo.resize(origSize + (end - begin));
@@ -582,10 +556,9 @@ static int decode(QString &appendTo, const ushort *begin, const ushort *end)
         }
 
         ++input;
-        Q_ASSERT(input <= end - 2); // we need two characters
-        Q_ASSERT(isHex(input[0]));
-        Q_ASSERT(isHex(input[1]));
         *output++ = decodeNibble(input[0]) << 4 | decodeNibble(input[1]);
+        if (output[-1] >= 0x80)
+            output[-1] = QChar::ReplacementCharacter;
         input += 2;
     }
 
@@ -613,8 +586,6 @@ static void maskTable(uchar (&table)[N], const uchar (&mask)[N])
 
     The \a encoding option modifies the default behaviour:
     \list
-    \li QUrl::EncodeDelimiters: if set, delimiters will be left untransformed (note: not encoded!);
-                                if unset, delimiters will be decoded
     \li QUrl::DecodeReserved: if set, reserved characters will be decoded;
                               if unset, reserved characters will be encoded
     \li QUrl::EncodeSpaces: if set, spaces will be encoded to "%20"; if unset, they will be " "
@@ -635,6 +606,9 @@ static void maskTable(uchar (&table)[N], const uchar (&mask)[N])
     handled. It consists of a sequence of 16-bit values, where the low 8 bits
     indicate the character in question and the high 8 bits are either \c
     EncodeCharacter, \c LeaveCharacter or \c DecodeCharacter.
+
+    This function corrects percent-encoded errors by interpreting every '%' as
+    meaning "%25" (all percents in the same content).
  */
 
 Q_AUTOTEST_EXPORT int
@@ -646,24 +620,11 @@ qt_urlRecode(QString &appendTo, const QChar *begin, const QChar *end,
         return decode(appendTo, reinterpret_cast<const ushort *>(begin), reinterpret_cast<const ushort *>(end));
     }
 
-    if (!(encoding & QUrl::EncodeDelimiters) && encoding & QUrl::DecodeReserved) {
-        // reset the table
-        memset(actionTable, DecodeCharacter, sizeof actionTable);
-        if (encoding & QUrl::EncodeSpaces)
-            actionTable[0] = EncodeCharacter;
-
-        // these are always encoded
-        actionTable['%' - ' '] = EncodeCharacter;
-        actionTable[0x7F - ' '] = EncodeCharacter;
-    } else {
-        memcpy(actionTable, defaultActionTable, sizeof actionTable);
-        if (!(encoding & QUrl::EncodeDelimiters))
-            maskTable(actionTable, delimsMask);
-        if (encoding & QUrl::DecodeReserved)
-            maskTable(actionTable, reservedMask);
-        if (!(encoding & QUrl::EncodeSpaces))
-            actionTable[0] = DecodeCharacter; // decode
-    }
+    memcpy(actionTable, defaultActionTable, sizeof actionTable);
+    if (encoding & QUrl::DecodeReserved)
+        maskTable(actionTable, reservedMask);
+    if (!(encoding & QUrl::EncodeSpaces))
+        actionTable[0] = DecodeCharacter; // decode
 
     if (tableModifications) {
         for (const ushort *p = tableModifications; *p; ++p)

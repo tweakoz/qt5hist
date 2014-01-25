@@ -1,4 +1,5 @@
-QT = qml qml-private v8-private network core-private
+QT = qml qml-private network core-private
+CONFIG += no_import_scan
 
 SOURCES += main.cpp \
     qmlprofilerapplication.cpp \

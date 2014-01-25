@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -42,9 +42,10 @@
 #ifndef QQUICKGRIDVIEW_P_H
 #define QQUICKGRIDVIEW_P_H
 
+#include <QtCore/qpointer.h>
+
 #include "qquickitemview_p.h"
 
-#include <private/qqmlguard_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -125,7 +126,7 @@ public:
     void setView(QQuickGridView *view) {
         if (view != m_view) {
             m_view = view;
-            emit viewChanged();
+            Q_EMIT viewChanged();
         }
     }
 
@@ -133,7 +134,7 @@ Q_SIGNALS:
     void viewChanged();
 
 public:
-    QQmlGuard<QQuickGridView> m_view;
+    QPointer<QQuickGridView> m_view;
 };
 
 

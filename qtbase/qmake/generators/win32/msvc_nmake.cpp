@@ -42,12 +42,26 @@
 #include "msvc_nmake.h"
 #include "option.h"
 #include "cesdkhandler.h"
+
 #include <qregexp.h>
 #include <qhash.h>
 #include <qdir.h>
+
+#include <windows/registry_p.h>
+
 #include <time.h>
 
 QT_BEGIN_NAMESPACE
+
+static QString nmakePathList(const QStringList &list)
+{
+    QStringList pathList;
+    foreach (const QString &path, list)
+        pathList.append(QDir::cleanPath(path));
+
+    return QDir::toNativeSeparators(pathList.join(QLatin1Char(';')))
+            .replace('#', QStringLiteral("^#")).replace('$', QStringLiteral("$$"));
+}
 
 NmakeMakefileGenerator::NmakeMakefileGenerator() : Win32MakefileGenerator(), init_flag(false), usePCH(false)
 {
@@ -58,17 +72,8 @@ bool
 NmakeMakefileGenerator::writeMakefile(QTextStream &t)
 {
     writeHeader(t);
-    if(!project->values("QMAKE_FAILED_REQUIREMENTS").isEmpty()) {
-        const ProStringList &qut = project->values("QMAKE_EXTRA_TARGETS");
-        for (ProStringList::ConstIterator it = qut.begin(); it != qut.end(); ++it)
-            t << *it << " ";
-        t << "all first clean:\n\t"
-          << "@echo \"Some of the required modules ("
-          << var("QMAKE_FAILED_REQUIREMENTS") << ") are not available.\"\n\t"
-          << "@echo \"Skipped.\"\n\n";
-        writeMakeQmake(t);
+    if (writeDummyMakefile(t))
         return true;
-    }
 
     if(project->first("TEMPLATE") == "app" ||
        project->first("TEMPLATE") == "lib" ||
@@ -108,6 +113,86 @@ NmakeMakefileGenerator::writeMakefile(QTextStream &t)
                             qPrintable(variables["QMAKESPEC"].first().toQString()));
                     return false;
                 }
+            } else if (project->isActiveConfig(QStringLiteral("winrt"))) {
+                QString arch = project->first("VCPROJ_ARCH").toQString().toLower();
+                QString compiler;
+                QString compilerArch;
+                if (arch == QStringLiteral("arm")) {
+                    compiler = QStringLiteral("x86_arm");
+                    compilerArch = QStringLiteral("arm");
+                } else if (arch == QStringLiteral("x64")) {
+                    compiler = QStringLiteral("x86_amd64");
+                    compilerArch = QStringLiteral("amd64");
+                }
+#ifdef Q_OS_WIN
+#ifdef Q_OS_WIN64
+                const QString regKey = QStringLiteral("Software\\Wow6432Node\\Microsoft\\VisualStudio\\11.0\\Setup\\VC\\ProductDir");
+#else
+                const QString regKey = QStringLiteral("Software\\Microsoft\\VisualStudio\\11.0\\Setup\\VC\\ProductDir");
+#endif
+                const QString vcInstallDir = qt_readRegistryKey(HKEY_LOCAL_MACHINE, regKey);
+                if (vcInstallDir.isEmpty()) {
+                    fprintf(stderr, "Failed to find the Visual Studio 2012 installation directory.\n"
+                                    "Is it installed?.\n");
+                    return false;
+                }
+#else
+                const QString vcInstallDir = "/fake/vc_install_dir";
+#endif // Q_OS_WIN
+
+                QStringList incDirs;
+                QStringList libDirs;
+                QStringList binDirs;
+                const bool isPhone = project->isActiveConfig(QStringLiteral("winphone"));
+                if (isPhone) {
+                    QString sdkDir = vcInstallDir + QStringLiteral("/WPSDK/WP80");
+                    if (!QDir(sdkDir).exists()) {
+                        fprintf(stderr, "Failed to find the Windows Phone SDK in %s.\n"
+                                        "Check that it is properly installed.\n",
+                                qPrintable(QDir::toNativeSeparators(sdkDir)));
+                        return false;
+                    }
+                    incDirs << sdkDir + QStringLiteral("/include");
+                    libDirs << sdkDir + QStringLiteral("/lib/") + compilerArch;
+                    binDirs << sdkDir + QStringLiteral("/bin/") + compiler;
+
+                    QString kitDir = vcInstallDir + QStringLiteral("/../../Windows Phone Kits/8.0");
+                    if (!QDir(kitDir).exists()) {
+                        fprintf(stderr, "Failed to find the Windows Phone Kit in %s.\n"
+                                        "Check that it is properly installed.\n",
+                                qPrintable(QDir::toNativeSeparators(kitDir)));
+                        return false;
+                    }
+                    libDirs << kitDir + QStringLiteral("/lib/") + arch;
+                    incDirs << kitDir + QStringLiteral("/include")
+                            << kitDir + QStringLiteral("/include/abi")
+                            << kitDir + QStringLiteral("/include/mincore")
+                            << kitDir + QStringLiteral("/include/minwin");
+                } else {
+                    incDirs << vcInstallDir + QStringLiteral("/include");
+                    libDirs << vcInstallDir + QStringLiteral("/lib/") + compilerArch;
+                    binDirs << vcInstallDir + QStringLiteral("/bin/") + compiler
+                            << vcInstallDir + QStringLiteral("/../Common7/IDE");
+
+                    QString kitDir = vcInstallDir + QStringLiteral("/../../Windows Kits/8.0");
+                    if (!QDir(kitDir).exists()) {
+                        fprintf(stderr, "Failed to find the Windows Kit in %s.\n"
+                                        "Check that it is properly installed.\n",
+                                qPrintable(QDir::toNativeSeparators(kitDir)));
+                        return false;
+                    }
+                    libDirs << kitDir + QStringLiteral("/Lib/win8/um/") + arch;
+                    incDirs << kitDir + QStringLiteral("/include/um")
+                            << kitDir + QStringLiteral("/include/shared")
+                            << kitDir + QStringLiteral("/include/winrt");
+                }
+
+                // Inherit PATH
+                binDirs << QString::fromLocal8Bit(qgetenv("PATH")).split(QLatin1Char(';'));
+
+                t << "\nINCLUDE = " << nmakePathList(incDirs);
+                t << "\nLIB = " << nmakePathList(libDirs);
+                t << "\nPATH = " << nmakePathList(binDirs) << '\n';
             }
         }
         writeNmakeParts(t);
@@ -150,8 +235,10 @@ QString NmakeMakefileGenerator::defaultInstall(const QString &t)
     if(targetdir.right(1) != Option::dir_sep)
         targetdir += Option::dir_sep;
 
-    if(t == "target" && project->first("TEMPLATE") == "lib") {
-        if(project->isActiveConfig("shared") && project->isActiveConfig("debug")) {
+    if (project->isActiveConfig("debug")) {
+        if (t == "dlltarget"
+            || (project->first("TEMPLATE") == "lib"
+                && project->isActiveConfig("shared"))) {
             QString pdb_target = getPdbTarget();
             pdb_target.remove('"');
             QString src_targ = (project->isEmpty("DESTDIR") ? QString("$(DESTDIR)") : project->first("DESTDIR")) + pdb_target;

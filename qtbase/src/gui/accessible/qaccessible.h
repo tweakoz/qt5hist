@@ -45,6 +45,7 @@
 #ifndef QACCESSIBLE_H
 #define QACCESSIBLE_H
 
+#include <QtCore/qcoreapplication.h>
 #include <QtCore/qdebug.h>
 #include <QtCore/qglobal.h>
 #include <QtCore/qobject.h>
@@ -372,10 +373,6 @@ private:
     static UpdateHandler updateHandler;
     static RootObjectHandler rootObjectHandler;
 
-    /*! @internal
-      This class is purely a collection of enums and static functions,
-      it is not supposed to be instantiated.
-    */
     QAccessible() {}
 
     friend class QAccessibleCache;
@@ -393,6 +390,7 @@ class QAccessibleActionInterface;
 class QAccessibleImageInterface;
 class QAccessibleTableInterface;
 class QAccessibleTableCellInterface;
+class QAccessibleTableModelChangeEvent;
 
 class Q_GUI_EXPORT QAccessibleInterface
 {
@@ -457,10 +455,149 @@ protected:
     friend class QAccessibleCache;
 };
 
+class Q_GUI_EXPORT QAccessibleTextInterface
+{
+public:
+    virtual ~QAccessibleTextInterface() {}
+    // selection
+    virtual void selection(int selectionIndex, int *startOffset, int *endOffset) const = 0;
+    virtual int selectionCount() const = 0;
+    virtual void addSelection(int startOffset, int endOffset) = 0;
+    virtual void removeSelection(int selectionIndex) = 0;
+    virtual void setSelection(int selectionIndex, int startOffset, int endOffset) = 0;
+
+    // cursor
+    virtual int cursorPosition() const = 0;
+    virtual void setCursorPosition(int position) = 0;
+
+    // text
+    virtual QString text(int startOffset, int endOffset) const = 0;
+    virtual QString textBeforeOffset(int offset, QAccessible::TextBoundaryType boundaryType,
+                                     int *startOffset, int *endOffset) const;
+    virtual QString textAfterOffset(int offset, QAccessible::TextBoundaryType boundaryType,
+                                    int *startOffset, int *endOffset) const;
+    virtual QString textAtOffset(int offset, QAccessible::TextBoundaryType boundaryType,
+                                 int *startOffset, int *endOffset) const;
+    virtual int characterCount() const = 0;
+
+    // character <-> geometry
+    virtual QRect characterRect(int offset) const = 0;
+    virtual int offsetAtPoint(const QPoint &point) const = 0;
+
+    virtual void scrollToSubstring(int startIndex, int endIndex) = 0;
+    virtual QString attributes(int offset, int *startOffset, int *endOffset) const = 0;
+};
+
+class Q_GUI_EXPORT QAccessibleEditableTextInterface
+{
+public:
+    virtual ~QAccessibleEditableTextInterface() {}
+
+    virtual void deleteText(int startOffset, int endOffset) = 0;
+    virtual void insertText(int offset, const QString &text) = 0;
+    virtual void replaceText(int startOffset, int endOffset, const QString &text) = 0;
+};
+
+class Q_GUI_EXPORT QAccessibleValueInterface
+{
+public:
+
+    virtual ~QAccessibleValueInterface() {}
+
+    virtual QVariant currentValue() const = 0;
+    virtual void setCurrentValue(const QVariant &value) = 0;
+    virtual QVariant maximumValue() const = 0;
+    virtual QVariant minimumValue() const = 0;
+    virtual QVariant minimumStepSize() const = 0;
+};
+
+class Q_GUI_EXPORT QAccessibleTableCellInterface
+{
+public:
+    virtual ~QAccessibleTableCellInterface() {}
+
+    virtual bool isSelected() const = 0;
+
+    virtual QList<QAccessibleInterface*> columnHeaderCells() const = 0;
+    virtual QList<QAccessibleInterface*> rowHeaderCells() const = 0;
+    virtual int columnIndex() const = 0;
+    virtual int rowIndex() const = 0;
+    virtual int columnExtent() const = 0;
+    virtual int rowExtent() const = 0;
+
+    virtual QAccessibleInterface* table() const = 0;
+};
+
+class Q_GUI_EXPORT QAccessibleTableInterface
+{
+public:
+    virtual ~QAccessibleTableInterface() {}
+
+    virtual QAccessibleInterface *caption() const = 0;
+    virtual QAccessibleInterface *summary() const = 0;
+
+    virtual QAccessibleInterface *cellAt (int row, int column) const = 0;
+    virtual int selectedCellCount() const = 0;
+    virtual QList<QAccessibleInterface*> selectedCells() const = 0;
+
+    virtual QString columnDescription(int column) const = 0;
+    virtual QString rowDescription(int row) const = 0;
+    virtual int selectedColumnCount() const = 0;
+    virtual int selectedRowCount() const = 0;
+    virtual int columnCount() const = 0;
+    virtual int rowCount() const = 0;
+    virtual QList<int> selectedColumns() const = 0;
+    virtual QList<int> selectedRows() const = 0;
+    virtual bool isColumnSelected(int column) const = 0;
+    virtual bool isRowSelected(int row) const = 0;
+    virtual bool selectRow(int row) = 0;
+    virtual bool selectColumn(int column) = 0;
+    virtual bool unselectRow(int row) = 0;
+    virtual bool unselectColumn(int column) = 0;
+
+    virtual void modelChange(QAccessibleTableModelChangeEvent *event) = 0;
+
+protected:
+friend class QAbstractItemView;
+friend class QAbstractItemViewPrivate;
+};
+
+class Q_GUI_EXPORT QAccessibleActionInterface
+{
+    Q_DECLARE_TR_FUNCTIONS(QAccessibleActionInterface)
+public:
+    virtual ~QAccessibleActionInterface() {}
+
+    virtual QStringList actionNames() const = 0;
+    virtual QString localizedActionName(const QString &name) const;
+    virtual QString localizedActionDescription(const QString &name) const;
+    virtual void doAction(const QString &actionName) = 0;
+    virtual QStringList keyBindingsForAction(const QString &actionName) const = 0;
+
+    static const QString &pressAction();
+    static const QString &increaseAction();
+    static const QString &decreaseAction();
+    static const QString &showMenuAction();
+    static const QString &setFocusAction();
+    static const QString &toggleAction();
+};
+
+class Q_GUI_EXPORT QAccessibleImageInterface
+{
+public:
+    virtual ~QAccessibleImageInterface() {}
+
+    virtual QString imageDescription() const = 0;
+    virtual QSize imageSize() const = 0;
+    virtual QPoint imagePosition() const = 0;
+};
+
+
 class Q_GUI_EXPORT QAccessibleEvent
 {
     Q_DISABLE_COPY(QAccessibleEvent)
 public:
+
     inline QAccessibleEvent(QObject *obj, QAccessible::Event typ)
         : m_type(typ), m_object(obj), m_child(-1)
     {
@@ -477,11 +614,27 @@ public:
         Q_ASSERT(m_type != QAccessible::TableModelChanged);
     }
 
+    inline QAccessibleEvent(QAccessibleInterface *iface, QAccessible::Event typ)
+        : m_type(typ), m_object(0)
+    {
+        Q_ASSERT(iface);
+        Q_ASSERT(m_type != QAccessible::ValueChanged);
+        Q_ASSERT(m_type != QAccessible::StateChanged);
+        Q_ASSERT(m_type != QAccessible::TextCaretMoved);
+        Q_ASSERT(m_type != QAccessible::TextSelectionChanged);
+        Q_ASSERT(m_type != QAccessible::TextInserted);
+        Q_ASSERT(m_type != QAccessible::TextRemoved);
+        Q_ASSERT(m_type != QAccessible::TextUpdated);
+        Q_ASSERT(m_type != QAccessible::TableModelChanged);
+        m_uniqueId = QAccessible::uniqueId(iface);
+    }
+
     virtual ~QAccessibleEvent()
     {}
 
     QAccessible::Event type() const { return m_type; }
     QObject *object() const { return m_object; }
+    QAccessible::Id uniqueId() const;
 
     void setChild(int chld) { m_child = chld; }
     int child() const { return m_child; }
@@ -491,7 +644,11 @@ public:
 protected:
     QAccessible::Event m_type;
     QObject *m_object;
-    int m_child;
+    union {
+        int m_child;
+        QAccessible::Id m_uniqueId;
+    };
+
 };
 
 class Q_GUI_EXPORT QAccessibleStateChangeEvent :public QAccessibleEvent
@@ -499,6 +656,11 @@ class Q_GUI_EXPORT QAccessibleStateChangeEvent :public QAccessibleEvent
 public:
     inline QAccessibleStateChangeEvent(QObject *obj, QAccessible::State state)
         : QAccessibleEvent(obj, QAccessible::InvalidEvent), m_changedStates(state)
+    {
+        m_type = QAccessible::StateChanged;
+    }
+    inline QAccessibleStateChangeEvent(QAccessibleInterface *iface, QAccessible::State state)
+        : QAccessibleEvent(iface, QAccessible::InvalidEvent), m_changedStates(state)
     {
         m_type = QAccessible::StateChanged;
     }
@@ -521,6 +683,12 @@ public:
     {
         m_type = QAccessible::TextCaretMoved;
     }
+    inline QAccessibleTextCursorEvent(QAccessibleInterface *iface, int cursorPos)
+        : QAccessibleEvent(iface, QAccessible::InvalidEvent)
+      , m_cursorPosition(cursorPos)
+    {
+        m_type = QAccessible::TextCaretMoved;
+    }
 
     void setCursorPosition(int position) { m_cursorPosition = position; }
     int cursorPosition() const { return m_cursorPosition; }
@@ -535,6 +703,12 @@ class Q_GUI_EXPORT QAccessibleTextSelectionEvent : public QAccessibleTextCursorE
 public:
     inline QAccessibleTextSelectionEvent(QObject *obj, int start, int end)
         : QAccessibleTextCursorEvent(obj, (start == -1) ? 0 : end)
+        , m_selectionStart(start), m_selectionEnd(end)
+    {
+        m_type = QAccessible::TextSelectionChanged;
+    }
+    inline QAccessibleTextSelectionEvent(QAccessibleInterface *iface, int start, int end)
+        : QAccessibleTextCursorEvent(iface, (start == -1) ? 0 : end)
         , m_selectionStart(start), m_selectionEnd(end)
     {
         m_type = QAccessible::TextSelectionChanged;
@@ -562,6 +736,12 @@ public:
     {
         m_type = QAccessible::TextInserted;
     }
+    inline QAccessibleTextInsertEvent(QAccessibleInterface *iface, int position, const QString &text)
+        : QAccessibleTextCursorEvent(iface, position + text.length())
+        , m_position(position), m_text(text)
+    {
+        m_type = QAccessible::TextInserted;
+    }
 
     QString textInserted() const {
         return m_text;
@@ -580,6 +760,12 @@ class Q_GUI_EXPORT QAccessibleTextRemoveEvent : public QAccessibleTextCursorEven
 public:
     inline QAccessibleTextRemoveEvent(QObject *obj, int position, const QString &text)
         : QAccessibleTextCursorEvent(obj, position)
+        , m_position(position), m_text(text)
+    {
+        m_type = QAccessible::TextRemoved;
+    }
+    inline QAccessibleTextRemoveEvent(QAccessibleInterface *iface, int position, const QString &text)
+        : QAccessibleTextCursorEvent(iface, position)
         , m_position(position), m_text(text)
     {
         m_type = QAccessible::TextRemoved;
@@ -606,6 +792,12 @@ public:
     {
         m_type = QAccessible::TextUpdated;
     }
+    inline QAccessibleTextUpdateEvent(QAccessibleInterface *iface, int position, const QString &oldText, const QString &text)
+        : QAccessibleTextCursorEvent(iface, position + text.length())
+        , m_position(position), m_oldText(oldText), m_text(text)
+    {
+        m_type = QAccessible::TextUpdated;
+    }
     QString textRemoved() const {
         return m_oldText;
     }
@@ -627,6 +819,12 @@ class Q_GUI_EXPORT QAccessibleValueChangeEvent : public QAccessibleEvent
 public:
     inline QAccessibleValueChangeEvent(QObject *obj, const QVariant &val)
         : QAccessibleEvent(obj, QAccessible::InvalidEvent)
+      , m_value(val)
+    {
+        m_type = QAccessible::ValueChanged;
+    }
+    inline QAccessibleValueChangeEvent(QAccessibleInterface *iface, const QVariant &val)
+        : QAccessibleEvent(iface, QAccessible::InvalidEvent)
       , m_value(val)
     {
         m_type = QAccessible::ValueChanged;
@@ -658,6 +856,14 @@ public:
     {
         m_type = QAccessible::TableModelChanged;
     }
+    inline QAccessibleTableModelChangeEvent(QAccessibleInterface *iface, ModelChangeType changeType)
+        : QAccessibleEvent(iface, QAccessible::InvalidEvent)
+        , m_modelChangeType(changeType)
+        , m_firstRow(-1), m_firstColumn(-1), m_lastRow(-1), m_lastColumn(-1)
+    {
+        m_type = QAccessible::TableModelChanged;
+    }
+
     void setModelChangeType(ModelChangeType changeType) { m_modelChangeType = changeType; }
     ModelChangeType modelChangeType() const { return m_modelChangeType; }
 

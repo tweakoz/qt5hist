@@ -55,7 +55,8 @@
 
 #include <private/qtqmlglobal_p.h>
 #include <private/qobject_p.h>
-#include <private/qv8_p.h>
+
+#include <private/qv4value_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -78,11 +79,11 @@ class Q_QML_PRIVATE_EXPORT QQmlData : public QAbstractDeclarativeData
 {
 public:
     QQmlData()
-        : ownMemory(true), ownContext(false), indestructible(true), explicitIndestructibleSet(false), 
+        : ownedByQml1(false), ownMemory(true), ownContext(false), indestructible(true), explicitIndestructibleSet(false),
           hasTaintedV8Object(false), isQueuedForDeletion(false), rootObjectInCreation(false),
           hasVMEMetaObject(false), parentFrozen(false), notifyList(0), context(0), outerContext(0),
           bindings(0), signalHandlers(0), nextContextObject(0), prevContextObject(0), bindingBitsSize(0), bindingBits(0),
-          lineNumber(0), columnNumber(0), compiledData(0), deferredData(0), v8objectid(0),
+          lineNumber(0), columnNumber(0), compiledData(0), deferredData(0), jsEngineId(0),
           propertyCache(0), guards(0), extendedData(0) {
         init();
     }
@@ -112,6 +113,7 @@ public:
         if (!explicitIndestructibleSet) indestructible = false;
     }
 
+    quint32 ownedByQml1:1; // This bit is shared with QML1's QDeclarativeData.
     quint32 ownMemory:1;
     quint32 ownContext:1;
     quint32 indestructible:1;
@@ -125,7 +127,7 @@ public:
     quint32 rootObjectInCreation:1;
     quint32 hasVMEMetaObject:1;
     quint32 parentFrozen:1;
-    quint32 dummy:23;
+    quint32 dummy:22;
 
     struct NotifyList {
         quint64 connectionMask;
@@ -181,8 +183,8 @@ public:
     QQmlCompiledData *compiledData;
     DeferredData *deferredData;
 
-    quint32 v8objectid;
-    v8::Persistent<v8::Object> v8object;
+    quint32 jsEngineId; // id of the engine that cerated the jsWrapper
+    QV4::WeakValue jsWrapper;
 
     QQmlPropertyCache *propertyCache;
 
@@ -201,6 +203,13 @@ public:
         } else {
             return 0;
         }
+    }
+
+    static bool keepAliveDuringGarbageCollection(const QObject *object) {
+        QQmlData *ddata = get(object);
+        if (!ddata || ddata->indestructible || ddata->rootObjectInCreation)
+            return true;
+        return false;
     }
 
     bool hasExtendedData() const { return extendedData != 0; }

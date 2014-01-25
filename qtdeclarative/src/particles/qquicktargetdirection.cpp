@@ -55,27 +55,27 @@ QT_BEGIN_NAMESPACE
 
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TargetDirection::targetX
+    \qmlproperty real QtQuick.Particles::TargetDirection::targetX
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TargetDirection::targetY
+    \qmlproperty real QtQuick.Particles::TargetDirection::targetY
 */
 /*!
-    \qmlproperty Item QtQuick.Particles2::TargetDirection::targetItem
+    \qmlproperty Item QtQuick.Particles::TargetDirection::targetItem
     If specified, this will take precedence over targetX and targetY.
     The targeted point will be the center of the specified Item
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TargetDirection::targetVariation
+    \qmlproperty real QtQuick.Particles::TargetDirection::targetVariation
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TargetDirection::magnitude
+    \qmlproperty real QtQuick.Particles::TargetDirection::magnitude
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TargetDirection::magnitudeVariation
+    \qmlproperty real QtQuick.Particles::TargetDirection::magnitudeVariation
 */
 /*!
-    \qmlproperty bool QtQuick.Particles2::TargetDirection::proportionalMagnitude
+    \qmlproperty bool QtQuick.Particles::TargetDirection::proportionalMagnitude
 
     If true, then the value of magnitude and magnitudeVariation shall be interpreted as multiples
     of the distance between the source point and the target point, per second.
@@ -121,12 +121,12 @@ const QPointF QQuickTargetDirection::sample(const QPointF &from)
     }
     targetX += 0 - from.x() - m_targetVariation + rand()/(float)RAND_MAX * m_targetVariation*2;
     targetY += 0 - from.y() - m_targetVariation + rand()/(float)RAND_MAX * m_targetVariation*2;
-    qreal theta = atan2(targetY, targetX);
+    qreal theta = std::atan2(targetY, targetX);
     qreal mag = m_magnitude + rand()/(float)RAND_MAX * m_magnitudeVariation * 2 - m_magnitudeVariation;
     if (m_proportionalMagnitude)
-        mag *= sqrt(targetX * targetX + targetY * targetY);
-    ret.setX(mag * cos(theta));
-    ret.setY(mag * sin(theta));
+        mag *= std::sqrt(targetX * targetX + targetY * targetY);
+    ret.setX(mag * std::cos(theta));
+    ret.setY(mag * std::sin(theta));
     return ret;
 }
 

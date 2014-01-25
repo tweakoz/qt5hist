@@ -74,7 +74,7 @@ NSString *qt_mac_removePrivateUnicode(NSString* string)
     return string;
 }
 
-static inline QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *getMenuLoader()
+static inline QCocoaMenuLoader *getMenuLoader()
 {
     return [NSApp QT_MANGLE_NAMESPACE(qt_qcocoamenuLoader)];
 }
@@ -84,10 +84,13 @@ static inline QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *getMenuLoader()
 }
 
 - (id) initWithMenu:(QCocoaMenu*) m;
+- (BOOL)hasShortcut:(NSMenu *)menu forKey:(NSString *)key forModifiers:(NSUInteger)modifier;
 
 @end
 
-@implementation QT_MANGLE_NAMESPACE(QCocoaMenuDelegate)
+QT_NAMESPACE_ALIAS_OBJC_CLASS(QCocoaMenuDelegate);
+
+@implementation QCocoaMenuDelegate
 
 - (id) initWithMenu:(QCocoaMenu*) m
 {
@@ -216,14 +219,15 @@ QT_BEGIN_NAMESPACE
 
 QCocoaMenu::QCocoaMenu() :
     m_enabled(true),
+    m_visible(true),
     m_tag(0),
     m_menuBar(0)
 {
-    m_delegate = [[QT_MANGLE_NAMESPACE(QCocoaMenuDelegate) alloc] initWithMenu:this];
+    m_delegate = [[QCocoaMenuDelegate alloc] initWithMenu:this];
     m_nativeItem = [[NSMenuItem alloc] initWithTitle:@"" action:nil keyEquivalent:@""];
     m_nativeMenu = [[NSMenu alloc] initWithTitle:@"Untitled"];
     [m_nativeMenu setAutoenablesItems:YES];
-    m_nativeMenu.delegate = (QT_MANGLE_NAMESPACE(QCocoaMenuDelegate) *) m_delegate;
+    m_nativeMenu.delegate = (QCocoaMenuDelegate *) m_delegate;
     [m_nativeItem setSubmenu:m_nativeMenu];
 }
 
@@ -421,6 +425,7 @@ void QCocoaMenu::setEnabled(bool enabled)
 void QCocoaMenu::setVisible(bool visible)
 {
     [m_nativeItem setSubmenu:(visible ? m_nativeMenu : nil)];
+    m_visible = visible;
 }
 
 void QCocoaMenu::showPopup(const QWindow *parentWindow, QPoint pos, const QPlatformMenuItem *item)
@@ -453,23 +458,29 @@ void QCocoaMenu::showPopup(const QWindow *parentWindow, QPoint pos, const QPlatf
         // Else, we need to transform 'pos' to window or screen coordinates.
         NSPoint nsPos = NSMakePoint(pos.x() - 1, pos.y());
         if (view) {
+            // Flip y-coordinate first, the convert to content view space.
             nsPos.y = view.frame.size.height - nsPos.y;
+            nsPos = [view convertPoint:nsPos toView:view.window.contentView];
         } else if (!QGuiApplication::screens().isEmpty()) {
             QScreen *screen = QGuiApplication::screens().at(0);
             nsPos.y = screen->availableVirtualSize().height() - nsPos.y;
         }
 
-        // Finally, we need to synthesize an event.
-        NSEvent *menuEvent = [NSEvent mouseEventWithType:NSRightMouseDown
-                location:nsPos
-                modifierFlags:0
-                timestamp:0
-                windowNumber:view ? view.window.windowNumber : 0
-                                    context:nil
-                                    eventNumber:0
-                                    clickCount:1
-                                    pressure:1.0];
-        [NSMenu popUpContextMenu:m_nativeMenu withEvent:menuEvent forView:view];
+        if (view) {
+            // Finally, we need to synthesize an event.
+            NSEvent *menuEvent = [NSEvent mouseEventWithType:NSRightMouseDown
+                    location:nsPos
+                    modifierFlags:0
+                    timestamp:0
+                    windowNumber:view ? view.window.windowNumber : 0
+                                        context:nil
+                                        eventNumber:0
+                                        clickCount:1
+                                        pressure:1.0];
+            [NSMenu popUpContextMenu:m_nativeMenu withEvent:menuEvent forView:view];
+        } else {
+            [m_nativeMenu popUpMenuPositioningItem:nsItem atLocation:nsPos inView:0];
+        }
     }
 
     // The calls above block, and also swallow any mouse release event,

@@ -55,6 +55,77 @@
 
 QT_BEGIN_NAMESPACE
 
+QString ConfigStrings::ALIAS = QStringLiteral("alias");
+QString ConfigStrings::BASE = QStringLiteral("base");
+QString ConfigStrings::BASEDIR = QStringLiteral("basedir");
+QString ConfigStrings::BUILDVERSION = QStringLiteral("buildversion");
+QString ConfigStrings::CODEINDENT = QStringLiteral("codeindent");
+QString ConfigStrings::CPPCLASSESPAGE = QStringLiteral("cppclassespage");
+QString ConfigStrings::DEFINES = QStringLiteral("defines");
+QString ConfigStrings::DEPENDS = QStringLiteral("depends");
+QString ConfigStrings::DESCRIPTION = QStringLiteral("description");
+QString ConfigStrings::EDITION = QStringLiteral("edition");
+QString ConfigStrings::ENDHEADER = QStringLiteral("endheader");
+QString ConfigStrings::EXAMPLEDIRS = QStringLiteral("exampledirs");
+QString ConfigStrings::EXAMPLES = QStringLiteral("examples");
+QString ConfigStrings::EXAMPLESINSTALLPATH = QStringLiteral("examplesinstallpath");
+QString ConfigStrings::EXCLUDEDIRS = QStringLiteral("excludedirs");
+QString ConfigStrings::EXCLUDEFILES = QStringLiteral("excludefiles");
+QString ConfigStrings::EXTRAIMAGES = QStringLiteral("extraimages");
+QString ConfigStrings::FALSEHOODS = QStringLiteral("falsehoods");
+QString ConfigStrings::FORMATTING = QStringLiteral("formatting");
+QString ConfigStrings::GENERATEINDEX = QStringLiteral("generateindex");
+QString ConfigStrings::HEADERDIRS = QStringLiteral("headerdirs");
+QString ConfigStrings::HEADERS = QStringLiteral("headers");
+QString ConfigStrings::HEADERSCRIPTS = QStringLiteral("headerscripts");
+QString ConfigStrings::HEADERSTYLES = QStringLiteral("headerstyles");
+QString ConfigStrings::HOMEPAGE = QStringLiteral("homepage");
+QString ConfigStrings::IGNOREDIRECTIVES = QStringLiteral("ignoredirectives");
+QString ConfigStrings::IGNORETOKENS = QStringLiteral("ignoretokens");
+QString ConfigStrings::IMAGEDIRS = QStringLiteral("imagedirs");
+QString ConfigStrings::IMAGES = QStringLiteral("images");
+QString ConfigStrings::INDEXES = QStringLiteral("indexes");
+QString ConfigStrings::LANDINGPAGE = QStringLiteral("landingpage");
+QString ConfigStrings::LANGUAGE = QStringLiteral("language");
+QString ConfigStrings::MACRO = QStringLiteral("macro");
+QString ConfigStrings::MANIFESTMETA = QStringLiteral("manifestmeta");
+QString ConfigStrings::NATURALLANGUAGE = QStringLiteral("naturallanguage");
+QString ConfigStrings::NAVIGATION = QStringLiteral("navigation");
+QString ConfigStrings::NOLINKERRORS = QStringLiteral("nolinkerrors");
+QString ConfigStrings::OBSOLETELINKS = QStringLiteral("obsoletelinks");
+QString ConfigStrings::OUTPUTDIR = QStringLiteral("outputdir");
+QString ConfigStrings::OUTPUTENCODING = QStringLiteral("outputencoding");
+QString ConfigStrings::OUTPUTLANGUAGE = QStringLiteral("outputlanguage");
+QString ConfigStrings::OUTPUTFORMATS = QStringLiteral("outputformats");
+QString ConfigStrings::OUTPUTPREFIXES = QStringLiteral("outputprefixes");
+QString ConfigStrings::PROJECT = QStringLiteral("project");
+QString ConfigStrings::REDIRECTDOCUMENTATIONTODEVNULL = QStringLiteral("redirectdocumentationtodevnull");
+QString ConfigStrings::QHP = QStringLiteral("qhp");
+QString ConfigStrings::QUOTINGINFORMATION = QStringLiteral("quotinginformation");
+QString ConfigStrings::SCRIPTDIRS = QStringLiteral("scriptdirs");
+QString ConfigStrings::SCRIPTS = QStringLiteral("scripts");
+QString ConfigStrings::SHOWINTERNAL = QStringLiteral("showinternal");
+QString ConfigStrings::SOURCEDIRS = QStringLiteral("sourcedirs");
+QString ConfigStrings::SOURCEENCODING = QStringLiteral("sourceencoding");
+QString ConfigStrings::SOURCES = QStringLiteral("sources");
+QString ConfigStrings::SPURIOUS = QStringLiteral("spurious");
+QString ConfigStrings::STYLEDIRS = QStringLiteral("styledirs");
+QString ConfigStrings::STYLE = QStringLiteral("style");
+QString ConfigStrings::STYLES = QStringLiteral("styles");
+QString ConfigStrings::STYLESHEETS = QStringLiteral("stylesheets");
+QString ConfigStrings::SYNTAXHIGHLIGHTING = QStringLiteral("syntaxhighlighting");
+QString ConfigStrings::TEMPLATEDIR = QStringLiteral("templatedir");
+QString ConfigStrings::TABSIZE = QStringLiteral("tabsize");
+QString ConfigStrings::TAGFILE = QStringLiteral("tagfile");
+QString ConfigStrings::TRANSLATORS = QStringLiteral("translators");
+QString ConfigStrings::URL = QStringLiteral("url");
+QString ConfigStrings::VERSION = QStringLiteral("version");
+QString ConfigStrings::VERSIONSYM = QStringLiteral("versionsym");
+QString ConfigStrings::FILEEXTENSIONS = QStringLiteral("fileextensions");
+QString ConfigStrings::IMAGEEXTENSIONS = QStringLiteral("imageextensions");
+QString ConfigStrings::QMLONLY = QStringLiteral("qmlonly");
+QString ConfigStrings::QMLTYPESPAGE = QStringLiteral("qmltypespage");
+
 /*!
   An entry in a stack, where each entry is a list
   of string values.
@@ -181,6 +252,7 @@ QSet<QString> Config::overrideOutputFormats;
 QMap<QString, QString> Config::extractedDirs;
 int Config::numInstances;
 QStack<QString> Config::workingDirs_;
+QMap<QString, QStringList> Config::includeFilesMap_;
 
 /*!
   \class Config
@@ -201,6 +273,7 @@ Config::Config(const QString& programName)
     lastLocation_ = Location::null;
     configVars_.clear();
     numInstances++;
+    includeFilesMap_.clear();
 }
 
 /*!
@@ -208,6 +281,7 @@ Config::Config(const QString& programName)
  */
 Config::~Config()
 {
+    includeFilesMap_.clear();
 }
 
 /*!
@@ -279,10 +353,19 @@ int Config::getInt(const QString& var) const
   */
 QString Config::getOutputDir() const
 {
+    QString t;
     if (overrideOutputDir.isNull())
-        return getString(QLatin1String(CONFIG_OUTPUTDIR));
+        t = getString(CONFIG_OUTPUTDIR);
     else
-        return overrideOutputDir;
+        t = overrideOutputDir;
+    if (!Generator::useOutputSubdirs()) {
+        t = t.left(t.lastIndexOf('/'));
+        QString singleOutputSubdir = getString("HTML.outputsubdir");
+        if (singleOutputSubdir.isEmpty())
+            singleOutputSubdir = "html";
+        t += QLatin1Char('/') + singleOutputSubdir;
+    }
+    return t;
 }
 
 /*!
@@ -293,7 +376,7 @@ QString Config::getOutputDir() const
 QSet<QString> Config::getOutputFormats() const
 {
     if (overrideOutputFormats.isEmpty())
-        return getStringSet(QLatin1String(CONFIG_OUTPUTFORMATS));
+        return getStringSet(CONFIG_OUTPUTFORMATS);
     else
         return overrideOutputFormats;
 }
@@ -580,6 +663,33 @@ void Config::subVarsAndValues(const QString& var, ConfigVarMultimap& t) const
 }
 
 /*!
+  Get all .qdocinc files.
+ */
+QString Config::getIncludeFilePath(const QString& fileName) const
+{
+    QString ext = fileName.mid(fileName.lastIndexOf('.'));
+    ext.prepend('*');
+
+    if (!includeFilesMap_.contains(ext)) {
+        QSet<QString> t;
+        QStringList result;
+        QStringList dirs = getCanonicalPathList(CONFIG_SOURCEDIRS);
+        QStringList::ConstIterator d = dirs.constBegin();
+        while (d != dirs.constEnd()) {
+            result += getFilesHere(*d, ext, location(), t, t);
+            ++d;
+        }
+        includeFilesMap_.insert(ext, result);
+    }
+    const QStringList& paths = (*includeFilesMap_.find(ext));
+    for (int i=0; i<paths.size(); ++i) {
+        if (paths[i].endsWith(fileName))
+            return paths[i];
+    }
+    return QString();
+}
+
+/*!
   Builds and returns a list of file pathnames for the file
   type specified by \a filesVar (e.g. "headers" or "sources").
   The files are found in the directories specified by
@@ -593,10 +703,10 @@ QStringList Config::getAllFiles(const QString &filesVar,
                                 const QSet<QString> &excludedDirs,
                                 const QSet<QString> &excludedFiles)
 {
-    QStringList result = getStringList(filesVar);
+    QStringList result = getCanonicalPathList(filesVar);
     QStringList dirs = getCanonicalPathList(dirsVar);
 
-    QString nameFilter = getString(filesVar + dot + QLatin1String(CONFIG_FILEEXTENSIONS));
+    QString nameFilter = getString(filesVar + dot + CONFIG_FILEEXTENSIONS);
 
     QStringList::ConstIterator d = dirs.constBegin();
     while (d != dirs.constEnd()) {
@@ -626,7 +736,7 @@ QStringList Config::getExampleImageFiles(const QSet<QString> &excludedDirs,
 {
     QStringList result;
     QStringList dirs = getCanonicalPathList("exampledirs");
-    QString nameFilter = getString(CONFIG_EXAMPLES + dot + QLatin1String(CONFIG_IMAGEEXTENSIONS));
+    QString nameFilter = getString(CONFIG_EXAMPLES + dot + CONFIG_IMAGEEXTENSIONS);
 
     QStringList::ConstIterator d = dirs.constBegin();
     while (d != dirs.constEnd()) {
@@ -822,7 +932,7 @@ bool Config::removeDirContents(const QString& dir)
 }
 
 /*!
-  Returns true if \a ch is a letter, number, '_', '.',
+  Returns \c true if \a ch is a letter, number, '_', '.',
   '{', '}', or ','.
  */
 bool Config::isMetaKeyChar(QChar ch)

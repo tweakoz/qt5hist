@@ -333,8 +333,7 @@ void QLineEdit::setText(const QString& text)
     \brief the line edit's placeholder text
 
     Setting this property makes the line edit display a grayed-out
-    placeholder text as long as the text() is empty and the widget doesn't
-    have focus.
+    placeholder text as long as the text() is empty.
 
     By default, this property contains an empty string.
 
@@ -351,7 +350,7 @@ void QLineEdit::setPlaceholderText(const QString& placeholderText)
     Q_D(QLineEdit);
     if (d->placeholderText != placeholderText) {
         d->placeholderText = placeholderText;
-        if (!hasFocus())
+        if (d->control->text().isEmpty())
             update();
     }
 }
@@ -420,6 +419,97 @@ bool QLineEdit::hasFrame() const
     return d->frame;
 }
 
+/*!
+    \enum QLineEdit::ActionPosition
+
+    This enum type describes how a line edit should display the action widgets to be
+    added.
+
+    \value LeadingPosition  The widget is displayed to the left of the text
+                            when using layout direction \c Qt::LeftToRight or to
+                            the right when using \c Qt::RightToLeft, respectively.
+
+    \value TrailingPosition The widget is displayed to the right of the text
+                            when using layout direction \c Qt::LeftToRight or to
+                            the left when using \c Qt::RightToLeft, respectively.
+
+    \sa addAction(), removeAction(), QWidget::layoutDirection
+
+    \since 5.2
+*/
+
+/*!
+    \fn void QLineEdit::addAction(QAction *action)
+    \overload
+    \internal
+*/
+
+/*!
+    \overload
+
+    Adds the \a action to the list of actions at the \a position.
+
+    \since 5.2
+*/
+
+void QLineEdit::addAction(QAction *action, ActionPosition position)
+{
+    Q_D(QLineEdit);
+    QWidget::addAction(action);
+    d->addAction(action, 0, position);
+}
+
+/*!
+    \overload
+
+    Creates a new action with the given \a icon at the \a position.
+
+    \since 5.2
+*/
+
+QAction *QLineEdit::addAction(const QIcon &icon, ActionPosition position)
+{
+    QAction *result = new QAction(icon, QString(), this);
+    addAction(result, position);
+    return result;
+}
+
+/*!
+    \property QLineEdit::clearButtonEnabled
+    \brief Whether the line edit displays a clear button when it is not empty.
+
+    If enabled, the line edit displays a trailing \e clear button when it contains
+    some text, otherwise the line edit does not show a clear button (the
+    default).
+
+    \sa addAction(), removeAction()
+    \since 5.2
+*/
+
+static const char clearButtonActionNameC[] = "_q_qlineeditclearaction";
+
+void QLineEdit::setClearButtonEnabled(bool enable)
+{
+    Q_D(QLineEdit);
+    if (enable == isClearButtonEnabled())
+        return;
+    if (enable) {
+        QAction *clearAction = new QAction(d->clearButtonIcon(), QString(), this);
+        clearAction->setEnabled(!isReadOnly());
+        clearAction->setObjectName(QLatin1String(clearButtonActionNameC));
+        d->addAction(clearAction, 0, QLineEdit::TrailingPosition, QLineEditPrivate::SideWidgetClearButton | QLineEditPrivate::SideWidgetFadeInWithText);
+    } else {
+        QAction *clearAction = findChild<QAction *>(QLatin1String(clearButtonActionNameC));
+        Q_ASSERT(clearAction);
+        d->removeAction(clearAction);
+        delete clearAction;
+    }
+}
+
+bool QLineEdit::isClearButtonEnabled() const
+{
+    return findChild<QAction *>(QLatin1String(clearButtonActionNameC));
+}
 
 void QLineEdit::setFrame(bool enable)
 {
@@ -606,7 +696,7 @@ QSize QLineEdit::sizeHint() const
             + d->topTextMargin + d->bottomTextMargin
             + d->topmargin + d->bottommargin;
     int w = fm.width(QLatin1Char('x')) * 17 + 2*d->horizontalMargin
-            + d->leftTextMargin + d->rightTextMargin
+            + d->effectiveLeftTextMargin() + d->effectiveRightTextMargin()
             + d->leftmargin + d->rightmargin; // "some"
     QStyleOptionFrameV2 opt;
     initStyleOption(&opt);
@@ -819,7 +909,7 @@ void QLineEdit::end(bool mark)
     do not start out knowing what the default should be (perhaps it
     depends on other fields on the form). Start the line edit without
     the best default, and when the default is known, if modified()
-    returns false (the user hasn't entered any text), insert the
+    returns \c false (the user hasn't entered any text), insert the
     default value.
 
     Calling setText() resets the modified flag to false.
@@ -841,10 +931,10 @@ void QLineEdit::setModified(bool modified)
     \property QLineEdit::hasSelectedText
     \brief whether there is any text selected
 
-    hasSelectedText() returns true if some or all of the text has been
-    selected by the user; otherwise returns false.
+    hasSelectedText() returns \c true if some or all of the text has been
+    selected by the user; otherwise returns \c false.
 
-    By default, this property is false.
+    By default, this property is \c false.
 
     \sa selectedText()
 */
@@ -922,7 +1012,7 @@ void QLineEdit::setSelection(int start, int length)
 
     Undo becomes available once the user has modified the text in the line edit.
 
-    By default, this property is false.
+    By default, this property is \c false.
 */
 
 bool QLineEdit::isUndoAvailable() const
@@ -938,7 +1028,7 @@ bool QLineEdit::isUndoAvailable() const
     Redo becomes available once the user has performed one or more undo operations
     on text in the line edit.
 
-    By default, this property is false.
+    By default, this property is \c false.
 */
 
 bool QLineEdit::isRedoAvailable() const
@@ -966,7 +1056,6 @@ void QLineEdit::setDragEnabled(bool b)
     Q_D(QLineEdit);
     d->dragEnabled = b;
 }
-
 
 /*!
   \property QLineEdit::cursorMoveStyle
@@ -1001,7 +1090,7 @@ void QLineEdit::setCursorMoveStyle(Qt::CursorMoveStyle style)
     \brief whether the input satisfies the inputMask and the
     validator.
 
-    By default, this property is true.
+    By default, this property is \c true.
 
     \sa setInputMask(), setValidator()
 */
@@ -1232,7 +1321,7 @@ void QLineEdit::redo()
 
     QLineEdit does not show a cursor in read-only mode.
 
-    By default, this property is false.
+    By default, this property is \c false.
 
     \sa setEnabled()
 */
@@ -1248,6 +1337,7 @@ void QLineEdit::setReadOnly(bool enable)
     Q_D(QLineEdit);
     if (d->control->isReadOnly() != enable) {
         d->control->setReadOnly(enable);
+        d->setClearButtonEnabled(!enable);
         setAttribute(Qt::WA_MacShowFocusRect, !enable);
         setAttribute(Qt::WA_InputMethodEnabled, d->shouldEnableInputMethod());
 #ifndef QT_NO_CURSOR
@@ -1350,8 +1440,11 @@ bool QLineEdit::event(QEvent * e)
                 || style()->styleHint(QStyle::SH_BlinkCursorWhenTextSelected, &opt, this))
                 d->setCursorVisible(true);
         }
+    } else if (e->type() == QEvent::ActionRemoved) {
+        d->removeAction(static_cast<QActionEvent *>(e)->action());
+    } else if (e->type() == QEvent::Resize) {
+        d->positionSideWidgets();
     }
-
 #ifdef QT_KEYPAD_NAVIGATION
     if (QApplication::keypadNavigationEnabled()) {
         if (e->type() == QEvent::EnterEditFocus) {
@@ -1777,9 +1870,9 @@ void QLineEdit::paintEvent(QPaintEvent *)
     initStyleOption(&panel);
     style()->drawPrimitive(QStyle::PE_PanelLineEdit, &panel, &p, this);
     r = style()->subElementRect(QStyle::SE_LineEditContents, &panel, this);
-    r.setX(r.x() + d->leftTextMargin);
+    r.setX(r.x() + d->effectiveLeftTextMargin());
     r.setY(r.y() + d->topTextMargin);
-    r.setRight(r.right() - d->rightTextMargin);
+    r.setRight(r.right() - d->effectiveRightTextMargin());
     r.setBottom(r.bottom() - d->bottomTextMargin);
     p.setClipRect(r);
 
@@ -1983,6 +2076,13 @@ void QLineEdit::contextMenuEvent(QContextMenuEvent *event)
     }
 }
 
+static inline void setActionIcon(QAction *action, const QString &name)
+{
+    const QIcon icon = QIcon::fromTheme(name);
+    if (!icon.isNull())
+        action->setIcon(icon);
+}
+
 /*!  This function creates the standard context menu which is shown
         when the user clicks on the line edit with the right mouse
         button. It is called from the default contextMenuEvent() handler.
@@ -1999,10 +2099,12 @@ QMenu *QLineEdit::createStandardContextMenu()
     if (!isReadOnly()) {
         action = popup->addAction(QLineEdit::tr("&Undo") + ACCEL_KEY(QKeySequence::Undo));
         action->setEnabled(d->control->isUndoAvailable());
+        setActionIcon(action, QStringLiteral("edit-undo"));
         connect(action, SIGNAL(triggered()), SLOT(undo()));
 
         action = popup->addAction(QLineEdit::tr("&Redo") + ACCEL_KEY(QKeySequence::Redo));
         action->setEnabled(d->control->isRedoAvailable());
+        setActionIcon(action, QStringLiteral("edit-redo"));
         connect(action, SIGNAL(triggered()), SLOT(redo()));
 
         popup->addSeparator();
@@ -2013,17 +2115,20 @@ QMenu *QLineEdit::createStandardContextMenu()
         action = popup->addAction(QLineEdit::tr("Cu&t") + ACCEL_KEY(QKeySequence::Cut));
         action->setEnabled(!d->control->isReadOnly() && d->control->hasSelectedText()
                 && d->control->echoMode() == QLineEdit::Normal);
+        setActionIcon(action, QStringLiteral("edit-cut"));
         connect(action, SIGNAL(triggered()), SLOT(cut()));
     }
 
     action = popup->addAction(QLineEdit::tr("&Copy") + ACCEL_KEY(QKeySequence::Copy));
     action->setEnabled(d->control->hasSelectedText()
             && d->control->echoMode() == QLineEdit::Normal);
+    setActionIcon(action, QStringLiteral("edit-copy"));
     connect(action, SIGNAL(triggered()), SLOT(copy()));
 
     if (!isReadOnly()) {
         action = popup->addAction(QLineEdit::tr("&Paste") + ACCEL_KEY(QKeySequence::Paste));
         action->setEnabled(!d->control->isReadOnly() && !QApplication::clipboard()->text().isEmpty());
+        setActionIcon(action, QStringLiteral("edit-paste"));
         connect(action, SIGNAL(triggered()), SLOT(paste()));
     }
 #endif
@@ -2031,6 +2136,7 @@ QMenu *QLineEdit::createStandardContextMenu()
     if (!isReadOnly()) {
         action = popup->addAction(QLineEdit::tr("Delete"));
         action->setEnabled(!d->control->isReadOnly() && !d->control->text().isEmpty() && d->control->hasSelectedText());
+        setActionIcon(action, QStringLiteral("edit-delete"));
         connect(action, SIGNAL(triggered()), d->control, SLOT(_q_deleteSelected()));
     }
 
@@ -2070,7 +2176,14 @@ void QLineEdit::changeEvent(QEvent *ev)
             initStyleOption(&opt);
             d->control->setPasswordCharacter(style()->styleHint(QStyle::SH_LineEdit_PasswordCharacter, &opt, this));
         }
+        d->m_iconSize = QSize();
         update();
+        break;
+    case QEvent::LayoutDirectionChange:
+        foreach (const QLineEditPrivate::SideWidgetEntry &e, d->trailingSideWidgets) // Refresh icon to show arrow in right direction.
+            if (e.flags & QLineEditPrivate::SideWidgetClearButton)
+                static_cast<QLineEditIconButton *>(e.widget)->setIcon(d->clearButtonIcon());
+        d->positionSideWidgets();
         break;
     default:
         break;

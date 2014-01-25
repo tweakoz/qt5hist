@@ -1,11 +1,13 @@
 TEMPLATE=subdirs
 
 SUBDIRS = qabstractitemmodel \
-    qstringlistmodel
+    qstringlistmodel \
 
-qtHaveModule(widgets): SUBDIRS += \
+qtHaveModule(gui): SUBDIRS += \
     qabstractproxymodel \
     qidentityproxymodel \
-    qitemmodel \
     qitemselectionmodel \
+
+qtHaveModule(widgets): SUBDIRS += \
+    qitemmodel \
     qsortfilterproxymodel \

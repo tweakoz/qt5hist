@@ -251,7 +251,7 @@ QT_BEGIN_NAMESPACE
         return retVal;
 
 enum {
-    DefaultStreamVersion = QDataStream::Qt_5_1
+    DefaultStreamVersion = QDataStream::Qt_5_2
 };
 
 /*!
@@ -402,9 +402,9 @@ void QDataStream::unsetDevice()
 /*!
     \fn bool QDataStream::atEnd() const
 
-    Returns true if the I/O device has reached the end position (end of
+    Returns \c true if the I/O device has reached the end position (end of
     the stream or file) or if there is no I/O device set; otherwise
-    returns false.
+    returns \c false.
 
     \sa QIODevice::atEnd()
 */
@@ -540,6 +540,7 @@ void QDataStream::setByteOrder(ByteOrder bo)
     \value Qt_4_9 Same as Qt_4_6.
     \value Qt_5_0 Version 13 (Qt 5.0)
     \value Qt_5_1 Version 14 (Qt 5.1)
+    \value Qt_5_2 Version 15 (Qt 5.2)
 
     \sa setVersion(), version()
 */
@@ -571,6 +572,7 @@ void QDataStream::setByteOrder(ByteOrder bo)
 
     \table
     \header \li Qt Version       \li QDataStream Version
+    \row \li Qt 5.2                  \li 15
     \row \li Qt 5.1                  \li 14
     \row \li Qt 5.0                  \li 13
     \row \li Qt 4.6                  \li 12

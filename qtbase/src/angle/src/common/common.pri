@@ -4,10 +4,10 @@ INCLUDEPATH += \
     $$ANGLE_DIR/src \
     $$ANGLE_DIR/include
 
-LIBS = $$QMAKE_LIBS_CORE $$QMAKE_LIBS_GUI
+LIBS_PRIVATE = $$QMAKE_LIBS_CORE $$QMAKE_LIBS_GUI
 
 # DirectX is included in the Windows 8 Kit, but everything else requires the DX SDK.
-win32-msvc2012 {
+win32-msvc2012|win32-msvc2013 {
     FXC = fxc.exe
 } else {
     DX_DIR = $$(DXSDK_DIR)
@@ -36,7 +36,7 @@ win32-msvc2012 {
 
         # Similarly we want the MinGW linker to use the import libraries shipped with the compiler
         # instead of those from the SDK which cause a crash on startup.
-        LIBS += -L\"$$DXLIB_DIR\"
+        LIBS_PRIVATE += -L\"$$DXLIB_DIR\"
     }
 }
 
@@ -45,10 +45,12 @@ static: DEFINES *= QT_OPENGL_ES_2_ANGLE_STATIC
 HEADERS +=  \
     $$ANGLE_DIR/src/common/angleutils.h \
     $$ANGLE_DIR/src/common/debug.h \
+    $$ANGLE_DIR/src/common/event_tracer.h \
     $$ANGLE_DIR/src/common/RefCountObject.h \
     $$ANGLE_DIR/src/common/version.h
 
 SOURCES +=  \
     $$ANGLE_DIR/src/common/debug.cpp \
+    $$ANGLE_DIR/src/common/event_tracer.cpp \
     $$ANGLE_DIR/src/common/RefCountObject.cpp
 

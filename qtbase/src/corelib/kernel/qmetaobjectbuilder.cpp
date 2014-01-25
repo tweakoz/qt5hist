@@ -90,7 +90,7 @@ Q_CORE_EXPORT bool isBuiltinType(const QByteArray &type)
 } // namespace QtPrivate
 
 // copied from qmetaobject.cpp
-static inline const QMetaObjectPrivate *priv(const uint* data)
+static inline Q_DECL_UNUSED const QMetaObjectPrivate *priv(const uint* data)
 { return reinterpret_cast<const QMetaObjectPrivate*>(data); }
 
 class QMetaMethodBuilderPrivate
@@ -510,7 +510,7 @@ QMetaMethodBuilder QMetaObjectBuilder::addSignal(const QByteArray& signature)
 {
     int index = d->methods.size();
     d->methods.append(QMetaMethodBuilderPrivate
-        (QMetaMethod::Signal, signature, QByteArray("void"), QMetaMethod::Protected));
+        (QMetaMethod::Signal, signature, QByteArray("void"), QMetaMethod::Public));
     return QMetaMethodBuilder(this, index);
 }
 
@@ -2005,8 +2005,7 @@ void QMetaMethodBuilder::setTag(const QByteArray& value)
 /*!
     Returns the access specification of this method (private, protected,
     or public).  The default value is QMetaMethod::Public for methods,
-    slots, and constructors.  The default value is QMetaMethod::Protected
-    for signals.
+    slots, signals and constructors.
 
     \sa setAccess()
 */
@@ -2145,7 +2144,7 @@ QByteArray QMetaPropertyBuilder::type() const
 }
 
 /*!
-    Returns true if this property has a notify signal; false otherwise.
+    Returns \c true if this property has a notify signal; false otherwise.
 
     \sa notifySignal(), setNotifySignal(), removeNotifySignal()
 */
@@ -2206,7 +2205,7 @@ void QMetaPropertyBuilder::removeNotifySignal()
 }
 
 /*!
-    Returns true if this property is readable; otherwise returns false.
+    Returns \c true if this property is readable; otherwise returns \c false.
     The default value is true.
 
     \sa setReadable(), isWritable()
@@ -2221,7 +2220,7 @@ bool QMetaPropertyBuilder::isReadable() const
 }
 
 /*!
-    Returns true if this property is writable; otherwise returns false.
+    Returns \c true if this property is writable; otherwise returns \c false.
     The default value is true.
 
     \sa setWritable(), isReadable()
@@ -2236,8 +2235,8 @@ bool QMetaPropertyBuilder::isWritable() const
 }
 
 /*!
-    Returns true if this property can be reset to a default value; otherwise
-    returns false.  The default value is false.
+    Returns \c true if this property can be reset to a default value; otherwise
+    returns \c false.  The default value is false.
 
     \sa setResettable()
 */
@@ -2251,7 +2250,7 @@ bool QMetaPropertyBuilder::isResettable() const
 }
 
 /*!
-    Returns true if this property is designable; otherwise returns false.
+    Returns \c true if this property is designable; otherwise returns \c false.
     This default value is false.
 
     \sa setDesignable(), isScriptable(), isStored()
@@ -2266,7 +2265,7 @@ bool QMetaPropertyBuilder::isDesignable() const
 }
 
 /*!
-    Returns true if the property is scriptable; otherwise returns false.
+    Returns \c true if the property is scriptable; otherwise returns \c false.
     This default value is true.
 
     \sa setScriptable(), isDesignable(), isStored()
@@ -2281,7 +2280,7 @@ bool QMetaPropertyBuilder::isScriptable() const
 }
 
 /*!
-    Returns true if the property is stored; otherwise returns false.
+    Returns \c true if the property is stored; otherwise returns \c false.
     This default value is false.
 
     \sa setStored(), isDesignable(), isScriptable()
@@ -2296,7 +2295,7 @@ bool QMetaPropertyBuilder::isStored() const
 }
 
 /*!
-    Returns true if the property is editable; otherwise returns false.
+    Returns \c true if the property is editable; otherwise returns \c false.
     This default value is false.
 
     \sa setEditable(), isDesignable(), isScriptable(), isStored()
@@ -2311,7 +2310,7 @@ bool QMetaPropertyBuilder::isEditable() const
 }
 
 /*!
-    Returns true if this property is designated as the \c USER
+    Returns \c true if this property is designated as the \c USER
     property, i.e., the one that the user can edit or that is
     significant in some other way.  Otherwise it returns
     false.  This default value is false.
@@ -2328,7 +2327,7 @@ bool QMetaPropertyBuilder::isUser() const
 }
 
 /*!
-    Returns true if the property has a C++ setter function that
+    Returns \c true if the property has a C++ setter function that
     follows Qt's standard "name" / "setName" pattern. Designer and uic
     query hasStdCppSet() in order to avoid expensive
     QObject::setProperty() calls. All properties in Qt [should] follow
@@ -2346,8 +2345,8 @@ bool QMetaPropertyBuilder::hasStdCppSet() const
 }
 
 /*!
-    Returns true if the property is an enumerator or flag type;
-    otherwise returns false.  This default value is false.
+    Returns \c true if the property is an enumerator or flag type;
+    otherwise returns \c false.  This default value is false.
 
     \sa setEnumOrFlag()
 */
@@ -2361,7 +2360,7 @@ bool QMetaPropertyBuilder::isEnumOrFlag() const
 }
 
 /*!
-    Returns true if the property is constant; otherwise returns false.
+    Returns \c true if the property is constant; otherwise returns \c false.
     The default value is false.
 */
 bool QMetaPropertyBuilder::isConstant() const
@@ -2374,7 +2373,7 @@ bool QMetaPropertyBuilder::isConstant() const
 }
 
 /*!
-    Returns true if the property is final; otherwise returns false.
+    Returns \c true if the property is final; otherwise returns \c false.
     The default value is false.
 */
 bool QMetaPropertyBuilder::isFinal() const
@@ -2601,7 +2600,7 @@ QByteArray QMetaEnumBuilder::name() const
 }
 
 /*!
-    Returns true if this enumerator is used as a flag; otherwise returns
+    Returns \c true if this enumerator is used as a flag; otherwise returns
     false.
 
     \sa setIsFlag()

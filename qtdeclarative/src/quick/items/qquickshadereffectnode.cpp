@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -45,6 +45,7 @@
 #include "qquickshadereffect_p.h"
 #include <QtQuick/qsgtextureprovider.h>
 #include <QtQuick/private/qsgrenderer_p.h>
+#include <QtQuick/private/qsgshadersourcebuilder_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -187,6 +188,9 @@ void QQuickCustomMaterialShader::updateState(const RenderState &state, QSGMateri
                         program()->setUniformValue(loc, r.x(), r.y(), r.width(), r.height());
                     }
                     break;
+                case QMetaType::QVector2D:
+                    program()->setUniformValue(loc, qvariant_cast<QVector2D>(d.value));
+                    break;
                 case QMetaType::QVector3D:
                     program()->setUniformValue(loc, qvariant_cast<QVector3D>(d.value));
                     break;
@@ -273,20 +277,15 @@ void QQuickCustomMaterialShader::compile()
         m_log += program()->log();
     }
 
-    static const char fallbackVertexShader[] =
-            "uniform highp mat4 qt_Matrix;"
-            "attribute highp vec4 v;"
-            "void main() { gl_Position = qt_Matrix * v; }";
-    static const char fallbackFragmentShader[] =
-            "void main() { gl_FragColor = vec4(1., 0., 1., 1.); }";
-
     if (!m_compiled) {
         qWarning("QQuickCustomMaterialShader: Shader compilation failed:");
         qWarning() << program()->log();
 
-        program()->removeAllShaders();
-        program()->addShaderFromSourceCode(QOpenGLShader::Vertex, fallbackVertexShader);
-        program()->addShaderFromSourceCode(QOpenGLShader::Fragment, fallbackFragmentShader);
+        QSGShaderSourceBuilder::initializeProgramFromFiles(
+            program(),
+            QStringLiteral(":/items/shaders/shadereffectfallback.vert"),
+            QStringLiteral(":/items/shaders/shadereffectfallback.frag"));
+
 #ifndef QT_NO_DEBUG
         for (int i = 0; i < attrCount; ++i) {
 #else
@@ -390,8 +389,8 @@ QQuickShaderEffectNode::QQuickShaderEffectNode()
 {
     QSGNode::setFlag(UsePreprocess, true);
 
-#ifdef QML_RUNTIME_TESTING
-    description = QLatin1String("shadereffect");
+#ifdef QSG_RUNTIME_DESCRIPTION
+    qsgnode_set_description(this, QLatin1String("shadereffect"));
 #endif
 }
 

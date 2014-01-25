@@ -42,8 +42,8 @@
 
 
 
-import QtQuick 2.1
-import QtQuick.Controls 1.0
+import QtQuick 2.2
+import QtQuick.Controls 1.1
 import QtQuick.Layouts 1.0
 import QtQuick.Dialogs 1.0
 import "content"
@@ -51,10 +51,10 @@ import "content"
 ApplicationWindow {
     title: "Component Gallery"
 
-    width: 600
-    height: 400
+    width: 640
+    height: 420
     minimumHeight: 400
-    minimumWidth: 570
+    minimumWidth: 600
 
     property string loremIpsum:
             "Lorem ipsum dolor sit amet, consectetur adipisicing elit, sed do eiusmod tempor "+
@@ -70,10 +70,12 @@ ApplicationWindow {
         onAccepted: imageViewer.open(fileUrl)
     }
 
+    AboutDialog { id: aboutDialog }
+
     Action {
         id: openAction
         text: "&Open"
-        shortcut: "Ctrl+O"
+        shortcut: StandardKey.Open
         iconSource: "images/document-open.png"
         onTriggered: fileDialog.open()
         tooltip: "Open an image"
@@ -82,7 +84,7 @@ ApplicationWindow {
     Action {
         id: copyAction
         text: "&Copy"
-        shortcut: "Ctrl+C"
+        shortcut: StandardKey.Copy
         iconName: "edit-copy"
         enabled: (!!activeFocusItem && !!activeFocusItem["copy"])
         onTriggered: activeFocusItem.copy()
@@ -91,7 +93,7 @@ ApplicationWindow {
     Action {
         id: cutAction
         text: "Cu&t"
-        shortcut: "Ctrl+X"
+        shortcut: StandardKey.Cut
         iconName: "edit-cut"
         enabled: (!!activeFocusItem && !!activeFocusItem["cut"])
         onTriggered: activeFocusItem.cut()
@@ -100,10 +102,16 @@ ApplicationWindow {
     Action {
         id: pasteAction
         text: "&Paste"
-        shortcut: "Ctrl+V"
+        shortcut: StandardKey.Paste
         iconName: "edit-paste"
         enabled: (!!activeFocusItem && !!activeFocusItem["paste"])
         onTriggered: activeFocusItem.paste()
+    }
+
+    Action {
+        id: aboutAction
+        text: "About"
+        onTriggered: aboutDialog.open()
     }
 
     ExclusiveGroup {
@@ -111,20 +119,20 @@ ApplicationWindow {
 
         Action {
             id: a1
-            text: "Align Left"
+            text: "Align &Left"
             checkable: true
             Component.onCompleted: checked = true
         }
 
         Action {
             id: a2
-            text: "Center"
+            text: "&Center"
             checkable: true
         }
 
         Action {
             id: a3
-            text: "Align Right"
+            text: "Align &Right"
             checkable: true
         }
     }
@@ -138,18 +146,18 @@ ApplicationWindow {
         MenuItem { action: pasteAction }
         MenuSeparator {}
         Menu {
-            title: "Text Format"
+            title: "Text &Format"
             MenuItem { action: a1 }
             MenuItem { action: a2 }
             MenuItem { action: a3 }
             MenuSeparator { }
-            MenuItem { text: "Allow Hyphenation"; checkable: true }
+            MenuItem { text: "Allow &Hyphenation"; checkable: true }
         }
         Menu {
-            title: "Font Style"
-            MenuItem { text: "Bold"; checkable: true }
-            MenuItem { text: "Italic"; checkable: true }
-            MenuItem { text: "Underline"; checkable: true }
+            title: "Font &Style"
+            MenuItem { text: "&Bold"; checkable: true }
+            MenuItem { text: "&Italic"; checkable: true }
+            MenuItem { text: "&Underline"; checkable: true }
         }
     }
 
@@ -185,7 +193,7 @@ ApplicationWindow {
             MenuItem { action: openAction }
             MenuItem {
                 text: "Close"
-                shortcut: "Ctrl+Q"
+                shortcut: StandardKey.Quit
                 onTriggered: Qt.quit()
             }
         }
@@ -210,6 +218,10 @@ ApplicationWindow {
                 visible: false
             }
         }
+        Menu {
+            title: "&Help"
+            MenuItem { action: aboutAction }
+        }
     }
 
 
@@ -232,7 +244,7 @@ ApplicationWindow {
 
         Tab {
             id: controlPage
-            title: "Control"
+            title: "Controls"
             Controls { }
         }
         Tab {

@@ -56,6 +56,7 @@
 #include "QtCore/qstringlist.h"
 #include "QtCore/qpair.h"
 #include "QtPrintSupport/qprinter.h"
+#include "QtCore/qdatetime.h"
 
 #ifndef QT_NO_CUPS
 #include <QtCore/qlibrary.h>
@@ -90,12 +91,65 @@ public:
     QCUPSSupport();
     ~QCUPSSupport();
 
+    // Enum for values of job-hold-until option
+    enum JobHoldUntil {
+        NoHold = 0,  //CUPS Default
+        Indefinite,
+        DayTime,
+        Night,
+        SecondShift,
+        ThirdShift,
+        Weekend,
+        SpecificTime
+    };
+
+    // Enum for valid banner pages
+    enum BannerPage {
+        NoBanner = 0,  //CUPS Default 'none'
+        Standard,
+        Unclassified,
+        Confidential,
+        Classified,
+        Secret,
+        TopSecret
+    };
+
+    // Enum for valid page set
+    enum PageSet {
+        AllPages = 0,  //CUPS Default
+        OddPages,
+        EvenPages
+    };
+
+    // Enum for valid number of pages per sheet
+    enum PagesPerSheet {
+        OnePagePerSheet = 0,
+        TwoPagesPerSheet,
+        FourPagesPerSheet,
+        SixPagesPerSheet,
+        NinePagesPerSheet,
+        SixteenPagesPerSheet
+    };
+
+    // Enum for valid layouts of pages per sheet
+    enum PagesPerSheetLayout {
+        LeftToRightTopToBottom = 0,
+        LeftToRightBottomToTop,
+        RightToLeftTopToBottom,
+        RightToLeftBottomToTop,
+        BottomToTopLeftToRight,
+        BottomToTopRightToLeft,
+        TopToBottomLeftToRight,
+        TopToBottomRightToLeft
+    };
+
     static bool isAvailable();
     static int cupsVersion() { return isAvailable() ? CUPS_VERSION_MAJOR*10000+CUPS_VERSION_MINOR*100+CUPS_VERSION_PATCH : 0; }
     int availablePrintersCount() const;
     const cups_dest_t* availablePrinters() const;
     int currentPrinterIndex() const;
     const ppd_file_t* setCurrentPrinter(int index);
+    const ppd_file_t* setCurrentPrinter(const QString &printerName);
 
     const ppd_file_t* currentPPD() const;
     const ppd_option_t* ppdOption(const char *key) const;
@@ -110,6 +164,19 @@ public:
     QRect pageRect(const char *choice) const;
 
     QStringList options() const;
+
+    static QStringList cupsOptionsList(QPrinter *printer);
+    static void setCupsOptions(QPrinter *printer, const QStringList &cupsOptions);
+    static void setCupsOption(QStringList &cupsOptions, const QString &option, const QString &value);
+
+    static void setJobHold(QPrinter *printer, const JobHoldUntil jobHold = NoHold, const QTime &holdUntilTime = QTime());
+    static void setJobBilling(QPrinter *printer, const QString &jobBilling = QString());
+    static void setJobPriority(QPrinter *printer, int priority = 50);
+    static void setBannerPages(QPrinter *printer, const BannerPage startBannerPage, const BannerPage endBannerPage);
+    static void setPageSet(QPrinter *printer, const PageSet pageSet);
+    static void setPagesPerSheetLayout(QPrinter *printer, const PagesPerSheet pagesPerSheet,
+                                       const PagesPerSheetLayout pagesPerSheetLayout);
+    static void setPageRange(QPrinter *printer, int pageFrom, int pageTo);
 
     static bool printerHasPPD(const char *printerName);
 
@@ -138,6 +205,12 @@ private:
 };
 
 QT_END_NAMESPACE
+
+Q_DECLARE_METATYPE(QCUPSSupport::JobHoldUntil)
+Q_DECLARE_METATYPE(QCUPSSupport::BannerPage)
+Q_DECLARE_METATYPE(QCUPSSupport::PageSet)
+Q_DECLARE_METATYPE(QCUPSSupport::PagesPerSheetLayout)
+Q_DECLARE_METATYPE(QCUPSSupport::PagesPerSheet)
 
 #endif // QT_NO_CUPS
 

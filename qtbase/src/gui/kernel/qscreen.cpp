@@ -443,6 +443,23 @@ Qt::ScreenOrientation QScreen::primaryOrientation() const
     return d->primaryOrientation;
 }
 
+/*!
+    \property QScreen::nativeOrientation
+    \brief the native screen orientation
+    \since 5.2
+
+    The native orientation of the screen is the orientation where the logo
+    sticker of the device appears the right way up, or Qt::PrimaryOrientation
+    if the platform does not support this functionality.
+
+    The native orientation is a property of the hardware, and does not change.
+*/
+Qt::ScreenOrientation QScreen::nativeOrientation() const
+{
+    Q_D(const QScreen);
+    return d->platformScreen->nativeOrientation();
+}
+
 // i must be power of two
 static int log2(uint i)
 {
@@ -562,8 +579,8 @@ QRect QScreen::mapBetween(Qt::ScreenOrientation a, Qt::ScreenOrientation b, cons
 }
 
 /*!
-    Convenience function that returns true if \a o is either portrait or inverted portrait;
-    otherwise returns false.
+    Convenience function that returns \c true if \a o is either portrait or inverted portrait;
+    otherwise returns \c false.
 
     Qt::PrimaryOrientation is interpreted as the screen's primaryOrientation().
 */
@@ -574,8 +591,8 @@ bool QScreen::isPortrait(Qt::ScreenOrientation o) const
 }
 
 /*!
-    Convenience function that returns true if \a o is either landscape or inverted landscape;
-    otherwise returns false.
+    Convenience function that returns \c true if \a o is either landscape or inverted landscape;
+    otherwise returns \c false.
 
     Qt::PrimaryOrientation is interpreted as the screen's primaryOrientation().
 */

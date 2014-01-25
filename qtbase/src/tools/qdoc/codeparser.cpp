@@ -65,6 +65,7 @@ QT_BEGIN_NAMESPACE
 #define COMMAND_PAGEKEYWORDS            Doc::alias(QLatin1String("pagekeywords"))
 #define COMMAND_PRELIMINARY             Doc::alias(QLatin1String("preliminary"))
 #define COMMAND_INPUBLICGROUP           Doc::alias(QLatin1String("inpublicgroup"))
+#define COMMAND_QTVARIABLE              Doc::alias(QLatin1String("qtvariable"))
 #define COMMAND_REENTRANT               Doc::alias(QLatin1String("reentrant"))
 #define COMMAND_SINCE                   Doc::alias(QLatin1String("since"))
 #define COMMAND_SUBTITLE                Doc::alias(QLatin1String("subtitle"))
@@ -101,7 +102,7 @@ CodeParser::~CodeParser()
  */
 void CodeParser::initializeParser(const Config& config)
 {
-    showInternal = config.getBool(QLatin1String(CONFIG_SHOWINTERNAL));
+    showInternal = config.getBool(CONFIG_SHOWINTERNAL);
 }
 
 /*!
@@ -199,29 +200,34 @@ CodeParser *CodeParser::parserForSourceFile(const QString &filePath)
     return 0;
 }
 
+static QSet<QString> commonMetaCommands_;
 /*!
   Returns the set of strings representing the common metacommands.
  */
-QSet<QString> CodeParser::commonMetaCommands()
+const QSet<QString>& CodeParser::commonMetaCommands()
 {
-    return QSet<QString>() << COMMAND_COMPAT
-                           << COMMAND_DEPRECATED
-                           << COMMAND_INGROUP
-                           << COMMAND_INMODULE
-                           << COMMAND_INQMLMODULE
-                           << COMMAND_INTERNAL
-                           << COMMAND_MAINCLASS
-                           << COMMAND_NONREENTRANT
-                           << COMMAND_OBSOLETE
-                           << COMMAND_PAGEKEYWORDS
-                           << COMMAND_PRELIMINARY
-                           << COMMAND_INPUBLICGROUP
-                           << COMMAND_REENTRANT
-                           << COMMAND_SINCE
-                           << COMMAND_SUBTITLE
-                           << COMMAND_THREADSAFE
-                           << COMMAND_TITLE
-                           << COMMAND_WRAPPER;
+    if (commonMetaCommands_.isEmpty()) {
+        commonMetaCommands_ << COMMAND_COMPAT
+                            << COMMAND_DEPRECATED
+                            << COMMAND_INGROUP
+                            << COMMAND_INMODULE
+                            << COMMAND_INQMLMODULE
+                            << COMMAND_INTERNAL
+                            << COMMAND_MAINCLASS
+                            << COMMAND_NONREENTRANT
+                            << COMMAND_OBSOLETE
+                            << COMMAND_PAGEKEYWORDS
+                            << COMMAND_PRELIMINARY
+                            << COMMAND_INPUBLICGROUP
+                            << COMMAND_QTVARIABLE
+                            << COMMAND_REENTRANT
+                            << COMMAND_SINCE
+                            << COMMAND_SUBTITLE
+                            << COMMAND_THREADSAFE
+                            << COMMAND_TITLE
+                            << COMMAND_WRAPPER;
+    }
+    return commonMetaCommands_;
 }
 
 /*!
@@ -269,8 +275,8 @@ void CodeParser::processCommonMetaCommand(const Location& location,
         if (!showInternal) {
             node->setAccess(Node::Private);
             node->setStatus(Node::Internal);
-            if (node->subType() == Node::QmlPropertyGroup) {
-                const QmlPropGroupNode* qpgn = static_cast<const QmlPropGroupNode*>(node);
+            if (node->type() == Node::QmlPropertyGroup) {
+                const QmlPropertyGroupNode* qpgn = static_cast<const QmlPropertyGroupNode*>(node);
                 NodeList::ConstIterator p = qpgn->childNodes().constBegin();
                 while (p != qpgn->childNodes().constEnd()) {
                     if ((*p)->type() == Node::QmlProperty) {
@@ -316,6 +322,15 @@ void CodeParser::processCommonMetaCommand(const Location& location,
         }
         else
             location.warning(tr("Ignored '\\%1'").arg(COMMAND_TITLE));
+    }
+    else if (command == COMMAND_QTVARIABLE) {
+        if (node->subType() == Node::Module) {
+            DocNode *dn = static_cast<DocNode *>(node);
+            dn->setQtVariable(arg.first);
+        }
+        else
+            location.warning(tr("Command '\\%1' found outside of '\\module'. It can only be used within a module page.")
+                             .arg(COMMAND_QTVARIABLE));
     }
 }
 
@@ -368,7 +383,7 @@ void CodeParser::setLink(Node* node, Node::LinkType linkType, const QString& arg
 }
 
 /*!
-  Returns true if the file being parsed is a .h file.
+  Returns \c true if the file being parsed is a .h file.
  */
 bool CodeParser::isParsingH() const
 {
@@ -376,7 +391,7 @@ bool CodeParser::isParsingH() const
 }
 
 /*!
-  Returns true if the file being parsed is a .cpp file.
+  Returns \c true if the file being parsed is a .cpp file.
  */
 bool CodeParser::isParsingCpp() const
 {
@@ -384,7 +399,7 @@ bool CodeParser::isParsingCpp() const
 }
 
 /*!
-  Returns true if the file being parsed is a .qdoc file.
+  Returns \c true if the file being parsed is a .qdoc file.
  */
 bool CodeParser::isParsingQdoc() const
 {

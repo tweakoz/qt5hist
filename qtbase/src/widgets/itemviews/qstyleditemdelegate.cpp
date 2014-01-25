@@ -615,8 +615,8 @@ void QStyledItemDelegate::setItemEditorFactory(QItemEditorFactory *factory)
 /*!
     \fn bool QStyledItemDelegate::eventFilter(QObject *editor, QEvent *event)
 
-    Returns true if the given \a editor is a valid QWidget and the
-    given \a event is handled; otherwise returns false. The following
+    Returns \c true if the given \a editor is a valid QWidget and the
+    given \a event is handled; otherwise returns \c false. The following
     key press events are handled by default:
 
     \list
@@ -764,8 +764,11 @@ bool QStyledItemDelegate::editorEvent(QEvent *event,
         return false;
     }
 
-    Qt::CheckState state = (static_cast<Qt::CheckState>(value.toInt()) == Qt::Checked
-                            ? Qt::Unchecked : Qt::Checked);
+    Qt::CheckState state = static_cast<Qt::CheckState>(value.toInt());
+    if (flags & Qt::ItemIsTristate)
+        state = ((Qt::CheckState)((state + 1) % 3));
+    else
+        state = (state == Qt::Checked) ? Qt::Unchecked : Qt::Checked;
     return model->setData(index, state, Qt::CheckStateRole);
 }
 

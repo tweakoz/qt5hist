@@ -1,6 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Olivier Goffart <ogoffart@woboq.com>
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -221,6 +222,19 @@ static qlonglong qConvertToNumber(const QVariant::Private *d, bool *ok)
         return qlonglong(qMetaTypeUNumber(d));
     }
 
+    if (QMetaType::typeFlags(d->type) & QMetaType::IsEnumeration) {
+        switch (QMetaType::sizeOf(d->type)) {
+        case 1:
+            return d->is_shared ? *reinterpret_cast<signed char *>(d->data.shared->ptr) : d->data.sc;
+        case 2:
+            return d->is_shared ? *reinterpret_cast<qint16 *>(d->data.shared->ptr) : d->data.s;
+        case 4:
+            return d->is_shared ? *reinterpret_cast<qint32 *>(d->data.shared->ptr) : d->data.i;
+        case 8:
+            return d->is_shared ? *reinterpret_cast<qint64 *>(d->data.shared->ptr) : d->data.ll;
+        }
+    }
+
     *ok = false;
     return Q_INT64_C(0);
 }
@@ -256,6 +270,19 @@ static qulonglong qConvertToUnsignedNumber(const QVariant::Private *d, bool *ok)
         return qMetaTypeUNumber(d);
     }
 
+    if (QMetaType::typeFlags(d->type) & QMetaType::IsEnumeration) {
+        switch (QMetaType::sizeOf(d->type)) {
+        case 1:
+            return d->is_shared ? *reinterpret_cast<uchar *>(d->data.shared->ptr) : d->data.uc;
+        case 2:
+            return d->is_shared ? *reinterpret_cast<quint16 *>(d->data.shared->ptr) : d->data.us;
+        case 4:
+            return d->is_shared ? *reinterpret_cast<quint32 *>(d->data.shared->ptr) : d->data.u;
+        case 8:
+            return d->is_shared ? *reinterpret_cast<qint64 *>(d->data.shared->ptr) : d->data.ull;
+        }
+    }
+
     *ok = false;
     return Q_UINT64_C(0);
 }
@@ -269,6 +296,16 @@ inline bool qt_convertToBool(const QVariant::Private *const d)
 
 /*!
  \internal
+ Returns the internal data pointer from \a d.
+ */
+
+static const void *constData(const QVariant::Private &d)
+{
+    return d.is_shared ? d.data.shared->ptr : reinterpret_cast<const void *>(&d.data.c);
+}
+
+/*!
+ \internal
 
  Converts \a d to type \a t, which is placed in \a result.
  */
@@ -276,6 +313,14 @@ static bool convert(const QVariant::Private *d, int t, void *result, bool *ok)
 {
     Q_ASSERT(d->type != uint(t));
     Q_ASSERT(result);
+
+    if (d->type >= QMetaType::User || t >= QMetaType::User) {
+        const bool isOk = QMetaType::convert(constData(*d), d->type, result, t);
+        if (ok)
+            *ok = isOk;
+        if (isOk)
+            return true;
+    }
 
     bool dummy;
     if (!ok)
@@ -867,11 +912,16 @@ static bool customCompare(const QVariant::Private *a, const QVariant::Private *b
     return !memcmp(a_ptr, b_ptr, QMetaType::sizeOf(a->type));
 }
 
-static bool customConvert(const QVariant::Private *, int, void *, bool *ok)
+static bool customConvert(const QVariant::Private *d, int t, void *result, bool *ok)
 {
-    if (ok)
-        *ok = false;
-    return false;
+    if (d->type >= QMetaType::User || t >= QMetaType::User) {
+        if (QMetaType::convert(constData(*d), d->type, result, t)) {
+            if (ok)
+                *ok = true;
+            return true;
+        }
+    }
+    return convert(d, t, result, ok);
 }
 
 #if !defined(QT_NO_DEBUG_STREAM)
@@ -1077,6 +1127,23 @@ Q_CORE_EXPORT void QVariantPrivate::registerHandler(const int /* Modules::Names 
     \omitvalue LastGuiType
     \omitvalue LastCoreType
     \omitvalue LastType
+*/
+
+/*!
+    \fn QVariant::QVariant(QVariant &&other)
+
+    Move-constructs a QVariant instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
+*/
+
+/*!
+    \fn QVariant &QVariant::operator=(QVariant &&other)
+
+    Move-assigns \a other to this QVariant instance.
+
+    \since 5.2
 */
 
 /*!
@@ -1850,6 +1917,7 @@ void QVariant::load(QDataStream &s)
 void QVariant::save(QDataStream &s) const
 {
     quint32 typeId = type();
+    bool fakeUserType = false;
     if (s.version() < QDataStream::Qt_4_0) {
         int i;
         for (i = 0; i <= MapFromThreeCount - 1; ++i) {
@@ -1874,12 +1942,16 @@ void QVariant::save(QDataStream &s) const
         } else if (typeId >= QMetaType::QKeySequence && typeId <= QMetaType::QQuaternion) {
             // and as a result these types received lower ids too
             typeId +=1;
+        } else if (typeId == QMetaType::QPolygonF) {
+            // This existed in Qt 4 only as a custom type
+            typeId = 127;
+            fakeUserType = true;
         }
     }
     s << typeId;
     if (s.version() >= QDataStream::Qt_4_2)
         s << qint8(d.is_null);
-    if (d.type >= QVariant::UserType) {
+    if (d.type >= QVariant::UserType || fakeUserType) {
         s << QMetaType::typeName(userType());
     }
 
@@ -1946,8 +2018,8 @@ QDataStream& operator<<(QDataStream &s, const QVariant::Type p)
 /*!
     \fn bool QVariant::isValid() const
 
-    Returns true if the storage type of this variant is not
-    QVariant::Invalid; otherwise returns false.
+    Returns \c true if the storage type of this variant is not
+    QVariant::Invalid; otherwise returns \c false.
 */
 
 template <typename T>
@@ -1958,6 +2030,12 @@ inline T qVariantToHelper(const QVariant::Private &d, const HandlersManager &han
         return *v_cast<T>(&d);
 
     T ret;
+    if (d.type >= QMetaType::User || targetType >= QMetaType::User) {
+        const void * const from = constData(d);
+        if (QMetaType::convert(from, d.type, &ret, targetType))
+            return ret;
+    }
+
     handlerManager[d.type]->convert(&d, targetType, &ret, 0);
     return ret;
 }
@@ -2374,13 +2452,19 @@ template <typename T>
 inline T qNumVariantToHelper(const QVariant::Private &d,
                              const HandlersManager &handlerManager, bool *ok, const T& val)
 {
-    uint t = qMetaTypeId<T>();
+    const uint t = qMetaTypeId<T>();
     if (ok)
         *ok = true;
+
     if (d.type == t)
         return val;
 
     T ret = 0;
+    if ((d.type >= QMetaType::User || t >= QMetaType::User)
+        && QMetaType::convert(&val, d.type, &ret, t)) {
+        return ret;
+    }
+
     if (!handlerManager[d.type]->convert(&d, t, &ret, ok) && ok)
         *ok = false;
     return ret;
@@ -2467,12 +2551,12 @@ qulonglong QVariant::toULongLong(bool *ok) const
 /*!
     Returns the variant as a bool if the variant has userType() Bool.
 
-    Returns true if the variant has userType() \l QMetaType::Bool,
+    Returns \c true if the variant has userType() \l QMetaType::Bool,
     \l QMetaType::QChar, \l QMetaType::Double, \l QMetaType::Int,
     \l QMetaType::LongLong, \l QMetaType::UInt, or \l QMetaType::ULongLong and
     the value is non-zero, or if the variant has type \l QMetaType::QString or
     \l QMetaType::QByteArray and its lower-case content is not one of the
-    following: empty, "0" or "false"; otherwise returns false.
+    following: empty, "0" or "false"; otherwise returns \c false.
 
     \sa canConvert(), convert()
 */
@@ -2640,7 +2724,7 @@ static const quint32 qCanConvertMatrix[QVariant::LastCoreType + 1] =
 
 #ifndef QT_BOOTSTRAPPED
 /*!
-    Returns true if from inherits to.
+    Returns \c true if from inherits to.
 */
 static bool canConvertMetaObject(const QMetaObject *from, const QMetaObject *to)
 {
@@ -2676,7 +2760,7 @@ static bool canConvertMetaObject(int fromId, int toId, QObject *fromObject)
 
 
 /*!
-    Returns true if the variant's type can be cast to the requested
+    Returns \c true if the variant's type can be cast to the requested
     type, \a targetTypeId. Such casting is done automatically when calling the
     toInt(), toBool(), ... methods.
 
@@ -2735,10 +2819,52 @@ static bool canConvertMetaObject(int fromId, int toId, QObject *fromObject)
     function if a qobject_cast to the type described by \a targetTypeId would succeed. Note that
     this only works for QObject subclasses which use the Q_OBJECT macro.
 
-    \sa convert()
+    A QVariant containing a sequential container will also return true for this
+    function if the \a targetTypeId is QVariantList. It is possible to iterate over
+    the contents of the container without extracting it as a (copied) QVariantList:
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 9
+
+    This requires that the value_type of the container is itself a metatype.
+
+    Similarly, a QVariant containing a sequential container will also return true for this
+    function the \a targetTypeId is QVariantHash or QVariantMap. It is possible to iterate over
+    the contents of the container without extracting it as a (copied) QVariantHash or QVariantMap:
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 10
+
+    \sa convert(), QSequentialIterable, qRegisterSequentialConverter(), QAssociativeIterable,
+        qRegisterAssociativeConverter()
 */
 bool QVariant::canConvert(int targetTypeId) const
 {
+    if (targetTypeId == QMetaType::QVariantList
+            && (d.type == QMetaType::QVariantList
+              || d.type == QMetaType::QStringList
+              || QMetaType::hasRegisteredConverterFunction(d.type,
+                    qMetaTypeId<QtMetaTypePrivate::QSequentialIterableImpl>()))) {
+        return true;
+    }
+
+    if ((targetTypeId == QMetaType::QVariantHash || targetTypeId == QMetaType::QVariantMap)
+            && (d.type == QMetaType::QVariantMap
+              || d.type == QMetaType::QVariantHash
+              || QMetaType::hasRegisteredConverterFunction(d.type,
+                    qMetaTypeId<QtMetaTypePrivate::QAssociativeIterableImpl>()))) {
+        return true;
+    }
+
+    if (targetTypeId == qMetaTypeId<QPair<QVariant, QVariant> >() &&
+              QMetaType::hasRegisteredConverterFunction(d.type,
+                    qMetaTypeId<QtMetaTypePrivate::QPairVariantInterfaceImpl>())) {
+        return true;
+    }
+
+    if ((d.type >= QMetaType::User || targetTypeId >= QMetaType::User)
+        && QMetaType::hasRegisteredConverterFunction(d.type, targetTypeId)) {
+        return true;
+    }
+
     // TODO Reimplement this function, currently it works but it is a historical mess.
     uint currentType = ((d.type == QMetaType::Float) ? QVariant::Double : d.type);
     if (currentType == QMetaType::SChar || currentType == QMetaType::Char)
@@ -2753,8 +2879,13 @@ bool QVariant::canConvert(int targetTypeId) const
 
     if (targetTypeId < 0)
         return false;
-    if (targetTypeId >= QMetaType::User)
-        return canConvertMetaObject(currentType, targetTypeId, d.data.o);
+    if (targetTypeId >= QMetaType::User) {
+        if (QMetaType::typeFlags(targetTypeId) & QMetaType::IsEnumeration) {
+            targetTypeId = QMetaType::Int;
+        } else {
+            return canConvertMetaObject(currentType, targetTypeId, d.data.o);
+        }
+    }
 
     if (currentType == QMetaType::QJsonValue) {
         switch (targetTypeId) {
@@ -2787,13 +2918,16 @@ bool QVariant::canConvert(int targetTypeId) const
                 return true;
             // fall through
         case QVariant::UInt:
+        case QVariant::LongLong:
+        case QVariant::ULongLong:
                return currentType == QMetaType::ULong
                    || currentType == QMetaType::Long
                    || currentType == QMetaType::UShort
                    || currentType == QMetaType::UChar
                    || currentType == QMetaType::Char
                    || currentType == QMetaType::SChar
-                   || currentType == QMetaType::Short;
+                   || currentType == QMetaType::Short
+                   || QMetaType::typeFlags(currentType) & QMetaType::IsEnumeration;
         case QVariant::Image:
             return currentType == QVariant::Pixmap || currentType == QVariant::Bitmap;
         case QVariant::Pixmap:
@@ -2822,7 +2956,9 @@ bool QVariant::canConvert(int targetTypeId) const
         case QMetaType::ULong:
         case QMetaType::Short:
         case QMetaType::UShort:
-            return qCanConvertMatrix[QVariant::Int] & (1 << currentType) || currentType == QVariant::Int;
+            return qCanConvertMatrix[QVariant::Int] & (1 << currentType)
+                || currentType == QVariant::Int
+                || QMetaType::typeFlags(currentType) & QMetaType::IsEnumeration;
         case QMetaType::QObjectStar:
             return canConvertMetaObject(currentType, targetTypeId, d.data.o);
         default:
@@ -2837,8 +2973,8 @@ bool QVariant::canConvert(int targetTypeId) const
 
 /*!
     Casts the variant to the requested type, \a targetTypeId. If the cast cannot be
-    done, the variant is cleared. Returns true if the current type of
-    the variant was successfully cast; otherwise returns false.
+    done, the variant is cleared. Returns \c true if the current type of
+    the variant was successfully cast; otherwise returns \c false.
 
     A QVariant containing a pointer to a type derived from QObject will also convert
     and return true for this function if a qobject_cast to the type described
@@ -2867,13 +3003,14 @@ bool QVariant::convert(int targetTypeId)
     if (oldValue.isNull())
         return false;
 
-    if ((QMetaType::typeFlags(d.type) & QMetaType::PointerToQObject) && (QMetaType::typeFlags(targetTypeId) & QMetaType::PointerToQObject)) {
+    if ((QMetaType::typeFlags(oldValue.userType()) & QMetaType::PointerToQObject) && (QMetaType::typeFlags(targetTypeId) & QMetaType::PointerToQObject)) {
         create(targetTypeId, &oldValue.d.data.o);
         return true;
     }
 
     bool isOk = true;
-    if (!handlerManager[d.type]->convert(&oldValue.d, targetTypeId, data(), &isOk))
+    int converterType = std::max(oldValue.userType(), targetTypeId);
+    if (!handlerManager[converterType]->convert(&oldValue.d, targetTypeId, data(), &isOk))
         isOk = false;
     d.is_null = !isOk;
     return isOk;
@@ -2886,7 +3023,6 @@ bool QVariant::convert(int targetTypeId)
 */
 bool QVariant::convert(const int type, void *ptr) const
 {
-    Q_ASSERT(type < int(QMetaType::User));
     return handlerManager[type]->convert(&d, type, ptr, 0);
 }
 
@@ -2896,7 +3032,7 @@ bool QVariant::convert(const int type, void *ptr) const
 
     \relates QVariant
 
-    Returns true if \a v1 and \a v2 are equal; otherwise returns false.
+    Returns \c true if \a v1 and \a v2 are equal; otherwise returns \c false.
 
     If \a v1 and \a v2 have the same \l{QVariant::}{type()}, the
     type's equality operator is used for comparison. If not, it is
@@ -2908,42 +3044,98 @@ bool QVariant::convert(const int type, void *ptr) const
     which means that two values can be equal even if one of them is null and
     another is not.
 
-    \warning This function doesn't support custom types registered
-    with qRegisterMetaType().
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
 */
 /*!
     \fn bool operator!=(const QVariant &v1, const QVariant &v2)
 
     \relates QVariant
 
-    Returns false if \a v1 and \a v2 are equal; otherwise returns true.
+    Returns \c false if \a v1 and \a v2 are equal; otherwise returns \c true.
 
-    \warning This function doesn't support custom types registered
-    with qRegisterMetaType().
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
 */
 
 /*! \fn bool QVariant::operator==(const QVariant &v) const
 
-    Compares this QVariant with \a v and returns true if they are
-    equal; otherwise returns false.
+    Compares this QVariant with \a v and returns \c true if they are
+    equal; otherwise returns \c false.
 
     QVariant uses the equality operator of the type() it contains to
     check for equality. QVariant will try to convert() \a v if its
     type is not the same as this variant's type. See canConvert() for
     a list of possible conversions.
 
-    \warning This function doesn't support custom types registered
-    with qRegisterMetaType().
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
 */
 
 /*!
     \fn bool QVariant::operator!=(const QVariant &v) const
 
-    Compares this QVariant with \a v and returns true if they are not
-    equal; otherwise returns false.
+    Compares this QVariant with \a v and returns \c true if they are not
+    equal; otherwise returns \c false.
 
-    \warning This function doesn't support custom types registered
-    with qRegisterMetaType().
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
+*/
+
+/*!
+    \fn bool QVariant::operator<(const QVariant &v) const
+
+    Compares this QVariant with \a v and returns \c true if this is less than \a v.
+
+    \note Comparability might not be availabe for the type stored in this QVariant
+    or in \a v.
+
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
+*/
+
+/*!
+    \fn bool QVariant::operator<=(const QVariant &v) const
+
+    Compares this QVariant with \a v and returns \c true if this is less or equal than \a v.
+
+    \note Comparability might not be available for the type stored in this QVariant
+    or in \a v.
+
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
+*/
+
+/*!
+    \fn bool QVariant::operator>(const QVariant &v) const
+
+    Compares this QVariant with \a v and returns \c true if this is larger than \a v.
+
+    \note Comparability might not be available for the type stored in this QVariant
+    or in \a v.
+
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
+*/
+
+/*!
+    \fn bool QVariant::operator>=(const QVariant &v) const
+
+    Compares this QVariant with \a v and returns \c true if this is larger or equal than \a v.
+
+    \note Comparability might not be available for the type stored in this QVariant
+    or in \a v.
+
+    \warning To make this function work with a custom type registered with
+    qRegisterMetaType(), its comparison operator must be registered using
+    QMetaType::registerComparators().
 */
 
 static bool qIsNumericType(uint tp)
@@ -2962,6 +3154,7 @@ static bool qIsFloatingPoint(uint tp)
  */
 bool QVariant::cmp(const QVariant &v) const
 {
+    QVariant v1 = *this;
     QVariant v2 = v;
     if (d.type != v2.d.type) {
         if (qIsNumericType(d.type) && qIsNumericType(v.d.type)) {
@@ -2970,10 +3163,63 @@ bool QVariant::cmp(const QVariant &v) const
             else
                 return toLongLong() == v.toLongLong();
         }
-        if (!v2.canConvert(d.type) || !v2.convert(d.type))
+        if (!v2.canConvert(v1.d.type) || !v2.convert(v1.d.type))
             return false;
     }
-    return handlerManager[d.type]->compare(&d, &v2.d);
+    if (v1.d.type >= QMetaType::User) {
+        int result;
+        if (QMetaType::compare(QT_PREPEND_NAMESPACE(constData(v1.d)), QT_PREPEND_NAMESPACE(constData(v2.d)), v1.d.type, &result))
+            return result == 0;
+    }
+    return handlerManager[v1.d.type]->compare(&v1.d, &v2.d);
+}
+
+/*!
+    \internal
+ */
+int QVariant::compare(const QVariant &v) const
+{
+    if (cmp(v))
+        return 0;
+    QVariant v1 = *this;
+    QVariant v2 = v;
+    if (v1.d.type != v2.d.type) {
+        // if both types differ, try to convert
+        if (v2.canConvert(v1.d.type)) {
+            QVariant temp = v2;
+            if (temp.convert(v1.d.type))
+                v2 = temp;
+        }
+        if (v1.d.type != v2.d.type && v1.canConvert(v2.d.type)) {
+            QVariant temp = v1;
+            if (temp.convert(v2.d.type))
+                v1 = temp;
+        }
+        if (v1.d.type != v2.d.type) {
+            // if conversion fails, default to toString
+            return v1.toString().compare(v2.toString(), Qt::CaseInsensitive);
+        }
+    }
+    if (v1.d.type >= QMetaType::User) {
+        int result;
+        if (QMetaType::compare(QT_PREPEND_NAMESPACE(constData(d)), QT_PREPEND_NAMESPACE(constData(v2.d)), d.type, &result))
+            return result;
+    }
+    if (qIsNumericType(v1.d.type)) {
+        if (qIsFloatingPoint(v1.d.type))
+            return v1.toReal() < v2.toReal() ? -1 : 1;
+        else
+            return v1.toLongLong() < v2.toLongLong() ? -1 : 1;
+    }
+    switch (v1.d.type) {
+    case QVariant::Date:
+        return v1.toDate() < v2.toDate() ? -1 : 1;
+    case QVariant::Time:
+        return v1.toTime() < v2.toTime() ? -1 : 1;
+    case QVariant::DateTime:
+        return v1.toDateTime() < v2.toDateTime() ? -1 : 1;
+    }
+    return v1.toString().compare(v2.toString(), Qt::CaseInsensitive);
 }
 
 /*!
@@ -3002,7 +3248,7 @@ void* QVariant::data()
 
 
 /*!
-    Returns true if this is a null variant, false otherwise. A variant is
+    Returns \c true if this is a null variant, false otherwise. A variant is
     considered null if it contains a default constructed value or a built-in
     type instance that has an isNull method, in which case the result
     would be the same as calling isNull on the wrapped object.
@@ -3022,7 +3268,16 @@ QDebug operator<<(QDebug dbg, const QVariant &v)
     dbg.nospace() << "QVariant(";
     if (typeId != QMetaType::UnknownType) {
         dbg.nospace() << QMetaType::typeName(typeId) << ", ";
-        handlerManager[typeId]->debugStream(dbg, v);
+        bool userStream = false;
+        bool canConvertToString = false;
+        if (typeId >= QMetaType::User) {
+            userStream = QMetaType::debugStream(dbg, constData(v.d), typeId);
+            canConvertToString = v.canConvert<QString>();
+        }
+        if (!userStream && canConvertToString)
+            dbg << v.toString();
+        else if (!userStream)
+            handlerManager[typeId]->debugStream(dbg, v);
     } else {
         dbg.nospace() << "Invalid";
     }
@@ -3074,12 +3329,17 @@ QDebug operator<<(QDebug dbg, const QVariant::Type p)
     returned. Note that this only works for QObject subclasses which use the
     Q_OBJECT macro.
 
-    \sa setValue(), fromValue(), canConvert()
+    If the QVariant contains a sequential container and \c{T} is QVariantList, the
+    elements of the container will be converted into QVariants and returned as a QVariantList.
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 9
+
+    \sa setValue(), fromValue(), canConvert(), qRegisterSequentialConverter()
 */
 
 /*! \fn bool QVariant::canConvert() const
 
-    Returns true if the variant can be converted to the template type \c{T},
+    Returns \c true if the variant can be converted to the template type \c{T},
     otherwise false.
 
     Example:
@@ -3177,8 +3437,8 @@ QDebug operator<<(QDebug dbg, const QVariant::Type p)
     \relates QVariant
     \obsolete
 
-    Returns true if the given \a value can be converted to the
-    template type specified; otherwise returns false.
+    Returns \c true if the given \a value can be converted to the
+    template type specified; otherwise returns \c false.
 
     This function is equivalent to QVariant::canConvert(\a value).
 
@@ -3225,5 +3485,631 @@ QDebug operator<<(QDebug dbg, const QVariant::Type p)
     \fn const DataPtr &QVariant::data_ptr() const
     \internal
 */
+
+/*!
+    \class QSequentialIterable
+
+    \inmodule QtCore
+    \brief The QSequentialIterable class is an iterable interface for a container in a QVariant.
+
+    This class allows several methods of accessing the elements of a container held within
+    a QVariant. An instance of QSequentialIterable can be extracted from a QVariant if it can
+    be converted to a QVariantList.
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 9
+
+    The container itself is not copied before iterating over it.
+
+    \sa QVariant
+*/
+
+/*!
+    \internal
+*/
+QSequentialIterable::QSequentialIterable(QtMetaTypePrivate::QSequentialIterableImpl impl)
+  : m_impl(impl)
+{
+}
+
+QSequentialIterable::const_iterator::const_iterator(const QSequentialIterable &iter, QAtomicInt *ref_)
+  : m_impl(iter.m_impl), ref(ref_)
+{
+    ref->ref();
+}
+
+QSequentialIterable::const_iterator::const_iterator(const QtMetaTypePrivate::QSequentialIterableImpl &impl, QAtomicInt *ref_)
+  : m_impl(impl), ref(ref_)
+{
+    ref->ref();
+}
+
+void QSequentialIterable::const_iterator::begin()
+{
+    m_impl.moveToBegin();
+}
+
+void QSequentialIterable::const_iterator::end()
+{
+    m_impl.moveToEnd();
+}
+
+/*! \fn QSequentialIterable::const_iterator QSequentialIterable::begin() const
+
+    Returns a QSequentialIterable::const_iterator for the beginning of the container. This
+    can be used in stl-style iteration.
+
+    \sa end()
+*/
+QSequentialIterable::const_iterator QSequentialIterable::begin() const
+{
+    const_iterator it(*this, new QAtomicInt(0));
+    it.begin();
+    return it;
+}
+
+/*!
+    Returns a QSequentialIterable::const_iterator for the end of the container. This
+    can be used in stl-style iteration.
+
+    \sa begin()
+*/
+QSequentialIterable::const_iterator QSequentialIterable::end() const
+{
+    const_iterator it(*this, new QAtomicInt(0));
+    it.end();
+    return it;
+}
+
+/*!
+    Returns the element at position \a idx in the container.
+*/
+QVariant QSequentialIterable::at(int idx) const
+{
+    const QtMetaTypePrivate::VariantData d = m_impl.at(idx);
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return QVariant(d.metaTypeId, d.data, d.flags);
+}
+
+/*!
+    Returns the number of elements in the container.
+*/
+int QSequentialIterable::size() const
+{
+    return m_impl.size();
+}
+
+/*!
+    Returns whether it is possible to iterate over the container in reverse. This
+    corresponds to the std::bidirectional_iterator_tag iterator trait of the
+    const_iterator of the container.
+*/
+bool QSequentialIterable::canReverseIterate() const
+{
+    return m_impl._iteratorCapabilities & QtMetaTypePrivate::BiDirectionalCapability;
+}
+
+/*!
+    \class QSequentialIterable::const_iterator
+
+    \inmodule QtCore
+    \brief The QSequentialIterable::const_iterator allows iteration over a container in a QVariant.
+
+    A QSequentialIterable::const_iterator can only be created by a QSequentialIterable instance,
+    and can be used in a way similar to other stl-style iterators.
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 9
+
+    \sa QSequentialIterable
+*/
+
+
+/*!
+    Destroys the QSequentialIterable::const_iterator.
+*/
+QSequentialIterable::const_iterator::~const_iterator() {
+    if (!ref->deref()) {
+        m_impl.destroyIter();
+        delete ref;
+    }
+}
+
+/*!
+    Creates a copy of \a other.
+*/
+QSequentialIterable::const_iterator::const_iterator(const const_iterator &other)
+  : m_impl(other.m_impl), ref(other.ref)
+{
+    ref->ref();
+}
+
+/*!
+    Assigns \a other to this.
+*/
+QSequentialIterable::const_iterator&
+QSequentialIterable::const_iterator::operator=(const const_iterator &other)
+{
+    if (!m_impl.equal(other.m_impl)) {
+        m_impl = other.m_impl;
+        ref = other.ref;
+    }
+    ref->ref();
+    return *this;
+}
+
+/*!
+    Returns the current item, converted to a QVariant.
+*/
+const QVariant QSequentialIterable::const_iterator::operator*() const
+{
+    const QtMetaTypePrivate::VariantData d = m_impl.getCurrent();
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return QVariant(d.metaTypeId, d.data, d.flags);
+}
+
+/*!
+    Returns \c true if \a other points to the same item as this
+    iterator; otherwise returns \c false.
+
+    \sa operator!=()
+*/
+bool QSequentialIterable::const_iterator::operator==(const const_iterator &other) const
+{
+    return m_impl.equal(other.m_impl);
+}
+
+/*!
+    Returns \c true if \a other points to a different item than this
+    iterator; otherwise returns \c false.
+
+    \sa operator==()
+*/
+bool QSequentialIterable::const_iterator::operator!=(const const_iterator &other) const
+{
+    return !m_impl.equal(other.m_impl);
+}
+
+/*!
+    The prefix ++ operator (\c{++it}) advances the iterator to the
+    next item in the container and returns an iterator to the new current
+    item.
+
+    Calling this function on QSequentialIterable::end() leads to undefined results.
+
+    \sa operator--()
+*/
+QSequentialIterable::const_iterator &QSequentialIterable::const_iterator::operator++()
+{
+    m_impl.advance(1);
+    return *this;
+}
+
+/*!
+    \overload
+
+    The postfix ++ operator (\c{it++}) advances the iterator to the
+    next item in the container and returns an iterator to the previously
+    current item.
+*/
+QSequentialIterable::const_iterator QSequentialIterable::const_iterator::operator++(int)
+{
+    QtMetaTypePrivate::QSequentialIterableImpl impl;
+    impl.copy(m_impl);
+    m_impl.advance(1);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    The prefix -- operator (\c{--it}) makes the preceding item
+    current and returns an iterator to the new current item.
+
+    Calling this function on QSequentialIterable::begin() leads to undefined results.
+
+    If the container in the QVariant does not support bi-directional iteration, calling this function
+    leads to undefined results.
+
+    \sa operator++(), canReverseIterate()
+*/
+QSequentialIterable::const_iterator &QSequentialIterable::const_iterator::operator--()
+{
+    m_impl.advance(-1);
+    return *this;
+}
+
+/*!
+    \overload
+
+    The postfix -- operator (\c{it--}) makes the preceding item
+    current and returns an iterator to the previously current item.
+
+    If the container in the QVariant does not support bi-directional iteration, calling this function
+    leads to undefined results.
+
+    \sa canReverseIterate()
+*/
+QSequentialIterable::const_iterator QSequentialIterable::const_iterator::operator--(int)
+{
+    QtMetaTypePrivate::QSequentialIterableImpl impl;
+    impl.copy(m_impl);
+    m_impl.advance(-1);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    Advances the iterator by \a j items.
+
+    \sa operator-=(), operator+()
+*/
+QSequentialIterable::const_iterator &QSequentialIterable::const_iterator::operator+=(int j)
+{
+    m_impl.advance(j);
+    return *this;
+}
+
+/*!
+    Makes the iterator go back by \a j items.
+
+    If the container in the QVariant does not support bi-directional iteration, calling this function
+    leads to undefined results.
+
+    \sa operator+=(), operator-(), canReverseIterate()
+*/
+QSequentialIterable::const_iterator &QSequentialIterable::const_iterator::operator-=(int j)
+{
+    m_impl.advance(-j);
+    return *this;
+}
+
+/*!
+    Returns an iterator to the item at \a j positions forward from
+    this iterator.
+
+    \sa operator-(), operator+=()
+*/
+QSequentialIterable::const_iterator QSequentialIterable::const_iterator::operator+(int j) const
+{
+    QtMetaTypePrivate::QSequentialIterableImpl impl;
+    impl.copy(m_impl);
+    impl.advance(j);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    Returns an iterator to the item at \a j positions backward from
+    this iterator.
+
+    If the container in the QVariant does not support bi-directional iteration, calling this function
+    leads to undefined results.
+
+    \sa operator+(), operator-=(), canReverseIterate()
+*/
+QSequentialIterable::const_iterator QSequentialIterable::const_iterator::operator-(int j) const
+{
+    QtMetaTypePrivate::QSequentialIterableImpl impl;
+    impl.copy(m_impl);
+    impl.advance(-j);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    \class QAssociativeIterable
+
+    \inmodule QtCore
+    \brief The QAssociativeIterable class is an iterable interface for an associative container in a QVariant.
+
+    This class allows several methods of accessing the elements of an associative container held within
+    a QVariant. An instance of QAssociativeIterable can be extracted from a QVariant if it can
+    be converted to a QVariantHash or QVariantMap.
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 10
+
+    The container itself is not copied before iterating over it.
+
+    \sa QVariant
+*/
+
+/*!
+    \internal
+*/
+QAssociativeIterable::QAssociativeIterable(QtMetaTypePrivate::QAssociativeIterableImpl impl)
+  : m_impl(impl)
+{
+}
+
+QAssociativeIterable::const_iterator::const_iterator(const QAssociativeIterable &iter, QAtomicInt *ref_)
+  : m_impl(iter.m_impl), ref(ref_)
+{
+    ref->ref();
+}
+
+QAssociativeIterable::const_iterator::const_iterator(const QtMetaTypePrivate::QAssociativeIterableImpl &impl, QAtomicInt *ref_)
+  : m_impl(impl), ref(ref_)
+{
+    ref->ref();
+}
+
+void QAssociativeIterable::const_iterator::begin()
+{
+    m_impl.begin();
+}
+
+void QAssociativeIterable::const_iterator::end()
+{
+    m_impl.end();
+}
+
+/*!
+    Returns a QAssociativeIterable::const_iterator for the beginning of the container. This
+    can be used in stl-style iteration.
+
+    \sa end()
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::begin() const
+{
+    const_iterator it(*this, new QAtomicInt(0));
+    it.begin();
+    return it;
+}
+
+/*!
+    Returns a QAssociativeIterable::const_iterator for the end of the container. This
+    can be used in stl-style iteration.
+
+    \sa begin()
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::end() const
+{
+    const_iterator it(*this, new QAtomicInt(0));
+    it.end();
+    return it;
+}
+
+/*!
+    Returns the value for the given \a key in the container, if the types are convertible.
+*/
+QVariant QAssociativeIterable::value(const QVariant &key) const
+{
+    QVariant key_ = key;
+    if (!key_.canConvert(m_impl._metaType_id_key))
+        return QVariant();
+    if (!key_.convert(m_impl._metaType_id_key))
+        return QVariant();
+    const QtMetaTypePrivate::VariantData dkey(key_.userType(), key_.constData(), 0 /*key.flags()*/);
+    QtMetaTypePrivate::QAssociativeIterableImpl impl = m_impl;
+    impl.find(dkey);
+    QtMetaTypePrivate::QAssociativeIterableImpl endIt = m_impl;
+    endIt.end();
+    if (impl.equal(endIt))
+        return QVariant();
+    const QtMetaTypePrivate::VariantData d = impl.getCurrentValue();
+    QVariant v(d.metaTypeId, d.data, d.flags);
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return v;
+}
+
+/*!
+    Returns the number of elements in the container.
+*/
+int QAssociativeIterable::size() const
+{
+    return m_impl.size();
+}
+
+/*!
+    \class QAssociativeIterable::const_iterator
+
+    \inmodule QtCore
+    \brief The QAssociativeIterable::const_iterator allows iteration over a container in a QVariant.
+
+    A QAssociativeIterable::const_iterator can only be created by a QAssociativeIterable instance,
+    and can be used in a way similar to other stl-style iterators.
+
+    \snippet code/src_corelib_kernel_qvariant.cpp 10
+
+    \sa QAssociativeIterable
+*/
+
+
+/*!
+    Destroys the QAssociativeIterable::const_iterator.
+*/
+QAssociativeIterable::const_iterator::~const_iterator()
+{
+    if (!ref->deref()) {
+        m_impl.destroyIter();
+        delete ref;
+    }
+}
+
+/*!
+    Creates a copy of \a other.
+*/
+QAssociativeIterable::const_iterator::const_iterator(const const_iterator &other)
+  : m_impl(other.m_impl), ref(other.ref)
+{
+    ref->ref();
+}
+
+/*!
+    Assigns \a other to this.
+*/
+QAssociativeIterable::const_iterator&
+QAssociativeIterable::const_iterator::operator=(const const_iterator &other)
+{
+    if (!m_impl.equal(other.m_impl)) {
+        m_impl = other.m_impl;
+        ref = other.ref;
+    }
+    ref->ref();
+    return *this;
+}
+
+/*!
+    Returns the current value, converted to a QVariant.
+*/
+const QVariant QAssociativeIterable::const_iterator::operator*() const
+{
+    const QtMetaTypePrivate::VariantData d = m_impl.getCurrentValue();
+    QVariant v(d.metaTypeId, d.data, d.flags);
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return v;
+}
+
+/*!
+    Returns the current key, converted to a QVariant.
+*/
+const QVariant QAssociativeIterable::const_iterator::key() const
+{
+    const QtMetaTypePrivate::VariantData d = m_impl.getCurrentKey();
+    QVariant v(d.metaTypeId, d.data, d.flags);
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return v;
+}
+
+/*!
+    Returns the current value, converted to a QVariant.
+*/
+const QVariant QAssociativeIterable::const_iterator::value() const
+{
+    const QtMetaTypePrivate::VariantData d = m_impl.getCurrentValue();
+    QVariant v(d.metaTypeId, d.data, d.flags);
+    if (d.metaTypeId == qMetaTypeId<QVariant>())
+        return *reinterpret_cast<const QVariant*>(d.data);
+    return v;
+}
+
+/*!
+    Returns \c true if \a other points to the same item as this
+    iterator; otherwise returns \c false.
+
+    \sa operator!=()
+*/
+bool QAssociativeIterable::const_iterator::operator==(const const_iterator &other) const
+{
+    return m_impl.equal(other.m_impl);
+}
+
+/*!
+    Returns \c true if \a other points to a different item than this
+    iterator; otherwise returns \c false.
+
+    \sa operator==()
+*/
+bool QAssociativeIterable::const_iterator::operator!=(const const_iterator &other) const
+{
+    return !m_impl.equal(other.m_impl);
+}
+
+/*!
+    The prefix ++ operator (\c{++it}) advances the iterator to the
+    next item in the container and returns an iterator to the new current
+    item.
+
+    Calling this function on QAssociativeIterable::end() leads to undefined results.
+
+    \sa operator--()
+*/
+QAssociativeIterable::const_iterator &QAssociativeIterable::const_iterator::operator++()
+{
+    m_impl.advance(1);
+    return *this;
+}
+
+/*!
+    \overload
+
+    The postfix ++ operator (\c{it++}) advances the iterator to the
+    next item in the container and returns an iterator to the previously
+    current item.
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::const_iterator::operator++(int)
+{
+    QtMetaTypePrivate::QAssociativeIterableImpl impl;
+    impl.copy(m_impl);
+    m_impl.advance(1);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    The prefix -- operator (\c{--it}) makes the preceding item
+    current and returns an iterator to the new current item.
+
+    Calling this function on QAssociativeIterable::begin() leads to undefined results.
+
+    \sa operator++()
+*/
+QAssociativeIterable::const_iterator &QAssociativeIterable::const_iterator::operator--()
+{
+    m_impl.advance(-1);
+    return *this;
+}
+
+/*!
+    \overload
+
+    The postfix -- operator (\c{it--}) makes the preceding item
+    current and returns an iterator to the previously current item.
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::const_iterator::operator--(int)
+{
+    QtMetaTypePrivate::QAssociativeIterableImpl impl;
+    impl.copy(m_impl);
+    m_impl.advance(-1);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    Advances the iterator by \a j items.
+
+    \sa operator-=(), operator+()
+*/
+QAssociativeIterable::const_iterator &QAssociativeIterable::const_iterator::operator+=(int j)
+{
+    m_impl.advance(j);
+    return *this;
+}
+
+/*!
+    Makes the iterator go back by \a j items.
+
+    \sa operator+=(), operator-()
+*/
+QAssociativeIterable::const_iterator &QAssociativeIterable::const_iterator::operator-=(int j)
+{
+    m_impl.advance(-j);
+    return *this;
+}
+
+/*!
+    Returns an iterator to the item at \a j positions forward from
+    this iterator.
+
+    \sa operator-(), operator+=()
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::const_iterator::operator+(int j) const
+{
+    QtMetaTypePrivate::QAssociativeIterableImpl impl;
+    impl.copy(m_impl);
+    impl.advance(j);
+    return const_iterator(impl, new QAtomicInt(0));
+}
+
+/*!
+    Returns an iterator to the item at \a j positions backward from
+    this iterator.
+
+    \sa operator+(), operator-=()
+*/
+QAssociativeIterable::const_iterator QAssociativeIterable::const_iterator::operator-(int j) const
+{
+    QtMetaTypePrivate::QAssociativeIterableImpl impl;
+    impl.copy(m_impl);
+    impl.advance(-j);
+    return const_iterator(impl, new QAtomicInt(0));
+}
 
 QT_END_NAMESPACE

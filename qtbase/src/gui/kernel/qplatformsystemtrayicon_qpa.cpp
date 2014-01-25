@@ -130,17 +130,17 @@ QPlatformSystemTrayIcon::~QPlatformSystemTrayIcon()
                                                   const QIcon &icon, MessageIcon iconType, int secs)
     Shows a balloon message for the entry with the given \a title, message \a msg and \a icon for
     the time specified in \a secs. \a iconType is used as a hint for the implementing platform.
-    \sa QSystemTrayIcon::showMessage
+    \sa QSystemTrayIcon::showMessage()
 */
 
 /*!
     \fn bool QPlatformSystemTrayIcon::isSystemTrayAvailable() const
-    Returns true if the system tray is available on the platform.
+    Returns \c true if the system tray is available on the platform.
 */
 
 /*!
     \fn bool QPlatformSystemTrayIcon::supportsMessages() const
-    Returns true if the system tray supports messages on the platform.
+    Returns \c true if the system tray supports messages on the platform.
 */
 
 /*!

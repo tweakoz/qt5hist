@@ -53,6 +53,7 @@
 #endif
 
 #include <limits.h>
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -618,7 +619,7 @@ void QStyle::drawItemText(QPainter *painter, const QRect &rect, int alignment, c
 void QStyle::drawItemPixmap(QPainter *painter, const QRect &rect, int alignment,
                             const QPixmap &pixmap) const
 {
-    int scale = pixmap.devicePixelRatio();
+    qreal scale = pixmap.devicePixelRatio();
     QRect aligned = alignedRect(QApplication::layoutDirection(), QFlag(alignment), pixmap.size() / scale, rect);
     QRect inter = aligned.intersected(rect);
 
@@ -1894,6 +1895,19 @@ void QStyle::drawItemPixmap(QPainter *painter, const QRect &rect, int alignment,
     \value SH_Menu_SupportsSections Determines if the style displays sections in menus or treat them as
            plain separators. Sections are separators with a text and icon hint.
 
+    \value SH_ToolTip_WakeUpDelay Determines the delay before a tooltip is shown, in milliseconds.
+
+    \value SH_ToolTip_FallAsleepDelay Determines the delay (in milliseconds) before a new wake time is needed when
+           a tooltip is shown (notice: shown, not hidden). When a new wake isn't needed, a user-requested tooltip
+           will be shown nearly instantly.
+
+    \value SH_Widget_Animate Determines if the widget should show animations or not, for example
+           a transition between checked and unchecked statuses in a checkbox.
+           This enum value has been introduced in Qt 5.2.
+
+    \value SH_Splitter_OpaqueResize Determines if resizing is opaque
+           This enum value has been introduced in Qt 5.2
+
     \sa styleHint()
 */
 
@@ -1986,6 +2000,7 @@ void QStyle::drawItemPixmap(QPainter *painter, const QRect &rect, int alignment,
     \value SP_MediaSeekBackward Icon indicating that media should seek backward.
     \value SP_MediaVolume Icon indicating a volume control.
     \value SP_MediaVolumeMuted Icon indicating a muted volume control.
+    \value SP_LineEditClearButton Icon for a standard clear button in a QLineEdit. This enum value was added in Qt 5.2.
     \value SP_CustomBase  Base value for custom standard pixmaps;
     custom values must be greater than this value.
 
@@ -2323,7 +2338,7 @@ QDebug operator<<(QDebug debug, QStyle::State state)
     if (state & QStyle::State_Top) states << QLatin1String("Top");
     if (state & QStyle::State_UpArrow) states << QLatin1String("UpArrow");
 
-    qSort(states);
+    std::sort(states.begin(), states.end());
     debug << states.join(QLatin1String(" | "));
     debug << ')';
 #else

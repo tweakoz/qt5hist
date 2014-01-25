@@ -87,7 +87,7 @@ int QQmlCompiledData::indexForUrl(const QUrl &data)
 
 QQmlCompiledData::QQmlCompiledData(QQmlEngine *engine)
 : engine(engine), importCache(0), metaTypeId(-1), listMetaTypeId(-1), isRegisteredWithEngine(false),
-  rootPropertyCache(0)
+  rootPropertyCache(0), compilationUnit(0), qmlUnit(0)
 {
     Q_ASSERT(engine);
 
@@ -116,11 +116,17 @@ QQmlCompiledData::~QQmlCompiledData()
             types.at(ii).typePropertyCache->release();
     }
 
-    for (int ii = 0; ii < propertyCaches.count(); ++ii) 
-        propertyCaches.at(ii)->release();
+    for (QHash<int, TypeReference>::Iterator resolvedType = resolvedTypes.begin(), end = resolvedTypes.end();
+         resolvedType != end; ++resolvedType) {
+        if (resolvedType->component)
+            resolvedType->component->release();
+        if (resolvedType->typePropertyCache)
+            resolvedType->typePropertyCache->release();
+    }
 
-    for (int ii = 0; ii < contextCaches.count(); ++ii)
-        contextCaches.at(ii)->release();
+    for (int ii = 0; ii < propertyCaches.count(); ++ii) 
+        if (propertyCaches.at(ii))
+            propertyCaches.at(ii)->release();
 
     for (int ii = 0; ii < scripts.count(); ++ii)
         scripts.at(ii)->release();
@@ -130,12 +136,14 @@ QQmlCompiledData::~QQmlCompiledData()
 
     if (rootPropertyCache)
         rootPropertyCache->release();
+
+    if (compilationUnit)
+        compilationUnit->deref();
+    free(qmlUnit);
 }
 
 void QQmlCompiledData::clear()
 {
-    for (int ii = 0; ii < programs.count(); ++ii)
-        qPersistentDispose(programs[ii].bindings);
 }
 
 /*!
@@ -235,6 +243,9 @@ void QQmlCompiledData::initialize(QQmlEngine *engine)
 {
     Q_ASSERT(!hasEngine());
     QQmlCleanup::addToEngine(engine);
+    QV4::ExecutionEngine *v4 = QV8Engine::getV4(engine);
+    if (compilationUnit && !compilationUnit->engine)
+        compilationUnit->linkToEngine(v4);
 }
 
 QT_END_NAMESPACE

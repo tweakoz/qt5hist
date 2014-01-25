@@ -81,7 +81,7 @@ public:
     virtual void initializeGenerator(const Config &config);
     virtual void terminateGenerator();
 
-    QString fullDocumentLocation(const Node *node, bool subdir = false);
+    QString fullDocumentLocation(const Node *node, bool useSubdir = false);
     const Config* config() { return config_; }
 
     static Generator *currentGenerator() { return currentGenerator_; }
@@ -100,6 +100,8 @@ public:
     static bool runPrepareOnly() { return (qdocPass_ == Prepare); }
     static bool runGenerateOnly() { return (qdocPass_ == Generate); }
     static QString defaultModuleName() { return project; }
+    static void resetUseOutputSubdirs() { useOutputSubdirs_ = false; }
+    static bool useOutputSubdirs() { return useOutputSubdirs_; }
 
 protected:
     virtual void beginSubPage(const InnerNode* node, const QString& fileName);
@@ -185,6 +187,17 @@ protected:
     QString tagFile_;
     QStack<QTextStream*> outStreamStack;
 
+    void appendFullName(Text& text,
+                        const Node *apparentNode,
+                        const Node *relative,
+                        const Node *actualNode = 0);
+    void appendFullName(Text& text,
+                        const Node *apparentNode,
+                        const QString& fullName,
+                        const Node *actualNode);
+    void appendFullNames(Text& text, const NodeList& nodes, const Node* relative);
+    void appendSortedNames(Text& text, const ClassNode *classe, const QList<RelatedClass> &classes);
+
 private:
     static Generator* currentGenerator_;
     static QStringList exampleDirs;
@@ -206,18 +219,10 @@ private:
     static QStringList styleFiles;
     static bool debugging_;
     static bool noLinkErrors_;
+    static bool redirectDocumentationToDevNull_;
     static Passes qdocPass_;
+    static bool useOutputSubdirs_;
 
-    void appendFullName(Text& text,
-                        const Node *apparentNode,
-                        const Node *relative,
-                        const Node *actualNode = 0);
-    void appendFullName(Text& text,
-                        const Node *apparentNode,
-                        const QString& fullName,
-                        const Node *actualNode);
-    void appendFullNames(Text& text, const NodeList& nodes, const Node* relative);
-    void appendSortedNames(Text& text, const ClassNode *classe, const QList<RelatedClass> &classes);
     void generateReimplementedFrom(const FunctionNode *func, CodeMarker *marker);
 
     QString amp;
@@ -234,6 +239,7 @@ private:
     bool inSectionHeading_;
     bool inTableHeader_;
     bool threeColumnEnumValueTable_;
+    bool showInternal_;
     int numTableRows_;
     QString link_;
     QString sectionNumber_;

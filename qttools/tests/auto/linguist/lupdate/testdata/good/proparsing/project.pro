@@ -28,5 +28,7 @@ if (exists($$member($$(PATH), 0))) {
     SOURCES += main_dependpath.cpp
 }
 
+inst.files = qml *.qml
+INSTALLS += inst
+
 TRANSLATIONS = project.ts
-DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0

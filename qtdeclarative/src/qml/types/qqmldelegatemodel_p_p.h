@@ -75,40 +75,27 @@ public:
     ~QQmlDelegateModelItemMetaType();
 
     void initializeMetaObject();
-    void initializeConstructor();
+    void initializePrototype();
 
     int parseGroups(const QStringList &groupNames) const;
-    int parseGroups(const v8::Local<v8::Value> &groupNames) const;
+    int parseGroups(const QV4::ValueRef groupNames) const;
 
-    static void release_index(v8::Persistent<v8::Value> object, void *parameter);
-    static void release_model(v8::Persistent<v8::Value> object, void *parameter);
-
-    static v8::Handle<v8::Value> get_model(v8::Local<v8::String>, const v8::AccessorInfo &info);
-    static v8::Handle<v8::Value> get_groups(v8::Local<v8::String>, const v8::AccessorInfo &info);
-    static void set_groups(
-            v8::Local<v8::String>, v8::Local<v8::Value> value, const v8::AccessorInfo &info);
-    static v8::Handle<v8::Value> get_member(v8::Local<v8::String>, const v8::AccessorInfo &info);
-    static void set_member(
-            v8::Local<v8::String>, v8::Local<v8::Value> value, const v8::AccessorInfo &info);
-    static v8::Handle<v8::Value> get_index(v8::Local<v8::String>, const v8::AccessorInfo &info);
-
-    QQmlGuard<QQmlDelegateModel> model;
+    QPointer<QQmlDelegateModel> model;
     const int groupCount;
     QV8Engine * const v8Engine;
     QQmlDelegateModelAttachedMetaObject *metaObject;
     const QStringList groupNames;
-    v8::Persistent<v8::ObjectTemplate> constructor;
+    QV4::PersistentValue modelItemProto;
 };
 
 class QQmlAdaptorModel;
 class QQDMIncubationTask;
 
-class QQmlDelegateModelItem : public QObject, public QV8ObjectResource
+class QQmlDelegateModelItem : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int index READ modelIndex NOTIFY modelIndexChanged)
     Q_PROPERTY(QObject *model READ modelObject CONSTANT)
-    V8_RESOURCE_TYPE(VisualDataItemType)
 public:
     QQmlDelegateModelItem(QQmlDelegateModelItemMetaType *metaType, int modelIndex);
     ~QQmlDelegateModelItem();
@@ -139,13 +126,21 @@ public:
     int groupIndex(Compositor::Group group);
 
     int modelIndex() const { return index; }
-    void setModelIndex(int idx) { index = idx; emit modelIndexChanged(); }
+    void setModelIndex(int idx) { index = idx; Q_EMIT modelIndexChanged(); }
 
-    virtual v8::Handle<v8::Value> get() { return engine->newQObject(this); }
+    virtual QV4::ReturnedValue get() { return QV4::QObjectWrapper::wrap(v4, this); }
 
     virtual void setValue(const QString &role, const QVariant &value) { Q_UNUSED(role); Q_UNUSED(value); }
     virtual bool resolveIndex(const QQmlAdaptorModel &, int) { return false; }
 
+    static QV4::ReturnedValue get_model(QV4::CallContext *ctx);
+    static QV4::ReturnedValue get_groups(QV4::CallContext *ctx);
+    static QV4::ReturnedValue set_groups(QV4::CallContext *ctx);
+    static QV4::ReturnedValue get_member(QQmlDelegateModelItem *thisItem, uint flag, const QV4::ValueRef);
+    static QV4::ReturnedValue set_member(QQmlDelegateModelItem *thisItem, uint flag, const QV4::ValueRef arg);
+    static QV4::ReturnedValue get_index(QQmlDelegateModelItem *thisItem, uint flag, const QV4::ValueRef arg);
+
+    QV4::ExecutionEngine *v4;
     QQmlDelegateModelItemMetaType * const metaType;
     QQmlContextData *contextData;
     QObject *object;
@@ -163,6 +158,21 @@ Q_SIGNALS:
 protected:
     void objectDestroyed(QObject *);
 };
+
+struct QQmlDelegateModelItemObject : QV4::Object
+{
+    Q_MANAGED;
+    QQmlDelegateModelItemObject(QV4::ExecutionEngine *engine, QQmlDelegateModelItem *item)
+        : Object(engine)
+        , item(item)
+    { vtbl = &static_vtbl; }
+    ~QQmlDelegateModelItemObject();
+
+    static void destroy(Managed *that);
+
+    QQmlDelegateModelItem *item;
+};
+
 
 
 class QQmlDelegateModelPrivate;
@@ -216,12 +226,12 @@ public:
     void initPackage(int index, QQuickPackage *package);
     void destroyingPackage(QQuickPackage *package);
 
-    bool parseIndex(const v8::Local<v8::Value> &value, int *index, Compositor::Group *group) const;
+    bool parseIndex(const QV4::ValueRef value, int *index, Compositor::Group *group) const;
     bool parseGroupArgs(
-            QQmlV8Function *args, Compositor::Group *group, int *index, int *count, int *groups) const;
+            QQmlV4Function *args, Compositor::Group *group, int *index, int *count, int *groups) const;
 
     Compositor::Group group;
-    QQmlGuard<QQmlDelegateModel> model;
+    QPointer<QQmlDelegateModel> model;
     QQmlDelegateModelGroupEmitterList emitters;
     QQmlChangeSet changeSet;
     QString name;
@@ -250,11 +260,11 @@ public:
     void emitCreatedPackage(QQDMIncubationTask *incubationTask, QQuickPackage *package);
     void emitInitPackage(QQDMIncubationTask *incubationTask, QQuickPackage *package);
     void emitCreatedItem(QQDMIncubationTask *incubationTask, QObject *item) {
-        emit q_func()->createdItem(incubationTask->index[m_compositorGroup], item); }
+        Q_EMIT q_func()->createdItem(incubationTask->index[m_compositorGroup], item); }
     void emitInitItem(QQDMIncubationTask *incubationTask, QObject *item) {
-        emit q_func()->initItem(incubationTask->index[m_compositorGroup], item); }
+        Q_EMIT q_func()->initItem(incubationTask->index[m_compositorGroup], item); }
     void emitDestroyingPackage(QQuickPackage *package);
-    void emitDestroyingItem(QObject *item) { emit q_func()->destroyingItem(item); }
+    void emitDestroyingItem(QObject *item) { Q_EMIT q_func()->destroyingItem(item); }
     void removeCacheItem(QQmlDelegateModelItem *cacheItem);
 
     void updateFilterGroup();
@@ -276,11 +286,10 @@ public:
     void itemsMoved(
             const QVector<Compositor::Remove> &removes, const QVector<Compositor::Insert> &inserts);
     void itemsChanged(const QVector<Compositor::Change> &changes);
-    template <typename T> static v8::Local<v8::Array> buildChangeList(const QVector<T> &changes);
     void emitChanges();
     void emitModelUpdated(const QQmlChangeSet &changeSet, bool reset);
 
-    bool insert(Compositor::insert_iterator &before, const v8::Local<v8::Object> &object, int groups);
+    bool insert(Compositor::insert_iterator &before, const QV4::ValueRef object, int groups);
 
     static void group_append(QQmlListProperty<QQmlDelegateModelGroup> *property, QQmlDelegateModelGroup *group);
     static int group_count(QQmlListProperty<QQmlDelegateModelGroup> *property);

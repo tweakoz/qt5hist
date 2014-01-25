@@ -72,7 +72,7 @@ static bool correctActionContext(Qt::ShortcutContext context, QAction *a, QWidge
 
 
 /*! \internal
-    Returns true if the widget \a w is a logical sub window of the current
+    Returns \c true if the widget \a w is a logical sub window of the current
     top-level widget.
 */
 bool qWidgetShortcutContextMatcher(QObject *object, Qt::ShortcutContext context)
@@ -158,7 +158,7 @@ static bool correctWidgetContext(Qt::ShortcutContext context, QWidget *w, QWidge
 
     if (context == Qt::WidgetWithChildrenShortcut) {
         const QWidget *tw = QApplication::focusWidget();
-        while (tw && tw != w && (tw->windowType() == Qt::Widget || tw->windowType() == Qt::Popup))
+        while (tw && tw != w && (tw->windowType() == Qt::Widget || tw->windowType() == Qt::Popup || tw->windowType() == Qt::SubWindow))
             tw = tw->parentWidget();
         return tw == w;
     }
@@ -517,7 +517,7 @@ QKeySequence QShortcut::key() const
     If the application is in \c WhatsThis mode the shortcut will not emit
     the signals, but will show the "What's This?" text instead.
 
-    By default, this property is true.
+    By default, this property is \c true.
 
     \sa whatsThis
 */

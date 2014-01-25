@@ -56,6 +56,9 @@ QIOSBackingStore::QIOSBackingStore(QWindow *window)
     fmt.setDepthBufferSize(16);
     fmt.setStencilBufferSize(8);
 
+    // Needed to prevent QOpenGLContext::makeCurrent() from failing
+    window->setSurfaceType(QSurface::OpenGLSurface);
+
     m_context->setFormat(fmt);
     m_context->setScreen(window->screen());
     m_context->create();
@@ -69,9 +72,6 @@ QIOSBackingStore::~QIOSBackingStore()
 
 void QIOSBackingStore::beginPaint(const QRegion &)
 {
-    // Needed to prevent QOpenGLContext::makeCurrent() from failing
-    window()->setSurfaceType(QSurface::OpenGLSurface);
-
     m_context->makeCurrent(window());
 
     QIOSWindow *iosWindow = static_cast<QIOSWindow *>(window()->handle());
@@ -102,13 +102,9 @@ void QIOSBackingStore::flush(QWindow *window, const QRegion &region, const QPoin
         // the child window overlaps a sibling window that's draws using a separate QOpenGLContext.
         return;
     }
-    m_context->swapBuffers(window);
-}
 
-void QIOSBackingStore::endPaint()
-{
-    // Calling makeDone() on the context here would be an option,
-    // but is not needed, and would actually add some overhead.
+    m_context->makeCurrent(window);
+    m_context->swapBuffers(window);
 }
 
 void QIOSBackingStore::resize(const QSize &size, const QRegion &staticContents)
@@ -121,7 +117,7 @@ void QIOSBackingStore::resize(const QSize &size, const QRegion &staticContents)
     // backing store and always keep the paint device's size in sync with the
     // window size in beginPaint().
 
-    if (size != window()->size())
+    if (size != window()->size() && !window()->inherits("QWidgetWindow"))
         qWarning() << "QIOSBackingStore needs to have the same size as its window";
 }
 

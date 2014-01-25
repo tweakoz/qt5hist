@@ -69,6 +69,7 @@
 //
 
 #include "qsslsocket_openssl_p.h"
+#include <QtCore/qglobal.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -82,8 +83,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg);					\
     static _q_PTR_##func _q_##func = 0;					\
     ret q_##func(arg) {						\
-        if (!_q_##func) {				\
-            qWarning("QSslSocket: cannot call unresolved function "#func);	\
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err;								\
         } \
         funcret _q_##func(a); \
@@ -94,8 +95,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2);         \
     static _q_PTR_##func _q_##func = 0;               \
     ret q_##func(arg1, arg2) { \
-        if (!_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func);\
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func);\
             err; \
         } \
         funcret _q_##func(a, b); \
@@ -106,8 +107,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3);            \
     static _q_PTR_##func _q_##func = 0;                        \
     ret q_##func(arg1, arg2, arg3) { \
-        if (!_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func); \
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err; \
         } \
         funcret _q_##func(a, b, c); \
@@ -118,8 +119,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3, arg4);               \
     static _q_PTR_##func _q_##func = 0;                                 \
     ret q_##func(arg1, arg2, arg3, arg4) { \
-         if (!_q_##func) { \
-             qWarning("QSslSocket: cannot call unresolved function "#func); \
+         if (Q_UNLIKELY(!_q_##func)) { \
+             qsslSocketUnresolvedSymbolWarning(#func); \
              err; \
          } \
          funcret _q_##func(a, b, c, d); \
@@ -130,8 +131,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3, arg4, arg5);         \
     static _q_PTR_##func _q_##func = 0;                                 \
     ret q_##func(arg1, arg2, arg3, arg4, arg5) { \
-        if (!_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func); \
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err; \
         } \
         funcret _q_##func(a, b, c, d, e); \
@@ -142,8 +143,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3, arg4, arg5, arg6);   \
     static _q_PTR_##func _q_##func = 0;                                 \
     ret q_##func(arg1, arg2, arg3, arg4, arg5, arg6) { \
-        if (!_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func); \
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err; \
         } \
         funcret _q_##func(a, b, c, d, e, f); \
@@ -154,8 +155,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3, arg4, arg5, arg6, arg7);   \
     static _q_PTR_##func _q_##func = 0;                                       \
     ret q_##func(arg1, arg2, arg3, arg4, arg5, arg6, arg7) { \
-        if (!_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func); \
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err; \
         } \
         funcret _q_##func(a, b, c, d, e, f, g); \
@@ -166,8 +167,8 @@ QT_BEGIN_NAMESPACE
     typedef ret (*_q_PTR_##func)(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9);   \
     static _q_PTR_##func _q_##func = 0;                                                   \
     ret q_##func(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9) { \
-        if (_q_##func) { \
-            qWarning("QSslSocket: cannot call unresolved function "#func); \
+        if (Q_UNLIKELY(!_q_##func)) { \
+            qsslSocketUnresolvedSymbolWarning(#func); \
             err; \
         }   \
         funcret _q_##func(a, b, c, d, e, f, g, h, i); \
@@ -469,6 +470,8 @@ void q_OPENSSL_add_all_algorithms_conf();
 int q_SSL_CTX_load_verify_locations(SSL_CTX *ctx, const char *CAfile, const char *CApath);
 long q_SSLeay();
 const char *q_SSLeay_version(int type);
+int q_i2d_SSL_SESSION(SSL_SESSION *in, unsigned char **pp);
+SSL_SESSION *q_d2i_SSL_SESSION(SSL_SESSION **a, const unsigned char **pp, long length);
 
 // Helper function
 class QDateTime;

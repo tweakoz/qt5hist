@@ -1,6 +1,7 @@
 #ifndef QT_QTWIDGETS_MODULE_H
 #define QT_QTWIDGETS_MODULE_H
 #include <QtWidgets/QtWidgetsDepends>
+#include "qaccessiblewidget.h"
 #include "qcolordialog.h"
 #include "qdialog.h"
 #include "qerrormessage.h"
@@ -95,6 +96,7 @@
 #include "qfontcombobox.h"
 #include "qframe.h"
 #include "qgroupbox.h"
+#include "qkeysequenceedit.h"
 #include "qlabel.h"
 #include "qlcdnumber.h"
 #include "qlineedit.h"

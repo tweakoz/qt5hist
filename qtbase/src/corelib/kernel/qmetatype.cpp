@@ -141,6 +141,56 @@ struct DefinedTypesFilter {
 */
 
 /*!
+    \macro Q_DECLARE_SEQUENTIAL_CONTAINER_METATYPE(Container)
+    \relates QMetaType
+
+    This macro makes the container \a Container known to QMetaType as a sequential
+    container. This makes it possible to put an instance of Container<T> into
+    a QVariant, if T itself is known to QMetaType.
+
+    Note that all of the Qt sequential containers already have built-in
+    support, and it is not necessary to use this macro with them. The
+    std::vector and std::list containers also have built-in support.
+
+    This example shows a typical use of Q_DECLARE_SEQUENTIAL_CONTAINER_METATYPE():
+
+    \snippet code/src_corelib_kernel_qmetatype.cpp 10
+*/
+
+/*!
+    \macro Q_DECLARE_ASSOCIATIVE_CONTAINER_METATYPE(Container)
+    \relates QMetaType
+
+    This macro makes the container \a Container known to QMetaType as an associative
+    container. This makes it possible to put an instance of Container<T, U> into
+    a QVariant, if T and U are themselves known to QMetaType.
+
+    Note that all of the Qt associative containers already have built-in
+    support, and it is not necessary to use this macro with them. The
+    std::map container also has built-in support.
+
+    This example shows a typical use of Q_DECLARE_ASSOCIATIVE_CONTAINER_METATYPE():
+
+    \snippet code/src_corelib_kernel_qmetatype.cpp 11
+*/
+
+/*!
+    \macro Q_DECLARE_SMART_POINTER_METATYPE(SmartPointer)
+    \relates QMetaType
+
+    This macro makes the smart pointer \a SmartPointer known to QMetaType as a
+    smart pointer. This makes it possible to put an instance of SmartPointer<T> into
+    a QVariant, if T is a type which inherits QObject.
+
+    Note that the QWeakPointer, QSharedPointer and QPointer already have built-in
+    support, and it is not necessary to use this macro with them.
+
+    This example shows a typical use of Q_DECLARE_SMART_POINTER_METATYPE():
+
+    \snippet code/src_corelib_kernel_qmetatype.cpp 13
+*/
+
+/*!
     \enum QMetaType::Type
 
     These are the built-in types supported by QMetaType:
@@ -281,7 +331,7 @@ struct DefinedTypesFilter {
     \fn bool QMetaType::isValid() const
     \since 5.0
 
-    Returns true if this QMetaType object contains valid
+    Returns \c true if this QMetaType object contains valid
     information about a type, false otherwise.
 */
 
@@ -289,7 +339,7 @@ struct DefinedTypesFilter {
     \fn bool QMetaType::isRegistered() const
     \since 5.0
 
-    Returns true if this QMetaType object contains valid
+    Returns \c true if this QMetaType object contains valid
     information about a type, false otherwise.
 */
 
@@ -304,7 +354,7 @@ struct DefinedTypesFilter {
     This function is typically used together with construct()
     to perform low-level management of the memory used by a type.
 
-    \sa QMetaType::construct(void *where, const void *copy), QMetaType::sizeOf(int)
+    \sa QMetaType::construct(), QMetaType::sizeOf()
 */
 
 /*!
@@ -313,7 +363,7 @@ struct DefinedTypesFilter {
 
     Returns flags of the type for which this QMetaType instance was constructed.
 
-    \sa QMetaType::TypeFlags, QMetaType::typeFlags(int type)
+    \sa QMetaType::TypeFlags, QMetaType::typeFlags()
 */
 
 /*!
@@ -330,7 +380,7 @@ struct DefinedTypesFilter {
     QMetaType instance was created for. If \a copy is null, creates
     a default constructed instance.
 
-    \sa QMetaType::destroy(void*)
+    \sa QMetaType::destroy()
 */
 
 /*!
@@ -340,7 +390,7 @@ struct DefinedTypesFilter {
     Destroys the \a data, assuming it is of the type that this
     QMetaType instance was created for.
 
-    \sa QMetaType::create(const void *)
+    \sa QMetaType::create()
 */
 
 /*!
@@ -421,6 +471,56 @@ public:
     int alias;
 };
 
+template<typename T, typename Key>
+class QMetaTypeFunctionRegistry
+{
+public:
+    ~QMetaTypeFunctionRegistry()
+    {
+        const QWriteLocker locker(&lock);
+        map.clear();
+    }
+
+    bool contains(Key k) const
+    {
+        const QReadLocker locker(&lock);
+        return map.contains(k);
+    }
+
+    bool insertIfNotContains(Key k, const T *f)
+    {
+        const QWriteLocker locker(&lock);
+        const T* &fun = map[k];
+        if (fun != 0)
+            return false;
+        fun = f;
+        return true;
+    }
+
+    const T *function(Key k) const
+    {
+        const QReadLocker locker(&lock);
+        return map.value(k, 0);
+    }
+
+    void remove(int from, int to)
+    {
+        const Key k(from, to);
+        const QWriteLocker locker(&lock);
+        map.remove(k);
+    }
+private:
+    mutable QReadWriteLock lock;
+    QHash<Key, const T *> map;
+};
+
+typedef QMetaTypeFunctionRegistry<QtPrivate::AbstractConverterFunction,QPair<int,int> >
+QMetaTypeConverterRegistry;
+typedef QMetaTypeFunctionRegistry<QtPrivate::AbstractComparatorFunction,int>
+QMetaTypeComparatorRegistry;
+typedef QMetaTypeFunctionRegistry<QtPrivate::AbstractDebugStreamFunction,int>
+QMetaTypeDebugStreamRegistry;
+
 namespace
 {
 union CheckThatItIsPod
@@ -432,6 +532,200 @@ union CheckThatItIsPod
 Q_DECLARE_TYPEINFO(QCustomTypeInfo, Q_MOVABLE_TYPE);
 Q_GLOBAL_STATIC(QVector<QCustomTypeInfo>, customTypes)
 Q_GLOBAL_STATIC(QReadWriteLock, customTypesLock)
+Q_GLOBAL_STATIC(QMetaTypeConverterRegistry, customTypesConversionRegistry)
+Q_GLOBAL_STATIC(QMetaTypeComparatorRegistry, customTypesComparatorRegistry)
+Q_GLOBAL_STATIC(QMetaTypeDebugStreamRegistry, customTypesDebugStreamRegistry)
+
+/*!
+    \fn bool QMetaType::registerConverter()
+    \since 5.2
+    Registers the possibility of an implicit conversion from type From to type To in the meta
+    type system. Returns \c true if the registration succeeded, otherwise false.
+*/
+
+/*!
+    \fn bool QMetaType::registerConverter(MemberFunction function)
+    \since 5.2
+    \overload
+    Registers a method \a function like To From::function() const as converter from type From
+    to type To in the meta type system. Returns \c true if the registration succeeded, otherwise false.
+*/
+
+/*!
+    \fn bool QMetaType::registerConverter(MemberFunctionOk function)
+    \since 5.2
+    \overload
+    Registers a method \a function like To From::function(bool *ok) const as converter from type From
+    to type To in the meta type system. Returns \c true if the registration succeeded, otherwise false.
+*/
+
+/*!
+    \fn bool QMetaType::registerConverter(UnaryFunction function)
+    \since 5.2
+    \overload
+    Registers a unary function object \a function as converter from type From
+    to type To in the meta type system. Returns \c true if the registration succeeded, otherwise false.
+*/
+
+/*!
+    \fn bool QMetaType::registerComparators()
+    \since 5.2
+    Registers comparison operetarors for the user-registered type T. This requires T to have
+    both an operator== and an operator<.
+    Returns \c true if the registration succeeded, otherwise false.
+*/
+
+#ifndef QT_NO_DEBUG_STREAM
+/*!
+    \fn bool QMetaType::registerDebugStreamOperator()
+    Registers the debug stream operator for the user-registered type T. This requires T to have
+    an operator<<(QDebug dbg, T).
+    Returns \c true if the registration succeeded, otherwise false.
+*/
+#endif
+
+/*!
+    Registers function \a f as converter function from type id \a from to \a to.
+    If there's already a conversion registered, this does nothing but deleting \a f.
+    Returns \c true if the registration succeeded, otherwise false.
+    \since 5.2
+    \internal
+*/
+bool QMetaType::registerConverterFunction(const QtPrivate::AbstractConverterFunction *f, int from, int to)
+{
+    if (!customTypesConversionRegistry()->insertIfNotContains(qMakePair(from, to), f)) {
+        qWarning("Type conversion already registered from type %s to type %s",
+                 QMetaType::typeName(from), QMetaType::typeName(to));
+        return false;
+    }
+    return true;
+}
+
+/*!
+    \internal
+
+    Invoked automatically when a converter function object is destroyed.
+ */
+void QMetaType::unregisterConverterFunction(int from, int to)
+{
+    if (customTypesConversionRegistry.isDestroyed())
+        return;
+    customTypesConversionRegistry()->remove(from, to);
+}
+
+bool QMetaType::registerComparatorFunction(const QtPrivate::AbstractComparatorFunction *f, int type)
+{
+    if (!customTypesComparatorRegistry()->insertIfNotContains(type, f)) {
+        qWarning("Comparators already registered for type %s", QMetaType::typeName(type));
+        return false;
+    }
+    return true;
+}
+
+/*!
+    \fn bool QMetaType::hasRegisteredComparators()
+    Returns \c true, if the meta type system has registered comparators for type T.
+    \since 5.2
+ */
+
+/*!
+    Returns \c true, if the meta type system has registered comparators for type id \a typeId.
+    \since 5.2
+ */
+bool QMetaType::hasRegisteredComparators(int typeId)
+{
+    return customTypesComparatorRegistry()->contains(typeId);
+}
+
+#ifndef QT_NO_DEBUG_STREAM
+bool QMetaType::registerDebugStreamOperatorFunction(const QtPrivate::AbstractDebugStreamFunction *f,
+                                                    int type)
+{
+    if (!customTypesDebugStreamRegistry()->insertIfNotContains(type, f)) {
+        qWarning("Debug stream operator already registered for type %s", QMetaType::typeName(type));
+        return false;
+    }
+    return true;
+}
+
+/*!
+    \fn bool QMetaType::hasRegisteredDebugStreamOperator()
+    Returns \c true, if the meta type system has a registered debug stream operator for type T.
+    \since 5.2
+ */
+
+/*!
+    Returns \c true, if the meta type system has a registered debug stream operator for type
+    id \a typeId.
+    \since 5.2
+*/
+bool QMetaType::hasRegisteredDebugStreamOperator(int typeId)
+{
+    return customTypesDebugStreamRegistry()->contains(typeId);
+}
+#endif
+
+/*!
+    Converts the object at \a from from \a fromTypeId to the preallocated space at \a to
+    typed \a toTypeId. Returns \c true, if the conversion succeeded, otherwise false.
+    \since 5.2
+*/
+bool QMetaType::convert(const void *from, int fromTypeId, void *to, int toTypeId)
+{
+    const QtPrivate::AbstractConverterFunction * const f =
+        customTypesConversionRegistry()->function(qMakePair(fromTypeId, toTypeId));
+    return f && f->convert(f, from, to);
+}
+
+/*!
+    Compares the objects at \a lhs and \a rhs. Both objects need to be of type \a typeId.
+    \a result is set to less than, equal to or greater than zero, if \a lhs is less than, equal to
+    or greater than \a rhs. Returns \c true, if the comparison succeeded, otherwiess false.
+    \since 5.2
+*/
+bool QMetaType::compare(const void *lhs, const void *rhs, int typeId, int* result)
+{
+    const QtPrivate::AbstractComparatorFunction * const f =
+        customTypesComparatorRegistry()->function(typeId);
+    if (!f)
+        return false;
+    if (f->equals(f, lhs, rhs))
+        *result = 0;
+    else
+        *result = f->lessThan(f, lhs, rhs) ? -1 : 1;
+    return true;
+}
+
+/*!
+    Streams the object at \a rhs of type \a typeId to the debug stream \a dbg. Returns \c true
+    on success, otherwise false.
+    \since 5.2
+*/
+bool QMetaType::debugStream(QDebug& dbg, const void *rhs, int typeId)
+{
+    const QtPrivate::AbstractDebugStreamFunction * const f = customTypesDebugStreamRegistry()->function(typeId);
+    if (!f)
+        return false;
+    f->stream(f, dbg, rhs);
+    return true;
+}
+
+/*!
+    \fn bool QMetaType::hasRegisteredConverterFunction()
+    Returns \c true, if the meta type system has a registered conversion from type From to type To.
+    \since 5.2
+    \overload
+    */
+
+/*!
+    Returns \c true, if the meta type system has a registered conversion from meta type id \a fromTypeId
+    to \a toTypeId
+    \since 5.2
+*/
+bool QMetaType::hasRegisteredConverterFunction(int fromTypeId, int toTypeId)
+{
+    return customTypesConversionRegistry()->contains(qMakePair(fromTypeId, toTypeId));
+}
 
 #ifndef QT_NO_DATASTREAM
 /*!
@@ -723,18 +1017,18 @@ int QMetaType::registerNormalizedTypedef(const NS(QByteArray) &normalizedTypeNam
     }
 
     if (idx != aliasId) {
-        qFatal("QMetaType::registerTypedef: Binary compatibility break "
-            "-- Type name '%s' previously registered as typedef of '%s' [%i], "
-            "now registering as typedef of '%s' [%i].",
-            normalizedTypeName.constData(), QMetaType::typeName(idx), idx,
-            QMetaType::typeName(aliasId), aliasId);
+        qWarning("QMetaType::registerTypedef: "
+                 "-- Type name '%s' previously registered as typedef of '%s' [%i], "
+                 "now registering as typedef of '%s' [%i].",
+                 normalizedTypeName.constData(), QMetaType::typeName(idx), idx,
+                 QMetaType::typeName(aliasId), aliasId);
     }
     return idx;
 }
 
 /*!
-    Returns true if the datatype with ID \a type is registered;
-    otherwise returns false.
+    Returns \c true if the datatype with ID \a type is registered;
+    otherwise returns \c false.
 
     \sa type(), typeName(), Type
 */
@@ -809,8 +1103,8 @@ int qMetaTypeTypeInternal(const char *typeName)
 #ifndef QT_NO_DATASTREAM
 /*!
     Writes the object pointed to by \a data with the ID \a type to
-    the given \a stream. Returns true if the object is saved
-    successfully; otherwise returns false.
+    the given \a stream. Returns \c true if the object is saved
+    successfully; otherwise returns \c false.
 
     The type must have been registered with qRegisterMetaType() and
     qRegisterMetaTypeStreamOperators() beforehand.
@@ -1026,8 +1320,8 @@ bool QMetaType::save(QDataStream &stream, int type, const void *data)
 
 /*!
     Reads the object of the specified \a type from the given \a
-    stream into \a data. Returns true if the object is loaded
-    successfully; otherwise returns false.
+    stream into \a data. Returns \c true if the object is loaded
+    successfully; otherwise returns \c false.
 
     The type must have been registered with qRegisterMetaType() and
     qRegisterMetaTypeStreamOperators() beforehand.

@@ -40,9 +40,8 @@
 ****************************************************************************/
 
 #include "qfileiconprovider.h"
+#include "qfileiconprovider_p.h"
 
-#ifndef QT_NO_FILEICONPROVIDER
-#include <qstyle.h>
 #include <qapplication.h>
 #include <qdir.h>
 #include <qpixmapcache.h>
@@ -83,34 +82,15 @@ QT_BEGIN_NAMESPACE
   \value File
 */
 
-class QFileIconProviderPrivate
-{
-    Q_DECLARE_PUBLIC(QFileIconProvider)
 
-public:
-    QFileIconProviderPrivate();
-    QIcon getIcon(QStyle::StandardPixmap name) const;
-    QIcon getIcon(const QFileInfo &fi) const;
+/*!
+    \enum QFileIconProvider::Option
+    \since 5.2
 
-    QFileIconProvider *q_ptr;
-    const QString homePath;
-
-private:
-    mutable QIcon file;
-    mutable QIcon fileLink;
-    mutable QIcon directory;
-    mutable QIcon directoryLink;
-    mutable QIcon harddisk;
-    mutable QIcon floppy;
-    mutable QIcon cdrom;
-    mutable QIcon ram;
-    mutable QIcon network;
-    mutable QIcon computer;
-    mutable QIcon desktop;
-    mutable QIcon trashcan;
-    mutable QIcon generic;
-    mutable QIcon home;
-};
+    \value DontUseCustomDirectoryIcons Always use the default directory icon.
+    Some platforms allow the user to set a different icon. Custom icon lookup
+    cause a big performance impact over network or removable drives.
+*/
 
 QFileIconProviderPrivate::QFileIconProviderPrivate() :
     homePath(QDir::home().absolutePath())
@@ -193,6 +173,31 @@ QFileIconProvider::~QFileIconProvider()
 }
 
 /*!
+    \since 5.2
+    Sets \a options that affect the icon provider.
+    \sa options()
+*/
+
+void QFileIconProvider::setOptions(QFileIconProvider::Options options)
+{
+    Q_D(QFileIconProvider);
+    d->options = options;
+}
+
+/*!
+    \since 5.2
+    Returns all the options that affect the icon provider.
+    By default, all options are disabled.
+    \sa setOptions()
+*/
+
+QFileIconProvider::Options QFileIconProvider::options() const
+{
+    Q_D(const QFileIconProvider);
+    return d->options;
+}
+
+/*!
   Returns an icon set for the given \a type.
 */
 
@@ -220,6 +225,23 @@ QIcon QFileIconProvider::icon(IconType type) const
     return QIcon();
 }
 
+static bool isCacheable(const QFileInfo &fi)
+{
+    if (!fi.isFile())
+        return false;
+
+#ifdef Q_OS_WIN
+    // On windows it's faster to just look at the file extensions. QTBUG-13182
+    const QString fileExtension = fi.suffix();
+    // Will return false for .exe, .lnk and .ico extensions
+    return fileExtension.compare(QLatin1String("exe"), Qt::CaseInsensitive) &&
+           fileExtension.compare(QLatin1String("lnk"), Qt::CaseInsensitive) &&
+           fileExtension.compare(QLatin1String("ico"), Qt::CaseInsensitive);
+#else
+    return !fi.isExecutable() && !fi.isSymLink();
+#endif
+}
+
 QIcon QFileIconProviderPrivate::getIcon(const QFileInfo &fi) const
 {
     QIcon retIcon;
@@ -231,10 +253,9 @@ QIcon QFileIconProviderPrivate::getIcon(const QFileInfo &fi) const
     if (sizes.isEmpty())
         return retIcon;
 
-    const QString fileExtension = fi.suffix().toUpper();
     const QString keyBase = QLatin1String("qt_.") + fi.suffix().toUpper();
 
-    bool cacheable = fi.isFile() && !fi.isExecutable() && !fi.isSymLink() && fileExtension != QLatin1String("ICO");
+    bool cacheable = isCacheable(fi);
     if (cacheable) {
         QPixmap pixmap;
         QPixmapCache::find(keyBase + QString::number(sizes.at(0)), pixmap);
@@ -253,8 +274,12 @@ QIcon QFileIconProviderPrivate::getIcon(const QFileInfo &fi) const
         }
     }
 
+    QPlatformTheme::IconOptions iconOptions;
+    if (options & QFileIconProvider::DontUseCustomDirectoryIcons)
+        iconOptions |= QPlatformTheme::DontUseCustomDirectoryIcons;
+
     Q_FOREACH (int size, sizes) {
-        QPixmap pixmap = theme->fileIconPixmap(fi, QSizeF(size, size));
+        QPixmap pixmap = theme->fileIconPixmap(fi, QSizeF(size, size), iconOptions);
         if (!pixmap.isNull()) {
             retIcon.addPixmap(pixmap);
             if (cacheable)
@@ -372,5 +397,3 @@ QString QFileIconProvider::type(const QFileInfo &info) const
 }
 
 QT_END_NAMESPACE
-
-#endif

@@ -39,7 +39,7 @@
 ****************************************************************************/
 
 import QtQuick 2.1
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
 import "content"
 
 ApplicationWindow {
@@ -122,6 +122,10 @@ ApplicationWindow {
         ListElement {
             title: "TextInput"
             page: "content/TextInputPage.qml"
+        }
+        ListElement {
+            title: "List"
+            page: "content/ListPage.qml"
         }
     }
 

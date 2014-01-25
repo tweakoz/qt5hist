@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -58,7 +58,7 @@
 #include "qquickitemchangelistener_p.h"
 #include <qqmlincubator.h>
 
-#include <private/qv8_p.h>
+#include <private/qv4value_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -96,8 +96,8 @@ public:
     void incubatorStateChanged(QQmlIncubator::Status status);
     void setInitialState(QObject *o);
     void disposeInitialPropertyValues();
-    QUrl resolveSourceUrl(QQmlV8Function *args);
-    v8::Handle<v8::Object> extractInitialPropertyValues(QQmlV8Function *args, QObject *loader, bool *error);
+    QUrl resolveSourceUrl(QQmlV4Function *args);
+    QV4::ReturnedValue extractInitialPropertyValues(QQmlV4Function *args, QObject *loader, bool *error);
 
     virtual qreal getImplicitWidth() const;
     virtual qreal getImplicitHeight() const;
@@ -108,8 +108,8 @@ public:
     QQmlComponent *component;
     QQmlContext *itemContext;
     QQuickLoaderIncubator *incubator;
-    v8::Persistent<v8::Object> initialPropertyValues;
-    v8::Persistent<v8::Object> qmlGlobalForIpv;
+    QV4::PersistentValue initialPropertyValues;
+    QV4::PersistentValue qmlGlobalForIpv;
     bool updatingSize: 1;
     bool active : 1;
     bool loadingFromSource : 1;

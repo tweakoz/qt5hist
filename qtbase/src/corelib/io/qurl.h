@@ -50,6 +50,13 @@
 #include <QtCore/qpair.h>
 #include <QtCore/qglobal.h>
 
+#ifdef Q_OS_MAC
+Q_FORWARD_DECLARE_CF_TYPE(CFURL);
+#  ifdef __OBJC__
+Q_FORWARD_DECLARE_OBJC_CLASS(NSURL);
+#  endif
+#endif
+
 QT_BEGIN_NAMESPACE
 
 
@@ -79,36 +86,36 @@ public:
     inline QUrlTwoFlags &operator^=(E1 f) { i ^= f; return *this; }
     inline QUrlTwoFlags &operator^=(E2 f) { i ^= f; return *this; }
 
-    Q_DECL_CONSTEXPR inline operator QFlags<E1>() const { return E1(i); }
-    Q_DECL_CONSTEXPR inline operator QFlags<E2>() const { return E2(i); }
+    Q_DECL_CONSTEXPR inline operator QFlags<E1>() const { return QFlag(i); }
+    Q_DECL_CONSTEXPR inline operator QFlags<E2>() const { return QFlag(i); }
     Q_DECL_CONSTEXPR inline operator int() const { return i; }
     Q_DECL_CONSTEXPR inline bool operator!() const { return !i; }
 
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator|(QUrlTwoFlags f) const
-    { return QUrlTwoFlags(E1(i | f.i)); }
+    { return QUrlTwoFlags(QFlag(i | f.i)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator|(E1 f) const
-    { return QUrlTwoFlags(E1(i | f)); }
+    { return QUrlTwoFlags(QFlag(i | f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator|(E2 f) const
-    { return QUrlTwoFlags(E2(i | f)); }
+    { return QUrlTwoFlags(QFlag(i | f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator^(QUrlTwoFlags f) const
-    { return QUrlTwoFlags(E1(i ^ f.i)); }
+    { return QUrlTwoFlags(QFlag(i ^ f.i)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator^(E1 f) const
-    { return QUrlTwoFlags(E1(i ^ f)); }
+    { return QUrlTwoFlags(QFlag(i ^ f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator^(E2 f) const
-    { return QUrlTwoFlags(E2(i ^ f)); }
+    { return QUrlTwoFlags(QFlag(i ^ f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator&(int mask) const
-    { return QUrlTwoFlags(E1(i & mask)); }
+    { return QUrlTwoFlags(QFlag(i & mask)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator&(uint mask) const
-    { return QUrlTwoFlags(E1(i & mask)); }
+    { return QUrlTwoFlags(QFlag(i & mask)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator&(E1 f) const
-    { return QUrlTwoFlags(E1(i & f)); }
+    { return QUrlTwoFlags(QFlag(i & f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator&(E2 f) const
-    { return QUrlTwoFlags(E2(i & f)); }
+    { return QUrlTwoFlags(QFlag(i & f)); }
     Q_DECL_CONSTEXPR inline QUrlTwoFlags operator~() const
-    { return QUrlTwoFlags(E1(~i)); }
+    { return QUrlTwoFlags(QFlag(~i)); }
 
-    inline bool testFlag(E1 f) const { return (i & f) == f && (f != 0 || i == int(f)); }
-    inline bool testFlag(E2 f) const { return (i & f) == f && (f != 0 || i == int(f)); }
+    Q_DECL_CONSTEXPR inline bool testFlag(E1 f) const { return (i & f) == f && (f != 0 || i == int(f)); }
+    Q_DECL_CONSTEXPR inline bool testFlag(E2 f) const { return (i & f) == f && (f != 0 || i == int(f)); }
 };
 
 template<typename E1, typename E2>
@@ -140,7 +147,9 @@ public:
         RemoveFragment = 0x80,
         // 0x100 was a private code in Qt 4, keep unused for a while
         PreferLocalFile = 0x200,
-        StripTrailingSlash = 0x400
+        StripTrailingSlash = 0x400,
+        RemoveFilename = 0x800,
+        NormalizePathSegments = 0x1000
     };
 
     enum ComponentFormattingOption {
@@ -185,6 +194,7 @@ public:
     QString url(FormattingOptions options = FormattingOptions(PrettyDecoded)) const;
     QString toString(FormattingOptions options = FormattingOptions(PrettyDecoded)) const;
     QString toDisplayString(FormattingOptions options = FormattingOptions(PrettyDecoded)) const;
+    QUrl adjusted(FormattingOptions options) const;
 
     QByteArray toEncoded(FormattingOptions options = FullyEncoded) const;
     static QUrl fromEncoded(const QByteArray &url, ParsingMode mode = TolerantMode);
@@ -206,21 +216,22 @@ public:
     void setUserInfo(const QString &userInfo, ParsingMode mode = TolerantMode);
     QString userInfo(ComponentFormattingOptions options = PrettyDecoded) const;
 
-    void setUserName(const QString &userName, ParsingMode mode = TolerantMode);
-    QString userName(ComponentFormattingOptions options = PrettyDecoded) const;
+    void setUserName(const QString &userName, ParsingMode mode = DecodedMode);
+    QString userName(ComponentFormattingOptions options = FullyDecoded) const;
 
-    void setPassword(const QString &password, ParsingMode mode = TolerantMode);
-    QString password(ComponentFormattingOptions = PrettyDecoded) const;
+    void setPassword(const QString &password, ParsingMode mode = DecodedMode);
+    QString password(ComponentFormattingOptions = FullyDecoded) const;
 
-    void setHost(const QString &host, ParsingMode mode = TolerantMode);
-    QString host(ComponentFormattingOptions = PrettyDecoded) const;
-    QString topLevelDomain(ComponentFormattingOptions options = PrettyDecoded) const;
+    void setHost(const QString &host, ParsingMode mode = DecodedMode);
+    QString host(ComponentFormattingOptions = FullyDecoded) const;
+    QString topLevelDomain(ComponentFormattingOptions options = FullyDecoded) const;
 
     void setPort(int port);
     int port(int defaultPort = -1) const;
 
-    void setPath(const QString &path, ParsingMode mode = TolerantMode);
-    QString path(ComponentFormattingOptions options = PrettyDecoded) const;
+    void setPath(const QString &path, ParsingMode mode = DecodedMode);
+    QString path(ComponentFormattingOptions options = FullyDecoded) const;
+    QString fileName(ComponentFormattingOptions options = FullyDecoded) const;
 
     bool hasQuery() const;
     void setQuery(const QString &query, ParsingMode mode = TolerantMode);
@@ -247,10 +258,21 @@ public:
     bool operator ==(const QUrl &url) const;
     bool operator !=(const QUrl &url) const;
 
+    bool matches(const QUrl &url, FormattingOptions options) const;
+
     static QString fromPercentEncoding(const QByteArray &);
     static QByteArray toPercentEncoding(const QString &,
                                         const QByteArray &exclude = QByteArray(),
                                         const QByteArray &include = QByteArray());
+#if defined(Q_OS_MAC) || defined(Q_QDOC)
+    static QUrl fromCFURL(CFURLRef url);
+    CFURLRef toCFURL() const Q_DECL_CF_RETURNS_RETAINED;
+#  if defined(__OBJC__) || defined(Q_QDOC)
+    static QUrl fromNSURL(const NSURL *url);
+    NSURL *toNSURL() const Q_DECL_NS_RETURNS_AUTORELEASED;
+#  endif
+#endif
+
 #if QT_DEPRECATED_SINCE(5,0)
     QT_DEPRECATED static QString fromPunycode(const QByteArray &punycode)
     { return fromAce(punycode); }

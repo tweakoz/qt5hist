@@ -62,7 +62,7 @@
 QT_BEGIN_NAMESPACE
 
 #ifndef QT_NO_SYSTEMLOCALE
-class QSystemLocale
+class Q_CORE_EXPORT QSystemLocale
 {
 public:
     QSystemLocale();
@@ -330,7 +330,8 @@ public:
     enum NumberMode { IntegerMode, DoubleStandardMode, DoubleScientificMode };
     bool validateChars(const QString &str, NumberMode numMode, QByteArray *buff, int decDigits = -1) const;
 
-    QString dateTimeToString(const QString &format, const QDate *date, const QTime *time,
+    QString dateTimeToString(const QString &format, const QDateTime &datetime,
+                             const QDate &dateOnly, const QTime &timeOnly,
                              const QLocale *q) const;
 
     const QLocaleData *m_data;

@@ -67,7 +67,7 @@ QT_BEGIN_NAMESPACE
 
 class QByteArray;
 class QQmlPropertyCache;
-namespace QQmlJS { namespace AST { class Node; class StringLiteral; } }
+namespace QQmlJS { class Engine; namespace AST { class Node; class StringLiteral; class UiProgram; class FunctionDeclaration; } }
 namespace QQmlCompilerTypes { struct BindingReference; struct ComponentCompileState; }
 
 namespace QQmlScript {
@@ -116,6 +116,17 @@ public:
 
     int majorVersion;
     int minorVersion;
+
+    QQmlScript::LocationSpan location;
+};
+
+class Pragma
+{
+public:
+    Pragma() : type(Singleton) {}
+
+    enum Type { Singleton };
+    Type type;
 
     QQmlScript::LocationSpan location;
 };
@@ -216,9 +227,14 @@ public:
     LocationSpan location;
 
     // Used by compiler
+    struct SignalData {
+        int signalExpressionContextStack;
+        Object *signalScopeObject;
+        int functionIndex; // before gen() index in functionsToCompile, then index in runtime functions
+    };
     union {
         QQmlCompilerTypes::BindingReference *bindingReference;
-        int signalExpressionContextStack;
+        SignalData signalData;
     };
 
     // Used in Property::ValueList lists
@@ -319,6 +335,8 @@ public:
     void setBindingBit(int);
 
     QQmlPropertyCache *metatype;
+
+    QQmlJS::AST::Node *astNode; // responsible for the creation of this object
 
     // The synthesized metaobject, if QML added signals or properties to
     // this type.  Otherwise null
@@ -422,8 +440,8 @@ public:
     {
         DynamicSlot();
 
+        QQmlJS::AST::FunctionDeclaration *funcDecl;
         QHashedStringRef name;
-        QString body;
         QList<QByteArray> parameterNames;
         LocationSpan location;
 
@@ -474,6 +492,7 @@ public:
 
     QQmlScript::Object *tree() const;
     QList<Import> imports() const;
+    QList<Pragma> pragmas() const;
 
     void clear();
 
@@ -499,14 +518,19 @@ public:
     void setScriptFile(const QString &filename) {_scriptFile = filename; }
     QString scriptFile() const { return _scriptFile; }
 
+    QQmlJS::AST::UiProgram *qmlRoot() const { return _qmlRoot; }
+    QQmlJS::Engine *jsEngine() const;
+
 // ### private:
     QList<QQmlError> _errors;
 
     QQmlPool _pool;
     QQmlScript::Object *root;
     QList<Import> _imports;
+    QList<Pragma> _pragmas;
     QList<TypeReference*> _refTypes;
     QString _scriptFile;
+    QQmlJS::AST::UiProgram *_qmlRoot;
     ParserJsASTData *data;
 };
 

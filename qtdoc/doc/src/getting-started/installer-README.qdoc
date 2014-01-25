@@ -54,7 +54,8 @@ so on).
 \section1 Installing Qt 5
 
 You can download Qt 5 from \l{http://qt-project.org/downloads}. The site
-provides download links for all supported development platforms.
+provides download links for all supported development platforms. The Qt
+Enterprise packages are available from the \l{Try Qt Enterprise} page.
 
 Start the installation program like any executable on the development platform.
 On Linux, you might first have to make the installation program executable.
@@ -78,8 +79,11 @@ summarizes the available installers.
         \li Linux (32-bit and 64-bit)
         \li As provided by Ubuntu
     \row
-        \li Apple Mac OS X 10.7 and Mac OS X 10.8
+        \li Apple Mac OS X (10.7 and later)
         \li Clang as provided by Apple
+    \row
+        \li Apple Mac OS X (10.7 and later)
+        \li iOS 5.0 and later
     \row
         \li Microsoft Windows 7 (32-bit) ANGLE
         \li MSVC 2010 SP1

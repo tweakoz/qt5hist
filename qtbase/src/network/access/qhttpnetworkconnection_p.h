@@ -131,6 +131,8 @@ public:
     void setSslContext(QSharedPointer<QSslContext> context);
 #endif
 
+    void preConnectFinished();
+
 private:
     Q_DECLARE_PRIVATE(QHttpNetworkConnection)
     Q_DISABLE_COPY(QHttpNetworkConnection)
@@ -163,9 +165,10 @@ public:
 
     enum NetworkLayerPreferenceState {
         Unknown,
-        InProgress,
+        HostLookupPending,
         IPv4,
-        IPv6
+        IPv6,
+        IPv4or6
     };
 
     QHttpNetworkConnectionPrivate(const QString &hostName, quint16 port, bool encrypt);
@@ -238,6 +241,8 @@ public:
     //The request queues
     QList<HttpMessagePair> highPriorityQueue;
     QList<HttpMessagePair> lowPriorityQueue;
+
+    int preConnectRequests;
 
 #ifndef QT_NO_SSL
     QSharedPointer<QSslContext> sslContext;

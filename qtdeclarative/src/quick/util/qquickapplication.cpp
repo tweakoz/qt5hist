@@ -75,6 +75,9 @@ QQuickApplication::QQuickApplication(QObject *parent)
 {
     if (qApp) {
         qApp->installEventFilter(this);
+
+        connect(qApp, SIGNAL(applicationStateChanged(Qt::ApplicationState)),
+                this, SIGNAL(stateChanged(Qt::ApplicationState)));
     }
 }
 
@@ -99,13 +102,24 @@ bool QQuickApplication::supportsMultipleWindows() const
     return QGuiApplicationPrivate::platformIntegration()->hasCapability(QPlatformIntegration::MultipleWindows);
 }
 
+Qt::ApplicationState QQuickApplication::state() const
+{
+    return QGuiApplication::applicationState();
+}
+
 bool QQuickApplication::eventFilter(QObject *, QEvent *event)
 {
     Q_D(QQuickApplication);
     if ((event->type() == QEvent::ApplicationActivate) ||
-        (event->type() == QEvent::ApplicationDeactivate)) {
+        (event->type() == QEvent::ApplicationDeactivate) ||
+        (event->type() == QEvent::ApplicationStateChange)) {
         bool wasActive = d->isActive;
-        d->isActive = (event->type() == QEvent::ApplicationActivate);
+        if (event->type() == QEvent::ApplicationStateChange) {
+            QApplicationStateChangeEvent * e= static_cast<QApplicationStateChangeEvent*>(event);
+            d->isActive = e->applicationState() == Qt::ApplicationActive;
+        } else {
+            d->isActive = (event->type() == QEvent::ApplicationActivate);
+        }
         if (d->isActive != wasActive) {
             emit activeChanged();
         }

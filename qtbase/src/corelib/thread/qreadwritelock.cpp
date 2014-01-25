@@ -98,7 +98,7 @@ QT_BEGIN_NAMESPACE
     \since 4.4
 
     \value Recursive In this mode, a thread can lock the same
-    QReadWriteLock multiple times and the mutex won't be unlocked
+    QReadWriteLock multiple times. The QReadWriteLock won't be unlocked
     until a corresponding number of unlock() calls have been made.
 
     \value NonRecursive In this mode, a thread may only lock a
@@ -172,7 +172,7 @@ void QReadWriteLock::lockForRead()
 
 /*!
     Attempts to lock for reading. If the lock was obtained, this
-    function returns true, otherwise it returns false instead of
+    function returns \c true, otherwise it returns \c false instead of
     waiting for the lock to become available, i.e. it does not block.
 
     The lock attempt will fail if another thread has locked for
@@ -217,8 +217,8 @@ bool QReadWriteLock::tryLockForRead()
 
 /*! \overload
 
-    Attempts to lock for reading. This function returns true if the
-    lock was obtained; otherwise it returns false. If another thread
+    Attempts to lock for reading. This function returns \c true if the
+    lock was obtained; otherwise it returns \c false. If another thread
     has locked for writing, this function will wait for at most \a
     timeout milliseconds for the lock to become available.
 
@@ -309,7 +309,7 @@ void QReadWriteLock::lockForWrite()
 
 /*!
     Attempts to lock for writing. If the lock was obtained, this
-    function returns true; otherwise, it returns false immediately.
+    function returns \c true; otherwise, it returns \c false immediately.
 
     The lock attempt will fail if another thread has locked for
     reading or writing.
@@ -352,8 +352,8 @@ bool QReadWriteLock::tryLockForWrite()
 
 /*! \overload
 
-    Attempts to lock for writing. This function returns true if the
-    lock was obtained; otherwise it returns false. If another thread
+    Attempts to lock for writing. This function returns \c true if the
+    lock was obtained; otherwise it returns \c false. If another thread
     has locked for reading or writing, this function will wait for at
     most \a timeout milliseconds for the lock to become available.
 

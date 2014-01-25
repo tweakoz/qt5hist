@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -64,14 +64,12 @@ public:
     void windowDestroyed(QQuickWindow *window);
     void exposureChanged(QQuickWindow *window);
 
-    void handleExposure(QQuickWindow *window);
-    void handleObscurity(QQuickWindow *window);
-
     QImage grab(QQuickWindow *);
 
     void update(QQuickWindow *window);
     void maybeUpdate(QQuickWindow *window);
     QSGContext *sceneGraphContext() const;
+    QSGRenderContext *createRenderContext(QSGContext *) const;
 
     QAnimationDriver *animationDriver() const;
 
@@ -81,11 +79,18 @@ public:
 
     bool interleaveIncubation() const;
 
-public slots:
+public Q_SLOTS:
     void animationStarted();
     void animationStopped();
 
 private:
+    struct Window {
+        QQuickWindow *window;
+        QSGRenderThread *thread;
+        int timerId;
+        uint updateDuringSync : 1;
+    };
+
     friend class QSGRenderThread;
 
     void releaseResources(QQuickWindow *window, bool inDestructor);
@@ -94,25 +99,24 @@ private:
     bool anyoneShowing() const;
     void initialize();
 
-    void maybePostPolishRequest();
-
+    void startOrStopAnimationTimer();
+    void maybePostPolishRequest(Window *w);
     void waitForReleaseComplete();
+    void polishAndSync(Window *w);
+    void maybeUpdate(Window *window);
 
-    void polishAndSync();
+    void handleExposure(Window *w);
+    void handleObscurity(Window *w);
 
-    struct Window {
-        QQuickWindow *window;
-    };
 
-    QSGRenderThread *m_thread;
+    QSGContext *sg;
     QAnimationDriver *m_animation_driver;
     QList<Window> m_windows;
 
     int m_animation_timer;
-    int m_update_timer;
     int m_exhaust_delay;
 
-    bool m_sync_triggered_update;
+    bool m_locked;
 };
 
 

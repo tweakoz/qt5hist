@@ -85,13 +85,13 @@ public:
     enum Progress { Execute, Completing, Completed };
     Progress progress;
 
-    QQmlGuard<QObject> result;
+    QPointer<QObject> result;
     QQmlGuardedContextData rootContext;
     QQmlCompiledData *compiledData;
     QQmlVME vme;
     QQmlVMEGuard vmeGuard;
 
-    QQmlIncubatorPrivate *waitingOnMe;
+    QExplicitlySharedDataPointer<QQmlIncubatorPrivate> waitingOnMe;
     typedef QQmlEnginePrivate::Incubator QIPBase;
     QIntrusiveList<QIPBase, &QIPBase::nextWaitingFor> waitingFor;
 
@@ -99,6 +99,7 @@ public:
 
     void clear();
 
+    void forceCompletion(QQmlVME::Interrupt &i);
     void incubate(QQmlVME::Interrupt &i);
 };
 

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -54,6 +54,11 @@
 #include <QtQuick/private/qquickstate_p.h>
 #include <qqmlproperty.h>
 #include <QtCore/QPointer>
+
+static void initResources()
+{
+    Q_INIT_RESOURCE(scenegraph);
+}
 
 QT_BEGIN_NAMESPACE
 
@@ -130,7 +135,7 @@ void QQmlQtQuick2DebugStatesDelegate::updateBinding(QQmlContext *context,
 
                 QQmlBinding *newBinding = 0;
                 if (!isLiteralValue) {
-                    newBinding = new QQmlBinding(expression.toString(), false, object,
+                    newBinding = new QQmlBinding(expression.toString(), object,
                                                  QQmlContextData::get(context), fileName,
                                                  line, column);
                     newBinding->setTarget(property);
@@ -172,6 +177,10 @@ void QQmlQtQuick2DebugStatesDelegate::resetBindingForInvalidProperty(QObject *ob
 
 void QQmlQtQuick2Module::defineModule()
 {
+    initResources();
+
+    QQuick_initializeProviders();
+
     QQuickUtilModule::defineModule();
     QQmlEnginePrivate::defineQtQuick2Module();
     QQuickItemsModule::defineModule();

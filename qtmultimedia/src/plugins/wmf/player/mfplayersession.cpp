@@ -1875,11 +1875,22 @@ void MFPlayerSession::handleSessionEvent(IMFMediaEvent *sessionEvent)
             emit error(QMediaPlayer::FormatError, tr("Unsupported media, a codec is missing."), true);
         } else {
             if (m_audioSampleGrabberNode) {
-                IMFMediaType *mediaType = 0;
-                hr = MFGetTopoNodeCurrentType(m_audioSampleGrabberNode, 0, FALSE, &mediaType);
-                if (SUCCEEDED(hr)) {
-                    m_audioSampleGrabber->setFormat(audioFormatForMFMediaType(mediaType));
-                    mediaType->Release();
+                IUnknown *obj = 0;
+                if (SUCCEEDED(m_audioSampleGrabberNode->GetObject(&obj))) {
+                    IMFStreamSink *streamSink = 0;
+                    if (SUCCEEDED(obj->QueryInterface(IID_PPV_ARGS(&streamSink)))) {
+                        IMFMediaTypeHandler *typeHandler = 0;
+                        if (SUCCEEDED(streamSink->GetMediaTypeHandler((&typeHandler)))) {
+                            IMFMediaType *mediaType = 0;
+                            if (SUCCEEDED(typeHandler->GetCurrentMediaType(&mediaType))) {
+                                m_audioSampleGrabber->setFormat(audioFormatForMFMediaType(mediaType));
+                                mediaType->Release();
+                            }
+                            typeHandler->Release();
+                        }
+                        streamSink->Release();
+                    }
+                    obj->Release();
                 }
             }
 
@@ -1918,19 +1929,19 @@ void MFPlayerSession::handleSessionEvent(IMFMediaEvent *sessionEvent)
         changeStatus(QMediaPlayer::BufferedMedia);
         emit bufferStatusChanged(bufferStatus());
         break;
-    case MEEndOfPresentation:
-        stop();
-        changeStatus(QMediaPlayer::EndOfMedia);
-        m_varStart.vt = VT_I8;
-        //keep reporting the final position after end of media
-        m_varStart.hVal.QuadPart = m_duration;
-        break;
     case MESessionEnded:
         m_pendingState = NoPending;
         m_state.command = CmdStop;
         m_state.prevCmd = CmdNone;
         m_request.command = CmdNone;
         m_request.prevCmd = CmdNone;
+
+        m_varStart.vt = VT_I8;
+        //keep reporting the final position after end of media
+        m_varStart.hVal.QuadPart = m_duration;
+        emit positionChanged(position());
+
+        changeStatus(QMediaPlayer::EndOfMedia);
         break;
     case MEEndOfPresentationSegment:
         break;
@@ -1992,6 +2003,8 @@ void MFPlayerSession::handleSessionEvent(IMFMediaEvent *sessionEvent)
                 }
             }
         }
+        break;
+    default:
         break;
     }
 

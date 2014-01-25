@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -90,6 +90,7 @@ class Q_QUICK_PRIVATE_EXPORT QQuickText : public QQuickImplicitSizeItem
     Q_PROPERTY(int minimumPointSize READ minimumPointSize WRITE setMinimumPointSize NOTIFY minimumPointSizeChanged)
     Q_PROPERTY(FontSizeMode fontSizeMode READ fontSizeMode WRITE setFontSizeMode NOTIFY fontSizeModeChanged)
     Q_PROPERTY(RenderType renderType READ renderType WRITE setRenderType NOTIFY renderTypeChanged)
+    Q_PROPERTY(QString hoveredLink READ hoveredLink NOTIFY linkHovered REVISION 2)
 
 public:
     QQuickText(QQuickItem *parent=0);
@@ -207,9 +208,12 @@ public:
     RenderType renderType() const;
     void setRenderType(RenderType renderType);
 
+    QString hoveredLink() const;
+
 Q_SIGNALS:
     void textChanged(const QString &text);
     void linkActivated(const QString &link);
+    Q_REVISION(2) void linkHovered(const QString &link);
     void fontChanged(const QFont &font);
     void colorChanged();
     void linkColorChanged();
@@ -242,6 +246,10 @@ protected:
     virtual QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
 
     void updatePolish();
+
+    void hoverEnterEvent(QHoverEvent *event);
+    void hoverMoveEvent(QHoverEvent *event);
+    void hoverLeaveEvent(QHoverEvent *event);
 
 private Q_SLOTS:
     void q_imagesLoaded();

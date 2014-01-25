@@ -54,63 +54,98 @@
 //
 
 #include <QtCore/qglobal.h>
-#include <private/qv8_p.h>
+#include <private/qv4object_p.h>
 
 QT_BEGIN_NAMESPACE
 
-namespace QQmlBuiltinFunctions
+class QQmlEngine;
+class QV8Engine;
+
+namespace QV4 {
+
+struct QtObject : Object
 {
-v8::Handle<v8::Value> gc(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleError(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleLog(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleProfile(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleProfileEnd(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleTime(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleTimeEnd(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleCount(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleTrace(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleWarn(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleAssert(const v8::Arguments &args);
-v8::Handle<v8::Value> consoleException(const v8::Arguments &args);
-v8::Handle<v8::Value> isQtObject(const v8::Arguments &args);
-v8::Handle<v8::Value> rgba(const v8::Arguments &args);
-v8::Handle<v8::Value> hsla(const v8::Arguments &args);
-v8::Handle<v8::Value> colorEqual(const v8::Arguments &args);
-v8::Handle<v8::Value> font(const v8::Arguments &args);
-v8::Handle<v8::Value> rect(const v8::Arguments &args);
-v8::Handle<v8::Value> point(const v8::Arguments &args);
-v8::Handle<v8::Value> size(const v8::Arguments &args);
-v8::Handle<v8::Value> vector2d(const v8::Arguments &args);
-v8::Handle<v8::Value> vector3d(const v8::Arguments &args);
-v8::Handle<v8::Value> vector4d(const v8::Arguments &args);
-v8::Handle<v8::Value> quaternion(const v8::Arguments &args);
-v8::Handle<v8::Value> matrix4x4(const v8::Arguments &args);
-v8::Handle<v8::Value> lighter(const v8::Arguments &args);
-v8::Handle<v8::Value> darker(const v8::Arguments &args);
-v8::Handle<v8::Value> tint(const v8::Arguments &args);
-v8::Handle<v8::Value> formatDate(const v8::Arguments &args);
-v8::Handle<v8::Value> formatTime(const v8::Arguments &args);
-v8::Handle<v8::Value> formatDateTime(const v8::Arguments &args);
-v8::Handle<v8::Value> openUrlExternally(const v8::Arguments &args);
-v8::Handle<v8::Value> fontFamilies(const v8::Arguments &args);
-v8::Handle<v8::Value> md5(const v8::Arguments &args);
-v8::Handle<v8::Value> btoa(const v8::Arguments &args);
-v8::Handle<v8::Value> atob(const v8::Arguments &args);
-v8::Handle<v8::Value> quit(const v8::Arguments &args);
-v8::Handle<v8::Value> resolvedUrl(const v8::Arguments &args);
-v8::Handle<v8::Value> createQmlObject(const v8::Arguments &args);
-v8::Handle<v8::Value> createComponent(const v8::Arguments &args);
-#ifndef QT_NO_TRANSLATION
-v8::Handle<v8::Value> qsTranslate(const v8::Arguments &args);
-v8::Handle<v8::Value> qsTranslateNoOp(const v8::Arguments &args);
-v8::Handle<v8::Value> qsTr(const v8::Arguments &args);
-v8::Handle<v8::Value> qsTrNoOp(const v8::Arguments &args);
-v8::Handle<v8::Value> qsTrId(const v8::Arguments &args);
-v8::Handle<v8::Value> qsTrIdNoOp(const v8::Arguments &args);
+    Q_MANAGED
+    QtObject(ExecutionEngine *v4, QQmlEngine *qmlEngine);
+
+    static ReturnedValue method_isQtObject(CallContext *ctx);
+    static ReturnedValue method_rgba(CallContext *ctx);
+    static ReturnedValue method_hsla(CallContext *ctx);
+    static ReturnedValue method_colorEqual(CallContext *ctx);
+    static ReturnedValue method_font(CallContext *ctx);
+    static ReturnedValue method_rect(CallContext *ctx);
+    static ReturnedValue method_point(CallContext *ctx);
+    static ReturnedValue method_size(CallContext *ctx);
+    static ReturnedValue method_vector2d(CallContext *ctx);
+    static ReturnedValue method_vector3d(CallContext *ctx);
+    static ReturnedValue method_vector4d(CallContext *ctx);
+    static ReturnedValue method_quaternion(CallContext *ctx);
+    static ReturnedValue method_matrix4x4(CallContext *ctx);
+    static ReturnedValue method_lighter(CallContext *ctx);
+    static ReturnedValue method_darker(CallContext *ctx);
+    static ReturnedValue method_tint(CallContext *ctx);
+    static ReturnedValue method_formatDate(CallContext *ctx);
+    static ReturnedValue method_formatTime(CallContext *ctx);
+    static ReturnedValue method_formatDateTime(CallContext *ctx);
+    static ReturnedValue method_openUrlExternally(CallContext *ctx);
+    static ReturnedValue method_fontFamilies(CallContext *ctx);
+    static ReturnedValue method_md5(CallContext *ctx);
+    static ReturnedValue method_btoa(CallContext *ctx);
+    static ReturnedValue method_atob(CallContext *ctx);
+    static ReturnedValue method_quit(CallContext *ctx);
+    static ReturnedValue method_resolvedUrl(CallContext *ctx);
+    static ReturnedValue method_createQmlObject(CallContext *ctx);
+    static ReturnedValue method_createComponent(CallContext *ctx);
+    static ReturnedValue method_locale(CallContext *ctx);
+    static ReturnedValue method_binding(CallContext *ctx);
+
+    static ReturnedValue method_get_platform(CallContext *ctx);
+    static ReturnedValue method_get_application(CallContext *ctx);
+#ifndef QT_NO_IM
+    static ReturnedValue method_get_inputMethod(CallContext *ctx);
 #endif
-v8::Handle<v8::Value> stringArg(const v8::Arguments &args);
-v8::Handle<v8::Value> locale(const v8::Arguments &args);
-v8::Handle<v8::Value> binding(const v8::Arguments &args);
+
+    QObject *m_platform;
+    QObject *m_application;
+};
+
+struct ConsoleObject : Object
+{
+    ConsoleObject(ExecutionEngine *v4);
+
+    static ReturnedValue method_error(CallContext *ctx);
+    static ReturnedValue method_log(CallContext *ctx);
+    static ReturnedValue method_profile(CallContext *ctx);
+    static ReturnedValue method_profileEnd(CallContext *ctx);
+    static ReturnedValue method_time(CallContext *ctx);
+    static ReturnedValue method_timeEnd(CallContext *ctx);
+    static ReturnedValue method_count(CallContext *ctx);
+    static ReturnedValue method_trace(CallContext *ctx);
+    static ReturnedValue method_warn(CallContext *ctx);
+    static ReturnedValue method_assert(CallContext *ctx);
+    static ReturnedValue method_exception(CallContext *ctx);
+
+};
+
+struct GlobalExtensions {
+    static void init(QQmlEngine *qmlEngine, Object *globalObject);
+
+#ifndef QT_NO_TRANSLATION
+    static ReturnedValue method_qsTranslate(CallContext *ctx);
+    static ReturnedValue method_qsTranslateNoOp(CallContext *ctx);
+    static ReturnedValue method_qsTr(CallContext *ctx);
+    static ReturnedValue method_qsTrNoOp(CallContext *ctx);
+    static ReturnedValue method_qsTrId(CallContext *ctx);
+    static ReturnedValue method_qsTrIdNoOp(CallContext *ctx);
+#endif
+    static ReturnedValue method_gc(CallContext *ctx);
+
+    // on String:prototype
+    static ReturnedValue method_string_arg(CallContext *ctx);
+
+};
+
+
 }
 
 QT_END_NAMESPACE

@@ -3,7 +3,7 @@ TARGET = tst_controls
 
 IMPORTPATH = $$OUT_PWD/../testplugin
 
-qtHaveModule(widgets) { QT += widgets }
+!android: !ios: !blackberry: qtHaveModule(widgets): QT += widgets
 
 CONFIG += qmltestcase console
 
@@ -14,6 +14,7 @@ TESTDATA = $$PWD/data/*
 
 OTHER_FILES += \
     $$PWD/data/tst_button.qml \
+    $$PWD/data/tst_busyindicator.qml \
     $$PWD/data/tst_shortcuts.qml \
     $$PWD/data/tst_spinbox.qml \
     $$PWD/data/tst_tableview.qml \
@@ -32,6 +33,7 @@ OTHER_FILES += \
     $$PWD/data/tst_gridlayout.qml \
     $$PWD/data/tst_slider.qml \
     $$PWD/data/tst_statusbar.qml \
+    $$PWD/data/tst_switch.qml \
     $$PWD/data/tst_tab.qml \
     $$PWD/data/tst_tabview.qml \
     $$PWD/data/tst_tableviewcolumn.qml \
@@ -42,3 +44,5 @@ OTHER_FILES += \
     $$PWD/data/tst_splitview.qml \
     $$PWD/data/tst_styles.qml \
     $$PWD/data/tst_layout.qml
+
+win32-msvc2010:contains(QT_CONFIG, angle):CONFIG += insignificant_test # QTBUG-33029

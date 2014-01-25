@@ -43,6 +43,14 @@
 #define QCORETEXTFONTDATABASE_H
 
 #include <qpa/qplatformfontdatabase.h>
+#include <private/qcore_mac_p.h>
+
+#ifndef Q_OS_IOS
+#include <ApplicationServices/ApplicationServices.h>
+#else
+#include <CoreText/CoreText.h>
+#include <CoreGraphics/CoreGraphics.h>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -63,9 +71,20 @@ public:
     QList<int> standardSizes() const;
 
 private:
+    void populateFromDescriptor(CTFontDescriptorRef font);
+
     mutable QString defaultFontName;
     mutable QHash<QString, QString> psNameToFamily;
     mutable QHash<QString, QString> familyNameToPsName;
+
+    void removeApplicationFonts();
+#ifdef Q_OS_MACX
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_8
+    QVector<QCFType<CGFontRef> > m_applicationGraphicsFonts;
+    QVector<QCFType<CFURLRef> > m_applicationURLFonts;
+#endif
+    QVector<ATSFontContainerRef> m_applicationFonts;
+#endif
 };
 
 QT_END_NAMESPACE

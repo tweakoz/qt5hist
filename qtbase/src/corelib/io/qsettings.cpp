@@ -72,6 +72,7 @@
 #  include <ioLib.h>
 #endif
 
+#include <algorithm>
 #include <stdlib.h>
 
 #ifdef Q_OS_WIN // for homedirpath reading from registry
@@ -889,7 +890,9 @@ StNormal:
                 ++j;
             }
 
-#ifndef QT_NO_TEXTCODEC
+#ifdef QT_NO_TEXTCODEC
+            Q_UNUSED(codec)
+#else
             if (codec) {
                 stringResult += codec->toUnicode(str.constData() + i, j - i);
             } else
@@ -1713,7 +1716,7 @@ break_out_of_outer_loop:
 }
 
 /*
-    Returns false on parse error. However, as many keys are read as
+    Returns \c false on parse error. However, as many keys are read as
     possible, so if the user doesn't check the status he will get the
     most out of the file anyway.
 */
@@ -1905,7 +1908,7 @@ bool QConfFileSettingsPrivate::writeIniFile(QIODevice &device, const ParsedSetti
     sections.reserve(sectionCount);
     for (i = iniMap.constBegin(); i != iniMap.constEnd(); ++i)
         sections.append(QSettingsIniKey(i.key(), i.value().position));
-    qSort(sections);
+    std::sort(sections.begin(), sections.end());
 
     bool writeError = false;
     for (int j = 0; !writeError && j < sectionCount; ++j) {
@@ -3180,8 +3183,8 @@ QStringList QSettings::childGroups() const
 }
 
 /*!
-    Returns true if settings can be written using this QSettings
-    object; returns false otherwise.
+    Returns \c true if settings can be written using this QSettings
+    object; returns \c false otherwise.
 
     One reason why isWritable() might return false is if
     QSettings operates on a read-only file.
@@ -3266,7 +3269,7 @@ void QSettings::remove(const QString &key)
 }
 
 /*!
-    Returns true if there exists a setting called \a key; returns
+    Returns \c true if there exists a setting called \a key; returns
     false otherwise.
 
     If a group is set using beginGroup(), \a key is taken to be
@@ -3300,7 +3303,7 @@ void QSettings::setFallbacksEnabled(bool b)
 }
 
 /*!
-    Returns true if fallbacks are enabled; returns false otherwise.
+    Returns \c true if fallbacks are enabled; returns \c false otherwise.
 
     By default, fallbacks are enabled.
 
@@ -3443,7 +3446,7 @@ void QSettings::setUserIniPath(const QString &dir)
     \c XDG_CONFIG_HOME environment variable. The default SystemScope
     paths on Unix and Mac OS X (\c /etc/xdg) can be overridden when
     building the Qt library using the \c configure script's \c
-    --sysconfdir flag (see QLibraryInfo for details).
+    -sysconfdir flag (see QLibraryInfo for details).
 
     Setting the NativeFormat paths on Windows and Mac OS X has no
     effect.

@@ -80,7 +80,7 @@ QT_BEGIN_NAMESPACE
 
 #if defined(Q_OS_MACX)
 #define kSecTrustSettingsDomainSystem 2 // so we do not need to include the header file
-    PtrSecCertificateGetData QSslSocketPrivate::ptrSecCertificateGetData = 0;
+    PtrSecCertificateCopyData QSslSocketPrivate::ptrSecCertificateCopyData = 0;
     PtrSecTrustSettingsCopyCertificates QSslSocketPrivate::ptrSecTrustSettingsCopyCertificates = 0;
     PtrSecTrustCopyAnchorCertificates QSslSocketPrivate::ptrSecTrustCopyAnchorCertificates = 0;
 #elif defined(Q_OS_WIN)
@@ -492,8 +492,8 @@ void QSslSocketPrivate::ensureCiphersAndCertsLoaded()
 #if defined(Q_OS_MACX)
     QLibrary securityLib("/System/Library/Frameworks/Security.framework/Versions/Current/Security");
     if (securityLib.load()) {
-        ptrSecCertificateGetData = (PtrSecCertificateGetData) securityLib.resolve("SecCertificateGetData");
-        if (!ptrSecCertificateGetData)
+        ptrSecCertificateCopyData = (PtrSecCertificateCopyData) securityLib.resolve("SecCertificateCopyData");
+        if (!ptrSecCertificateCopyData)
             qWarning("could not resolve symbols in security library"); // should never happen
 
         ptrSecTrustSettingsCopyCertificates = (PtrSecTrustSettingsCopyCertificates) securityLib.resolve("SecTrustSettingsCopyCertificates");
@@ -522,6 +522,8 @@ void QSslSocketPrivate::ensureCiphersAndCertsLoaded()
     } else {
         qWarning("could not load crypt32 library"); // should never happen
     }
+#elif defined(Q_OS_QNX)
+    s_loadRootCertsOnDemand = true;
 #elif defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
     // check whether we can enable on-demand root-cert loading (i.e. check whether the sym links are there)
     QList<QByteArray> dirs = unixRootCertDirectories();
@@ -627,12 +629,11 @@ QList<QSslCertificate> QSslSocketPrivate::systemCaCertificates()
     CFArrayRef cfCerts;
     OSStatus status = 1;
 
-    OSStatus SecCertificateGetData (
-       SecCertificateRef certificate,
-       CSSM_DATA_PTR data
+    CFDataRef SecCertificateCopyData (
+       SecCertificateRef certificate
     );
 
-    if (ptrSecCertificateGetData) {
+    if (ptrSecCertificateCopyData) {
         if (ptrSecTrustSettingsCopyCertificates)
             status = ptrSecTrustSettingsCopyCertificates(kSecTrustSettingsDomainSystem, &cfCerts);
         else if (ptrSecTrustCopyAnchorCertificates)
@@ -641,15 +642,16 @@ QList<QSslCertificate> QSslSocketPrivate::systemCaCertificates()
             CFIndex size = CFArrayGetCount(cfCerts);
             for (CFIndex i = 0; i < size; ++i) {
                 SecCertificateRef cfCert = (SecCertificateRef)CFArrayGetValueAtIndex(cfCerts, i);
-                CSSM_DATA data;
-                CSSM_DATA_PTR dataPtr = &data;
-                if (ptrSecCertificateGetData(cfCert, dataPtr)) {
+                CFDataRef data;
+
+                data = ptrSecCertificateCopyData(cfCert);
+
+                if (data == NULL) {
                     qWarning("error retrieving a CA certificate from the system store");
                 } else {
-                    int len = data.Length;
-                    char *rawData = reinterpret_cast<char *>(data.Data);
-                    QByteArray rawCert(rawData, len);
+                    QByteArray rawCert = QByteArray::fromRawData((const char *)CFDataGetBytePtr(data), CFDataGetLength(data));
                     systemCerts.append(QSslCertificate::fromData(rawCert, QSsl::Der));
+                    CFRelease(data);
                 }
             }
             CFRelease(cfCerts);
@@ -794,11 +796,22 @@ void QSslSocketBackendPrivate::transmit()
             while ((nextDataBlockSize = writeBuffer.nextDataBlockSize()) > 0) {
                 int writtenBytes = q_SSL_write(ssl, writeBuffer.readPointer(), nextDataBlockSize);
                 if (writtenBytes <= 0) {
-                    // ### Better error handling.
-                    q->setErrorString(QSslSocket::tr("Unable to write data: %1").arg(getErrorsFromOpenSsl()));
-                    q->setSocketError(QAbstractSocket::SslInternalError);
-                    emit q->error(QAbstractSocket::SslInternalError);
-                    return;
+                    int error = q_SSL_get_error(ssl, writtenBytes);
+                    //write can result in a want_write_error - not an error - continue transmitting
+                    if (error == SSL_ERROR_WANT_WRITE) {
+                        transmitting = true;
+                        break;
+                    } else if (error == SSL_ERROR_WANT_READ) {
+                        //write can result in a want_read error, possibly due to renegotiation - not an error - stop transmitting
+                        transmitting = false;
+                        break;
+                    } else {
+                        // ### Better error handling.
+                        q->setErrorString(QSslSocket::tr("Unable to write data: %1").arg(getErrorsFromOpenSsl()));
+                        q->setSocketError(QAbstractSocket::SslInternalError);
+                        emit q->error(QAbstractSocket::SslInternalError);
+                        return;
+                    }
                 }
 #ifdef QSSLSOCKET_DEBUG
                 qDebug() << "QSslSocketBackendPrivate::transmit: encrypted" << writtenBytes << "bytes";
@@ -1456,9 +1469,17 @@ void QSslSocketBackendPrivate::continueHandshake()
 #endif
 
     // Cache this SSL session inside the QSslContext
-    if (!(configuration.sslOptions & QSsl::SslOptionDisableSessionTickets)) {
-        if (!sslContextPointer->cacheSession(ssl))
+    if (!(configuration.sslOptions & QSsl::SslOptionDisableSessionSharing)) {
+        if (!sslContextPointer->cacheSession(ssl)) {
             sslContextPointer.clear(); // we could not cache the session
+        } else {
+            // Cache the session for permanent usage as well
+            if (!(configuration.sslOptions & QSsl::SslOptionDisableSessionPersistence)) {
+                if (!sslContextPointer->sessionASN1().isEmpty())
+                    configuration.sslSession = sslContextPointer->sessionASN1();
+                configuration.sslSessionTicketLifeTimeHint = sslContextPointer->sessionTicketLifeTimeHint();
+            }
+        }
     }
 
     connectionEncrypted = true;

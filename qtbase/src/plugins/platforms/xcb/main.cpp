@@ -47,15 +47,15 @@ QT_BEGIN_NAMESPACE
 class QXcbIntegrationPlugin : public QPlatformIntegrationPlugin
 {
    Q_OBJECT
-   Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.1" FILE "xcb.json")
+   Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.2" FILE "xcb.json")
 public:
-    QPlatformIntegration *create(const QString&, const QStringList&);
+    QPlatformIntegration *create(const QString&, const QStringList&, int &, char **);
 };
 
-QPlatformIntegration* QXcbIntegrationPlugin::create(const QString& system, const QStringList& parameters)
+QPlatformIntegration* QXcbIntegrationPlugin::create(const QString& system, const QStringList& parameters, int &argc, char **argv)
 {
     if (system.toLower() == "xcb")
-        return new QXcbIntegration(parameters);
+        return new QXcbIntegration(parameters, argc, argv);
 
     return 0;
 }

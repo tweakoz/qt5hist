@@ -1,7 +1,7 @@
-
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Intel Corporation
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -64,6 +64,7 @@
 #include <qjsondocument.h>
 #include <qjsonvalue.h>
 #include "qelfparser_p.h"
+#include "qmachparser_p.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -180,8 +181,6 @@ QT_BEGIN_NAMESPACE
 */
 
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
-
 static long qt_find_pattern(const char *s, ulong s_len,
                              const char *pattern, ulong p_len)
 {
@@ -224,11 +223,11 @@ static long qt_find_pattern(const char *s, ulong s_len,
   we can get the verification data without have to actually load the library.
   This lets us detect mismatches more safely.
 
-  Returns false if version information is not present, or if the
+  Returns \c false if version information is not present, or if the
                 information could not be read.
   Returns  true if version information is present and successfully read.
 */
-static bool qt_unix_query(const QString &library, QLibraryPrivate *lib)
+static bool findPatternUnloaded(const QString &library, QLibraryPrivate *lib)
 {
     QFile file(library);
     if (!file.open(QIODevice::ReadOnly)) {
@@ -253,7 +252,7 @@ static bool qt_unix_query(const QString &library, QLibraryPrivate *lib)
     }
 
     /*
-       ELF binaries on GNU, have .qplugin sections.
+       ELF and Mach-O binaries with GCC have .qplugin sections.
     */
     bool hasMetaData = false;
     long pos = 0;
@@ -267,6 +266,26 @@ static bool qt_unix_query(const QString &library, QLibraryPrivate *lib)
             }
             return false;
     } else if (r == QElfParser::QtMetaDataSection) {
+        long rel = qt_find_pattern(filedata + pos, fdlen, pattern, plen);
+        if (rel < 0)
+            pos = -1;
+        else
+            pos += rel;
+        hasMetaData = true;
+    }
+#elif defined (Q_OF_MACH_O)
+    {
+        QString errorString;
+        int r = QMachOParser::parse(filedata, fdlen, library, &errorString, &pos, &fdlen);
+        if (r == QMachOParser::NotSuitable) {
+            if (qt_debug_component())
+                qWarning("QMachOParser: %s", qPrintable(errorString));
+            if (lib)
+                lib->errorString = errorString;
+            return false;
+        }
+        // even if the metadata section was not found, the Mach-O parser will
+        // at least return the boundaries of the right architecture
         long rel = qt_find_pattern(filedata + pos, fdlen, pattern, plen);
         if (rel < 0)
             pos = -1;
@@ -299,8 +318,6 @@ static bool qt_unix_query(const QString &library, QLibraryPrivate *lib)
     file.close();
     return ret;
 }
-
-#endif // Q_OS_UNIX && !Q_OS_MAC
 
 static void installCoverageTool(QLibraryPrivate *libPrivate)
 {
@@ -543,8 +560,8 @@ bool QLibraryPrivate::loadPlugin()
 }
 
 /*!
-    Returns true if \a fileName has a valid suffix for a loadable
-    library; otherwise returns false.
+    Returns \c true if \a fileName has a valid suffix for a loadable
+    library; otherwise returns \c false.
 
     \table
     \header \li Platform \li Valid suffixes
@@ -618,41 +635,18 @@ bool QLibrary::isLibrary(const QString &fileName)
 
 }
 
-#if defined (Q_OS_WIN) && defined(_MSC_VER) && _MSC_VER >= 1400  && !defined(Q_CC_INTEL)
-#define QT_USE_MS_STD_EXCEPTION 1
-const char* qt_try_versioninfo(void *pfn, bool *exceptionThrown)
-{
-    *exceptionThrown = false;
-    const char *szData = 0;
-    typedef const char * (*VerificationFunction)();
-    VerificationFunction func = reinterpret_cast<VerificationFunction>(pfn);
-    __try {
-        if(func)
-            szData =  func();
-    } __except(EXCEPTION_EXECUTE_HANDLER) {
-        *exceptionThrown = true;
-    }
-    return szData;
-}
-#endif
-
 typedef const char * (*QtPluginQueryVerificationDataFunction)();
 
-bool qt_get_metadata(QtPluginQueryVerificationDataFunction pfn, QLibraryPrivate *priv, bool *exceptionThrown)
+static bool qt_get_metadata(QtPluginQueryVerificationDataFunction pfn, QLibraryPrivate *priv)
 {
-    *exceptionThrown = false;
     const char *szData = 0;
     if (!pfn)
         return false;
-#ifdef QT_USE_MS_STD_EXCEPTION
-    szData = qt_try_versioninfo((void *)pfn, exceptionThrown);
-    if (*exceptionThrown)
-        return false;
-#else
+
     szData = pfn();
-#endif
     if (!szData)
         return false;
+
     QJsonDocument doc = QLibraryPrivate::fromRawMetaData(szData);
     if (doc.isNull())
         return false;
@@ -690,80 +684,15 @@ void QLibraryPrivate::updatePluginState()
     }
 #endif
 
-#if defined(Q_OS_UNIX) && !defined(Q_OS_MAC)
     if (!pHnd) {
-        // use unix shortcut to avoid loading the library
-        success = qt_unix_query(fileName, this);
-    } else
-#endif
-    {
-        bool retryLoadLibrary = false;    // Only used on Windows with MS compiler.(false in other cases)
-        do {
-            bool temporary_load = false;
-#ifdef Q_OS_WIN
-            HMODULE hTempModule = 0;
-#endif
-            if (!pHnd) {
-#ifdef Q_OS_WIN
-                DWORD dwFlags = (retryLoadLibrary) ? 0: DONT_RESOLVE_DLL_REFERENCES;
-                //avoid 'Bad Image' message box
-                UINT oldmode = SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOOPENFILEERRORBOX);
-                hTempModule = ::LoadLibraryEx((wchar_t*)QDir::toNativeSeparators(fileName).utf16(), 0, dwFlags);
-                SetErrorMode(oldmode);
-#else
-                temporary_load =  load();
-#endif
-            }
-            QtPluginQueryVerificationDataFunction getMetaData = NULL;
-
-            bool exceptionThrown = false;
-            bool ret = false;
-#ifdef Q_OS_WIN
-            if (hTempModule) {
-                getMetaData = (QtPluginQueryVerificationDataFunction)
-#ifdef Q_OS_WINCE
-                    ::GetProcAddress(hTempModule, L"qt_plugin_query_metadata")
-#else
-                    ::GetProcAddress(hTempModule, "qt_plugin_query_metadata")
-#endif
-                        ;
-            } else
-#endif
-            {
-                getMetaData = (QtPluginQueryVerificationDataFunction) resolve("qt_plugin_query_metadata");
-            }
-
-            if (getMetaData)
-                ret = qt_get_metadata(getMetaData, this, &exceptionThrown);
-
-            if (temporary_load)
-                unload();
-            if (!exceptionThrown) {
-                if (ret) {
-                    success = true;
-                }
-                retryLoadLibrary = false;
-            }
-#ifdef QT_USE_MS_STD_EXCEPTION
-            else {
-                // An exception was thrown when calling qt_plugin_query_verification_data().
-                // This usually happens when plugin is compiled with the /clr compiler flag,
-                // & will only work if the dependencies are loaded & DLLMain() is called.
-                // LoadLibrary() will do this, try once with this & if it fails don't load.
-                retryLoadLibrary = !retryLoadLibrary;
-            }
-#endif
-#ifdef Q_OS_WIN
-            if (hTempModule) {
-                BOOL ok = ::FreeLibrary(hTempModule);
-                if (ok) {
-                    hTempModule = 0;
-                }
-
-            }
-#endif
-        } while (retryLoadLibrary);  // Will be 'false' in all cases other than when an
-        // exception is thrown(will happen only when using a MS compiler)
+        // scan for the plugin metadata without loading
+        success = findPatternUnloaded(fileName, this);
+    } else {
+        // library is already loaded (probably via QLibrary)
+        // simply get the target function and call it.
+        QtPluginQueryVerificationDataFunction getMetaData = NULL;
+        getMetaData = (QtPluginQueryVerificationDataFunction) resolve("qt_plugin_query_metadata");
+        success = qt_get_metadata(getMetaData, this);
     }
 
     if (!success) {
@@ -807,8 +736,8 @@ void QLibraryPrivate::updatePluginState()
 }
 
 /*!
-    Loads the library and returns true if the library was loaded
-    successfully; otherwise returns false. Since resolve() always
+    Loads the library and returns \c true if the library was loaded
+    successfully; otherwise returns \c false. Since resolve() always
     calls this function before resolving any symbols it is not
     necessary to call it explicitly. In some situations you might want
     the library loaded in advance, in which case you would use this
@@ -827,8 +756,8 @@ bool QLibrary::load()
 }
 
 /*!
-    Unloads the library and returns true if the library could be
-    unloaded; otherwise returns false.
+    Unloads the library and returns \c true if the library could be
+    unloaded; otherwise returns \c false.
 
     This happens automatically on application termination, so you
     shouldn't normally need to call this function.
@@ -851,7 +780,7 @@ bool QLibrary::unload()
 }
 
 /*!
-    Returns true if the library is loaded; otherwise returns false.
+    Returns \c true if the library is loaded; otherwise returns \c false.
 
     \sa load()
  */

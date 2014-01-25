@@ -95,6 +95,9 @@ QT_BEGIN_NAMESPACE
            files should be written. For instance unix local sockets.
     \value ConfigLocation Returns a directory location where user-specific
            configuration files should be written.
+    \value GenericConfigLocation Returns a directory location where user-specific
+           configuration files shared between multiple applications should be written.
+           This is a generic value and the returned path is never empty.
     \value DownloadLocation Returns a directory for user's downloaded files.
 
 
@@ -335,6 +338,8 @@ QString QStandardPaths::displayName(StandardLocation type)
         return QCoreApplication::translate("QStandardPaths", "Runtime");
     case ConfigLocation:
         return QCoreApplication::translate("QStandardPaths", "Configuration");
+    case GenericConfigLocation:
+        return QCoreApplication::translate("QStandardPaths", "Shared Configuration");
     case GenericCacheLocation:
         return QCoreApplication::translate("QStandardPaths", "Shared Cache");
     case DownloadLocation:
@@ -347,6 +352,10 @@ QString QStandardPaths::displayName(StandardLocation type)
 
 /*!
   \fn void QStandardPaths::enableTestMode(bool testMode)
+  \obsolete Use QStandardPaths::setTestModeEnabled
+ */
+/*!
+  \fn void QStandardPaths::setTestModeEnabled(bool testMode)
 
   If \a testMode is true, this enables a special "test mode" in
   QStandardPaths, which changes writable locations
@@ -354,7 +363,7 @@ QString QStandardPaths::displayName(StandardLocation type)
   or writing to the current user's configuration.
 
   This affects the locations into which test programs might write files:
-  GenericDataLocation, DataLocation, ConfigLocation,
+  GenericDataLocation, DataLocation, ConfigLocation, GenericConfigLocation,
   GenericCacheLocation, CacheLocation.
   Other locations are not affected.
 
@@ -369,7 +378,14 @@ QString QStandardPaths::displayName(StandardLocation type)
 
 static bool qsp_testMode = false;
 
+#if QT_DEPRECATED_SINCE(5, 2)
 void QStandardPaths::enableTestMode(bool testMode)
+{
+    qsp_testMode = testMode;
+}
+#endif
+
+void QStandardPaths::setTestModeEnabled(bool testMode)
 {
     qsp_testMode = testMode;
 }
@@ -379,7 +395,7 @@ void QStandardPaths::enableTestMode(bool testMode)
 
   \internal
 
-  Returns true if test mode is enabled in QStandardPaths; otherwise returns false.
+  Returns \c true if test mode is enabled in QStandardPaths; otherwise returns \c false.
 */
 
 bool QStandardPaths::isTestModeEnabled()

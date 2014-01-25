@@ -59,7 +59,10 @@
 #include <private/qqmljavascriptexpression_p.h>
 
 #include <private/qv8engine_p.h>
-#include <private/qv8include_p.h>
+
+#include <private/qv4functionobject_p.h>
+#include <private/qv4script_p.h>
+#include <private/qv4scopedvalue_p.h>
 
 #include <QStack>
 #include <QStringList>
@@ -67,6 +70,23 @@
 #include <QtCore/qdebug.h>
 #include <qqmlinfo.h>
 #include "qqmlmemoryprofiler_p.h"
+
+#define INITIALPROPERTIES_SOURCE \
+        "(function(object, values) {"\
+            "try {"\
+                "for (var property in values) {" \
+                    "try {"\
+                        "var properties = property.split(\".\");"\
+                        "var o = object;"\
+                        "for (var ii = 0; ii < properties.length - 1; ++ii) {"\
+                            "o = o[properties[ii]];"\
+                        "}"\
+                        "o[properties[properties.length - 1]] = values[property];"\
+                    "} catch(e) {}"\
+                "}"\
+            "} catch(e) {}"\
+        "})"
+
 
 namespace {
     QThreadStorage<int> creationDepth;
@@ -80,9 +100,7 @@ public:
     QQmlComponentExtension(QV8Engine *);
     virtual ~QQmlComponentExtension();
 
-    v8::Persistent<v8::Function> incubationConstructor;
-    v8::Persistent<v8::Script> initialProperties;
-    v8::Persistent<v8::Function> forceCompletion;
+    QV4::PersistentValue incubationProto;
 };
 V8_DEFINE_EXTENSION(QQmlComponentExtension, componentExtension);
 
@@ -154,12 +172,12 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
 
     If the URL passed to QQmlComponent is a network resource, or if the QML document references a
     network resource, the QQmlComponent has to fetch the network data before it is able to create
-    objects.  In this case, the QQmlComponent will have a \l {QQmlComponent::Loading}{Loading}
-    \l {QQmlComponent::status()}{status}.  An application will have to wait until the component
+    objects. In this case, the QQmlComponent will have a \l {QQmlComponent::Loading}{Loading}
+    \l {QQmlComponent::status()}{status}. An application will have to wait until the component
     is \l {QQmlComponent::Ready}{Ready} before calling \l {QQmlComponent::create()}.
 
-    The following example shows how to load a QML file from a network resource.  After creating
-    the QQmlComponent, it tests whether the component is loading.  If it is, it connects to the
+    The following example shows how to load a QML file from a network resource. After creating
+    the QQmlComponent, it tests whether the component is loading. If it is, it connects to the
     QQmlComponent::statusChanged() signal and otherwise calls the \c {continueLoading()} method
     directly. Note that QQmlComponent::isLoading() may be false for a network component if the
     component has been cached and is ready immediately.
@@ -193,14 +211,14 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
     \qmltype Component
     \instantiates QQmlComponent
     \ingroup qml-utility-elements
-    \inqmlmodule QtQml 2
+    \inqmlmodule QtQml
     \brief Encapsulates a QML component definition
 
     Components are reusable, encapsulated QML types with well-defined interfaces.
 
     Components are often defined by \l {{QML Documents}}{component files} -
     that is, \c .qml files. The \e Component type essentially allows QML components
-    to be defined inline, within a \l {QML Document}{QML document}, rather than as a separate QML file.
+    to be defined inline, within a \l {QML Documents}{QML document}, rather than as a separate QML file.
     This may be useful for reusing a small component within a QML file, or for defining
     a component that logically belongs with other QML components within a file.
 
@@ -214,11 +232,12 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
     because it is defined inside a \c Component. The component encapsulates the
     QML types within, as if they were defined in a separate QML
     file, and is not loaded until requested (in this case, by the
-    two \l Loader objects).
+    two \l Loader objects). Because Component is not derived from Item, you cannot
+    anchor anything to it.
 
-    Defining a \c Component is similar to defining a \l {QML Document}{QML document}.
-    A QML document has a single top-level item that defines the behaviors and
-    properties of that component, and cannot define properties or behaviors outside
+    Defining a \c Component is similar to defining a \l {QML Documents}{QML document}.
+    A QML document has a single top-level item that defines the behavior and
+    properties of that component, and cannot define properties or behavior outside
     of that top-level item. In the same way, a \c Component definition contains a single
     top level item (which in the above example is a \l Rectangle) and cannot define any
     data outside of this item, with the exception of an \e id (which in the above example
@@ -229,7 +248,7 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
     to specify how each list item is to be displayed.
 
     \c Component objects can also be created dynamically using
-    \l{QtQml2::Qt::createComponent()}{Qt.createComponent()}.
+    \l{QtQml::Qt::createComponent()}{Qt.createComponent()}.
 
     \section2 Creation Context
 
@@ -256,12 +275,12 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
 /*!
     \qmlattachedsignal Component::onCompleted()
 
-    Emitted after component "startup" has completed.  This can be used to
+    Emitted after component "startup" has completed. This can be used to
     execute script code at startup, once the full QML environment has been
     established.
 
     The \c {Component::onCompleted} attached property can be declared on
-    any object.  The order of running the \c onCompleted scripts is
+    any object. The order of running the \c onCompleted scripts is
     undefined.
 
     \qml
@@ -277,13 +296,13 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
 /*!
     \qmlattachedsignal Component::onDestruction()
 
-    Emitted as the component begins destruction.  This can be used to undo
+    Emitted as the component begins destruction. This can be used to undo
     work done in the onCompleted signal, or other imperative code in your
     application.
 
     The \c {Component::onDestruction} attached property can be declared on
-    any object.  However, it applies to the destruction of the component as
-    a whole, and not the destruction of the specific object.  The order of
+    any object. However, it applies to the destruction of the component as
+    a whole, and not the destruction of the specific object. The order of
     running the \c onDestruction scripts is undefined.
 
     \qml
@@ -303,10 +322,10 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
 
     Specifies the loading status of the QQmlComponent.
 
-    \value Null This QQmlComponent has no data.  Call loadUrl() or setData() to add QML content.
+    \value Null This QQmlComponent has no data. Call loadUrl() or setData() to add QML content.
     \value Ready This QQmlComponent is ready and create() may be called.
     \value Loading This QQmlComponent is loading network data.
-    \value Error An error has occurred.  Call errors() to retrieve a list of \{QQmlError}{errors}.
+    \value Error An error has occurred. Call errors() to retrieve a list of \{QQmlError}{errors}.
 */
 
 /*!
@@ -315,7 +334,7 @@ static inline QString buildTypeNameForDebug(const QMetaObject *metaObject)
     Specifies whether the QQmlComponent should load the component immediately, or asynchonously.
 
     \value PreferSynchronous Prefer loading/compiling the component immediately, blocking the thread.
-    This is not always possible, e.g. remote URLs will always load asynchronously.
+    This is not always possible; for example, remote URLs will always load asynchronously.
     \value Asynchronous Load/compile the component in a background thread.
 */
 
@@ -402,7 +421,8 @@ QQmlComponent::~QQmlComponent()
 
 /*!
     \qmlproperty enumeration Component::status
-    This property holds the status of component loading.  It can be one of:
+    This property holds the status of component loading. The status can be one of the
+    following:
     \list
     \li Component.Null - no data is available for the component
     \li Component.Ready - the component has been loaded, and can be used to create instances.
@@ -482,14 +502,14 @@ qreal QQmlComponent::progress() const
 /*!
     \fn void QQmlComponent::progressChanged(qreal progress)
 
-    Emitted whenever the component's loading progress changes.  \a progress will be the
+    Emitted whenever the component's loading progress changes. \a progress will be the
     current progress between 0.0 (nothing loaded) and 1.0 (finished).
 */
 
 /*!
     \fn void QQmlComponent::statusChanged(QQmlComponent::Status status)
 
-    Emitted whenever the component's status changes.  \a status will be the
+    Emitted whenever the component's status changes. \a status will be the
     new status.
 */
 
@@ -523,7 +543,7 @@ QQmlComponent::QQmlComponent(QQmlEngine *engine, const QUrl &url, QObject *paren
 
 /*!
     Create a QQmlComponent from the given \a url and give it the
-    specified \a parent and \a engine.  If \a mode is \l Asynchronous,
+    specified \a parent and \a engine. If \a mode is \l Asynchronous,
     the component will be loaded and compiled asynchronously.
 
     Ensure that the URL provided is full and correct, in particular, use
@@ -557,7 +577,7 @@ QQmlComponent::QQmlComponent(QQmlEngine *engine, const QString &fileName,
 
 /*!
     Create a QQmlComponent from the given \a fileName and give it the specified
-    \a parent and \a engine.  If \a mode is \l Asynchronous,
+    \a parent and \a engine. If \a mode is \l Asynchronous,
     the component will be loaded and compiled asynchronously.
 
     \sa loadUrl()
@@ -587,7 +607,7 @@ QQmlComponent::QQmlComponent(QQmlEngine *engine, QQmlCompiledData *cc, int start
 }
 
 /*!
-    Sets the QQmlComponent to use the given QML \a data.  If \a url
+    Sets the QQmlComponent to use the given QML \a data. If \a url
     is provided, it is used to set the component name and to provide
     a base path for items resolved by this component.
 */
@@ -614,7 +634,7 @@ void QQmlComponent::setData(const QByteArray &data, const QUrl &url)
 }
 
 /*!
-Returns the QQmlContext the component was created in.  This is only
+Returns the QQmlContext the component was created in. This is only
 valid for components created directly from QML.
 */
 QQmlContext *QQmlComponent::creationContext() const
@@ -696,7 +716,7 @@ void QQmlComponentPrivate::loadUrl(const QUrl &newUrl, QQmlComponent::Compilatio
 
 /*!
     Return the list of errors that occurred during the last compile or create
-    operation.  An empty list is returned if isError() is not set.
+    operation. An empty list is returned if isError() is not set.
 */
 QList<QQmlError> QQmlComponent::errors() const
 {
@@ -710,10 +730,10 @@ QList<QQmlError> QQmlComponent::errors() const
 /*!
     \qmlmethod string Component::errorString()
 
-    Returns a human-readable description of any errors.
+    Returns a human-readable description of any error.
 
     The string includes the file, location, and description of each error.
-    If multiple errors are present they are separated by a newline character.
+    If multiple errors are present, they are separated by a newline character.
 
     If no errors are present, an empty string is returned.
 */
@@ -738,13 +758,13 @@ QString QQmlComponent::errorString() const
 
 /*!
     \qmlproperty url Component::url
-    The component URL.  This is the URL that was used to construct the component.
+    The component URL. This is the URL that was used to construct the component.
 */
 
 /*!
     \property QQmlComponent::url
-    The component URL.  This is the URL passed to either the constructor,
-    or the loadUrl() or setData() methods.
+    The component URL. This is the URL passed to either the constructor,
+    or the loadUrl(), or setData() methods.
 */
 QUrl QQmlComponent::url() const
 {
@@ -761,8 +781,8 @@ QQmlComponent::QQmlComponent(QQmlComponentPrivate &dd, QObject *parent)
 }
 
 /*!
-    Create an object instance from this component.  Returns 0 if creation
-    failed.  \a context specifies the context within which to create the object
+    Create an object instance from this component. Returns 0 if creation
+    failed. \a context specifies the context within which to create the object
     instance.
 
     If \a context is 0 (the default), it will create the instance in the
@@ -791,8 +811,8 @@ QObject *QQmlComponent::create(QQmlContext *context)
     In general, programmers should use QQmlComponent::create() to create a
     component.
 
-    Create an object instance from this component.  Returns 0 if creation
-    failed.  \a publicContext specifies the context within which to create the object
+    Create an object instance from this component. Returns 0 if creation
+    failed. \a publicContext specifies the context within which to create the object
     instance.
 
     When QQmlComponent constructs an instance, it occurs in three steps:
@@ -802,7 +822,7 @@ QObject *QQmlComponent::create(QQmlContext *context)
     \li If applicable, QQmlParserStatus::componentComplete() is called on objects.
     \endlist
     QQmlComponent::beginCreate() differs from QQmlComponent::create() in that it
-    only performs step 1.  QQmlComponent::completeCreate() must be called to
+    only performs step 1. QQmlComponent::completeCreate() must be called to
     complete steps 2 and 3.
 
     This breaking point is sometimes useful when using attached properties to
@@ -874,8 +894,16 @@ QQmlComponentPrivate::beginCreate(QQmlContextData *context)
     state.completePending = true;
 
     enginePriv->referenceScarceResources();
-    state.vme.init(context, cc, start, creationContext);
-    QObject *rv = state.vme.execute(&state.errors);
+    QObject *rv = 0;
+    if (enginePriv->useNewCompiler) {
+        state.creator = new QmlObjectCreator(context, cc);
+        rv = state.creator->create(start);
+        if (!rv)
+            state.errors = state.creator->errors;
+    } else {
+        state.vme.init(context, cc, start, creationContext);
+        rv = state.vme.execute(&state.errors);
+    }
     enginePriv->dereferenceScarceResources();
 
     if (rv) {
@@ -915,14 +943,22 @@ void QQmlComponentPrivate::beginDeferred(QQmlEnginePrivate *enginePriv,
     state->errors.clear();
     state->completePending = true;
 
-    state->vme.initDeferred(object);
-    state->vme.execute(&state->errors);
+    if (enginePriv->useNewCompiler) {
+        // ###
+    } else {
+        state->vme.initDeferred(object);
+        state->vme.execute(&state->errors);
+    }
 }
 
 void QQmlComponentPrivate::complete(QQmlEnginePrivate *enginePriv, ConstructionState *state)
 {
     if (state->completePending) {
-        state->vme.complete();
+        if (enginePriv->useNewCompiler) {
+            state->creator->finalize();
+        } else {
+            state->vme.complete();
+        }
 
         state->completePending = false;
 
@@ -995,9 +1031,11 @@ QQmlComponentAttached *QQmlComponent::qmlAttachedProperties(QObject *obj)
     if (!engine)
         return a;
 
-    if (QQmlEnginePrivate::get(engine)->activeVME) { // XXX should only be allowed during begin
-        QQmlEnginePrivate *p = QQmlEnginePrivate::get(engine);
+    QQmlEnginePrivate *p = QQmlEnginePrivate::get(engine);
+    if (p->activeVME) { // XXX should only be allowed during begin
         a->add(&p->activeVME->componentAttached);
+    } else if (p->activeObjectCreator) {
+        a->add(&p->activeObjectCreator->componentAttached);
     } else {
         QQmlData *d = QQmlData::get(obj);
         Q_ASSERT(d);
@@ -1010,7 +1048,7 @@ QQmlComponentAttached *QQmlComponent::qmlAttachedProperties(QObject *obj)
 
 /*!
     Create an object instance from this component using the provided
-    \a incubator.  \a context specifies the context within which to create the object
+    \a incubator. \a context specifies the context within which to create the object
     instance.
 
     If \a context is 0 (the default), it will create the instance in the
@@ -1019,7 +1057,7 @@ QQmlComponentAttached *QQmlComponent::qmlAttachedProperties(QObject *obj)
     \a forContext specifies a context that this object creation depends upon.
     If the \a forContext is being created asynchronously, and the
     \l QQmlIncubator::IncubationMode is \l QQmlIncubator::AsynchronousIfNested,
-    this object will also be created asynchronously.  If \a forContext is 0
+    this object will also be created asynchronously. If \a forContext is 0
     (the default), the \a context will be used for this decision.
 
     The created object and its creation status are available via the
@@ -1056,7 +1094,7 @@ void QQmlComponent::create(QQmlIncubator &incubator, QQmlContext *context,
     }
 
     incubator.clear();
-    QQmlIncubatorPrivate *p = incubator.d;
+    QExplicitlySharedDataPointer<QQmlIncubatorPrivate> p(incubator.d);
 
     QQmlEnginePrivate *enginePriv = QQmlEnginePrivate::get(d->engine);
 
@@ -1067,36 +1105,55 @@ void QQmlComponent::create(QQmlIncubator &incubator, QQmlContext *context,
     enginePriv->incubate(incubator, forContextData);
 }
 
-class QV8IncubatorResource : public QV8ObjectResource,
-                             public QQmlIncubator
+class QQmlComponentIncubator;
+
+class QmlIncubatorObject : public QV4::Object
 {
-V8_RESOURCE_TYPE(IncubatorType)
+    Q_MANAGED
 public:
-    QV8IncubatorResource(QV8Engine *engine, IncubationMode = Asynchronous);
+    QmlIncubatorObject(QV8Engine *engine, QQmlIncubator::IncubationMode = QQmlIncubator::Asynchronous);
 
-    static v8::Handle<v8::Value> StatusChangedGetter(v8::Local<v8::String>,
-                                                     const v8::AccessorInfo& info);
-    static v8::Handle<v8::Value> StatusGetter(v8::Local<v8::String>,
-                                              const v8::AccessorInfo& info);
-    static v8::Handle<v8::Value> ObjectGetter(v8::Local<v8::String>,
-                                              const v8::AccessorInfo& info);
-    static v8::Handle<v8::Value> ForceCompletionGetter(v8::Local<v8::String>,
-                                                       const v8::AccessorInfo& info);
-    static v8::Handle<v8::Value> ForceCompletion(const v8::Arguments &args);
+    static QV4::ReturnedValue method_get_statusChanged(QV4::CallContext *ctx);
+    static QV4::ReturnedValue method_set_statusChanged(QV4::CallContext *ctx);
+    static QV4::ReturnedValue method_get_status(QV4::CallContext *ctx);
+    static QV4::ReturnedValue method_get_object(QV4::CallContext *ctx);
+    static QV4::ReturnedValue method_forceCompletion(QV4::CallContext *ctx);
 
-    static void StatusChangedSetter(v8::Local<v8::String>, v8::Local<v8::Value> value,
-                                    const v8::AccessorInfo& info);
+    static void destroy(Managed *that);
+    static void markObjects(Managed *that, QV4::ExecutionEngine *e);
 
-    void dispose();
+    QScopedPointer<QQmlComponentIncubator> incubator;
+    QV8Engine *v8;
+    QPointer<QObject> parent;
+    QV4::SafeValue valuemap;
+    QV4::SafeValue qmlGlobal;
+    QV4::SafeValue m_statusChanged;
 
-    v8::Persistent<v8::Object> me;
-    QQmlGuard<QObject> parent;
-    v8::Persistent<v8::Value> valuemap;
-    v8::Persistent<v8::Object> qmlGlobal;
-protected:
-    virtual void statusChanged(Status);
-    virtual void setInitialState(QObject *);
+    void statusChanged(QQmlIncubator::Status);
+    void setInitialState(QObject *);
 };
+
+DEFINE_MANAGED_VTABLE(QmlIncubatorObject);
+
+class QQmlComponentIncubator : public QQmlIncubator
+{
+public:
+    QQmlComponentIncubator(QmlIncubatorObject *inc, IncubationMode mode)
+        : QQmlIncubator(mode)
+        , incubatorObject(inc)
+    {}
+
+    virtual void statusChanged(Status s) {
+        incubatorObject->statusChanged(s);
+    }
+
+    virtual void setInitialState(QObject *o) {
+        incubatorObject->setInitialState(o);
+    }
+
+    QmlIncubatorObject *incubatorObject;
+};
+
 
 static void QQmlComponent_setQmlParent(QObject *me, QObject *parent)
 {
@@ -1135,20 +1192,20 @@ static void QQmlComponent_setQmlParent(QObject *me, QObject *parent)
     If you wish to create an object without setting a parent, specify \c null for
     the \a parent value. Note that if the returned object is to be displayed, you
     must provide a valid \a parent value or set the returned object's \l{Item::parent}{parent}
-    property, or else the object will not be visible.
+    property, otherwise the object will not be visible.
 
     If a \a parent is not provided to createObject(), a reference to the returned object must be held so that
-    it is not destroyed by the garbage collector.  This is true regardless of whether \l{Item::parent} is set afterwards,
-    since setting the Item parent does not change object ownership; only the graphical parent is changed.
+    it is not destroyed by the garbage collector. This is true regardless of whether \l{Item::parent} is set afterwards,
+    because setting the Item parent does not change object ownership. Only the graphical parent is changed.
 
     As of \c {QtQuick 1.1}, this method accepts an optional \a properties argument that specifies a
-    map of initial property values for the created object. These values are applied before object
+    map of initial property values for the created object. These values are applied before the object
     creation is finalized. This is more efficient than setting property values after object creation,
     particularly where large sets of property values are defined, and also allows property bindings
     to be set up (using \l{Qt::binding}{Qt.binding}) before the object is created.
 
     The \a properties argument is specified as a map of property-value items. For example, the code
-    below creates an object with initial \c x and \c y values of 100 and 200, respectively:
+    below creates an object with initial \c x and \c y values of 100 and 100, respectively:
 
     \js
         var component = Qt.createComponent("Button.qml");
@@ -1165,29 +1222,32 @@ static void QQmlComponent_setQmlParent(QObject *me, QObject *parent)
 /*!
     \internal
 */
-void QQmlComponent::createObject(QQmlV8Function *args)
+void QQmlComponent::createObject(QQmlV4Function *args)
 {
     Q_D(QQmlComponent);
     Q_ASSERT(d->engine);
     Q_ASSERT(args);
 
     QObject *parent = 0;
-    v8::Local<v8::Object> valuemap;
+    QV4::ExecutionEngine *v4 = args->v4engine();
+    QV4::Scope scope(v4);
+    QV4::ScopedValue valuemap(scope, QV4::Primitive::undefinedValue());
 
-    if (args->Length() >= 1)
-        parent = args->engine()->toQObject((*args)[0]);
-
-    if (args->Length() >= 2) {
-        v8::Local<v8::Value> v = (*args)[1];
-        if (!v->IsObject() || v->IsArray()) {
-            qmlInfo(this) << tr("createObject: value is not an object");
-            args->returnValue(v8::Null());
-            return;
-        }
-        valuemap = v8::Local<v8::Object>::Cast(v);
+    if (args->length() >= 1) {
+        QV4::Scoped<QV4::QObjectWrapper> qobjectWrapper(scope, (*args)[0]);
+        if (qobjectWrapper)
+            parent = qobjectWrapper->object();
     }
 
-    QV8Engine *v8engine = args->engine();
+    if (args->length() >= 2) {
+        QV4::ScopedValue v(scope, (*args)[1]);
+        if (!v->asObject() || v->asArrayObject()) {
+            qmlInfo(this) << tr("createObject: value is not an object");
+            args->setReturnValue(QV4::Encode::null());
+            return;
+        }
+        valuemap = v;
+    }
 
     QQmlContext *ctxt = creationContext();
     if (!ctxt) ctxt = d->engine->rootContext();
@@ -1195,22 +1255,24 @@ void QQmlComponent::createObject(QQmlV8Function *args)
     QObject *rv = beginCreate(ctxt);
 
     if (!rv) {
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
     QQmlComponent_setQmlParent(rv, parent);
 
-    v8::Handle<v8::Value> ov = v8engine->newQObject(rv);
-    Q_ASSERT(ov->IsObject());
-    v8::Handle<v8::Object> object = v8::Handle<v8::Object>::Cast(ov);
+    QV4::ScopedValue object(scope, QV4::QObjectWrapper::wrap(v4, rv));
+    Q_ASSERT(object->isObject());
 
-    if (!valuemap.IsEmpty()) {
-        QQmlComponentExtension *e = componentExtension(v8engine);
-        // Try catch isn't needed as the function itself is loaded with try/catch
-        v8::Handle<v8::Value> function = e->initialProperties->Run(args->qmlGlobal());
-        v8::Handle<v8::Value> args[] = { object, valuemap };
-        v8::Handle<v8::Function>::Cast(function)->Call(v8engine->global(), 2, args);
+    if (!valuemap->isUndefined()) {
+        QV4::ScopedObject qmlglobal(scope, args->qmlGlobal());
+        QV4::ScopedValue f(scope, QV4::Script::evaluate(v4, QString::fromLatin1(INITIALPROPERTIES_SOURCE), qmlglobal));
+        Q_ASSERT(f->asFunctionObject());
+        QV4::ScopedCallData callData(scope, 2);
+        callData->thisObject = v4->globalObject;
+        callData->args[0] = object;
+        callData->args[1] = valuemap;
+        f->asFunctionObject()->call(callData);
     }
 
     d->completeCreate();
@@ -1220,39 +1282,39 @@ void QQmlComponent::createObject(QQmlV8Function *args)
     QQmlData::get(rv)->indestructible = false;
 
     if (!rv)
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
     else
-        args->returnValue(object);
+        args->setReturnValue(object.asReturnedValue());
 }
 
 /*!
     \qmlmethod object Component::incubateObject(Item parent, object properties, enumeration mode)
 
-    Creates an incubator for instance of this component.  Incubators allow new component
-    instances to be instantiated asynchronously and not cause freezes in the UI.
+    Creates an incubator for an instance of this component. Incubators allow new component
+    instances to be instantiated asynchronously and do not cause freezes in the UI.
 
-    The \a parent argument specifies the parent the created instance will have.  Omitting the
-    parameter or passing null will create an object with no parent.  In this case, a reference
+    The \a parent argument specifies the parent the created instance will have. Omitting the
+    parameter or passing null will create an object with no parent. In this case, a reference
     to the created object must be held so that it is not destroyed by the garbage collector.
 
     The \a properties argument is specified as a map of property-value items which will be
-    set on the created object during its construction.  \a mode may be Qt.Synchronous or
-    Qt.Asynchronous and controls whether the instance is created synchronously or asynchronously.
-    The default is asynchronously.  In some circumstances, even if Qt.Synchronous is specified,
-    the incubator may create the object asynchronously.  This happens if the component calling
+    set on the created object during its construction. \a mode may be Qt.Synchronous or
+    Qt.Asynchronous, and controls whether the instance is created synchronously or asynchronously.
+    The default is asynchronous. In some circumstances, even if Qt.Synchronous is specified,
+    the incubator may create the object asynchronously. This happens if the component calling
     incubateObject() is itself being created asynchronously.
 
     All three arguments are optional.
 
-    If successful, the method returns an incubator, otherwise null.  The incubator has the following
+    If successful, the method returns an incubator, otherwise null. The incubator has the following
     properties:
 
     \list
-    \li status The status of the incubator.  Valid values are Component.Ready, Component.Loading and
+    \li status The status of the incubator. Valid values are Component.Ready, Component.Loading and
        Component.Error.
-    \li object The created object instance.  Will only be available once the incubator is in the
+    \li object The created object instance. Will only be available once the incubator is in the
        Ready status.
-    \li onStatusChanged Specifies a callback function to be invoked when the status changes.  The
+    \li onStatusChanged Specifies a callback function to be invoked when the status changes. The
        status is passed as a parameter to the callback.
     \li forceCompletion() Call to complete incubation synchronously.
     \endlist
@@ -1283,34 +1345,40 @@ void QQmlComponent::createObject(QQmlV8Function *args)
 /*!
     \internal
 */
-void QQmlComponent::incubateObject(QQmlV8Function *args)
+void QQmlComponent::incubateObject(QQmlV4Function *args)
 {
     Q_D(QQmlComponent);
     Q_ASSERT(d->engine);
     Q_UNUSED(d);
     Q_ASSERT(args);
+    QV4::ExecutionEngine *v4 = args->v4engine();
+    QV4::Scope scope(v4);
 
     QObject *parent = 0;
-    v8::Local<v8::Object> valuemap;
+    QV4::ScopedValue valuemap(scope, QV4::Primitive::undefinedValue());
     QQmlIncubator::IncubationMode mode = QQmlIncubator::Asynchronous;
 
-    if (args->Length() >= 1)
-        parent = args->engine()->toQObject((*args)[0]);
+    if (args->length() >= 1) {
+        QV4::Scoped<QV4::QObjectWrapper> qobjectWrapper(scope, (*args)[0]);
+        if (qobjectWrapper)
+            parent = qobjectWrapper->object();
+    }
 
-    if (args->Length() >= 2) {
-        v8::Local<v8::Value> v = (*args)[1];
-        if (v->IsNull()) {
-        } else if (!v->IsObject() || v->IsArray()) {
+    if (args->length() >= 2) {
+        QV4::ScopedValue v(scope, (*args)[1]);
+        if (v->isNull()) {
+        } else if (!v->asObject() || v->asArrayObject()) {
             qmlInfo(this) << tr("createObject: value is not an object");
-            args->returnValue(v8::Null());
+            args->setReturnValue(QV4::Encode::null());
             return;
         } else {
-            valuemap = v8::Local<v8::Object>::Cast(v);
+            valuemap = v;
         }
     }
 
-    if (args->Length() >= 3) {
-        quint32 v = (*args)[2]->Uint32Value();
+    if (args->length() >= 3) {
+        QV4::ScopedValue val(scope, (*args)[2]);
+        quint32 v = val->toUInt32();
         if (v == 0)
             mode = QQmlIncubator::Asynchronous;
         else if (v == 1)
@@ -1319,207 +1387,194 @@ void QQmlComponent::incubateObject(QQmlV8Function *args)
 
     QQmlComponentExtension *e = componentExtension(args->engine());
 
-    QV8IncubatorResource *r = new QV8IncubatorResource(args->engine(), mode);
-    v8::Local<v8::Object> o = e->incubationConstructor->NewInstance();
-    o->SetExternalResource(r);
+    QV4::Scoped<QmlIncubatorObject> r(scope, new (v4->memoryManager) QmlIncubatorObject(args->engine(), mode));
+    QV4::ScopedObject p(scope, e->incubationProto.value());
+    r->setPrototype(p.getPointer());
 
-    if (!valuemap.IsEmpty()) {
-        r->valuemap = qPersistentNew(valuemap);
-        r->qmlGlobal = qPersistentNew(args->qmlGlobal());
+    if (!valuemap->isUndefined()) {
+        r->valuemap = valuemap;
+        r->qmlGlobal = args->qmlGlobal();
     }
     r->parent = parent;
-    r->me = qPersistentNew(o);
 
-    create(*r, creationContext());
+    QQmlIncubator *incubator = r.getPointer()->incubator.data();
+    create(*incubator, creationContext());
 
-    if (r->status() == QQmlIncubator::Null) {
-        r->dispose();
-        args->returnValue(v8::Null());
+    if (incubator->status() == QQmlIncubator::Null) {
+        args->setReturnValue(QV4::Encode::null());
     } else {
-        args->returnValue(o);
+        args->setReturnValue(r.asReturnedValue());
     }
 }
 
 // XXX used by QSGLoader
-void QQmlComponentPrivate::initializeObjectWithInitialProperties(v8::Handle<v8::Object> qmlGlobal, v8::Handle<v8::Object> valuemap, QObject *toCreate)
+void QQmlComponentPrivate::initializeObjectWithInitialProperties(const QV4::ValueRef qmlGlobal, const QV4::ValueRef valuemap, QObject *toCreate)
 {
     QQmlEnginePrivate *ep = QQmlEnginePrivate::get(engine);
     QV8Engine *v8engine = ep->v8engine();
+    QV4::ExecutionEngine *v4engine = QV8Engine::getV4(v8engine);
+    QV4::Scope scope(v4engine);
 
-    v8::HandleScope handle_scope;
-    v8::Context::Scope scope(v8engine->context());
-    v8::Handle<v8::Value> ov = v8engine->newQObject(toCreate);
-    Q_ASSERT(ov->IsObject());
-    v8::Handle<v8::Object> object = v8::Handle<v8::Object>::Cast(ov);
+    QV4::ScopedValue object(scope, QV4::QObjectWrapper::wrap(v4engine, toCreate));
+    Q_ASSERT(object->asObject());
 
-    if (!valuemap.IsEmpty()) {
-        QQmlComponentExtension *e = componentExtension(v8engine);
-        // Try catch isn't needed as the function itself is loaded with try/catch
-        v8::Handle<v8::Value> function = e->initialProperties->Run(qmlGlobal);
-        v8::Handle<v8::Value> args[] = { object, valuemap };
-        v8::Handle<v8::Function>::Cast(function)->Call(v8engine->global(), 2, args);
+    if (!valuemap->isUndefined()) {
+        QV4::ScopedObject qmlGlobalObj(scope, qmlGlobal);
+        QV4::Scoped<QV4::FunctionObject>  f(scope, QV4::Script::evaluate(QV8Engine::getV4(v8engine),
+                                                                    QString::fromLatin1(INITIALPROPERTIES_SOURCE), qmlGlobalObj));
+        QV4::ScopedCallData callData(scope, 2);
+        callData->thisObject = v4engine->globalObject;
+        callData->args[0] = object;
+        callData->args[1] = valuemap;
+        f->call(callData);
     }
 }
-
 
 QQmlComponentExtension::QQmlComponentExtension(QV8Engine *engine)
 {
-    v8::HandleScope handle_scope;
-    v8::Context::Scope scope(engine->context());
+    QV4::ExecutionEngine *v4 = QV8Engine::getV4(engine);
+    QV4::Scope scope(v4);
+    QV4::Scoped<QV4::Object> proto(scope, v4->newObject());
+    proto->defineAccessorProperty(QStringLiteral("onStatusChanged"),
+                                  QmlIncubatorObject::method_get_statusChanged, QmlIncubatorObject::method_set_statusChanged);
+    proto->defineAccessorProperty(QStringLiteral("status"), QmlIncubatorObject::method_get_status, 0);
+    proto->defineAccessorProperty(QStringLiteral("object"), QmlIncubatorObject::method_get_object, 0);
+    proto->defineDefaultProperty(QStringLiteral("forceCompletion"), QmlIncubatorObject::method_forceCompletion);
 
-    forceCompletion = qPersistentNew(V8FUNCTION(QV8IncubatorResource::ForceCompletion, engine));
-
-    {
-    v8::Local<v8::FunctionTemplate> ft = v8::FunctionTemplate::New();
-    ft->InstanceTemplate()->SetHasExternalResource(true);
-    ft->InstanceTemplate()->SetInternalFieldCount(1);
-    ft->InstanceTemplate()->SetAccessor(v8::String::New("onStatusChanged"),
-                                        QV8IncubatorResource::StatusChangedGetter,
-                                        QV8IncubatorResource::StatusChangedSetter);
-    ft->InstanceTemplate()->SetAccessor(v8::String::New("status"),
-                                        QV8IncubatorResource::StatusGetter);
-    ft->InstanceTemplate()->SetAccessor(v8::String::New("object"),
-                                        QV8IncubatorResource::ObjectGetter);
-    ft->InstanceTemplate()->SetAccessor(v8::String::New("forceCompletion"),
-                                        QV8IncubatorResource::ForceCompletionGetter);
-    incubationConstructor = qPersistentNew(ft->GetFunction());
-    }
-
-    {
-#define INITIALPROPERTIES_SOURCE \
-        "(function(object, values) {"\
-            "try {"\
-                "for(var property in values) {" \
-                    "try {"\
-                        "var properties = property.split(\".\");"\
-                        "var o = object;"\
-                        "for (var ii = 0; ii < properties.length - 1; ++ii) {"\
-                            "o = o[properties[ii]];"\
-                        "}"\
-                        "o[properties[properties.length - 1]] = values[property];"\
-                    "} catch(e) {}"\
-                "}"\
-            "} catch(e) {}"\
-        "})"
-    initialProperties = qPersistentNew(engine->qmlModeCompile(QLatin1String(INITIALPROPERTIES_SOURCE)));
-#undef INITIALPROPERTIES_SOURCE
-    }
+    incubationProto = proto;
 }
 
-v8::Handle<v8::Value> QV8IncubatorResource::ObjectGetter(v8::Local<v8::String>,
-                                                          const v8::AccessorInfo& info)
+QV4::ReturnedValue QmlIncubatorObject::method_get_object(QV4::CallContext *ctx)
 {
-    QV8IncubatorResource *r = v8_resource_check<QV8IncubatorResource>(info.This());
-    return r->engine->newQObject(r->object());
+    QV4::Scope scope(ctx);
+    QV4::Scoped<QmlIncubatorObject> o(scope, ctx->callData->thisObject.as<QmlIncubatorObject>());
+    if (!o)
+        return ctx->throwTypeError();
+
+    return QV4::QObjectWrapper::wrap(ctx->engine, o->incubator->object());
 }
 
-v8::Handle<v8::Value> QV8IncubatorResource::ForceCompletionGetter(v8::Local<v8::String>,
-                                                                  const v8::AccessorInfo& info)
+QV4::ReturnedValue QmlIncubatorObject::method_forceCompletion(QV4::CallContext *ctx)
 {
-    QV8IncubatorResource *r = v8_resource_check<QV8IncubatorResource>(info.This());
-    return componentExtension(r->engine)->forceCompletion;
+    QV4::Scope scope(ctx);
+    QV4::Scoped<QmlIncubatorObject> o(scope, ctx->callData->thisObject.as<QmlIncubatorObject>());
+    if (!o)
+        return ctx->throwTypeError();
+
+    o->incubator->forceCompletion();
+
+    return QV4::Encode::undefined();
 }
 
-v8::Handle<v8::Value> QV8IncubatorResource::ForceCompletion(const v8::Arguments &args)
+QV4::ReturnedValue QmlIncubatorObject::method_get_status(QV4::CallContext *ctx)
 {
-    QV8IncubatorResource *r = v8_resource_cast<QV8IncubatorResource>(args.This());
-    if (!r)
-        V8THROW_TYPE("Not an incubator object");
+    QV4::Scope scope(ctx);
+    QV4::Scoped<QmlIncubatorObject> o(scope, ctx->callData->thisObject.as<QmlIncubatorObject>());
+    if (!o)
+        return ctx->throwTypeError();
 
-    r->forceCompletion();
-
-    return v8::Undefined();
+    return QV4::Encode(o->incubator->status());
 }
 
-v8::Handle<v8::Value> QV8IncubatorResource::StatusGetter(v8::Local<v8::String>,
-                                                         const v8::AccessorInfo& info)
+QV4::ReturnedValue QmlIncubatorObject::method_get_statusChanged(QV4::CallContext *ctx)
 {
-    QV8IncubatorResource *r = v8_resource_check<QV8IncubatorResource>(info.This());
-    return v8::Integer::NewFromUnsigned(r->status());
+    QV4::Scope scope(ctx);
+    QV4::Scoped<QmlIncubatorObject> o(scope, ctx->callData->thisObject.as<QmlIncubatorObject>());
+    if (!o)
+        return ctx->throwTypeError();
+
+    return o->m_statusChanged.asReturnedValue();
 }
 
-v8::Handle<v8::Value> QV8IncubatorResource::StatusChangedGetter(v8::Local<v8::String>,
-                                                                 const v8::AccessorInfo& info)
+QV4::ReturnedValue QmlIncubatorObject::method_set_statusChanged(QV4::CallContext *ctx)
 {
-    return info.This()->GetInternalField(0);
-}
+    QV4::Scope scope(ctx);
+    QV4::Scoped<QmlIncubatorObject> o(scope, ctx->callData->thisObject.as<QmlIncubatorObject>());
+    if (!o || ctx->callData->argc < 1)
+        return ctx->throwTypeError();
 
-void QV8IncubatorResource::StatusChangedSetter(v8::Local<v8::String>, v8::Local<v8::Value> value,
-                                                const v8::AccessorInfo& info)
-{
-    info.This()->SetInternalField(0, value);
+
+    o->m_statusChanged = ctx->callData->args[0];
+    return QV4::Encode::undefined();
 }
 
 QQmlComponentExtension::~QQmlComponentExtension()
 {
-    qPersistentDispose(incubationConstructor);
-    qPersistentDispose(initialProperties);
-    qPersistentDispose(forceCompletion);
 }
 
-QV8IncubatorResource::QV8IncubatorResource(QV8Engine *engine, IncubationMode m)
-: QV8ObjectResource(engine), QQmlIncubator(m)
+QmlIncubatorObject::QmlIncubatorObject(QV8Engine *engine, QQmlIncubator::IncubationMode m)
+    : Object(QV8Engine::getV4(engine))
 {
+    incubator.reset(new QQmlComponentIncubator(this, m));
+    v8 = engine;
+    vtbl = &static_vtbl;
+
+    valuemap = QV4::Primitive::undefinedValue();
+    qmlGlobal = QV4::Primitive::undefinedValue();
+    m_statusChanged = QV4::Primitive::undefinedValue();
 }
 
-void QV8IncubatorResource::setInitialState(QObject *o)
+void QmlIncubatorObject::setInitialState(QObject *o)
 {
     QQmlComponent_setQmlParent(o, parent);
 
-    if (!valuemap.IsEmpty()) {
-        QQmlComponentExtension *e = componentExtension(engine);
+    if (!valuemap.isUndefined()) {
+        QV4::ExecutionEngine *v4 = QV8Engine::getV4(v8);
+        QV4::Scope scope(v4);
 
-        v8::HandleScope handle_scope;
-        v8::Context::Scope scope(engine->context());
-
-        v8::Handle<v8::Value> function = e->initialProperties->Run(qmlGlobal);
-        v8::Handle<v8::Value> args[] = { engine->newQObject(o), valuemap };
-        v8::Handle<v8::Function>::Cast(function)->Call(engine->global(), 2, args);
-
-        qPersistentDispose(valuemap);
-        qPersistentDispose(qmlGlobal);
+        QV4::Scoped<QV4::FunctionObject> f(scope, QV4::Script::evaluate(v4, QString::fromLatin1(INITIALPROPERTIES_SOURCE), qmlGlobal));
+        QV4::ScopedCallData callData(scope, 2);
+        callData->thisObject = v4->globalObject;
+        callData->args[0] = QV4::QObjectWrapper::wrap(v4, o);
+        callData->args[1] = valuemap;
+        f->call(callData);
     }
 }
 
-void QV8IncubatorResource::dispose()
+void QmlIncubatorObject::destroy(Managed *that)
 {
-    qPersistentDispose(valuemap);
-    qPersistentDispose(qmlGlobal);
-    // No further status changes are forthcoming, so we no long need a self reference
-    qPersistentDispose(me);
+    QmlIncubatorObject *o = that->as<QmlIncubatorObject>();
+    Q_ASSERT(o);
+    o->~QmlIncubatorObject();
 }
 
-void QV8IncubatorResource::statusChanged(Status s)
+void QmlIncubatorObject::markObjects(QV4::Managed *that, QV4::ExecutionEngine *e)
 {
-    if (s == Ready) {
-        Q_ASSERT(QQmlData::get(object()));
-        QQmlData::get(object())->explicitIndestructibleSet = false;
-        QQmlData::get(object())->indestructible = false;
+    QmlIncubatorObject *o = that->as<QmlIncubatorObject>();
+    Q_ASSERT(o);
+    o->valuemap.mark(e);
+    o->qmlGlobal.mark(e);
+    o->m_statusChanged.mark(e);
+    Object::markObjects(that, e);
+}
+
+void QmlIncubatorObject::statusChanged(QQmlIncubator::Status s)
+{
+    QV4::Scope scope(QV8Engine::getV4(v8));
+    // hold the incubated object in a scoped value to prevent it's destruction before this method returns
+    QV4::ScopedObject incubatedObject(scope, QV4::QObjectWrapper::wrap(scope.engine, incubator->object()));
+
+    if (s == QQmlIncubator::Ready) {
+        Q_ASSERT(QQmlData::get(incubator->object()));
+        QQmlData::get(incubator->object())->explicitIndestructibleSet = false;
+        QQmlData::get(incubator->object())->indestructible = false;
     }
 
-    if (!me.IsEmpty()) { // Will be false in synchronous mode
-        v8::HandleScope scope;
-        v8::Local<v8::Value> callback = me->GetInternalField(0);
-
-        if (!callback.IsEmpty() && !callback->IsUndefined()) {
-
-            if (callback->IsFunction()) {
-                v8::Context::Scope context_scope(engine->context());
-                v8::Local<v8::Function> f = v8::Local<v8::Function>::Cast(callback);
-                v8::Handle<v8::Value> args[] = { v8::Integer::NewFromUnsigned(s) };
-                v8::TryCatch tc;
-                f->Call(me, 1, args);
-                if (tc.HasCaught()) {
-                    QQmlError error;
-                    QQmlJavaScriptExpression::exceptionToError(tc.Message(), error);
-                    QQmlEnginePrivate::warning(QQmlEnginePrivate::get(engine->engine()), error);
-                }
-            }
+    QV4::ScopedFunctionObject f(scope, m_statusChanged);
+    if (f) {
+        QV4::ExecutionContext *ctx = scope.engine->current;
+        QV4::ScopedCallData callData(scope, 1);
+        callData->thisObject = this;
+        callData->args[0] = QV4::Primitive::fromUInt32(s);
+        f->call(callData);
+        if (scope.hasException()) {
+            ctx->catchException();
+            QQmlError error = QV4::ExecutionEngine::catchExceptionAsQmlError(ctx);
+            QQmlEnginePrivate::warning(QQmlEnginePrivate::get(v8->engine()), error);
         }
     }
-
-    if (s == Ready || s == Error)
-        dispose();
 }
+
+#undef INITIALPROPERTIES_SOURCE
 
 QT_END_NAMESPACE

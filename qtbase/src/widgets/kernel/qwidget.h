@@ -171,13 +171,14 @@ class Q_WIDGETS_EXPORT QWidget : public QObject, public QPaintDevice
     Q_PROPERTY(QSize sizeHint READ sizeHint)
     Q_PROPERTY(QSize minimumSizeHint READ minimumSizeHint)
     Q_PROPERTY(bool acceptDrops READ acceptDrops WRITE setAcceptDrops)
-    Q_PROPERTY(QString windowTitle READ windowTitle WRITE setWindowTitle DESIGNABLE isWindow)
-    Q_PROPERTY(QIcon windowIcon READ windowIcon WRITE setWindowIcon DESIGNABLE isWindow)
-    Q_PROPERTY(QString windowIconText READ windowIconText WRITE setWindowIconText DESIGNABLE isWindow)
+    Q_PROPERTY(QString windowTitle READ windowTitle WRITE setWindowTitle NOTIFY windowTitleChanged DESIGNABLE isWindow)
+    Q_PROPERTY(QIcon windowIcon READ windowIcon WRITE setWindowIcon NOTIFY windowIconChanged DESIGNABLE isWindow)
+    Q_PROPERTY(QString windowIconText READ windowIconText WRITE setWindowIconText NOTIFY windowIconTextChanged DESIGNABLE isWindow)
     Q_PROPERTY(double windowOpacity READ windowOpacity WRITE setWindowOpacity DESIGNABLE isWindow)
     Q_PROPERTY(bool windowModified READ isWindowModified WRITE setWindowModified DESIGNABLE isWindow)
 #ifndef QT_NO_TOOLTIP
     Q_PROPERTY(QString toolTip READ toolTip WRITE setToolTip)
+    Q_PROPERTY(int toolTipDuration READ toolTipDuration WRITE setToolTipDuration)
 #endif
 #ifndef QT_NO_STATUSTIP
     Q_PROPERTY(QString statusTip READ statusTip WRITE setStatusTip)
@@ -376,6 +377,8 @@ public:
 #ifndef QT_NO_TOOLTIP
     void setToolTip(const QString &);
     QString toolTip() const;
+    void setToolTipDuration(int msec);
+    int toolTipDuration() const;
 #endif
 #ifndef QT_NO_STATUSTIP
     void setStatusTip(const QString &);
@@ -596,6 +599,9 @@ public:
     friend class QDesktopScreenWidget;
 
 Q_SIGNALS:
+    void windowTitleChanged(const QString &title);
+    void windowIconChanged(const QIcon &icon);
+    void windowIconTextChanged(const QString &iconText);
     void customContextMenuRequested(const QPoint &pos);
 
 protected:
@@ -727,6 +733,7 @@ private:
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QWidget::RenderFlags)
 
+#ifndef Q_QDOC
 template <> inline QWidget *qobject_cast<QWidget*>(QObject *o)
 {
     if (!o || !o->isWidgetType()) return 0;
@@ -737,6 +744,7 @@ template <> inline const QWidget *qobject_cast<const QWidget*>(const QObject *o)
     if (!o || !o->isWidgetType()) return 0;
     return static_cast<const QWidget*>(o);
 }
+#endif // !Q_QDOC
 
 inline QWidget *QWidget::childAt(int ax, int ay) const
 { return childAt(QPoint(ax, ay)); }

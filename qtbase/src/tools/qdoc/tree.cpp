@@ -169,9 +169,9 @@ const Node* Tree::findNode(const QStringList& path,
         if (node && i == path.size()
                 && (!(findFlags & NonFunction) || node->type() != Node::Function
                     || ((FunctionNode*)node)->metaness() == FunctionNode::MacroWithoutParams)) {
-            if ((node != self) && (node->subType() != Node::QmlPropertyGroup)) {
+            if ((node != self) && (node->type() != Node::QmlPropertyGroup)) {
                 if (node->subType() == Node::Collision) {
-                    node = node->applyModuleIdentifier(start);
+                    node = node->applyModuleName(start);
                 }
                 return node;
             }
@@ -756,19 +756,6 @@ NamespaceNode* Tree::findNamespaceNode(const QStringList& path) const
 {
     Node* start = const_cast<NamespaceNode*>(root());
     return static_cast<NamespaceNode*>(findNodeRecursive(path, 0, start, Node::Namespace, Node::NoSubType));
-}
-
-/*!
-  Find the Qml module node named \a path. Begin the search at the
-  \a start node. If the \a start node is 0, begin the search
-  at the root of the tree. Only a Qml module node named \a path is
-  acceptible. If one is not found, 0 is returned.
- */
-DocNode* Tree::findQmlModuleNode(const QStringList& path, Node* start)
-{
-    if (!start)
-        start = const_cast<NamespaceNode*>(root());
-    return static_cast<DocNode*>(findNodeRecursive(path, 0, start, Node::Document, Node::QmlModule));
 }
 
 QT_END_NAMESPACE

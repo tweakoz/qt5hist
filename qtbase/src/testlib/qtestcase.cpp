@@ -65,6 +65,7 @@
 #include <QtTest/private/cycle_p.h>
 
 #include <numeric>
+#include <algorithm>
 
 #include <stdarg.h>
 #include <stdio.h>
@@ -863,7 +864,7 @@ QT_BEGIN_NAMESPACE
     \since 5.0
 
     Waits for \a timeout milliseconds or until the \a window is exposed.
-    Returns true if \c window is exposed within \a timeout milliseconds, otherwise returns false.
+    Returns \c true if \c window is exposed within \a timeout milliseconds, otherwise returns \c false.
 
     This is mainly useful for asynchronous systems like X11, where a window will be mapped to screen some
     time after being asked to show itself on the screen.
@@ -876,7 +877,7 @@ QT_BEGIN_NAMESPACE
 
     Waits for \a timeout milliseconds or until the \a window is active.
 
-    Returns true if \c window is active within \a timeout milliseconds, otherwise returns false.
+    Returns \c true if \c window is active within \a timeout milliseconds, otherwise returns \c false.
 
     \sa QTest::qWaitForWindowExposed(), QWindow::isActive()
 */
@@ -885,7 +886,7 @@ QT_BEGIN_NAMESPACE
     \since 5.0
 
     Waits for \a timeout milliseconds or until the \a widget's window is exposed.
-    Returns true if \c widget's window is exposed within \a timeout milliseconds, otherwise returns false.
+    Returns \c true if \c widget's window is exposed within \a timeout milliseconds, otherwise returns \c false.
 
     This is mainly useful for asynchronous systems like X11, where a window will be mapped to screen some
     time after being asked to show itself on the screen.
@@ -898,7 +899,7 @@ QT_BEGIN_NAMESPACE
 
     Waits for \a timeout milliseconds or until the \a widget's window is active.
 
-    Returns true if \c widget's window is active within \a timeout milliseconds, otherwise returns false.
+    Returns \c true if \c widget's window is active within \a timeout milliseconds, otherwise returns \c false.
 
     \sa QTest::qWaitForWindowExposed(), QWidget::isActiveWindow()
 */
@@ -908,7 +909,7 @@ QT_BEGIN_NAMESPACE
     \deprecated
 
     Waits for \a timeout milliseconds or until the \a widget's window is exposed.
-    Returns true if \c widget's window is exposed within \a timeout milliseconds, otherwise returns false.
+    Returns \c true if \c widget's window is exposed within \a timeout milliseconds, otherwise returns \c false.
 
     This function does the same as qWaitForWindowExposed().
 
@@ -1130,9 +1131,7 @@ namespace QTest
     static int keyDelay = -1;
     static int mouseDelay = -1;
     static int eventDelay = -1;
-#if defined(Q_OS_UNIX)
     static bool noCrashHandler = false;
-#endif
 
 /*! \internal
     Invoke a method of the object without generating warning if the method does not exist
@@ -1335,9 +1334,7 @@ Q_TESTLIB_EXPORT void qtest_qParseArgs(int argc, char *argv[], bool qml)
          " -mousedelay ms      : Set default delay for mouse simulation to ms milliseconds\n"
          " -maxwarnings n      : Sets the maximum amount of messages to output.\n"
          "                       0 means unlimited, default: 2000\n"
-#if defined(Q_OS_UNIX)
          " -nocrashhandler     : Disables the crash handler\n"
-#endif
          "\n"
          " Benchmarking options:\n"
 #ifdef QTESTLIB_USE_VALGRIND
@@ -1468,10 +1465,8 @@ Q_TESTLIB_EXPORT void qtest_qParseArgs(int argc, char *argv[], bool qml)
             } else {
                 QTestLog::setMaxWarnings(qToInt(argv[++i]));
             }
-#if defined(Q_OS_UNIX)
         } else if (strcmp(argv[i], "-nocrashhandler") == 0) {
             QTest::noCrashHandler = true;
-#endif
 #ifdef QTESTLIB_USE_VALGRIND
         } else if (strcmp(argv[i], "-callgrind") == 0) {
             if (QBenchmarkValgrindUtils::haveValgrind())
@@ -1617,7 +1612,7 @@ Q_TESTLIB_EXPORT void qtest_qParseArgs(int argc, char *argv[], bool qml)
         }
     }
 
-    bool installedTestCoverage = installCoverageTool(QTestResult::currentAppname(), QTestResult::currentTestObjectName());
+    bool installedTestCoverage = installCoverageTool(QTestResult::currentAppName(), QTestResult::currentTestObjectName());
     QTestLog::setInstalledTestCoverage(installedTestCoverage);
 
     // If no loggers were created by the long version of the -o command-line
@@ -1634,10 +1629,10 @@ QBenchmarkResult qMedian(const QList<QBenchmarkResult> &container)
         return QBenchmarkResult();
 
     if (count == 1)
-        return container.at(0);
+        return container.front();
 
     QList<QBenchmarkResult> containerCopy = container;
-    qSort(containerCopy);
+    std::sort(containerCopy.begin(), containerCopy.end());
 
     const int middle = count / 2;
 
@@ -2083,6 +2078,18 @@ FatalSignalHandler::~FatalSignalHandler()
 
 } // namespace
 
+#if defined(Q_OS_WIN) && !defined(Q_OS_WINCE) && !defined(Q_OS_WINRT)
+static LONG WINAPI windowsFaultHandler(struct _EXCEPTION_POINTERS *exInfo)
+{
+    char appName[MAX_PATH];
+    if (!GetModuleFileNameA(NULL, appName, MAX_PATH))
+        appName[0] = 0;
+    fprintf(stderr, "A crash occurred in %s (exception code 0x%lx).",
+            appName, exInfo->ExceptionRecord->ExceptionCode);
+    return EXCEPTION_EXECUTE_HANDLER;
+}
+#endif // Q_OS_WIN) && !Q_OS_WINCE && !Q_OS_WINRT
+
 /*!
     Executes tests declared in \a testObject. In addition, the private slots
     \c{initTestCase()}, \c{cleanupTestCase()}, \c{init()} and \c{cleanup()}
@@ -2138,13 +2145,6 @@ int QTest::qExec(QObject *testObject, int argc, char **argv)
     try {
 #endif
 
-#if defined(Q_OS_WIN) && !defined(Q_OS_WINCE)
-# if !defined(Q_CC_MINGW)
-    _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
-# endif
-    SetErrorMode(SetErrorMode(0) | SEM_NOGPFAULTERRORBOX);
-#endif
-
 #if defined(Q_OS_MACX)
     if (macNeedsActivate) {
         CFStringRef reasonForActivity= CFSTR("No Display Sleep");
@@ -2166,9 +2166,19 @@ int QTest::qExec(QObject *testObject, int argc, char **argv)
 
     QTestResult::setCurrentTestObject(metaObject->className());
     if (argc > 0)
-        QTestResult::setCurrentAppname(argv[0]);
+        QTestResult::setCurrentAppName(argv[0]);
 
     qtest_qParseArgs(argc, argv, false);
+
+#if defined(Q_OS_WIN) && !defined(Q_OS_WINCE) && !defined(Q_OS_WINRT)
+    if (!noCrashHandler) {
+# ifndef Q_CC_MINGW
+        _CrtSetReportMode(_CRT_ERROR, _CRTDBG_MODE_DEBUG);
+# endif
+        SetErrorMode(SetErrorMode(0) | SEM_NOGPFAULTERRORBOX);
+        SetUnhandledExceptionFilter(windowsFaultHandler);
+    } // !noCrashHandler
+#endif // Q_OS_WIN) && !Q_OS_WINCE && !Q_OS_WINRT
 
 #ifdef QTESTLIB_USE_VALGRIND
     if (QBenchmarkGlobalData::current->mode() == QBenchmarkGlobalData::CallgrindParentProcess) {
@@ -2510,6 +2520,14 @@ QTestData &QTest::newRow(const char *dataTag)
 */
 
 /*!
+    Returns the name of the binary that is currently executed.
+*/
+const char *QTest::currentAppName()
+{
+    return QTestResult::currentAppName();
+}
+
+/*!
     Returns the name of the test function that is currently executed.
 
     Example:
@@ -2531,7 +2549,7 @@ const char *QTest::currentDataTag()
 }
 
 /*!
-    Returns true if the current test function failed, otherwise false.
+    Returns \c true if the current test function failed, otherwise false.
 */
 bool QTest::currentTestFailed()
 {
@@ -2559,7 +2577,9 @@ void QTest::qSleep(int ms)
 {
     QTEST_ASSERT(ms > 0);
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WINRT)
+    WaitForSingleObjectEx(GetCurrentThread(), ms, true);
+#elif defined(Q_OS_WIN)
     Sleep(uint(ms));
 #else
     struct timespec ts = { ms / 1000, (ms % 1000) * 1000 * 1000 };

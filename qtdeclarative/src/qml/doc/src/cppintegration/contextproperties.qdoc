@@ -74,7 +74,7 @@ QML code invokes a method on the object instance:
 \endtable
 
 (Note that date/time values returned from C++ to QML can be formatted through
-\l{QtQml2::Qt::formatDateTime}{Qt.formatDateTime()} and associated functions.)
+\l{QtQml::Qt::formatDateTime}{Qt.formatDateTime()} and associated functions.)
 
 If the QML item needs to receive signals from the context property, it can connect to them using the
 \l Connections type. For example, if \c ApplicationData has a signal named \c
@@ -84,11 +84,15 @@ a \l Connections object:
 \snippet qml/qtbinding/context-advanced/connections.qml 0
 
 Context properties can be useful for using C++ based data models in a QML view. See the
-\l {quick/modelviews/stringlistmodel}{String ListModel},
-\l {quick/modelviews/objectlistmodel}{Object ListModel} and
-\l {quick/modelviews/abstractitemmodel}{AbstractItemModel} models for
-respective examples on using QStringListModel, QObjectList-based models and QAbstractItemModel
-in QML views.
+following examples:
+\list
+    \li \l {Models and Views: String ListModel Example}{String ListModel}
+    \li \l {Models and Views: Object ListModel Example}{Object ListModel}
+    \li \l {Models and Views: AbstractItemModel Example}{AbstractItemModel}
+\endlist
+
+demonstrating the use of QStringList, QList<QObject*>-based models and
+QAbstractItemModel in QML views.
 
 Also see the QQmlContext documentation for more information.
 

@@ -62,6 +62,7 @@ class QAuthenticator;
 class QNetworkProxy;
 class QNetworkProxyQuery;
 class QNetworkRequest;
+class QStringList;
 class QUrl;
 class QUrlInfo;
 class QSslConfiguration;
@@ -162,7 +163,7 @@ public:
     // This will possibly enable buffering of the upload data.
     virtual bool needsResetableUploadData() { return false; }
 
-    // Returns true if backend is able to resume downloads.
+    // Returns \c true if backend is able to resume downloads.
     virtual bool canResume() const { return false; }
     virtual void setResumeOffset(quint64 offset) { Q_UNUSED(offset); }
 
@@ -219,6 +220,7 @@ class QNetworkAccessBackendFactory
 public:
     QNetworkAccessBackendFactory();
     virtual ~QNetworkAccessBackendFactory();
+    virtual QStringList supportedSchemes() const = 0;
     virtual QNetworkAccessBackend *create(QNetworkAccessManager::Operation op,
                                           const QNetworkRequest &request) const = 0;
 };

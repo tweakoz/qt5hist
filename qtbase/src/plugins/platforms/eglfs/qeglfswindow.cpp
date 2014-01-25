@@ -41,7 +41,12 @@
 
 #include "qeglfswindow.h"
 #include "qeglfshooks.h"
+#include "qeglfscursor.h"
+#include "qeglfsbackingstore.h"
 #include <qpa/qwindowsysteminterface.h>
+#include <qpa/qplatformintegration.h>
+#include <private/qguiapplication_p.h>
+#include <QtGui/QOpenGLContext>
 
 #include <QtPlatformSupport/private/qeglconvenience_p.h>
 
@@ -53,11 +58,12 @@ QEglFSWindow::QEglFSWindow(QWindow *w)
     : QPlatformWindow(w)
     , m_surface(0)
     , m_window(0)
+    , m_wid(0)
+    , m_backingStore(0)
+    , m_flags(0)
 {
-    static int serialNo = 0;
-    m_winid  = ++serialNo;
 #ifdef QEGL_EXTRA_DEBUG
-    qWarning("QEglWindow %p: %p 0x%x\n", this, w, uint(m_winid));
+    qWarning("QEglWindow %p: %p 0x%x\n", this, w, uint(m_window));
 #endif
 }
 
@@ -66,12 +72,23 @@ QEglFSWindow::~QEglFSWindow()
     destroy();
 }
 
+static WId newWId()
+{
+    static WId id = 0;
+
+    if (id == std::numeric_limits<WId>::max())
+        qWarning("EGLFS: Out of window IDs");
+
+    return ++id;
+}
+
 void QEglFSWindow::create()
 {
-    if (m_window)
+    if (m_flags.testFlag(Created))
         return;
 
-    setWindowState(Qt::WindowFullScreen);
+    m_flags = Created;
+    m_wid = newWId();
 
     if (window()->type() == Qt::Desktop) {
         QRect rect(QPoint(), QEglFSHooks::hooks()->screenSize());
@@ -80,29 +97,87 @@ void QEglFSWindow::create()
         return;
     }
 
-    EGLDisplay display = (static_cast<QEglFSScreen *>(window()->screen()->handle()))->display();
+    // Save the original surface type before changing to OpenGLSurface.
+    if (window()->surfaceType() == QSurface::RasterSurface)
+        m_flags |= IsRaster;
+
+    // Stop if there is already a window backed by a native window and surface. Additional
+    // raster windows will not have their own native window, surface and context. Instead,
+    // they will be composited onto the root window's surface.
+    QEglFSScreen *screen = this->screen();
+    if (screen->primarySurface() != EGL_NO_SURFACE) {
+        if (m_flags.testFlag(IsRaster) && screen->rootWindow()->m_flags.testFlag(IsRaster))
+            return;
+
+#if !defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK)
+        // We can have either a single OpenGL window or multiple raster windows.
+        // Other combinations cannot work.
+        qFatal("EGLFS: OpenGL windows cannot be mixed with others.");
+#endif
+
+        return;
+    }
+
+    window()->setSurfaceType(QSurface::OpenGLSurface);
+    m_flags |= HasNativeWindow;
+    setGeometry(QRect()); // will become fullscreen
+    QWindowSystemInterface::handleExposeEvent(window(), geometry());
+
+    EGLDisplay display = static_cast<QEglFSScreen *>(screen)->display();
     QSurfaceFormat platformFormat = QEglFSHooks::hooks()->surfaceFormatFor(window()->requestedFormat());
     m_config = QEglFSIntegration::chooseConfig(display, platformFormat);
     m_format = q_glFormatFromConfig(display, m_config);
+
     resetSurface();
+
+    screen->setPrimarySurface(m_surface);
+
+    if (m_flags.testFlag(IsRaster)) {
+        QOpenGLContext *context = new QOpenGLContext(QGuiApplication::instance());
+        context->setFormat(window()->requestedFormat());
+        context->setScreen(window()->screen());
+        context->create();
+        screen->setRootContext(context);
+    }
 }
+
+void QEglFSWindow::destroy()
+{
+    QEglFSScreen *screen = this->screen();
+    if (m_flags.testFlag(HasNativeWindow)) {
+        QEglFSCursor *cursor = static_cast<QEglFSCursor *>(screen->cursor());
+        if (cursor)
+            cursor->resetResources();
+
+        if (screen->primarySurface() == m_surface)
+            screen->setPrimarySurface(EGL_NO_SURFACE);
+
+        invalidateSurface();
+    }
+
+    m_flags = 0;
+    screen->removeWindow(this);
+}
+
+// The virtual functions resetSurface and invalidateSurface may get overridden
+// in derived classes, for example in the Android port, to perform the native
+// window and surface creation differently.
 
 void QEglFSWindow::invalidateSurface()
 {
-    // Native surface has been deleted behind our backs
-    m_window = 0;
-    if (m_surface != 0) {
-        EGLDisplay display = (static_cast<QEglFSScreen *>(window()->screen()->handle()))->display();
+    if (m_surface != EGL_NO_SURFACE) {
+        EGLDisplay display = static_cast<QEglFSScreen *>(screen())->display();
         eglDestroySurface(display, m_surface);
-        m_surface = 0;
+        m_surface = EGL_NO_SURFACE;
     }
+    QEglFSHooks::hooks()->destroyNativeWindow(m_window);
+    m_window = 0;
 }
 
 void QEglFSWindow::resetSurface()
 {
     EGLDisplay display = static_cast<QEglFSScreen *>(screen())->display();
-
-    m_window = QEglFSHooks::hooks()->createNativeWindow(QEglFSHooks::hooks()->screenSize(), m_format);
+    m_window = QEglFSHooks::hooks()->createNativeWindow(this, QEglFSHooks::hooks()->screenSize(), m_format);
     m_surface = eglCreateWindowSurface(display, m_config, m_window, NULL);
     if (m_surface == EGL_NO_SURFACE) {
         EGLint error = eglGetError();
@@ -111,42 +186,114 @@ void QEglFSWindow::resetSurface()
     }
 }
 
-void QEglFSWindow::destroy()
+void QEglFSWindow::setVisible(bool visible)
 {
-    if (m_surface) {
-        EGLDisplay display = static_cast<QEglFSScreen *>(screen())->display();
-        eglDestroySurface(display, m_surface);
-        m_surface = 0;
+    QList<QEglFSWindow *> windows = screen()->windows();
+
+    if (window()->type() != Qt::Desktop) {
+        if (visible) {
+            screen()->addWindow(this);
+        } else {
+            screen()->removeWindow(this);
+            windows = screen()->windows();
+            if (windows.size())
+                windows.last()->requestActivateWindow();
+        }
     }
 
-    if (m_window) {
-        QEglFSHooks::hooks()->destroyNativeWindow(m_window);
-        m_window = 0;
-    }
+    QWindowSystemInterface::handleExposeEvent(window(), window()->geometry());
+
+    if (visible)
+        QWindowSystemInterface::flushWindowSystemEvents();
 }
 
-void QEglFSWindow::setGeometry(const QRect &)
+void QEglFSWindow::setGeometry(const QRect &r)
 {
-    // We only support full-screen windows
-    QRect rect(screen()->availableGeometry());
+    QRect rect;
+    bool forceFullscreen = m_flags.testFlag(HasNativeWindow);
+    if (forceFullscreen)
+        rect = screen()->availableGeometry();
+    else
+        rect = r;
+
     QPlatformWindow::setGeometry(rect);
-    QWindowSystemInterface::handleGeometryChange(window(), rect);
-    QWindowSystemInterface::handleExposeEvent(window(), QRegion(rect));
+
+    // if we corrected the size, trigger a resize event
+    if (rect != r)
+        QWindowSystemInterface::handleGeometryChange(window(), rect, r);
 }
 
-void QEglFSWindow::setWindowState(Qt::WindowState)
+QRect QEglFSWindow::geometry() const
 {
-    setGeometry(QRect());
+    // For yet-to-become-fullscreen windows report the geometry covering the entire
+    // screen. This is particularly important for Quick where the root object may get
+    // sized to some geometry queried before calling create().
+    if (!m_flags.testFlag(Created) && screen()->primarySurface() == EGL_NO_SURFACE)
+        return screen()->availableGeometry();
+
+    return QPlatformWindow::geometry();
 }
 
 WId QEglFSWindow::winId() const
 {
-    return m_winid;
+    return m_wid;
+}
+
+void QEglFSWindow::requestActivateWindow()
+{
+    if (window()->type() != Qt::Desktop)
+        screen()->moveToTop(this);
+
+    QWindowSystemInterface::handleWindowActivated(window());
+    QWindowSystemInterface::handleExposeEvent(window(), window()->geometry());
+}
+
+void QEglFSWindow::raise()
+{
+    if (window()->type() != Qt::Desktop) {
+        screen()->moveToTop(this);
+        QWindowSystemInterface::handleExposeEvent(window(), window()->geometry());
+    }
+}
+
+void QEglFSWindow::lower()
+{
+    QList<QEglFSWindow *> windows = screen()->windows();
+    if (window()->type() != Qt::Desktop && windows.count() > 1) {
+        int idx = windows.indexOf(this);
+        if (idx > 0) {
+            screen()->changeWindowIndex(this, idx - 1);
+            QWindowSystemInterface::handleExposeEvent(windows.last()->window(), windows.last()->geometry());
+        }
+    }
+}
+
+EGLSurface QEglFSWindow::surface() const
+{
+    return m_surface != EGL_NO_SURFACE ? m_surface : screen()->primarySurface();
 }
 
 QSurfaceFormat QEglFSWindow::format() const
 {
     return m_format;
+}
+
+EGLNativeWindowType QEglFSWindow::eglWindow() const
+{
+    return m_window;
+}
+
+QEglFSScreen *QEglFSWindow::screen() const
+{
+    return static_cast<QEglFSScreen *>(QPlatformWindow::screen());
+}
+
+uint QEglFSWindow::texture() const
+{
+    if (m_backingStore)
+        return m_backingStore->texture();
+
+    return 0;
 }
 
 QT_END_NAMESPACE

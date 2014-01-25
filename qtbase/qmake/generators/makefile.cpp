@@ -43,6 +43,9 @@
 #include "option.h"
 #include "cachekeys.h"
 #include "meta.h"
+
+#include <ioutils.h>
+
 #include <qdir.h>
 #include <qfile.h>
 #include <qtextstream.h>
@@ -52,6 +55,7 @@
 #include <qbuffer.h>
 #include <qsettings.h>
 #include <qdatetime.h>
+
 #if defined(Q_OS_UNIX)
 #include <unistd.h>
 #else
@@ -92,7 +96,7 @@ bool MakefileGenerator::canExecute(const QStringList &cmdline, int *a) const
 
 QString MakefileGenerator::mkdir_p_asstring(const QString &dir, bool escape) const
 {
-    QString edir = escape ? escapeFilePath(dir) : dir;
+    QString edir = escape ? escapeFilePath(Option::fixPathToTargetOS(dir, false, false)) : dir;
     return "@" + makedir.arg(edir);
 }
 
@@ -234,7 +238,7 @@ MakefileGenerator::initOutPaths()
                 pathRef += Option::dir_sep;
         }
 
-        if(noIO())
+        if (noIO() || (project->first("TEMPLATE") == "subdirs"))
             continue;
 
         QString path = project->first(dkey).toQString(); //not to be changed any further
@@ -1886,10 +1890,10 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
         if (config.indexOf("combine") != -1) {
             // compilers with a combined input only have one output
             QString input = project->first(ProKey(*it + ".output")).toQString();
-            t << " " << escapeDependencyPath(replaceExtraCompilerVariables(tmp_out, input, QString()));
+            t << " " << escapeDependencyPath(Option::fixPathToTargetOS(replaceExtraCompilerVariables(tmp_out, input, QString())));
         } else {
             for (ProStringList::ConstIterator input = tmp_inputs.begin(); input != tmp_inputs.end(); ++input) {
-                t << " " << escapeDependencyPath(replaceExtraCompilerVariables(tmp_out, (*input).toQString(), QString()));
+                t << " " << escapeDependencyPath(Option::fixPathToTargetOS(replaceExtraCompilerVariables(tmp_out, (*input).toQString(), QString())));
             }
         }
         t << endl;
@@ -1920,8 +1924,8 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
                     if(project->isActiveConfig("no_delete_multiple_files")) {
                         for (ProStringList::ConstIterator input = tmp_inputs.begin(); input != tmp_inputs.end(); ++input) {
                             QString tinp = (*input).toQString();
-                            cleans.append(" " + replaceExtraCompilerVariables(tmp_clean, tinp,
-                                                    replaceExtraCompilerVariables(tmp_out, tinp, QString())));
+                            cleans.append(" " + Option::fixPathToTargetOS(replaceExtraCompilerVariables(tmp_clean, tinp,
+                                                    replaceExtraCompilerVariables(tmp_out, tinp, QString()))));
                         }
                     } else {
                         QString files, file;
@@ -1935,7 +1939,7 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
                                 cleans.append(files);
                                 files.clear();
                             }
-                            files += file;
+                            files += Option::fixPathToTargetOS(file);
                         }
                         if(!files.isEmpty())
                             cleans.append(files);
@@ -1955,7 +1959,7 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
         }
         QStringList tmp_dep = project->values(ProKey(*it + ".depends")).toQStringList();
         if (config.indexOf("combine") != -1) {
-            if(tmp_out.indexOf("${QMAKE_") != -1) {
+            if (tmp_out.contains(QRegExp("(^|[^$])\\$\\{QMAKE_(?!VAR_)"))) {
                 warn_msg(WarnLogic, "QMAKE_EXTRA_COMPILERS(%s) with combine has variable output.",
                          (*it).toLatin1().constData());
                 continue;
@@ -2031,8 +2035,9 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
             if (inputs.isEmpty())
                 continue;
 
-            QString cmd = replaceExtraCompilerVariables(tmp_cmd, escapeFilePaths(inputs), QStringList(tmp_out));
-            t << escapeDependencyPath(tmp_out) << ":";
+            QString out = replaceExtraCompilerVariables(tmp_out, QString(), QString());
+            QString cmd = replaceExtraCompilerVariables(tmp_cmd, escapeFilePaths(inputs), QStringList() << out);
+            t << escapeDependencyPath(Option::fixPathToTargetOS(out)) << ":";
             // compiler.CONFIG+=explicit_dependencies means that ONLY compiler.depends gets to cause Makefile dependencies
             if (config.indexOf("explicit_dependencies") != -1) {
                 t << " " << valList(escapeDependencyPaths(fileFixify(tmp_dep, Option::output_dir, Option::output_dir)));
@@ -2047,7 +2052,7 @@ MakefileGenerator::writeExtraCompilerTargets(QTextStream &t)
             QString in = Option::fixPathToTargetOS(inpf, false);
             QStringList deps = findDependencies(inpf);
             deps += escapeDependencyPath(in);
-            QString out = unescapeFilePath(replaceExtraCompilerVariables(tmp_out, inpf, QString()));
+            QString out = unescapeFilePath(Option::fixPathToTargetOS(replaceExtraCompilerVariables(tmp_out, inpf, QString())));
             if(!tmp_dep.isEmpty()) {
                 QStringList pre_deps = fileFixify(tmp_dep, Option::output_dir, Option::output_dir);
                 for(int i = 0; i < pre_deps.size(); ++i)
@@ -2203,6 +2208,24 @@ MakefileGenerator::writeExtraVariables(QTextStream &t)
 }
 
 bool
+MakefileGenerator::writeDummyMakefile(QTextStream &t)
+{
+    if (project->values("QMAKE_FAILED_REQUIREMENTS").isEmpty())
+        return false;
+    t << "QMAKE    = " << var("QMAKE_QMAKE") << endl;
+    const ProStringList &qut = project->values("QMAKE_EXTRA_TARGETS");
+    for (ProStringList::ConstIterator it = qut.begin(); it != qut.end(); ++it)
+        t << *it << " ";
+    t << "first all clean install distclean uninstall qmake_all:\n\t"
+      << "@echo \"Some of the required modules ("
+      << var("QMAKE_FAILED_REQUIREMENTS") << ") are not available.\"\n\t"
+      << "@echo \"Skipped.\"\n\n";
+    writeMakeQmake(t);
+    t << "FORCE:\n\n";
+    return true;
+}
+
+bool
 MakefileGenerator::writeStubMakefile(QTextStream &t)
 {
     t << "QMAKE    = " << var("QMAKE_QMAKE") << endl;
@@ -2242,7 +2265,7 @@ QString MakefileGenerator::buildArgs()
 {
     QString ret;
 
-    foreach (const QString &arg, Option::qmake_args)
+    foreach (const QString &arg, Option::globals->qmake_args)
         ret += " " + escapeFilePath(arg);
     return ret;
 }
@@ -2272,8 +2295,7 @@ MakefileGenerator::writeHeader(QTextStream &t)
 {
     t << "#############################################################################\n";
     t << "# Makefile for building: " << escapeFilePath(var("TARGET")) << endl;
-    t << "# Generated by qmake (" QMAKE_VERSION_STR ") (Qt " QT_VERSION_STR ") on: ";
-    t << QDateTime::currentDateTime().toString() << endl;
+    t << "# Generated by qmake (" QMAKE_VERSION_STR ") (Qt " QT_VERSION_STR ")\n";
     t << "# Project:  " << fileFixify(project->projectFile()) << endl;
     t << "# Template: " << var("TEMPLATE") << endl;
     if(!project->isActiveConfig("build_pass"))
@@ -3222,7 +3244,8 @@ MakefileGenerator::writePkgConfigFile()
                 }
             }
         }
-        t << var << "=" << val << endl;
+        if (!val.isEmpty())
+            t << var << "=" << val << endl;
     }
 
     t << endl;
@@ -3251,7 +3274,11 @@ MakefileGenerator::writePkgConfigFile()
         }
     }
     t << "Description: " << desc << endl;
-    t << "Version: " << project->first("VERSION") << endl;
+    ProString version = project->first("QMAKE_PKGCONFIG_VERSION");
+    if (version.isEmpty())
+        version = project->first("VERSION");
+    if (!version.isEmpty())
+        t << "Version: " << version << endl;
 
     // libs
     t << "Libs: ";
@@ -3309,12 +3336,18 @@ MakefileGenerator::writePkgConfigFile()
     t << endl;
 }
 
+static QString windowsifyPath(const QString &str)
+{
+    // The paths are escaped in prl files, so every slash needs to turn into two backslashes.
+    // Then each backslash needs to be escaped for sed. And another level for C quoting here.
+    return QString(str).replace('/', "\\\\\\\\");
+}
+
 QString MakefileGenerator::installMetaFile(const ProKey &replace_rule, const QString &src, const QString &dst)
 {
     QString ret;
     if (project->isEmpty(replace_rule)
-        || project->isActiveConfig("no_sed_meta_install")
-        || project->isEmpty("QMAKE_STREAM_EDITOR")) {
+        || project->isActiveConfig("no_sed_meta_install")) {
         ret += "-$(INSTALL_FILE) \"" + src + "\" \"" + dst + "\"";
     } else {
         ret += "-$(SED)";
@@ -3322,12 +3355,22 @@ QString MakefileGenerator::installMetaFile(const ProKey &replace_rule, const QSt
         for (int r = 0; r < replace_rules.size(); ++r) {
             const ProString match = project->first(ProKey(replace_rules.at(r) + ".match")),
                         replace = project->first(ProKey(replace_rules.at(r) + ".replace"));
-            if (!match.isEmpty() /*&& match != replace*/)
-                ret += " -e \"s," + match + "," + replace + ",g\"";
+            if (!match.isEmpty() /*&& match != replace*/) {
+                ret += " -e " + shellQuote("s," + match + "," + replace + ",g");
+                if (isWindowsShell() && project->first(ProKey(replace_rules.at(r) + ".CONFIG")).contains("path"))
+                    ret += " -e " + shellQuote("s," + windowsifyPath(match.toQString())
+                                               + "," + windowsifyPath(replace.toQString()) + ",gi");
+            }
         }
         ret += " \"" + src + "\" >\"" + dst + "\"";
     }
     return ret;
+}
+
+QString MakefileGenerator::shellQuote(const QString &str)
+{
+    return isWindowsShell() ? QMakeInternal::IoUtils::shellQuoteWin(str)
+                            : QMakeInternal::IoUtils::shellQuoteUnix(str);
 }
 
 QT_END_NAMESPACE

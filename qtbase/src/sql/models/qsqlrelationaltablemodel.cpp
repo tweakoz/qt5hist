@@ -124,8 +124,8 @@ typedef QSqlRelationalTableModelSql Sql;
 /*!
     \fn bool QSqlRelation::isValid() const
 
-    Returns true if the QSqlRelation object is valid; otherwise
-    returns false.
+    Returns \c true if the QSqlRelation object is valid; otherwise
+    returns \c false.
 */
 
 class QRelatedTableModel;
@@ -458,12 +458,12 @@ QVariant QSqlRelationalTableModel::data(const QModelIndex &index, int role) cons
     value might be applied to the database at once, or it may be
     cached in the model.
 
-    Returns true if the value could be set, or false on error (for
+    Returns \c true if the value could be set, or false on error (for
     example, if \a index is out of bounds).
 
     For relational columns, \a value must be the index, not the
     display value. The index must also exist in the referenced
-    table, otherwise the function returns false.
+    table, otherwise the function returns \c false.
 
     \sa editStrategy(), data(), submit(), revertRow()
 */
@@ -671,7 +671,7 @@ void QSqlRelationalTableModel::clear()
     \value InnerJoin - Inner join mode, return rows when there is at least one match in both tables.
     \value LeftJoin - Left join mode, returns all rows from the left table (table_name1), even if there are no matches in the right table (table_name2).
 
-    \sa QSqlRelationalTableModel::setJoinMode
+    \sa QSqlRelationalTableModel::setJoinMode()
     \since 4.8
 */
 

@@ -142,6 +142,8 @@ public:
     static void setQuitOnLastWindowClosed(bool quit);
     static bool quitOnLastWindowClosed();
 
+    static Qt::ApplicationState applicationState();
+
     static int exec();
     bool notify(QObject *, QEvent *);
 
@@ -153,12 +155,14 @@ public:
     bool isSavingSession() const;
 #endif
 
+    static void sync();
 Q_SIGNALS:
     void fontDatabaseChanged();
     void screenAdded(QScreen *screen);
     void lastWindowClosed();
     void focusObjectChanged(QObject *focusObject);
     void focusWindowChanged(QWindow *focusWindow);
+    void applicationStateChanged(Qt::ApplicationState state);
 #ifndef QT_NO_SESSIONMANAGER
     void commitDataRequest(QSessionManager &sessionManager);
     void saveStateRequest(QSessionManager &sessionManager);
@@ -181,6 +185,9 @@ private:
 #endif
     friend class QFontDatabasePrivate;
     friend class QPlatformIntegration;
+#ifndef QT_NO_SESSIONMANAGER
+    friend class QPlatformSessionManager;
+#endif
 };
 
 QT_END_NAMESPACE

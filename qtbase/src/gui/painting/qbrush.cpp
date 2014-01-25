@@ -306,7 +306,7 @@ struct QBrushDataPointerDeleter
     the style is a gradient. The same is the case if the style is
     Qt::TexturePattern style unless the current texture is a QBitmap.
 
-    The isOpaque() function returns true if the brush is fully opaque
+    The isOpaque() function returns \c true if the brush is fully opaque
     otherwise false. A brush is considered opaque if:
 
     \list
@@ -503,7 +503,7 @@ QBrush::QBrush(Qt::GlobalColor color, Qt::BrushStyle style)
     The style is set to Qt::TexturePattern. The color will only have
     an effect for QBitmaps.
 
-    \sa setColor(), setPixmap()
+    \sa setColor(), setTexture()
 */
 
 QBrush::QBrush(const QColor &color, const QPixmap &pixmap)
@@ -520,7 +520,7 @@ QBrush::QBrush(const QColor &color, const QPixmap &pixmap)
     The style is set to Qt::TexturePattern. The color will only have
     an effect for QBitmaps.
 
-    \sa setColor(), setPixmap()
+    \sa setColor(), setTexture()
 */
 QBrush::QBrush(Qt::GlobalColor color, const QPixmap &pixmap)
 {
@@ -631,6 +631,13 @@ QBrush &QBrush::operator=(const QBrush &b)
     return *this;
 }
 
+/*!
+    \fn QBrush &QBrush::operator=(QBrush &&other)
+
+    Move-assigns \a other to this QBrush instance.
+
+    \since 5.2
+*/
 
 /*!
     \fn void QBrush::swap(QBrush &other)
@@ -823,7 +830,7 @@ Q_GUI_EXPORT bool qt_isExtendedRadialGradient(const QBrush &brush)
 }
 
 /*!
-    Returns true if the brush is fully opaque otherwise false. A brush
+    Returns \c true if the brush is fully opaque otherwise false. A brush
     is considered opaque if:
 
     \list
@@ -905,8 +912,8 @@ void QBrush::setTransform(const QTransform &matrix)
 /*!
     \fn bool QBrush::operator!=(const QBrush &brush) const
 
-    Returns true if the brush is different from the given \a brush;
-    otherwise returns false.
+    Returns \c true if the brush is different from the given \a brush;
+    otherwise returns \c false.
 
     Two brushes are different if they have different styles, colors or
     transforms or different pixmaps or gradients depending on the style.
@@ -917,8 +924,8 @@ void QBrush::setTransform(const QTransform &matrix)
 /*!
     \fn bool QBrush::operator==(const QBrush &brush) const
 
-    Returns true if the brush is equal to the given \a brush;
-    otherwise returns false.
+    Returns \c true if the brush is equal to the given \a brush;
+    otherwise returns \c false.
 
     Two brushes are equal if they have equal styles, colors and
     transforms and equal pixmaps or gradients depending on the style.
@@ -1484,15 +1491,15 @@ void QGradient::setInterpolationMode(InterpolationMode mode)
     \fn bool QGradient::operator!=(const QGradient &gradient) const
     \since 4.2
 
-    Returns true if the gradient is the same as the other \a gradient
-    specified; otherwise returns false.
+    Returns \c true if the gradient is the same as the other \a gradient
+    specified; otherwise returns \c false.
 
     \sa operator==()
 */
 
 /*!
-    Returns true if the gradient is the same as the other \a gradient
-    specified; otherwise returns false.
+    Returns \c true if the gradient is the same as the other \a gradient
+    specified; otherwise returns \c false.
 
     \sa operator!=()
 */

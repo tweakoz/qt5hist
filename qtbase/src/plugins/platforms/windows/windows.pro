@@ -102,6 +102,17 @@ contains(QT_CONFIG, opengles2) {
     }
 }
 
+!wince*:!contains( DEFINES, QT_NO_TABLETEVENT ) {
+    INCLUDEPATH += ../../../3rdparty/wintab
+    HEADERS += qwindowstabletsupport.h
+    SOURCES += qwindowstabletsupport.cpp
+}
+
+!wince*:!contains( DEFINES, QT_NO_SESSIONMANAGER ) {
+    SOURCES += qwindowssessionmanager.cpp
+    HEADERS += qwindowssessionmanager.h
+}
+
 contains(QT_CONFIG, freetype) {
     DEFINES *= QT_NO_FONTCONFIG
     QT_FREETYPE_DIR = $$QT_SOURCE_TREE/src/3rdparty/freetype

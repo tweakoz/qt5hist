@@ -46,6 +46,7 @@
 #include <qpa/qplatformdialoghelper.h>
 #include <qpa/qplatformtheme.h>
 #include <QtCore/QStringList>
+#include <QtCore/QSharedPointer>
 
 QT_BEGIN_NAMESPACE
 
@@ -64,15 +65,15 @@ namespace QWindowsDialogs
 template <class BaseClass>
 class QWindowsDialogHelperBase : public BaseClass
 {
+    Q_DISABLE_COPY(QWindowsDialogHelperBase)
 public:
-    ~QWindowsDialogHelperBase() { deleteNativeDialog(); }
+    typedef QSharedPointer<QWindowsNativeDialogBase> QWindowsNativeDialogBasePtr;
 
     virtual void exec();
     virtual bool show(Qt::WindowFlags windowFlags,
                           Qt::WindowModality windowModality,
                           QWindow *parent);
     virtual void hide();
-    virtual QVariant styleHint(QPlatformDialogHelper::StyleHint) const;
 
     virtual bool supportsNonModalDialog(const QWindow * /* parent */ = 0) const { return true; }
 
@@ -80,7 +81,6 @@ protected:
     QWindowsDialogHelperBase();
     QWindowsNativeDialogBase *nativeDialog() const;
     inline bool hasNativeDialog() const { return m_nativeDialog; }
-    void deleteNativeDialog();
     void timerEvent(QTimerEvent *);
 
 private:
@@ -89,7 +89,7 @@ private:
     inline void startDialogThread();
     inline void stopTimer();
 
-    QWindowsNativeDialogBase *m_nativeDialog;
+    QWindowsNativeDialogBasePtr m_nativeDialog;
     HWND m_ownerWindow;
     int m_timerId;
 };

@@ -131,6 +131,9 @@ public:
     void setHorizontalStretch(int stretchFactor) { bits.horStretch = static_cast<quint32>(qBound(0, stretchFactor, 255)); }
     void setVerticalStretch(int stretchFactor) { bits.verStretch = static_cast<quint32>(qBound(0, stretchFactor, 255)); }
 
+    bool retainSizeWhenHidden() const { return bits.retainSizeWhenHidden; }
+    void setRetainSizeWhenHidden(bool retainSize) { bits.retainSizeWhenHidden = retainSize; }
+
     void transpose();
 
 
@@ -141,17 +144,18 @@ private:
 #endif
     QSizePolicy(int i) : data(i) { }
 
+    struct Bits {
+        quint32 horStretch : 8;
+        quint32 verStretch : 8;
+        quint32 horPolicy : 4;
+        quint32 verPolicy : 4;
+        quint32 ctype : 5;
+        quint32 hfw : 1;
+        quint32 wfh : 1;
+        quint32 retainSizeWhenHidden : 1;
+    };
     union {
-        struct {
-            quint32 horStretch : 8;
-            quint32 verStretch : 8;
-            quint32 horPolicy : 4;
-            quint32 verPolicy : 4;
-            quint32 ctype : 5;
-            quint32 hfw : 1;
-            quint32 wfh : 1;
-            quint32 padding : 1;   // feel free to use
-        } bits;
+        Bits bits;
         quint32 data;
     };
 };

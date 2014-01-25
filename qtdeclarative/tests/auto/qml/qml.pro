@@ -25,7 +25,8 @@ PUBLICTESTS += \
     qqmlxmlhttprequest \
     qtqmlmodules \
     qquickfolderlistmodel \
-    qqmlapplicationengine
+    qqmlapplicationengine \
+    qqmlsettings
 
 PRIVATETESTS += \
     animation \
@@ -33,6 +34,7 @@ PRIVATETESTS += \
     qqmlecmascript \
     qqmlcontext \
     qqmlexpression \
+    qqmldirparser \
     qqmlglobal \
     qqmlinstruction \
     qqmllanguage \
@@ -48,13 +50,15 @@ PRIVATETESTS += \
     qqmllistcompositor \
     qqmllistmodel \
     qqmllistmodelworkerscript \
+    qqmltypeloader \
     qqmlparser \
     qquickworkerscript \
     qqmlbundle \
     qrcqml \
-    v4 \
     qqmltimer \
-    qqmlinstantiator
+    qqmlinstantiator \
+    qv4debugger \
+    qqmlenginecleanup
 
 qtHaveModule(widgets) {
     PUBLICTESTS += \

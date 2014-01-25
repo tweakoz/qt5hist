@@ -1,1 +1,1 @@
-#include "../../src/qml/qml/v8/qjsvalueiterator.h"
+#include "../../src/qml/jsapi/qjsvalueiterator.h"

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -251,7 +251,7 @@ public:
         q->polish();
     }
 
-    QQmlGuard<QQmlInstanceModel> model;
+    QPointer<QQmlInstanceModel> model;
     QVariant modelVariant;
     int itemCount;
     int buffer;

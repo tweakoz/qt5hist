@@ -48,7 +48,7 @@
 /*!
     \qmltype Layout
     \instantiates QQuickLayoutAttached
-    \inqmlmodule QtQuick.Layouts 1.0
+    \inqmlmodule QtQuick.Layouts
     \ingroup layouts
     \brief Provides attached properties for items pushed onto a \l GridLayout,
     \l RowLayout or \l ColumnLayout.
@@ -63,15 +63,6 @@
     When a layout is resized, items may grow or shrink. Due to this, items have a
     \l{Layout::minimumWidth}{minimum size}, \l{Layout::preferredWidth}{preferred size} and a
     \l{Layout::maximumWidth}{maximum size}.
-
-    For each item, preferred size may come from one of several sources. It can be specified with
-    the \l preferredWidth and \l preferredHeight properties. If these properties are not
-    specified, it will use the item's \l{Item::implicitWidth}{implicitWidth} or
-    \l{Item::implicitHeight}{implicitHeight} as the preferred size.
-    Finally, if neither of these properties are set, it will use the \l{Item::width}{width} and
-    \l{Item::height}{height} properties of the item. Note that is provided only as a final
-    fallback. If you want to override the preferred size, you should use
-    \l preferredWidth or \l preferredHeight.
 
     If minimum size have not been explicitly specified on an item, the size is set to \c 0.
     If maximum size have not been explicitly specified on an item, the size is set to
@@ -374,8 +365,11 @@ void QQuickLayoutAttached::setFillHeight(bool fill)
 */
 void QQuickLayoutAttached::setRow(int row)
 {
-    if (row >= 0 && row != m_row)
+    if (row >= 0 && row != m_row) {
         m_row = row;
+        repopulateLayout();
+        emit rowChanged();
+    }
 }
 
 /*!
@@ -392,8 +386,11 @@ void QQuickLayoutAttached::setRow(int row)
 */
 void QQuickLayoutAttached::setColumn(int column)
 {
-    if (column >= 0 && column != m_column)
+    if (column >= 0 && column != m_column) {
         m_column = column;
+        repopulateLayout();
+        emit columnChanged();
+    }
 }
 
 
@@ -403,7 +400,30 @@ void QQuickLayoutAttached::setColumn(int column)
     This property allows you to specify the alignment of an item within the cell(s) it occupies.
 
     The default value is \c 0, which means it will be \c{Qt.AlignVCenter | Qt.AlignLeft}
+
+    A valid alignment is a combination of the following flags:
+    \list
+    \li Qt::AlignLeft
+    \li Qt::AlignHCenter
+    \li Qt::AlignRight
+    \li Qt::AlignTop
+    \li Qt::AlignVCenter
+    \li Qt::AlignBottom
+    \li Qt::AlignBaseline
+    \endlist
+
 */
+void QQuickLayoutAttached::setAlignment(Qt::Alignment align)
+{
+    if (align != m_alignment) {
+        m_alignment = align;
+        if (QQuickLayout *layout = parentLayout()) {
+            layout->setAlignment(item(), align);
+            invalidateItem();
+        }
+        emit alignmentChanged();
+    }
+}
 
 
 /*!
@@ -416,6 +436,14 @@ void QQuickLayoutAttached::setColumn(int column)
     \sa columnSpan
     \sa row
 */
+void QQuickLayoutAttached::setRowSpan(int span)
+{
+    if (span != m_rowSpan) {
+        m_rowSpan = span;
+        repopulateLayout();
+        emit rowSpanChanged();
+    }
+}
 
 
 /*!
@@ -428,6 +456,14 @@ void QQuickLayoutAttached::setColumn(int column)
     \sa rowSpan
     \sa column
 */
+void QQuickLayoutAttached::setColumnSpan(int span)
+{
+    if (span != m_columnSpan) {
+        m_columnSpan = span;
+        repopulateLayout();
+        emit columnSpanChanged();
+    }
+}
 
 
 qreal QQuickLayoutAttached::sizeHint(Qt::SizeHint which, Qt::Orientation orientation) const
@@ -451,6 +487,12 @@ void QQuickLayoutAttached::invalidateItem()
     if (QQuickLayout *layout = parentLayout()) {
         layout->invalidate(item());
     }
+}
+
+void QQuickLayoutAttached::repopulateLayout()
+{
+    if (QQuickLayout *layout = parentLayout())
+        layout->updateLayoutItems();
 }
 
 QQuickLayout *QQuickLayoutAttached::parentLayout() const
@@ -490,12 +532,9 @@ QQuickLayoutAttached *QQuickLayout::qmlAttachedProperties(QObject *object)
     return new QQuickLayoutAttached(object);
 }
 
-bool QQuickLayout::event(QEvent *e)
+void QQuickLayout::updatePolish()
 {
-    if (e->type() == QEvent::LayoutRequest)
-        rearrange(QSizeF(width(), height()));
-
-    return QQuickItem::event(e);
+    rearrange(QSizeF(width(), height()));
 }
 
 void QQuickLayout::componentComplete()
@@ -511,8 +550,8 @@ void QQuickLayout::invalidate(QQuickItem * /*childItem*/)
     m_dirty = true;
 
     if (!qobject_cast<QQuickLayout *>(parentItem())) {
-        quickLayoutDebug() << "QQuickLayout::invalidate(), postEvent";
-        QCoreApplication::postEvent(this, new QEvent(QEvent::LayoutRequest));
+        quickLayoutDebug() << "QQuickLayout::invalidate(), polish()";
+        polish();
     }
 }
 

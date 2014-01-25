@@ -76,12 +76,12 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
 }
 
 /*!
-    \qmlproperty string QtQuick.Particles2::TrailEmitter::follow
+    \qmlproperty string QtQuick.Particles::TrailEmitter::follow
 
     The type of logical particle which this is emitting from.
 */
 /*!
-    \qmlproperty qreal QtQuick.Particles2::TrailEmitter::velocityFromMovement
+    \qmlproperty qreal QtQuick.Particles::TrailEmitter::velocityFromMovement
 
     If this value is non-zero, then any movement of the emitter will provide additional
     starting velocity to the particles based on the movement. The additional vector will be the
@@ -91,7 +91,7 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
     Default value is 0.
 */
 /*!
-    \qmlproperty Shape QtQuick.Particles2::TrailEmitter::emitShape
+    \qmlproperty Shape QtQuick.Particles::TrailEmitter::emitShape
 
     As the area of a TrailEmitter is the area it follows, a separate shape can be provided
     to be the shape it emits out of. This shape has width and height specified by emitWidth
@@ -100,7 +100,7 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
     The default shape is a filled Rectangle.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TrailEmitter::emitWidth
+    \qmlproperty real QtQuick.Particles::TrailEmitter::emitWidth
 
     The width in pixels the emitShape is scaled to. If set to TrailEmitter.ParticleSize,
     the width will be the current size of the particle being followed.
@@ -108,7 +108,7 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
     Default is 0.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TrailEmitter::emitHeight
+    \qmlproperty real QtQuick.Particles::TrailEmitter::emitHeight
 
     The height in pixels the emitShape is scaled to. If set to TrailEmitter.ParticleSize,
     the height will be the current size of the particle being followed.
@@ -116,10 +116,10 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
     Default is 0.
 */
 /*!
-    \qmlproperty real QtQuick.Particles2::TrailEmitter::emitRatePerParticle
+    \qmlproperty real QtQuick.Particles::TrailEmitter::emitRatePerParticle
 */
 /*!
-    \qmlsignal QtQuick.Particles2::TrailEmitter::onEmitFollowParticles(Array particles, Particle followed)
+    \qmlsignal QtQuick.Particles::TrailEmitter::onEmitFollowParticles(Array particles, Particle followed)
 
     This handler is called when particles are emitted from the \a followed particle. \a particles contains an array of particle objects which can be directly manipulated.
 
@@ -129,7 +129,7 @@ QQuickTrailEmitter::QQuickTrailEmitter(QQuickItem *parent) :
 
 bool QQuickTrailEmitter::isEmitFollowConnected()
 {
-    IS_SIGNAL_CONNECTED(this, QQuickTrailEmitter, emitFollowParticles, (QQmlV8Handle,QQmlV8Handle));
+    IS_SIGNAL_CONNECTED(this, QQuickTrailEmitter, emitFollowParticles, (QQmlV4Handle,QQmlV4Handle));
 }
 
 void QQuickTrailEmitter::recalcParticlesPerSecond(){
@@ -269,16 +269,19 @@ void QQuickTrailEmitter::emitWindow(int timeStamp)
             m_system->emitParticle(d);
 
         if (isEmitConnected() || isEmitFollowConnected()) {
-            v8::HandleScope handle_scope;
-            v8::Context::Scope scope(QQmlEnginePrivate::getV8Engine(qmlEngine(this))->context());
-            v8::Handle<v8::Array> array = v8::Array::New(toEmit.size());
+            QQmlEngine *qmlEngine = ::qmlEngine(this);
+            QV4::ExecutionEngine *v4 = QV8Engine::getV4(qmlEngine->handle());
+
+            QV4::Scope scope(v4);
+            QV4::Scoped<QV4::ArrayObject> array(scope, v4->newArrayObject(toEmit.size()));
+            QV4::ScopedValue v(scope);
             for (int i=0; i<toEmit.size(); i++)
-                array->Set(i, toEmit[i]->v8Value().toHandle());
+                array->putIndexed(i, (v = toEmit[i]->v4Value()));
 
             if (isEmitFollowConnected())
-                emitFollowParticles(QQmlV8Handle::fromHandle(array), d->v8Value());//A chance for many arbitrary JS changes
+                emitFollowParticles(QQmlV4Handle(array), d->v4Value());//A chance for many arbitrary JS changes
             else if (isEmitConnected())
-                emitParticles(QQmlV8Handle::fromHandle(array));//A chance for arbitrary JS changes
+                emitParticles(QQmlV4Handle(array));//A chance for arbitrary JS changes
         }
         m_lastEmission[d->index] = pt;
     }

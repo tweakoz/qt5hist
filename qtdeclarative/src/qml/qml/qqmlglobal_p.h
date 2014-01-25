@@ -243,7 +243,7 @@ public:
 
     QVariant createVariantFromString(const QString &);
     QVariant createVariantFromString(int, const QString &, bool *);
-    QVariant createVariantFromJsObject(int, QQmlV8Handle, QV8Engine *, bool*);
+    QVariant createVariantFromJsObject(int, QQmlV4Handle, QV8Engine *, bool*);
 
     bool equalValueType(int, const void *, const void *, size_t);
     bool storeValueType(int, const void *, void *, size_t);
@@ -263,7 +263,7 @@ private:
 
     virtual bool variantFromString(const QString &, QVariant *);
     virtual bool variantFromString(int, const QString &, QVariant *);
-    virtual bool variantFromJsObject(int, QQmlV8Handle, QV8Engine *, QVariant *);
+    virtual bool variantFromJsObject(int, QQmlV4Handle, QV8Engine *, QVariant *);
 
     virtual bool equal(int, const void *, const void *, size_t);
     virtual bool store(int, const void *, void *, size_t);
@@ -322,6 +322,8 @@ class Q_QML_PRIVATE_EXPORT QQmlApplication : public QObject
     Q_PROPERTY(QStringList arguments READ args CONSTANT)
     Q_PROPERTY(QString name READ name WRITE setName NOTIFY nameChanged)
     Q_PROPERTY(QString version READ version WRITE setVersion NOTIFY versionChanged)
+    Q_PROPERTY(QString organization READ organization WRITE setOrganization NOTIFY organizationChanged)
+    Q_PROPERTY(QString domain READ domain WRITE setDomain NOTIFY domainChanged)
 public:
     QQmlApplication(QObject* parent=0);
 
@@ -329,16 +331,22 @@ public:
 
     QString name() const;
     QString version() const;
+    QString organization() const;
+    QString domain() const;
 
 public Q_SLOTS:
     void setName(const QString &arg);
     void setVersion(const QString &arg);
+    void setOrganization(const QString &arg);
+    void setDomain(const QString &arg);
 
 Q_SIGNALS:
     void aboutToQuit();
 
     void nameChanged();
     void versionChanged();
+    void organizationChanged();
+    void domainChanged();
 
 protected:
     QQmlApplication(QQmlApplicationPrivate &dd, QObject* parent=0);

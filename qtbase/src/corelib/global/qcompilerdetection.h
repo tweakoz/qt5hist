@@ -151,7 +151,7 @@
 /* Intel C++ also masquerades as GCC */
 #    define Q_CC_INTEL
 #    define Q_ASSUME_IMPL(expr)  __assume(expr)
-#    define Q_UNREACHABLE_IMPL() __assume(0)
+#    define Q_UNREACHABLE_IMPL() __builtin_unreachable()
 #  elif defined(__clang__)
 /* Clang also masquerades as GCC */
 #    define Q_CC_CLANG
@@ -160,6 +160,13 @@
 #    if !defined(__has_extension)
 #      /* Compatibility with older Clang versions */
 #      define __has_extension __has_feature
+#    endif
+#    if defined(__APPLE__)
+     /* Apple/clang specific features */
+#      define Q_DECL_CF_RETURNS_RETAINED __attribute__((cf_returns_retained))
+#      ifdef __OBJC__
+#        define Q_DECL_NS_RETURNS_AUTORELEASED __attribute__((ns_returns_autoreleased))
+#      endif
 #    endif
 #  else
 /* Plain GCC */
@@ -190,7 +197,6 @@
 #  define Q_REQUIRED_RESULT __attribute__ ((__warn_unused_result__))
 #  if !defined(QT_MOC_CPP)
 #    define Q_PACKED __attribute__ ((__packed__))
-#    define Q_NO_PACKED_REFERENCE
 #    ifndef __ARM_EABI__
 #      define QT_NO_ARM_EABI
 #    endif
@@ -441,6 +447,7 @@
  *  N2346           Q_COMPILER_DEFAULT_MEMBERS
  *  N2346           Q_COMPILER_DELETE_MEMBERS
  *  N1986           Q_COMPILER_DELEGATING_CONSTRUCTORS
+ *  N2437           Q_COMPILER_EXPLICIT_CONVERSIONS
  *  N3206 N3272     Q_COMPILER_EXPLICIT_OVERRIDES   (v0.9 and above only)
  *  N1987           Q_COMPILER_EXTERN_TEMPLATES
  *  N2540           Q_COMPILER_INHERITING_CONSTRUCTORS
@@ -458,6 +465,7 @@
  *  N2659           Q_COMPILER_THREAD_LOCAL
  *  N2765           Q_COMPILER_UDL
  *  N2442           Q_COMPILER_UNICODE_STRINGS
+ *  N2640           Q_COMPILER_UNIFORM_INIT
  *  N2544           Q_COMPILER_UNRESTRICTED_UNIONS
  *  N1653           Q_COMPILER_VARIADIC_MACROS
  *  N2242 N2555     Q_COMPILER_VARIADIC_TEMPLATES
@@ -491,10 +499,21 @@
 #      define Q_COMPILER_VARIADIC_TEMPLATES
 #    endif
 #    if __INTEL_COMPILER >= 1300
+#      define Q_COMPILER_ATOMICS
 //       constexpr support is only partial
 //#      define Q_COMPILER_CONSTEXPR
 #      define Q_COMPILER_INITIALIZER_LISTS
+#      define Q_COMPILER_UNIFORM_INIT
 #      define Q_COMPILER_NOEXCEPT
+#    endif
+#    if __INTEL_COMPILER >= 1400
+#      define Q_COMPILER_CONSTEXPR
+#      define Q_COMPILER_DELEGATING_CONSTRUCTORS
+#      define Q_COMPILER_EXPLICIT_OVERRIDES
+#      define Q_COMPILER_NONSTATIC_MEMBER_INIT
+#      define Q_COMPILER_RAW_STRINGS
+#      define Q_COMPILER_REF_QUALIFIERS
+#      define Q_COMPILER_UNRESTRICTED_UNIONS
 #    endif
 #  endif
 #endif
@@ -545,6 +564,9 @@
 #    if __has_feature(cxx_delegating_constructors)
 #      define Q_COMPILER_DELEGATING_CONSTRUCTORS
 #    endif
+#    if __has_feature(cxx_explicit_conversions)
+#      define Q_COMPILER_EXPLICIT_CONVERSIONS
+#    endif
 #    if __has_feature(cxx_override_control)
 #      define Q_COMPILER_EXPLICIT_OVERRIDES
 #    endif
@@ -553,6 +575,7 @@
 #    endif
 #    if __has_feature(cxx_generalized_initializers)
 #      define Q_COMPILER_INITIALIZER_LISTS
+#      define Q_COMPILER_UNIFORM_INIT /* both covered by this feature macro, according to docs */
 #    endif
 #    if __has_feature(cxx_lambdas)
 #      define Q_COMPILER_LAMBDA
@@ -584,7 +607,7 @@
 #    if __has_feature(cxx_alias_templates)
 #      define Q_COMPILER_TEMPLATE_ALIAS
 #    endif
-#    if 0 /* not implemented in clang yet */
+#    if __has_feature(cxx_thread_local)
 #      define Q_COMPILER_THREAD_LOCAL
 #    endif
 #    if __has_feature(cxx_user_literals)
@@ -625,11 +648,13 @@
 #      define Q_COMPILER_DELETE_MEMBERS
 #      define Q_COMPILER_EXTERN_TEMPLATES
 #      define Q_COMPILER_INITIALIZER_LISTS
+#      define Q_COMPILER_UNIFORM_INIT
 #      define Q_COMPILER_UNICODE_STRINGS
 #      define Q_COMPILER_VARIADIC_TEMPLATES
 #    endif
 #    if (__GNUC__ * 100 + __GNUC_MINOR__) >= 405
        /* C++11 features supported in GCC 4.5: */
+#      define Q_COMPILER_EXPLICIT_CONVERSIONS
 #      define Q_COMPILER_LAMBDA
 #      define Q_COMPILER_RAW_STRINGS
 #    endif
@@ -674,15 +699,20 @@
 #    if _MSC_VER >= 1400
        /* C++11 features supported in VC8 = VC2005: */
 #      define Q_COMPILER_VARIADIC_MACROS
+
+#      ifndef __cplusplus_cli
        /* 2005 supports the override and final contextual keywords, in
         the same positions as the C++11 variants, but 'final' is
         called 'sealed' instead:
         http://msdn.microsoft.com/en-us/library/0w2w91tf%28v=vs.80%29.aspx
+        The behavior is slightly different in C++/CLI, which requires the
+        "virtual" keyword to be present too, so don't define for that.
         So don't define Q_COMPILER_EXPLICIT_OVERRIDES (since it's not
         the same as the C++11 version), but define the Q_DECL_* flags
         accordingly: */
 #      define Q_DECL_OVERRIDE override
 #      define Q_DECL_FINAL sealed
+#      endif
 #    endif
 #    if _MSC_VER >= 1600
        /* C++11 features supported in VC10 = VC2010: */
@@ -692,8 +722,9 @@
 #      define Q_COMPILER_DECLTYPE
 #      define Q_COMPILER_RVALUE_REFS
 #      define Q_COMPILER_STATIC_ASSERT
-//  MSVC has std::initilizer_list, but does not support the braces initialization
+//  MSVC's library has std::initilizer_list, but the compiler does not support the braces initialization
 //#      define Q_COMPILER_INITIALIZER_LISTS
+//#      define Q_COMPILER_UNIFORM_INIT
 #    endif
 #    if _MSC_VER >= 1700
        /* C++11 features supported in VC11 = VC2012: */
@@ -704,6 +735,20 @@
 #      define Q_COMPILER_CLASS_ENUM
 #      define Q_COMPILER_ATOMICS
 #    endif /* VC 11 */
+#    if _MSC_VER >= 1800
+       /* C++11 features in VC12 = VC2013 */
+#      define Q_COMPILER_DEFAULT_MEMBERS
+#      define Q_COMPILER_DELETE_MEMBERS
+#      define Q_COMPILER_DELEGATING_CONSTRUCTORS
+#      define Q_COMPILER_EXPLICIT_CONVERSIONS
+#      define Q_COMPILER_NONSTATIC_MEMBER_INIT
+#      define Q_COMPILER_INITIALIZER_LISTS
+// implemented in principle, but has a bug that makes it unusable: http://connect.microsoft.com/VisualStudio/feedback/details/802058/c-11-unified-initialization-fails-with-c-style-arrays
+//      #define Q_COMPILER_UNIFORM_INIT
+#      define Q_COMPILER_RAW_STRINGS
+#      define Q_COMPILER_TEMPLATE_ALIAS
+#      define Q_COMPILER_VARIADIC_TEMPLATES
+#    endif /* VC 12 */
 #endif /* Q_CC_MSVC */
 
 #ifdef __cplusplus
@@ -792,10 +837,6 @@
 #ifndef Q_NORETURN
 # define Q_NORETURN
 #endif
-#ifndef Q_PACKED
-#  define Q_PACKED
-#  undef Q_NO_PACKED_REFERENCE
-#endif
 #ifndef Q_LIKELY
 #  define Q_LIKELY(x) (x)
 #endif
@@ -839,6 +880,12 @@
 #    define Q_FUNC_INFO __FILE__ ":" QT_STRINGIFY(__LINE__)
 #  endif
 #endif
+#ifndef Q_DECL_CF_RETURNS_RETAINED
+#  define Q_DECL_CF_RETURNS_RETAINED
+#endif
+#ifndef Q_DECL_NS_RETURNS_AUTORELEASED
+#  define Q_DECL_NS_RETURNS_AUTORELEASED
+#endif
 
 /*
    Workaround for static const members on MSVC++.
@@ -880,5 +927,27 @@
         Q_ASSUME_IMPL(valueOfExpression);\
         Q_UNUSED(valueOfExpression); /* the value may not be used if Q_ASSERT_X and Q_ASSUME_IMPL are noop */\
     } while (0)
+
+
+/*
+    Sanitize compiler feature availability
+*/
+#if !defined(Q_PROCESSOR_X86)
+#  undef QT_COMPILER_SUPPORTS_SSE2
+#  undef QT_COMPILER_SUPPORTS_SSE3
+#  undef QT_COMPILER_SUPPORTS_SSSE3
+#  undef QT_COMPILER_SUPPORTS_SSE4_1
+#  undef QT_COMPILER_SUPPORTS_SSE4_2
+#  undef QT_COMPILER_SUPPORTS_AVX
+#  undef QT_COMPILER_SUPPORTS_AVX2
+#endif
+#if !defined(Q_PROCESSOR_ARM)
+#  undef QT_COMPILER_SUPPORTS_IWMMXT
+#  undef QT_COMPILER_SUPPORTS_NEON
+#endif
+#if !defined(Q_PROCESSOR_MIPS)
+#  undef QT_COMPILER_SUPPORTS_MIPS_DSP
+#  undef QT_COMPILER_SUPPORTS_MIPS_DSPR2
+#endif
 
 #endif // QCOMPILERDETECTION_H

@@ -254,6 +254,7 @@ struct QWExtra {
     uint nativeChildrenForced : 1;
     uint inRenderWithPainter : 1;
     uint hasMask : 1;
+    uint hasWindowContainer : 1;
 
     // *************************** Platform specific values (bit fields first) **********
 #if defined(Q_WS_WIN) // <----------------------------------------------------------- WIN
@@ -274,7 +275,7 @@ struct QWExtra {
 /*!
     \internal
 
-    Returns true if \a p or any of its parents enable the
+    Returns \c true if \a p or any of its parents enable the
     Qt::BypassGraphicsProxyWidget window flag. Used in QWidget::show() and
     QWidget::setParent() to determine whether it's necessary to embed the
     widget into a QGraphicsProxyWidget or not.
@@ -644,6 +645,7 @@ public:
     QRegion dirty;
 #ifndef QT_NO_TOOLTIP
     QString toolTip;
+    int toolTipDuration;
 #endif
 #ifndef QT_NO_STATUSTIP
     QString statusTip;
@@ -687,10 +689,12 @@ public:
     QPalette::ColorRole bg_role : 8;
     uint dirtyOpaqueChildren : 1;
     uint isOpaque : 1;
+    uint retainSizeWhenHiddenChanged : 1;
     uint inDirtyList : 1;
     uint isScrolled : 1;
     uint isMoved : 1;
     uint usesDoubleBufferedGLContext : 1;
+    uint mustHaveWindowHandle : 1;
 #ifndef QT_NO_IM
     uint inheritsInputMethodHints : 1;
 #endif

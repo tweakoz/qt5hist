@@ -55,21 +55,28 @@
 
 #include "qqml.h"
 #include "qqmlerror.h"
-#include <private/qv8_p.h>
 #include "qqmlinstruction_p.h"
 #include "qqmlscript_p.h"
 #include "qqmlengine_p.h"
 #include <private/qbitfield_p.h>
 #include "qqmlpropertycache_p.h"
-#include "qqmlintegercache_p.h"
 #include "qqmltypenamecache_p.h"
 #include "qqmltypeloader_p.h"
+#include "private/qv4identifier_p.h"
+#include <private/qqmljsastfwd_p.h>
 
 #include <QtCore/qbytearray.h>
 #include <QtCore/qset.h>
 #include <QtCore/QCoreApplication>
 
 QT_BEGIN_NAMESPACE
+
+namespace QV4 {
+namespace CompiledData {
+struct CompilationUnit;
+struct QmlUnit;
+}
+}
 
 class QQmlEngine;
 class QQmlComponent;
@@ -95,23 +102,34 @@ public:
     struct TypeReference 
     {
         TypeReference()
-        : type(0), typePropertyCache(0), component(0) {}
+            : type(0), typePropertyCache(0), component(0)
+            , majorVersion(0)
+            , minorVersion(0)
+        {}
 
         QQmlType *type;
         QQmlPropertyCache *typePropertyCache;
         QQmlCompiledData *component;
 
+        int majorVersion;
+        int minorVersion;
+
         QQmlPropertyCache *propertyCache() const;
         QQmlPropertyCache *createPropertyCache(QQmlEngine *);
     };
+    // --- old compiler:
     QList<TypeReference> types;
+    // --- new compiler:
+    // map from name index
+    QHash<int, TypeReference> resolvedTypes;
+    // ---
 
     struct V8Program {
         V8Program(const QByteArray &p, QQmlCompiledData *c)
         : program(p), cdata(c) {}
 
         QByteArray program;
-        v8::Persistent<v8::Array> bindings;
+        QV4::PersistentValue bindings;
         QQmlCompiledData *cdata;
     };
 
@@ -122,9 +140,20 @@ public:
     QList<QByteArray> datas;
     QByteArray bytecode;
     QList<QQmlPropertyCache *> propertyCaches;
-    QList<QQmlIntegerCache *> contextCaches;
+    QList<QVector<QQmlContextData::ObjectIdMapping> > contextCaches;
     QList<QQmlScriptData *> scripts;
     QList<QUrl> urls;
+
+    // --- new compiler
+    QV4::CompiledData::CompilationUnit *compilationUnit;
+    QV4::CompiledData::QmlUnit *qmlUnit;
+    // index in first hash is component index, hash inside maps from object index in that scope to integer id
+    QHash<int, QHash<int, int> > objectIndexToIdPerComponent;
+    QHash<int, int> objectIndexToIdForRoot;
+
+    bool isComponent(int objectIndex) const { return objectIndexToIdPerComponent.contains(objectIndex); }
+    bool isCompositeType() const { return !datas.at(qmlUnit->indexOfRootObject).isEmpty(); }
+    // ---
 
     struct Instruction {
 #define QML_INSTR_DATA_TYPEDEF(I, FMT) typedef QQmlInstructionData<QQmlInstruction::I> I;
@@ -187,7 +216,7 @@ namespace QQmlCompilerTypes {
 
     struct BindingReference
     {
-        enum DataType { QtScript, V4, V8,
+        enum DataType { QtScript,
                         Tr, TrId };
         DataType dataType;
     };
@@ -195,17 +224,15 @@ namespace QQmlCompilerTypes {
     struct JSBindingReference : public QQmlPool::Class,
                                 public BindingReference
     {
-        JSBindingReference() : isSafe(false), nextReference(0) {}
+        JSBindingReference() : nextReference(0) {}
 
         QQmlScript::Variant expression;
         QQmlScript::Property *property;
         QQmlScript::Value *value;
 
-        int compiledIndex:15;
-        int sharedIndex:15;
-        bool isSafe:1;
+        int compiledIndex : 16;
+        int sharedIndex : 16;
 
-        QString rewrittenExpression;
         BindingContext bindingContext;
 
         JSBindingReference *nextReference;
@@ -255,7 +282,7 @@ namespace QQmlCompilerTypes {
     {
         ComponentCompileState() 
         : parserStatusCount(0), totalBindingsCount(0), pushedProperties(0), nested(false), 
-          v8BindingProgramLine(-1), root(0) {}
+          root(0) {}
 
         IdList ids;
         int parserStatusCount;
@@ -264,8 +291,6 @@ namespace QQmlCompilerTypes {
         bool nested;
 
         QByteArray compiledBindingData;
-        QByteArray v8BindingProgram;
-        int v8BindingProgramLine;
 
         DepthStack objectDepth;
         DepthStack listDepth;
@@ -277,6 +302,22 @@ namespace QQmlCompilerTypes {
         typedef QFieldList<O, &O::nextAliasingObject> AliasingObjectsList;
         AliasingObjectsList aliasingObjects;
         QQmlScript::Object *root;
+
+        struct CompiledMetaMethod
+        {
+            int methodIndex;
+            int compiledFunctionIndex; // index in functionToCompile
+        };
+
+        QList<CompiledMetaMethod> compiledMetaMethods;
+        struct PerObjectCompileData
+        {
+            QList<QQmlJS::AST::Node*> functionsToCompile;
+            QVector<int> runtimeFunctionIndices;
+            QVector<CompiledMetaMethod> compiledMetaMethods;
+            QHash<int, QString> expressionNames;
+        };
+        QHash<QQmlScript::Object *, PerObjectCompileData> jsCompileData;
     };
 };
 
@@ -299,8 +340,7 @@ public:
 
     int evaluateEnum(const QHashedStringRef &scope, const QByteArray& enumValue, bool *ok) const; // for QQmlCustomParser::evaluateEnum
     const QMetaObject *resolveType(const QString& name) const; // for QQmlCustomParser::resolveType
-    int rewriteBinding(const QQmlScript::Variant& value, const QString& name); // for QQmlCustomParser::rewriteBinding
-    QString rewriteSignalHandler(const QQmlScript::Variant& value, const QString &name);  // for QQmlCustomParser::rewriteSignalHandler
+    int bindingIdentifier(const QQmlScript::Variant& value); // for QQmlCustomParser::bindingIndex
 
 private:
     typedef QQmlCompiledData::Instruction Instruction;
@@ -437,6 +477,8 @@ private:
     int cachedComponentTypeRef;
     int cachedTranslationContextIndex;
 
+    QScopedPointer<QQmlJS::V4IR::Module> jsModule;
+
     // Compiler component statistics.  Only collected if QML_COMPILER_STATS=1
     struct ComponentStat
     {
@@ -446,8 +488,6 @@ private:
 
         int ids;
         QList<QQmlScript::LocationSpan> scriptBindings;
-        QList<QQmlScript::LocationSpan> sharedBindings;
-        QList<QQmlScript::LocationSpan> optimizedBindings;
         int objects;
     };
     struct ComponentStats : public QQmlPool::Class

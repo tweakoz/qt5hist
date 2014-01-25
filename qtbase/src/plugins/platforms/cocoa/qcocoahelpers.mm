@@ -53,6 +53,8 @@
 #include <QtWidgets/QWidget>
 #endif
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 //
@@ -320,19 +322,19 @@ QChar qt_mac_qtKey2CocoaKey(Qt::Key key)
         mustInit = false;
         for (int i=0; i<NumEntries; ++i)
             rev_entries[i] = entries[i];
-        qSort(rev_entries.begin(), rev_entries.end(), qtKey2CocoaKeySortLessThan);
+        std::sort(rev_entries.begin(), rev_entries.end(), qtKey2CocoaKeySortLessThan);
     }
     const QVector<KeyPair>::iterator i
-            = qBinaryFind(rev_entries.begin(), rev_entries.end(), key);
-    if (i == rev_entries.end())
+            = std::lower_bound(rev_entries.begin(), rev_entries.end(), key);
+    if ((i == rev_entries.end()) || (key < *i))
         return QChar();
     return i->cocoaKey;
 }
 
 Qt::Key qt_mac_cocoaKey2QtKey(QChar keyCode)
 {
-    const KeyPair *i = qBinaryFind(entries, end, keyCode);
-    if (i == end)
+    const KeyPair *i = std::lower_bound(entries, end, keyCode);
+    if ((i == end) || (keyCode < *i))
         return Qt::Key(keyCode.toUpper().unicode());
     return i->qtKey;
 }
@@ -508,7 +510,6 @@ CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget)
     CGColorSpaceRef colorSpace;
 
     CGDirectDisplayID displayID;
-    CMProfileRef displayProfile = 0;
     if (widget == 0) {
         displayID = CGMainDisplayID();
     } else {
@@ -526,18 +527,11 @@ CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget)
     if ((colorSpace = m_displayColorSpaceHash.value(displayID)))
         return colorSpace;
 
-    CMError err = CMGetProfileByAVID((CMDisplayIDType)displayID, &displayProfile);
-    if (err == noErr) {
-        colorSpace = CGColorSpaceCreateWithPlatformColorSpace(displayProfile);
-    } else if (widget) {
-        return qt_mac_displayColorSpace(0); // fall back on main display
-    }
-
+    colorSpace = CGDisplayCopyColorSpace(displayID);
     if (colorSpace == 0)
         colorSpace = CGColorSpaceCreateDeviceRGB();
 
     m_displayColorSpaceHash.insert(displayID, colorSpace);
-    CMCloseProfile(displayProfile);
     if (!m_postRoutineRegistered) {
         m_postRoutineRegistered = true;
         void qt_mac_cleanUpMacColorSpaces();
@@ -810,20 +804,7 @@ CGImageRef qt_mac_toCGImage(const QImage &qImage, bool isMask, uchar **dataCopy)
                                     NULL,
                                     false);
     } else {
-        // Try get a device color space. Using the device color space means
-        // that the CGImage can be drawn to screen without per-pixel color
-        // space conversion, at the cost of less color accuracy.
-        CGColorSpaceRef cgColourSpaceRef = 0;
-        CMProfileRef sysProfile;
-        if (CMGetSystemProfile(&sysProfile) == noErr)
-        {
-            cgColourSpaceRef = CGColorSpaceCreateWithPlatformColorSpace(sysProfile);
-            CMCloseProfile(sysProfile);
-        }
-
-        // Fall back to Generic RGB if a profile was not found.
-        if (!cgColourSpaceRef)
-            cgColourSpaceRef = CGColorSpaceCreateWithName(kCGColorSpaceGenericRGB);
+        CGColorSpaceRef cgColourSpaceRef = qt_mac_displayColorSpace(0);
 
         // Create a CGBitmapInfo contiaining the image format.
         // Support the 8-bit per component (A)RGB formats.
@@ -857,7 +838,6 @@ CGImageRef qt_mac_toCGImage(const QImage &qImage, bool isMask, uchar **dataCopy)
                                 NULL,
                                 false,
                                 kCGRenderingIntentDefault);
-        CGColorSpaceRelease(cgColourSpaceRef);
     }
     CGDataProviderRelease(cgDataProviderRef);
     return cgImage;

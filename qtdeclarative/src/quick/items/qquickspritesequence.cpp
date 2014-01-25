@@ -56,39 +56,6 @@
 
 QT_BEGIN_NAMESPACE
 
-static const char vertexShaderCode[] =
-    "attribute highp vec2 vPos;\n"
-    "attribute highp vec2 vTex;\n"
-    "uniform highp vec3 animData;// w,h(premultiplied of anim), interpolation progress\n"
-    "uniform highp vec4 animPos;//x,y, x,y (two frames for interpolation)\n"
-    "\n"
-    "uniform highp mat4 qt_Matrix;\n"
-    "\n"
-    "varying highp vec4 fTexS;\n"
-    "varying lowp float progress;\n"
-    "\n"
-    "\n"
-    "void main() {\n"
-    "    progress = animData.z;\n"
-    "    //Calculate frame location in texture\n"
-    "    fTexS.xy = animPos.xy + vTex.xy * animData.xy;\n"
-    "    //Next frame is also passed, for interpolation\n"
-    "    fTexS.zw = animPos.zw + vTex.xy * animData.xy;\n"
-    "\n"
-    "    gl_Position = qt_Matrix * vec4(vPos.x, vPos.y, 0, 1);\n"
-    "}\n";
-
-static const char fragmentShaderCode[] =
-    "uniform sampler2D texture;\n"
-    "uniform lowp float qt_Opacity;\n"
-    "\n"
-    "varying highp vec4 fTexS;\n"
-    "varying lowp float progress;\n"
-    "\n"
-    "void main() {\n"
-    "    gl_FragColor = mix(texture2D(texture, fTexS.xy), texture2D(texture, fTexS.zw), progress) * qt_Opacity;\n"
-    "}\n";
-
 class QQuickSpriteSequenceMaterial : public QSGMaterial
 {
 public:
@@ -133,16 +100,11 @@ QQuickSpriteSequenceMaterial::~QQuickSpriteSequenceMaterial()
 class SpriteSequenceMaterialData : public QSGMaterialShader
 {
 public:
-    SpriteSequenceMaterialData(const char * /* vertexFile */ = 0, const char * /* fragmentFile */ = 0)
+    SpriteSequenceMaterialData()
+        : QSGMaterialShader()
     {
-    }
-
-    void deactivate() {
-        QSGMaterialShader::deactivate();
-
-        for (int i=0; i<8; ++i) {
-            program()->setAttributeArray(i, GL_FLOAT, chunkOfBytes, 1, 0);
-        }
+        setShaderSourceFile(QOpenGLShader::Vertex, QStringLiteral(":/items/shaders/sprite.vert"));
+        setShaderSourceFile(QOpenGLShader::Fragment, QStringLiteral(":/items/shaders/sprite.frag"));
     }
 
     virtual void updateState(const RenderState &state, QSGMaterial *newEffect, QSGMaterial *)
@@ -165,9 +127,6 @@ public:
         m_animPos_id = program()->uniformLocation("animPos");
     }
 
-    virtual const char *vertexShader() const { return vertexShaderCode; }
-    virtual const char *fragmentShader() const { return fragmentShaderCode; }
-
     virtual char const *const *attributeNames() const {
         static const char *attr[] = {
            "vPos",
@@ -181,11 +140,7 @@ public:
     int m_opacity_id;
     int m_animData_id;
     int m_animPos_id;
-
-    static float chunkOfBytes[1024];
 };
-
-float SpriteSequenceMaterialData::chunkOfBytes[1024];
 
 QSGMaterialShader *QQuickSpriteSequenceMaterial::createShader() const
 {
@@ -209,7 +164,7 @@ struct SpriteVertices {
 /*!
     \qmltype SpriteSequence
     \instantiates QQuickSpriteSequence
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual-utility
     \inherits Item
     \brief Draws a sprite animation
@@ -217,17 +172,17 @@ struct SpriteVertices {
     SpriteSequence renders and controls a list of animations defined
     by \l Sprite types.
 
-    For full details, see the \l{Sprite Animation} overview.
+    For full details, see the \l{Sprite Animations} overview.
 */
 /*!
-    \qmlproperty bool QtQuick2::SpriteSequence::running
+    \qmlproperty bool QtQuick::SpriteSequence::running
 
     Whether the sprite is animating or not.
 
     Default is true
 */
 /*!
-    \qmlproperty bool QtQuick2::SpriteSequence::interpolate
+    \qmlproperty bool QtQuick::SpriteSequence::interpolate
 
     If true, interpolation will occur between sprite frames to make the
     animation appear smoother.
@@ -235,12 +190,12 @@ struct SpriteVertices {
     Default is true.
 */
 /*!
-    \qmlproperty string QtQuick2::SpriteSequence::currentSprite
+    \qmlproperty string QtQuick::SpriteSequence::currentSprite
 
     The name of the Sprite which is currently animating.
 */
 /*!
-    \qmlproperty string QtQuick2::SpriteSequence::goalSprite
+    \qmlproperty string QtQuick::SpriteSequence::goalSprite
 
     The name of the Sprite which the animation should move to.
 
@@ -252,13 +207,13 @@ struct SpriteVertices {
     If it is possible to return to the goalState from the starting point of the goalState
     it will continue to do so until goalState is set to "" or an unreachable state.
 */
-/*! \qmlmethod QtQuick2::SpriteSequence::jumpTo(string sprite)
+/*! \qmlmethod QtQuick::SpriteSequence::jumpTo(string sprite)
 
     This function causes the SpriteSequence to jump to the specified sprite immediately, intermediate
     sprites are not played. The \a sprite argument is the name of the sprite you wish to jump to.
 */
 /*!
-    \qmlproperty list<Sprite> QtQuick2::SpriteSequence::sprites
+    \qmlproperty list<Sprite> QtQuick::SpriteSequence::sprites
 
     The sprite or sprites to draw. Sprites will be scaled to the size of this item.
 */

@@ -96,6 +96,13 @@ public slots:
     }
 };
 
+static void gc(QQmlEngine &engine)
+{
+    engine.collectGarbage();
+    QCoreApplication::sendPostedEvents(0, QEvent::DeferredDelete);
+    QCoreApplication::processEvents();
+}
+
 class tst_qqmlcomponent : public QQmlDataTest
 {
     Q_OBJECT
@@ -377,6 +384,7 @@ void tst_qqmlcomponent::onDestructionLookup()
     QQmlEngine engine;
     QQmlComponent component(&engine, testFileUrl("onDestructionLookup.qml"));
     QScopedPointer<QObject> object(component.create());
+    gc(engine);
     QVERIFY(object != 0);
     QVERIFY(object->property("success").toBool());
 }

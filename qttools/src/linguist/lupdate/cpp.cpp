@@ -79,16 +79,14 @@ public:
     bool operator==(const HashString &other) const { return m_str == other.m_str; }
 private:
     QString m_str;
-    // qHash() of a QString is only 28 bits wide, so we can use
-    // the highest bit(s) as the "hash valid" flag.
-    mutable uint m_hash;
+    mutable uint m_hash; // We use the highest bit as a validity indicator (set => invalid)
     friend uint qHash(const HashString &str);
 };
 
 uint qHash(const HashString &str)
 {
     if (str.m_hash & 0x80000000)
-        str.m_hash = qHash(str.m_str);
+        str.m_hash = qHash(str.m_str) & 0x7fffffff;
     return str.m_hash;
 }
 
@@ -99,7 +97,7 @@ public:
     bool operator==(const HashStringList &other) const { return m_list == other.m_list; }
 private:
     QList<HashString> m_list;
-    mutable uint m_hash;
+    mutable uint m_hash; // We use the highest bit as a validity indicator (set => invalid)
     friend uint qHash(const HashStringList &list);
 };
 
@@ -108,8 +106,8 @@ uint qHash(const HashStringList &list)
     if (list.m_hash & 0x80000000) {
         uint hash = 0;
         foreach (const HashString &qs, list.m_list) {
-            hash ^= qHash(qs) ^ 0x0ad9f526;
-            hash = ((hash << 13) & 0x0fffffff) | (hash >> 15);
+            hash ^= qHash(qs) ^ 0x6ad9f526;
+            hash = ((hash << 13) & 0x7fffffff) | (hash >> 18);
         }
         list.m_hash = hash;
     }
@@ -244,6 +242,9 @@ private:
     uint getChar();
     uint getToken();
     bool getMacroArgs();
+
+    void processComment();
+
     bool match(uint t);
     bool matchString(QString *s);
     bool matchEncoding();
@@ -292,11 +293,11 @@ private:
     void truncateNamespaces(NamespaceList *namespaces, int lenght);
     Namespace *modifyNamespace(NamespaceList *namespaces, bool haveLast = true);
 
-    enum {
+    enum TokenType {
         Tok_Eof, Tok_class, Tok_friend, Tok_namespace, Tok_using, Tok_return,
         Tok_tr, Tok_trUtf8, Tok_translate, Tok_translateUtf8, Tok_trid,
-        Tok_Q_OBJECT, Tok_Q_DECLARE_TR_FUNCTIONS,
-        Tok_Ident, Tok_Comment, Tok_String, Tok_Arrow, Tok_Colon, Tok_ColonColon,
+        Tok_Q_OBJECT, Tok_Q_DECLARE_TR_FUNCTIONS, Tok_Access, Tok_Cancel,
+        Tok_Ident, Tok_String, Tok_Arrow, Tok_Colon, Tok_ColonColon,
         Tok_Equals, Tok_LeftBracket, Tok_RightBracket,
         Tok_LeftBrace, Tok_RightBrace, Tok_LeftParen, Tok_RightParen, Tok_Comma, Tok_Semicolon,
         Tok_Null, Tok_Integer,
@@ -327,6 +328,15 @@ private:
 
     // Parser state
     uint yyTok;
+
+    bool metaExpected;
+    QString context;
+    QString text;
+    QString comment;
+    QString extracomment;
+    QString msgid;
+    QString sourcetext;
+    TranslatorMessage::ExtraData extra;
 
     NamespaceList namespaces;
     QStack<int> namespaceDepths;
@@ -478,29 +488,20 @@ bool CppParser::getMacroArgs()
 }
 
 STRING(Q_OBJECT);
-STRING(Q_DECLARE_TR_FUNCTIONS);
-STRING(QT_TR_NOOP);
-STRING(QT_TRID_NOOP);
-STRING(QT_TRANSLATE_NOOP);
-STRING(QT_TRANSLATE_NOOP3);
-STRING(QT_TR_NOOP_UTF8);
-STRING(QT_TRANSLATE_NOOP_UTF8);
-STRING(QT_TRANSLATE_NOOP3_UTF8);
 STRING(class);
-// QTranslator::findMessage() has the same parameters as QApplication::translate()
-STRING(findMessage);
 STRING(friend);
 STRING(namespace);
 STRING(operator);
-STRING(qtTrId);
 STRING(return);
 STRING(struct);
-STRING(TR);
-STRING(Tr);
-STRING(tr);
-STRING(trUtf8);
-STRING(translate);
 STRING(using);
+STRING(private);
+STRING(protected);
+STRING(public);
+STRING(slots);
+STRING(signals);
+STRING(Q_SLOTS);
+STRING(Q_SIGNALS);
 
 uint CppParser::getToken()
 {
@@ -716,39 +717,14 @@ uint CppParser::getToken()
             case 'Q':
                 if (yyWord == strQ_OBJECT)
                     return Tok_Q_OBJECT;
-                if (yyWord == strQ_DECLARE_TR_FUNCTIONS)
-                    return Tok_Q_DECLARE_TR_FUNCTIONS;
-                if (yyWord == strQT_TR_NOOP)
-                    return Tok_tr;
-                if (yyWord == strQT_TRID_NOOP)
-                    return Tok_trid;
-                if (yyWord == strQT_TRANSLATE_NOOP)
-                    return Tok_translate;
-                if (yyWord == strQT_TRANSLATE_NOOP3)
-                    return Tok_translate;
-                if (yyWord == strQT_TR_NOOP_UTF8)
-                    return Tok_trUtf8;
-                if (yyWord == strQT_TRANSLATE_NOOP_UTF8)
-                    return Tok_translateUtf8;
-                if (yyWord == strQT_TRANSLATE_NOOP3_UTF8)
-                    return Tok_translateUtf8;
-                break;
-            case 'T':
-                // TR() for when all else fails
-                if (yyWord == strTR || yyWord == strTr)
-                    return Tok_tr;
+                if (yyWord == strQ_SLOTS || yyWord == strQ_SIGNALS)
+                    return Tok_Access;
                 break;
             case 'c':
                 if (yyWord == strclass)
                     return Tok_class;
                 break;
             case 'f':
-                /*
-                  QTranslator::findMessage() has the same parameters as
-                  QApplication::translate().
-                */
-                if (yyWord == strfindMessage)
-                    return Tok_translate;
                 if (yyWord == strfriend)
                     return Tok_friend;
                 break;
@@ -770,9 +746,9 @@ uint CppParser::getToken()
                         yyCh = getChar();
                 }
                 break;
-            case 'q':
-                if (yyWord == strqtTrId)
-                    return Tok_trid;
+            case 'p':
+                if (yyWord == strpublic || yyWord == strprotected || yyWord == strprivate)
+                    return Tok_Access;
                 break;
             case 'r':
                 if (yyWord == strreturn)
@@ -781,20 +757,39 @@ uint CppParser::getToken()
             case 's':
                 if (yyWord == strstruct)
                     return Tok_class;
-                break;
-            case 't':
-                if (yyWord == strtr)
-                    return Tok_tr;
-                if (yyWord == strtrUtf8)
-                    return Tok_trUtf8;
-                if (yyWord == strtranslate)
-                    return Tok_translate;
+                if (yyWord == strslots || yyWord == strsignals)
+                    return Tok_Access;
                 break;
             case 'u':
                 if (yyWord == strusing)
                     return Tok_using;
                 break;
             }
+
+            static const TokenType trFunctionTokens[] = {
+                Tok_Q_DECLARE_TR_FUNCTIONS, // Q_DECLARE_TR_FUNCTIONS
+                Tok_tr,                     // QT_TR_NOOP
+                Tok_trid,                   // QT_TRID_NOOP
+                Tok_translate,              // QT_TRANSLATE_NOOP
+                Tok_translate,              // QT_TRANSLATE_NOOP3
+                Tok_trUtf8,                 // QT_TR_NOOP_UTF8
+                Tok_translateUtf8,          // QT_TRANSLATE_NOOP_UTF8
+                Tok_translateUtf8,          // QT_TRANSLATE_NOOP3_UTF8
+                Tok_translate,              // findMessage
+                Tok_trid,                   // qtTrId
+                Tok_tr,                     // tr
+                Tok_trUtf8,                 // trUtf8
+                Tok_translate,              // translate
+                Tok_Ident,                  // qsTr (QML only)
+                Tok_Ident,                  // qsTrId (QML only)
+                Tok_Ident,                  // qsTranslate (QML only)
+            };
+            Q_STATIC_ASSERT((sizeof trFunctionTokens / sizeof *trFunctionTokens == TrFunctionAliasManager::NumTrFunctions));
+
+            const int trFunction = trFunctionAliasManager.trFunctionByName(yyWord);
+            if (trFunction >= 0)
+                return trFunctionTokens[trFunction];
+
             return Tok_Ident;
         } else {
             switch (yyCh) {
@@ -805,13 +800,16 @@ uint CppParser::getToken()
                     yyBraceDepth = yyMinBraceDepth;
                     yyMinBraceDepth = 0;
                     inDefine = false;
+                    metaExpected = true;
+                    yyCh = getChar();
+                    return Tok_Cancel; // Break out of any multi-token constructs
                 }
                 yyCh = getChar();
                 break;
             case '/':
                 yyCh = getChar();
                 if (yyCh == '/') {
-                    ushort *ptr = (ushort *)yyWord.unicode() + yyWord.length();
+                    ushort *ptr = (ushort *)yyWord.unicode();
                     do {
                         yyCh = getChar();
                         if (yyCh == EOF)
@@ -819,9 +817,10 @@ uint CppParser::getToken()
                         *ptr++ = yyCh;
                     } while (yyCh != '\n');
                     yyWord.resize(ptr - (ushort *)yyWord.unicode());
+                    processComment();
                 } else if (yyCh == '*') {
                     bool metAster = false;
-                    ushort *ptr = (ushort *)yyWord.unicode() + yyWord.length();
+                    ushort *ptr = (ushort *)yyWord.unicode();
 
                     forever {
                         yyCh = getChar();
@@ -839,12 +838,13 @@ uint CppParser::getToken()
                             metAster = false;
                     }
                     yyWord.resize(ptr - (ushort *)yyWord.unicode() - 2);
+                    processComment();
 
                     yyCh = getChar();
                 }
-                return Tok_Comment;
+                break;
             case '"': {
-                ushort *ptr = (ushort *)yyWord.unicode() + yyWord.length();
+                ushort *ptr = (ushort *)yyWord.unicode();
                 yyCh = getChar();
                 while (yyCh != EOF && yyCh != '\n' && yyCh != '"') {
                     if (yyCh == '\\') {
@@ -1352,6 +1352,12 @@ void CppParser::processInclude(const QString &file, ConversionData &cd, const QS
 {
     QString cleanFile = QDir::cleanPath(file);
 
+    foreach (const QString &ex, cd.m_excludes) {
+        QRegExp rx(ex, Qt::CaseSensitive, QRegExp::Wildcard);
+        if (rx.exactMatch(cleanFile))
+            return;
+    }
+
     const int index = includeStack.indexOf(cleanFile);
     if (index != -1) {
         CppFiles::addIncludeCycle(includeStack.mid(index).toSet());
@@ -1405,8 +1411,8 @@ void CppParser::processInclude(const QString &file, ConversionData &cd, const QS
         parser.namespaces = namespaces;
         parser.functionContext = functionContext;
         parser.functionContextUnresolved = functionContextUnresolved;
-        parser.pendingContext = pendingContext;
         parser.setInput(ts, cleanFile);
+        parser.setTranslator(tor);
         QStringList stack = includeStack;
         stack << cleanFile;
         parser.parseInternal(cd, stack, inclusions);
@@ -1414,6 +1420,9 @@ void CppParser::processInclude(const QString &file, ConversionData &cd, const QS
         CppFiles::setBlacklisted(cleanFile);
     }
     inclusions.remove(cleanFile);
+
+    prospectiveContext.clear();
+    pendingContext.clear();
 }
 
 /*
@@ -1439,8 +1448,6 @@ bool CppParser::matchString(QString *s)
     bool matches = false;
     s->clear();
     forever {
-        while (yyTok == Tok_Comment)
-            yyTok = getToken();
         if (yyTok != Tok_String)
             return matches;
         matches = true;
@@ -1514,7 +1521,7 @@ bool CppParser::matchExpression()
             continue;
         } else if (yyTok == Tok_Arrow) {
             yyTok = getToken();
-        } else if (parenlevel == 0) {
+        } else if (parenlevel == 0 || yyTok == Tok_Cancel) {
             return false;
         }
     }
@@ -1595,19 +1602,16 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
 {
     static QString strColons(QLatin1String("::"));
 
-    QString context;
-    QString text;
-    QString comment;
-    QString extracomment;
-    QString msgid;
-    QString sourcetext;
-    TranslatorMessage::ExtraData extra;
     QString prefix;
 #ifdef DIAGNOSE_RETRANSLATABILITY
     QString functionName;
 #endif
     int line;
     bool yyTokColonSeen = false; // Start of c'tor's initializer list
+    metaExpected = true;
+
+    prospectiveContext.clear();
+    pendingContext.clear();
 
     yyWord.reserve(yyInStr.size()); // Rather insane. That's because we do no length checking.
     yyInPtr = (const ushort *)yyInStr.unicode();
@@ -1618,8 +1622,10 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
         // so they don't confuse our scoping of static initializers.
         // we enter the loop by either reading a left bracket or by an
         // #else popping the state.
-        while (yyBracketDepth)
+        if (yyBracketDepth && yyBraceDepth == namespaceDepths.count()) {
             yyTok = getToken();
+            continue;
+        }
         //qDebug() << "TOKEN: " << yyTok;
         switch (yyTok) {
         case Tok_QuotedInclude: {
@@ -1658,7 +1664,6 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                 yyTok = getToken();
             break;
         case Tok_class:
-            yyTokColonSeen = false;
             /*
               Partial support for inlined functions.
             */
@@ -1688,14 +1693,16 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                     fct.setValue(text);
                     yyTok = getToken();
                 }
-                while (yyTok == Tok_Comment)
-                    yyTok = getToken();
                 if (yyTok == Tok_Colon) {
                     // Skip any token until '{' since we might do things wrong if we find
                     // a '::' token here.
                     do {
                         yyTok = getToken();
-                    } while (yyTok != Tok_LeftBrace && yyTok != Tok_Eof);
+                        if (yyTok == Tok_Eof)
+                            goto goteof;
+                        if (yyTok == Tok_Cancel)
+                            goto case_default;
+                    } while (yyTok != Tok_LeftBrace);
                 } else {
                     if (yyTok != Tok_LeftBrace) {
                         // Obviously a forward declaration. We skip those, as they
@@ -1723,11 +1730,11 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                 prospectiveContext.clear();
                 pendingContext.clear();
 
+                metaExpected = true;
                 yyTok = getToken();
             }
             break;
         case Tok_namespace:
-            yyTokColonSeen = false;
             yyTok = getToken();
             if (yyTok == Tok_Ident) {
                 text = yyWord;
@@ -1742,6 +1749,7 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                     functionContextUnresolved.clear();
                     prospectiveContext.clear();
                     pendingContext.clear();
+                    metaExpected = true;
                     yyTok = getToken();
                 } else if (yyTok == Tok_Equals) {
                     // e.g. namespace Is = OuterSpace::InnerSpace;
@@ -1765,6 +1773,7 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
             } else if (yyTok == Tok_LeftBrace) {
                 // Anonymous namespace
                 namespaceDepths.push(namespaces.count());
+                metaExpected = true;
                 yyTok = getToken();
             }
             break;
@@ -1822,10 +1831,10 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                 comment.clear();
                 bool plural = false;
 
-                if (match(Tok_RightParen)) {
+                if (yyTok == Tok_RightParen) {
                     // no comment
                 } else if (match(Tok_Comma) && matchStringOrNull(&comment)) {   //comment
-                    if (match(Tok_RightParen)) {
+                    if (yyTok == Tok_RightParen) {
                         // ok,
                     } else if (match(Tok_Comma)) {
                         plural = true;
@@ -1845,7 +1854,7 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                         int idx = functionContext.length();
                         if (idx < 2) {
                             yyMsg() << qPrintable(LU::tr("tr() cannot be called without context\n"));
-                            break;
+                            goto case_default;
                         }
                         Namespace *fctx;
                         while (!(fctx = findNamespace(functionContext, idx)->classDef)->hasTrFunctions) {
@@ -1914,6 +1923,8 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
             extracomment.clear();
             msgid.clear();
             extra.clear();
+            metaExpected = false;
+            yyTok = getToken();
             break;
         case Tok_translateUtf8:
         case Tok_translate:
@@ -1930,14 +1941,14 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
             {
                 comment.clear();
                 bool plural = false;
-                if (!match(Tok_RightParen)) {
+                if (yyTok != Tok_RightParen) {
                     // look for comment
                     if (match(Tok_Comma) && matchStringOrNull(&comment)) {
-                        if (!match(Tok_RightParen)) {
+                        if (yyTok != Tok_RightParen) {
                             // look for encoding
                             if (match(Tok_Comma)) {
                                 if (matchEncoding()) {
-                                    if (!match(Tok_RightParen)) {
+                                    if (yyTok != Tok_RightParen) {
                                         // look for the plural quantifier,
                                         // this can be a number, an identifier or
                                         // a function call,
@@ -1949,18 +1960,18 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                                 } else {
                                     // This can be a QTranslator::translate("context",
                                     // "source", "comment", n) plural translation
-                                    if (matchExpression() && match(Tok_RightParen)) {
+                                    if (matchExpression() && yyTok == Tok_RightParen) {
                                         plural = true;
                                     } else {
-                                        break;
+                                        goto case_default;
                                     }
                                 }
                             } else {
-                                break;
+                                goto case_default;
                             }
                         }
                     } else {
-                        break;
+                        goto case_default;
                     }
                 }
                 recordMessage(line, context, text, comment, extracomment, msgid, extra, plural);
@@ -1969,6 +1980,8 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
             extracomment.clear();
             msgid.clear();
             extra.clear();
+            metaExpected = false;
+            yyTok = getToken();
             break;
         case Tok_trid:
             if (!tor)
@@ -1986,6 +1999,7 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
             extracomment.clear();
             msgid.clear();
             extra.clear();
+            metaExpected = false;
             break;
         case Tok_Q_DECLARE_TR_FUNCTIONS:
             if (getMacroArgs()) {
@@ -2009,93 +2023,8 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                 if (yyTok == Tok_Ident && !yyParenDepth)
                     prospectiveContext.clear();
             }
+            metaExpected = false;
             break;
-        case Tok_Comment: {
-            if (!tor)
-                goto case_default;
-            const QChar *ptr = yyWord.unicode();
-            if (*ptr == QLatin1Char(':') && ptr[1].isSpace()) {
-                yyWord.remove(0, 2);
-                extracomment += yyWord;
-                extracomment.detach();
-            } else if (*ptr == QLatin1Char('=') && ptr[1].isSpace()) {
-                yyWord.remove(0, 2);
-                msgid = yyWord.simplified();
-                msgid.detach();
-            } else if (*ptr == QLatin1Char('~') && ptr[1].isSpace()) {
-                yyWord.remove(0, 2);
-                text = yyWord.trimmed();
-                int k = text.indexOf(QLatin1Char(' '));
-                if (k > -1)
-                    extra.insert(text.left(k), text.mid(k + 1).trimmed());
-                text.clear();
-            } else if (*ptr == QLatin1Char('%') && ptr[1].isSpace()) {
-                sourcetext.reserve(sourcetext.length() + yyWord.length() - 2);
-                ushort *ptr = (ushort *)sourcetext.data() + sourcetext.length();
-                int p = 2, c;
-                forever {
-                    if (p >= yyWord.length())
-                        break;
-                    c = yyWord.unicode()[p++].unicode();
-                    if (isspace(c))
-                        continue;
-                    if (c != '"') {
-                        yyMsg() << qPrintable(LU::tr("Unexpected character in meta string\n"));
-                        break;
-                    }
-                    forever {
-                        if (p >= yyWord.length()) {
-                          whoops:
-                            yyMsg() << qPrintable(LU::tr("Unterminated meta string\n"));
-                            break;
-                        }
-                        c = yyWord.unicode()[p++].unicode();
-                        if (c == '"')
-                            break;
-                        if (c == '\\') {
-                            if (p >= yyWord.length())
-                                goto whoops;
-                            c = yyWord.unicode()[p++].unicode();
-                            if (c == '\n')
-                                goto whoops;
-                            *ptr++ = '\\';
-                        }
-                        *ptr++ = c;
-                    }
-                }
-                sourcetext.resize(ptr - (ushort *)sourcetext.data());
-            } else {
-                const ushort *uc = (const ushort *)yyWord.unicode(); // Is zero-terminated
-                int idx = 0;
-                ushort c;
-                while ((c = uc[idx]) == ' ' || c == '\t' || c == '\n')
-                    ++idx;
-                if (!memcmp(uc + idx, MagicComment.unicode(), MagicComment.length() * 2)) {
-                    idx += MagicComment.length();
-                    comment = QString::fromRawData(yyWord.unicode() + idx,
-                                                   yyWord.length() - idx).simplified();
-                    int k = comment.indexOf(QLatin1Char(' '));
-                    if (k == -1) {
-                        context = comment;
-                    } else {
-                        context = comment.left(k);
-                        comment.remove(0, k + 1);
-                        TranslatorMessage msg(
-                                transcode(context), QString(),
-                                transcode(comment), QString(),
-                                yyFileName, yyLineNo, QStringList(),
-                                TranslatorMessage::Finished, false);
-                        msg.setExtraComment(transcode(extracomment.simplified()));
-                        extracomment.clear();
-                        tor->append(msg);
-                        tor->setExtras(extra);
-                        extra.clear();
-                    }
-                }
-            }
-            yyTok = getToken();
-            break;
-        }
         case Tok_Arrow:
             yyTok = getToken();
             if (yyTok == Tok_tr || yyTok == Tok_trUtf8)
@@ -2138,38 +2067,60 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
                 msgid.clear();
                 extra.clear();
             }
-            yyTokColonSeen = false;
+            metaExpected = true;
             yyTok = getToken();
             break;
+        case Tok_Access:
+            // Eat access specifiers, so their colons are not mistaken for c'tor initializer list starts
+            do {
+                yyTok = getToken();
+            } while (yyTok == Tok_Access); // Multiple specifiers are possible, e.g. "public slots"
+            metaExpected = true;
+            if (yyTok == Tok_Colon)
+                goto case_default;
+            break;
         case Tok_Colon:
-            if (!prospectiveContext.isEmpty()
-                && yyBraceDepth == namespaceDepths.count() && yyParenDepth == 0)
-                pendingContext = prospectiveContext;
-            yyTokColonSeen = true;
+        case Tok_Equals:
+            if (yyBraceDepth == namespaceDepths.count() && yyParenDepth == 0) {
+                if (!prospectiveContext.isEmpty()) {
+                    pendingContext = prospectiveContext;
+                    prospectiveContext.clear();
+                }
+                if (yyTok == Tok_Colon)
+                    yyTokColonSeen = true;
+            }
+            metaExpected = true;
             yyTok = getToken();
             break;
         case Tok_LeftBrace:
             if (!prospectiveContext.isEmpty()
-                && yyBraceDepth == namespaceDepths.count() + 1 && yyParenDepth == 0)
+                && yyBraceDepth == namespaceDepths.count() + 1 && yyParenDepth == 0) {
                 pendingContext = prospectiveContext;
-            // fallthrough
-        case Tok_LeftParen:
-        case Tok_RightParen:
+                prospectiveContext.clear();
+            }
             yyTokColonSeen = false;
+            // fallthrough
+        case Tok_Comma:
+        case Tok_LeftParen:
+            metaExpected = true;
+            yyTok = getToken();
+            break;
+        case Tok_RightParen:
+            metaExpected = false;
             yyTok = getToken();
             break;
         default:
             if (!yyParenDepth)
                 prospectiveContext.clear();
             // fallthrough
-        case Tok_Equals: // for static initializers; other cases make no difference
-        case Tok_RightBracket: // ignoring indexing; same reason
+        case Tok_RightBracket: // ignoring indexing; for static initializers
         case_default:
             yyTok = getToken();
             break;
         }
     }
 
+  goteof:
     if (yyBraceDepth != 0)
         yyMsg(yyBraceLineNo)
             << qPrintable(LU::tr("Unbalanced opening brace in C++ code"
@@ -2182,6 +2133,93 @@ void CppParser::parseInternal(ConversionData &cd, const QStringList &includeStac
         yyMsg(yyBracketLineNo)
             << qPrintable(LU::tr("Unbalanced opening bracket in C++ code"
                                  " (or abuse of the C++ preprocessor)\n"));
+}
+
+void CppParser::processComment()
+{
+    if (!tor || !metaExpected)
+        return;
+
+    const QChar *ptr = yyWord.unicode();
+    if (*ptr == QLatin1Char(':') && ptr[1].isSpace()) {
+        yyWord.remove(0, 2);
+        extracomment += yyWord;
+        extracomment.detach();
+    } else if (*ptr == QLatin1Char('=') && ptr[1].isSpace()) {
+        yyWord.remove(0, 2);
+        msgid = yyWord.simplified();
+        msgid.detach();
+    } else if (*ptr == QLatin1Char('~') && ptr[1].isSpace()) {
+        yyWord.remove(0, 2);
+        text = yyWord.trimmed();
+        int k = text.indexOf(QLatin1Char(' '));
+        if (k > -1)
+            extra.insert(text.left(k), text.mid(k + 1).trimmed());
+        text.clear();
+    } else if (*ptr == QLatin1Char('%') && ptr[1].isSpace()) {
+        sourcetext.reserve(sourcetext.length() + yyWord.length() - 2);
+        ushort *ptr = (ushort *)sourcetext.data() + sourcetext.length();
+        int p = 2, c;
+        forever {
+            if (p >= yyWord.length())
+                break;
+            c = yyWord.unicode()[p++].unicode();
+            if (isspace(c))
+                continue;
+            if (c != '"') {
+                yyMsg() << qPrintable(LU::tr("Unexpected character in meta string\n"));
+                break;
+            }
+            forever {
+                if (p >= yyWord.length()) {
+                  whoops:
+                    yyMsg() << qPrintable(LU::tr("Unterminated meta string\n"));
+                    break;
+                }
+                c = yyWord.unicode()[p++].unicode();
+                if (c == '"')
+                    break;
+                if (c == '\\') {
+                    if (p >= yyWord.length())
+                        goto whoops;
+                    c = yyWord.unicode()[p++].unicode();
+                    if (c == '\n')
+                        goto whoops;
+                    *ptr++ = '\\';
+                }
+                *ptr++ = c;
+            }
+        }
+        sourcetext.resize(ptr - (ushort *)sourcetext.data());
+    } else {
+        const ushort *uc = (const ushort *)yyWord.unicode(); // Is zero-terminated
+        int idx = 0;
+        ushort c;
+        while ((c = uc[idx]) == ' ' || c == '\t' || c == '\n')
+            ++idx;
+        if (!memcmp(uc + idx, MagicComment.unicode(), MagicComment.length() * 2)) {
+            idx += MagicComment.length();
+            comment = QString::fromRawData(yyWord.unicode() + idx,
+                                           yyWord.length() - idx).simplified();
+            int k = comment.indexOf(QLatin1Char(' '));
+            if (k == -1) {
+                context = comment;
+            } else {
+                context = comment.left(k);
+                comment.remove(0, k + 1);
+                TranslatorMessage msg(
+                        transcode(context), QString(),
+                        transcode(comment), QString(),
+                        yyFileName, yyLineNo, QStringList(),
+                        TranslatorMessage::Finished, false);
+                msg.setExtraComment(transcode(extracomment.simplified()));
+                extracomment.clear();
+                tor->append(msg);
+                tor->setExtras(extra);
+                extra.clear();
+            }
+        }
+    }
 }
 
 const ParseResults *CppParser::recordResults(bool isHeader)
@@ -2245,7 +2283,7 @@ void loadCPP(Translator &translator, const QStringList &filenames, ConversionDat
         if (!CppFiles::isBlacklisted(filename))
             if (const Translator *tor = CppFiles::getTranslator(filename))
                 foreach (const TranslatorMessage &msg, tor->messages())
-                    translator.extend(msg);
+                    translator.extend(msg, cd);
 }
 
 QT_END_NAMESPACE

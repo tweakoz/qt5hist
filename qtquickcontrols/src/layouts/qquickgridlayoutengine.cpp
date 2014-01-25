@@ -250,13 +250,17 @@ void QQuickGridLayoutItem::effectiveSizeHints_helper(QQuickItem *item, QSizeF *c
         }
     }
 
-    //--- GATHER DESCENT
-    // ### Not implemented
 
 
     // Normalize again after the implicit hints have been gathered
     expandSize(prefS, minS);
     boundSize(prefS, maxS);
+
+    //--- GATHER DESCENT
+    // Minimum descent is only applicable for the effective minimum height,
+    // so we gather the descent last.
+    const qreal minimumDescent = minS.height() - item->baselineOffset();
+    descentS.setHeight(minimumDescent);
 
     if (attachedInfo)
         *attachedInfo = info;
@@ -285,4 +289,20 @@ QLayoutPolicy::Policy QQuickGridLayoutItem::effectiveSizePolicy_helper(QQuickIte
     return fillExtent ? QLayoutPolicy::Preferred : QLayoutPolicy::Fixed;
 
 }
+
+void QQuickGridLayoutEngine::setAlignment(QQuickItem *quickItem, Qt::Alignment alignment)
+{
+    if (QQuickGridLayoutItem *item = findLayoutItem(quickItem)) {
+        item->setAlignment(alignment);
+        invalidate();
+    }
+}
+
+Qt::Alignment QQuickGridLayoutEngine::alignment(QQuickItem *quickItem) const
+{
+    if (QGridLayoutItem *item = findLayoutItem(quickItem))
+        return item->alignment();
+    return 0;
+}
+
 QT_END_NAMESPACE

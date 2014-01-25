@@ -43,6 +43,9 @@
 #define QNETWORKACCESSMANAGER_H
 
 #include <QtCore/QObject>
+#ifndef QT_NO_SSL
+#include <QtNetwork/QSslConfiguration>
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -97,6 +100,9 @@ public:
     explicit QNetworkAccessManager(QObject *parent = 0);
     ~QNetworkAccessManager();
 
+    // ### Qt 6: turn into virtual
+    QStringList supportedSchemes() const;
+
     void clearAccessCache();
 
 #ifndef QT_NO_NETWORKPROXY
@@ -132,6 +138,12 @@ public:
     NetworkAccessibility networkAccessible() const;
 #endif
 
+#ifndef QT_NO_SSL
+    void connectToHostEncrypted(const QString &hostName, quint16 port = 443,
+                                const QSslConfiguration &sslConfiguration = QSslConfiguration::defaultConfiguration());
+#endif
+    void connectToHost(const QString &hostName, quint16 port = 80);
+
 Q_SIGNALS:
 #ifndef QT_NO_NETWORKPROXY
     void proxyAuthenticationRequired(const QNetworkProxy &proxy, QAuthenticator *authenticator);
@@ -153,6 +165,9 @@ protected:
     virtual QNetworkReply *createRequest(Operation op, const QNetworkRequest &request,
                                          QIODevice *outgoingData = 0);
 
+protected Q_SLOTS:
+    QStringList supportedSchemesImplementation() const;
+
 private:
     friend class QNetworkReplyImplPrivate;
     friend class QNetworkReplyHttpImpl;
@@ -165,6 +180,7 @@ private:
 #ifndef QT_NO_BEARERMANAGEMENT
     Q_PRIVATE_SLOT(d_func(), void _q_networkSessionClosed())
     Q_PRIVATE_SLOT(d_func(), void _q_networkSessionStateChanged(QNetworkSession::State))
+    Q_PRIVATE_SLOT(d_func(), void _q_onlineStateChanged(bool))
 #endif
 };
 

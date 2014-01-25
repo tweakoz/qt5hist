@@ -41,6 +41,7 @@
 
 #include "qeglfshooks.h"
 #include <EGL/eglvivante.h>
+#include <QDebug>
 
 QT_BEGIN_NAMESPACE
 
@@ -49,8 +50,9 @@ class QEglFSImx6Hooks : public QEglFSHooks
 public:
     QEglFSImx6Hooks();
     virtual QSize screenSize() const;
-    virtual EGLNativeWindowType createNativeWindow(const QSize &size, const QSurfaceFormat &format);
+    virtual EGLNativeWindowType createNativeWindow(QPlatformWindow *window, const QSize &size, const QSurfaceFormat &format);
     virtual void destroyNativeWindow(EGLNativeWindowType window);
+    virtual EGLNativeDisplayType platformDisplay() const;
 
 private:
     QSize mScreenSize;
@@ -61,6 +63,15 @@ private:
 QEglFSImx6Hooks::QEglFSImx6Hooks()
 {
     int width, height;
+
+    bool multiBufferNotEnabledYet = qEnvironmentVariableIsEmpty("FB_MULTI_BUFFER");
+    bool multiBuffer = qEnvironmentVariableIsEmpty("QT_EGLFS_IMX6_NO_FB_MULTI_BUFFER");
+    if (multiBufferNotEnabledYet && multiBuffer) {
+        qWarning() << "QEglFSImx6Hooks will set environment variable FB_MULTI_BUFFER=2 to enable double buffering and vsync.\n"
+                   << "If this is not desired, you can override this via: export QT_EGLFS_IMX6_NO_FB_MULTI_BUFFER=1";
+        qputenv("FB_MULTI_BUFFER", "2");
+    }
+
     mNativeDisplay = fbGetDisplayByIndex(0);
     fbGetDisplayGeometry(mNativeDisplay, &width, &height);
     mScreenSize.setHeight(height);
@@ -72,9 +83,15 @@ QSize QEglFSImx6Hooks::screenSize() const
     return mScreenSize;
 }
 
-EGLNativeWindowType QEglFSImx6Hooks::createNativeWindow(const QSize &size, const QSurfaceFormat &format)
+EGLNativeDisplayType QEglFSImx6Hooks::platformDisplay() const
 {
-    Q_UNUSED(format);
+    return mNativeDisplay;
+}
+
+EGLNativeWindowType QEglFSImx6Hooks::createNativeWindow(QPlatformWindow *window, const QSize &size, const QSurfaceFormat &format)
+{
+    Q_UNUSED(window)
+    Q_UNUSED(format)
 
     EGLNativeWindowType eglWindow = fbCreateWindow(mNativeDisplay, 0, 0, size.width(), size.height());
     return eglWindow;

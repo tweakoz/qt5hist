@@ -25,6 +25,8 @@ HEADERS += \
         widgets/qframe.h \
         widgets/qframe_p.h \
         widgets/qgroupbox.h \
+        widgets/qkeysequenceedit.h \
+        widgets/qkeysequenceedit_p.h \
         widgets/qlabel.h \
         widgets/qlabel_p.h \
         widgets/qlcdnumber.h \
@@ -99,6 +101,7 @@ SOURCES += \
         widgets/qfontcombobox.cpp \
         widgets/qframe.cpp \
         widgets/qgroupbox.cpp \
+        widgets/qkeysequenceedit.cpp \
         widgets/qlabel.cpp \
         widgets/qlcdnumber.cpp \
         widgets/qlineedit_p.cpp \
@@ -141,16 +144,24 @@ SOURCES += \
         widgets/qtoolbararealayout.cpp \
         widgets/qplaintextedit.cpp
 
+macx {
+    HEADERS += \
+        widgets/qmacnativewidget_mac.h \
+        widgets/qmaccocoaviewcontainer_mac.h
+
+    OBJECTIVE_SOURCES += \
+        widgets/qmenu_mac.mm \
+        widgets/qmacnativewidget_mac.mm \
+        widgets/qmaccocoaviewcontainer_mac.mm
+}
+
 # TODO
 false:mac {
-    HEADERS += widgets/qmacnativewidget_mac.h \
-               widgets/qmaccocoaviewcontainer_mac.h
     OBJECTIVE_HEADERS += widgets/qcocoatoolbardelegate_mac_p.h \
                          widgets/qcocoamenu_mac_p.h
-    OBJECTIVE_SOURCES += widgets/qmaccocoaviewcontainer_mac.mm \
-                         widgets/qcocoatoolbardelegate_mac.mm \
-                         widgets/qmainwindowlayout_mac.mm \
-                         widgets/qmacnativewidget_mac.mm \
+    OBJECTIVE_SOURCES += widgets/qcocoatoolbardelegate_mac.mm \
+                         widgets/qmainwindowlayout_mac.mm
+
 }
 
 wince*: {

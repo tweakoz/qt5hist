@@ -66,6 +66,8 @@
 #include <private/qfilesystemmodel_p.h>
 #include <private/qfiledialog_p.h>
 #endif
+#include <private/qguiapplication_p.h>
+#include <qpa/qplatformtheme.h>
 #include <QFileDialog>
 #include <QFileSystemModel>
 
@@ -145,6 +147,7 @@ private slots:
     void clearLineEdit();
     void enableChooseButton();
     void hooks();
+    void widgetlessNativeDialog();
 #ifdef Q_OS_UNIX
 #ifdef QT_BUILD_INTERNAL
     void tildeExpansion_data();
@@ -611,6 +614,8 @@ void tst_QFiledialog::defaultSuffix()
     QNonNativeFileDialog fd;
     QCOMPARE(fd.defaultSuffix(), QString());
     fd.setDefaultSuffix("txt");
+    QCOMPARE(fd.defaultSuffix(), QString("txt"));
+    fd.setDefaultSuffix(".txt");
     QCOMPARE(fd.defaultSuffix(), QString("txt"));
     fd.setDefaultSuffix(QString());
     QCOMPARE(fd.defaultSuffix(), QString());
@@ -1334,6 +1339,38 @@ QString saveName(QWidget *, const QString &, const QString &, const QString &, Q
     return "saveName";
 }
 
+QT_BEGIN_NAMESPACE
+typedef QUrl (*_qt_filedialog_existing_directory_url_hook)(QWidget *parent, const QString &caption, const QUrl &dir, QFileDialog::Options options, const QStringList &supportedSchemes);
+extern Q_WIDGETS_EXPORT _qt_filedialog_existing_directory_url_hook qt_filedialog_existing_directory_url_hook;
+QT_END_NAMESPACE
+QUrl existingUrl(QWidget *, const QString &, const QUrl &, QFileDialog::Options, const QStringList &) {
+    return QUrl("http://dirUrl");
+}
+
+QT_BEGIN_NAMESPACE
+typedef QUrl (*_qt_filedialog_open_file_url_hook)(QWidget * parent, const QString &caption, const QUrl &dir, const QString &filter, QString *selectedFilter, QFileDialog::Options options, const QStringList &supportedSchemes);
+extern Q_WIDGETS_EXPORT _qt_filedialog_open_file_url_hook qt_filedialog_open_file_url_hook;
+QT_END_NAMESPACE
+QUrl openUrl(QWidget *, const QString &, const QUrl &, const QString &, QString *, QFileDialog::Options, const QStringList &) {
+    return QUrl("http://openUrl");
+}
+
+QT_BEGIN_NAMESPACE
+typedef QList<QUrl> (*_qt_filedialog_open_file_urls_hook)(QWidget * parent, const QString &caption, const QUrl &dir, const QString &filter, QString *selectedFilter, QFileDialog::Options options, const QStringList &supportedSchemes);
+extern Q_WIDGETS_EXPORT _qt_filedialog_open_file_urls_hook qt_filedialog_open_file_urls_hook;
+QT_END_NAMESPACE
+QList<QUrl> openUrls(QWidget *, const QString &, const QUrl &, const QString &, QString *, QFileDialog::Options, const QStringList &) {
+    return QList<QUrl>() << QUrl("http://openUrls");
+}
+
+QT_BEGIN_NAMESPACE
+typedef QUrl (*_qt_filedialog_save_file_url_hook)(QWidget * parent, const QString &caption, const QUrl &dir, const QString &filter, QString *selectedFilter, QFileDialog::Options options, const QStringList &supportedSchemes);
+extern Q_WIDGETS_EXPORT _qt_filedialog_save_file_url_hook qt_filedialog_save_file_url_hook;
+QT_END_NAMESPACE
+QUrl saveUrl(QWidget *, const QString &, const QUrl &, const QString &, QString *, QFileDialog::Options, const QStringList &) {
+    return QUrl("http://saveUrl");
+}
+
 
 void tst_QFiledialog::hooks()
 {
@@ -1346,6 +1383,34 @@ void tst_QFiledialog::hooks()
     QCOMPARE(QFileDialog::getOpenFileName(), QString("openName"));
     QCOMPARE(QFileDialog::getOpenFileNames(), QStringList("openNames"));
     QCOMPARE(QFileDialog::getSaveFileName(), QString("saveName"));
+    QCOMPARE(QFileDialog::getExistingDirectoryUrl(), QUrl::fromLocalFile("dir"));
+    QCOMPARE(QFileDialog::getOpenFileUrl(), QUrl::fromLocalFile("openName"));
+    QCOMPARE(QFileDialog::getOpenFileUrls(), QList<QUrl>() << QUrl::fromLocalFile("openNames"));
+    QCOMPARE(QFileDialog::getSaveFileUrl(), QUrl::fromLocalFile("saveName"));
+
+    qt_filedialog_existing_directory_url_hook = &existingUrl;
+    qt_filedialog_save_file_url_hook = &saveUrl;
+    qt_filedialog_open_file_url_hook = &openUrl;
+    qt_filedialog_open_file_urls_hook = &openUrls;
+
+    QCOMPARE(QFileDialog::getExistingDirectoryUrl(), QUrl("http://dirUrl"));
+    QCOMPARE(QFileDialog::getOpenFileUrl(), QUrl("http://openUrl"));
+    QCOMPARE(QFileDialog::getOpenFileUrls(), QList<QUrl>() << QUrl("http://openUrls"));
+    QCOMPARE(QFileDialog::getSaveFileUrl(), QUrl("http://saveUrl"));
+}
+
+void tst_QFiledialog::widgetlessNativeDialog()
+{
+    if (!QGuiApplicationPrivate::platformTheme()->usePlatformNativeDialog(QPlatformTheme::FileDialog))
+        QSKIP("This platform always uses widgets to realize its QFileDialog, instead of the native file dialog.");
+    QFileDialog fd;
+    fd.setWindowModality(Qt::ApplicationModal);
+    fd.show();
+    QTRY_VERIFY(fd.isVisible());
+    QFileSystemModel *model = fd.findChild<QFileSystemModel*>("qt_filesystem_model");
+    QVERIFY(!model);
+    QPushButton *button = fd.findChild<QPushButton*>();
+    QVERIFY(!button);
 }
 
 #ifdef Q_OS_UNIX

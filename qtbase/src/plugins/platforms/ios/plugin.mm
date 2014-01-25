@@ -48,7 +48,7 @@ QT_BEGIN_NAMESPACE
 class QIOSIntegrationPlugin : public QPlatformIntegrationPlugin
 {
     Q_OBJECT
-        Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.1" FILE "ios.json")
+        Q_PLUGIN_METADATA(IID "org.qt-project.Qt.QPA.QPlatformIntegrationFactoryInterface.5.2" FILE "ios.json")
     public:
         QPlatformIntegration *create(const QString&, const QStringList&);
 };
@@ -65,5 +65,9 @@ QPlatformIntegration * QIOSIntegrationPlugin::create(const QString& system, cons
 QT_END_NAMESPACE
 
 #include "plugin.moc"
+
+// Dummy function that we explicitly tell the linker to look for,
+// so that the plugin's static initializer is included and run.
+extern "C" void qt_registerPlatformPlugin() {}
 
 Q_IMPORT_PLUGIN(QIOSIntegrationPlugin)

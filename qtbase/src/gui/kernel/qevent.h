@@ -176,6 +176,9 @@ public:
     QWheelEvent(const QPointF &pos, const QPointF& globalPos,
                 QPoint pixelDelta, QPoint angleDelta, int qt4Delta, Qt::Orientation qt4Orientation,
                 Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers);
+    QWheelEvent(const QPointF &pos, const QPointF& globalPos,
+                QPoint pixelDelta, QPoint angleDelta, int qt4Delta, Qt::Orientation qt4Orientation,
+                Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers, Qt::ScrollPhase phase);
 
     ~QWheelEvent();
 
@@ -198,6 +201,9 @@ public:
     inline const QPointF &globalPosF()   const { return g; }
 
     inline Qt::MouseButtons buttons() const { return mouseState; }
+
+    inline Qt::ScrollPhase phase() const { return Qt::ScrollPhase(ph); }
+
 protected:
     QPointF p;
     QPointF g;
@@ -206,7 +212,8 @@ protected:
     int qt4D;
     Qt::Orientation qt4O;
     Qt::MouseButtons mouseState;
-    int reserved;
+    uint ph : 2;
+    int reserved : 30;
 };
 #endif
 
@@ -260,6 +267,34 @@ protected:
     void *mExtra;
 };
 #endif // QT_NO_TABLETEVENT
+
+#ifndef QT_NO_GESTURES
+class Q_GUI_EXPORT QNativeGestureEvent : public QInputEvent
+{
+public:
+    QNativeGestureEvent(Qt::NativeGestureType type, const QPointF &localPos, const QPointF &windowPos,
+                        const QPointF &screenPos, qreal value, ulong sequenceId, quint64 intArgument);
+    Qt::NativeGestureType gestureType() const { return mGestureType; }
+    qreal value() const { return mRealValue; }
+
+#ifndef QT_NO_INTEGER_EVENT_COORDINATES
+    inline const QPoint pos() const { return mLocalPos.toPoint(); }
+    inline const QPoint globalPos() const { return mScreenPos.toPoint(); }
+#endif
+    const QPointF &localPos() const { return mLocalPos; }
+    const QPointF &windowPos() const { return mWindowPos; }
+    const QPointF &screenPos() const { return mScreenPos; }
+
+protected:
+    Qt::NativeGestureType mGestureType;
+    QPointF mLocalPos;
+    QPointF mWindowPos;
+    QPointF mScreenPos;
+    qreal mRealValue;
+    ulong mSequenceId;
+    quint64 mIntValue;
+};
+#endif // QT_NO_GESTURES
 
 class Q_GUI_EXPORT QKeyEvent : public QInputEvent
 {

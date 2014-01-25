@@ -27,75 +27,124 @@
 
 /*!
     \page ios_support.html
-    \title iOS
+    \title Qt for iOS
     \brief Provides insight into Qt's iOS port and how to use it.
 
-    Qt's iOS port supports the following:
-
-    \list
-        \li Widgets
-        \li Graphics View
-        \li QtQuick 1
-        \li OpenGL
-        \li Touch and Orientation events
-    \endlist
+    Qt's iOS port allows you to run Qt applications on iOS devices,
+    such as iPhones and iPads.
 
     \section1 Getting Started
 
     Development and deployment is done using Xcode. The supported
     workflow is to maintain a \c .pro file based project, export it to
     Xcode (and re-export when the project setup changes), and then
-    build and deploy using Xcode.
+    build and deploy using Xcode. We will look at that in more
+    detail in the next section.
 
-    To set up your development environment, do the following:
+    The minimum deployment target for Qt applications is iOS 5.0. Qt
+    then supports the following devices (iOS might need to be upgraded
+    on some devices).
 
-    \list 1
-        \li Setup Xcode for development (acquire certificates,
-            configure devices). Test and deploy one of the standard
-            Xcode app templates to ensure that it works.
-        \li Build the modules you intend to use, for
-            device or simulator. Build instructions for Qt 5 is found
-            \l{Building Qt 5 From Git}{here}.
-            However, you don't need to build all of Qt 5.
-            After cloning Qt 5, enter the qtbase directory and
-            build from the command line like this:
-
-            \code
-                > ./configure -xplatform unsupported/macx-ios-clang -developer-build -release [-sdk iphonesimulator]
-
-                > make
-            \endcode
-
-            If you want the latest sources, you can checkout the
-            \c dev branch before building.
-
-            You also need to build the
-            \l{Qt Script} and \l{Qt Quick 1} modules if you
-            intend to use \l{Qt Quick 1}. From the Qt 5 top
-            directory, type:
-
-            \code
-                > cd qtscript; ../qtbase/bin/qmake; make; cd ..
-                > cd qtquick1; ../qtbase/bin/qmake; make; cd ..
-            \endcode
+    \list
+        \li iPhone 3GS and later
+        \li iPod Touch third and later generations
+        \li iPad 2 and later
+        \li iPad Mini
     \endlist
 
-    To check whether your environment is configured, try running the
-    simple demo application. It lives in the \c
-    {git://github.com/msorvig/qt-ios-demo.git} repository. Here is how
-    you build it:
+    \section2 Setting Up the Development Environment
 
-    \list 1
-        \li ../qtbase/bin/qmake
-        \li open \c {qt-ios-demo.xcodeproj} in Xcode and build it like
-            any other Xcode project.
+    You have two options to set up the Qt development environment:
+
+    \list
+        \li \l{Qt Installation Program}{Use an installer}
+        \li \l{Building Qt Sources}{Build from source}
     \endlist
 
-    When you develop your own applications, you follow the same
-    procedure.
+    \note Qt Enterprise packages are available from the \l{Try Qt Enterprise}
+    page. Qt for iOS is also available as part of the Qt Mobile Edition,
+    see \l{Qt Enterprise}{qt.digia.com} for details.
 
-*/
+    Regardless of which approach you choose, you first need to install
+    Xcode. You will find it in the App Store \l{Xcode}{here}. For
+    running Qt applications in the simulator that comes with Xcode,
+    this is all you need. However, for running applications on a
+    device and publishing your applications in the App Store, you must
+    join the iOS Developer Program (see
+    \l{https://developer.apple.com/programs/ios/}), and set up
+    developer certificates and provisioning profiles. The easiest
+    solution is to use a profile that takes any App ID (a \c *).
 
-/*
-We should also document the end-to-end story with this iOS port. That is, how the developer can develop, build, and deploy to a device.
+    Before building Qt or any Qt applications, you should test that Xcode
+    is set up correctly, for example, by running one of the standard
+    Xcode application templates on your device.
+
+    \section3 Building From Source
+
+    We assume that you have cloned the Qt 5 repositories (or obtained
+    the Qt sources elsewhere) and followed the platform independent
+    requirements for building Qt. The process of building Qt is found
+    in the \l{Building Qt Sources} page.
+
+    We can then build Qt. This is done from the Qt 5 top directory,
+    like so:
+
+    \code
+        > ./configure -xplatform macx-ios-clang -release
+    \endcode
+
+    Then simply run \c{make}.
+
+    \note A default build will include both simulator and device
+    libraries. If you want to build for a single target, use the \c
+    -sdk argument with either \c iphoneos or \c iphonesimulator.
+
+    \section2 Building Applications From the Command Line
+
+    As mentioned previously, the development workflow on iOS consists
+    of maintaining a normal \c .pro file project and export it to
+    Xcode.
+
+    Here is how to build a project:
+
+    \list
+        \li run qmake (if you have not done so previously)
+        \li open the resulting \c .xcodeproject file in Xcode
+        \li build the application in Xcode
+    \endlist
+
+    Note that you must re-import the project if its setup changes, for
+    example, when adding or removing source files.
+
+    \section1 Building Applications with Qt Creator
+
+    You can find information on how to set up and run iOS applications
+    in Qt Creator's manual:
+
+    \list
+        \li \l{Qt Creator: Connecting iOS devices}{Connecting iOS Devices}.
+    \endlist
+
+    As mentioned previously, you must have Xcode installed.
+
+    \section2 Examples for iOS
+
+    In Qt Creator, tested examples on iOS can be looked up. Use the \c ios
+    keyword to search for examples in the Qt Creator Welcome mode. Note that
+    some examples may have limited functionality.
+
+    \section1 Using Objective-C Code in Qt Applications
+
+    Clang, the compiler used for iOS applications, allows mixing C++
+    and Objective-C code. To enable this mode, suffix your source
+    files with \.c mm, and add them to \c OBJECTIVE_SOURCES instead of
+    \c SOURCES in the \c .pro file. This makes it possible to use
+    frameworks from Apple's iOS Developer Library in Qt applications.
+    Most useful is perhaps the possibility for adding In-App
+    Purchasing with the StoreKit framework.
+
+    We currently have one example mixing Objective-C and C++ code. You
+    find it
+    \l{https://qt-project.org/wiki/Mixing_C_and_ObjectiveC_Code}{here}.
+
 */

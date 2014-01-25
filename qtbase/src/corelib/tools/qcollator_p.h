@@ -1,6 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Aleix Pol Gonzalez <aleixpol@kde.org>
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -42,78 +43,79 @@
 #ifndef QCOLLATOR_P_H
 #define QCOLLATOR_P_H
 
-#include <QtCore/qstring.h>
-#include <QtCore/qlocale.h>
+#include "qcollator.h"
+#include <QVector>
+#ifdef QT_USE_ICU
+#include <unicode/ucol.h>
+#elif defined(Q_OS_OSX)
+#include <CoreServices/CoreServices.h>
+#endif
 
 QT_BEGIN_NAMESPACE
 
-class QCollatorPrivate;
+#ifdef QT_USE_ICU
+typedef UCollator *CollatorType;
+typedef QByteArray CollatorKeyType;
 
-class Q_CORE_EXPORT QCollator
+#elif defined(Q_OS_OSX)
+typedef QVector<UCCollationValue> CollatorKeyType;
+
+struct CollatorType {
+    CollatorType(int opt) : collator(NULL), options(opt) {}
+
+    CollatorRef collator;
+    UInt32 options;
+};
+#elif defined(Q_OS_WIN)
+typedef QString CollatorKeyType;
+typedef int CollatorType;
+#else //posix
+typedef QVector<wchar_t> CollatorKeyType;
+typedef int CollatorType;
+#endif
+
+class Q_CORE_EXPORT QCollatorPrivate
 {
 public:
-    enum Collation {
-        Default,
-        Big5Han,
-        Dictionary,
-        Direct,
-        GB2312Han,
-        PhoneBook,
-        Pinyin,
-        Phonetic,
-        Reformed,
-        Standard,
-        Stroke,
-        Traditional,
-        UniHan
-    };
+    QAtomicInt ref;
+    QLocale locale;
 
-    QCollator(const QLocale &locale = QLocale(), QCollator::Collation collation = QCollator::Default);
-    QCollator(const QCollator &);
-    ~QCollator();
-    QCollator &operator=(const QCollator &);
+    CollatorType collator;
 
-    void setLocale(const QLocale &locale);
-    QLocale locale() const;
+    void clear() {
+        cleanup();
+        collator = 0;
+    }
 
-    void setCollation(Collation collation);
-    Collation collation() const;
+    void init();
+    void cleanup();
 
-    QString identifier() const;
-    static QCollator fromIdentifier(const QString &identifier);
+    QCollatorPrivate()
+        : ref(1), collator(0)
+    { cleanup(); }
 
-    enum CasePreference {
-        CasePreferenceOff = 0x0,
-        CasePreferenceUpper  = 0x1,
-        CasePreferenceLower  = 0x2
-    };
-
-    CasePreference casePreference() const;
-    void setCasePreference(CasePreference c);
-
-    void setNumericMode(bool on);
-    bool numericMode() const;
-
-    void setIgnorePunctuation(bool on);
-    bool ignorePunctuation() const;
-
-    int compare(const QString &s1, const QString &s2) const;
-    int compare(const QStringRef &s1, const QStringRef &s2) const;
-    int compare(const QChar *s1, int len1, const QChar *s2, int len2) const;
-
-    bool operator()(const QString &s1, const QString &s2) const
-    { return compare(s1, s2) < 0; }
-
-    QByteArray sortKey(const QString &string) const;
-
-    QStringList indexCharacters() const;
+    ~QCollatorPrivate() { cleanup(); }
 
 private:
-    QCollatorPrivate *d;
-
-    void detach();
-    void init();
+    Q_DISABLE_COPY(QCollatorPrivate)
 };
+
+class Q_CORE_EXPORT QCollatorSortKeyPrivate : public QSharedData
+{
+    friend class QCollator;
+public:
+    QCollatorSortKeyPrivate(const CollatorKeyType &key)
+        : QSharedData()
+        , m_key(key)
+    {
+    }
+
+    CollatorKeyType m_key;
+
+private:
+    Q_DISABLE_COPY(QCollatorSortKeyPrivate)
+};
+
 
 QT_END_NAMESPACE
 

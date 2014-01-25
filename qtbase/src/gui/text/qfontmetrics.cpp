@@ -213,6 +213,14 @@ QFontMetrics &QFontMetrics::operator=(const QFontMetrics &fm)
 }
 
 /*!
+    \fn QFontMetrics &QFontMetrics::operator=(QFontMetrics &&other)
+
+    Move-assigns \a other to this QFontMetrics instance.
+
+    \since 5.2
+*/
+
+/*!
     \fn void QFontMetrics::swap(QFontMetrics &other)
     \since 5.0
 
@@ -221,8 +229,8 @@ QFontMetrics &QFontMetrics::operator=(const QFontMetrics &fm)
 */
 
 /*!
-    Returns true if \a other is equal to this object; otherwise
-    returns false.
+    Returns \c true if \a other is equal to this object; otherwise
+    returns \c false.
 
     Two font metrics are considered equal if they were constructed
     from the same QFont and the paint devices they were constructed
@@ -238,7 +246,7 @@ bool QFontMetrics::operator ==(const QFontMetrics &other) const
 /*!
     \fn bool QFontMetrics::operator !=(const QFontMetrics &other) const
 
-    Returns true if \a other is not equal to this object; otherwise returns false.
+    Returns \c true if \a other is not equal to this object; otherwise returns \c false.
 
     Two font metrics are considered equal if they were constructed
     from the same QFont and the paint devices they were constructed
@@ -397,8 +405,8 @@ int QFontMetrics::averageCharWidth() const
 }
 
 /*!
-    Returns true if character \a ch is a valid character in the font;
-    otherwise returns false.
+    Returns \c true if character \a ch is a valid character in the font;
+    otherwise returns \c false.
 */
 bool QFontMetrics::inFont(QChar ch) const
 {
@@ -411,8 +419,8 @@ bool QFontMetrics::inFont(QChar ch) const
 }
 
 /*!
-   Returns true if the character \a ucs4 encoded in UCS-4/UTF-32 is a valid
-   character in the font; otherwise returns false.
+   Returns \c true if the character \a ucs4 encoded in UCS-4/UTF-32 is a valid
+   character in the font; otherwise returns \c false.
 */
 bool QFontMetrics::inFontUcs4(uint ucs4) const
 {
@@ -1089,8 +1097,8 @@ QFontMetricsF &QFontMetricsF::operator=(const QFontMetricsF &fm)
 }
 
 /*!
-  Returns true if the font metrics are equal to the \a other font
-  metrics; otherwise returns false.
+  Returns \c true if the font metrics are equal to the \a other font
+  metrics; otherwise returns \c false.
 
   Two font metrics are considered equal if they were constructed from the
   same QFont and the paint devices they were constructed for are
@@ -1105,8 +1113,8 @@ bool QFontMetricsF::operator ==(const QFontMetricsF &other) const
     \fn bool QFontMetricsF::operator !=(const QFontMetricsF &other) const
     \overload
 
-    Returns true if the font metrics are not equal to the \a other font
-    metrics; otherwise returns false.
+    Returns \c true if the font metrics are not equal to the \a other font
+    metrics; otherwise returns \c false.
 
     \sa operator==()
 */
@@ -1263,8 +1271,8 @@ qreal QFontMetricsF::averageCharWidth() const
 }
 
 /*!
-    Returns true if character \a ch is a valid character in the font;
-    otherwise returns false.
+    Returns \c true if character \a ch is a valid character in the font;
+    otherwise returns \c false.
 */
 bool QFontMetricsF::inFont(QChar ch) const
 {
@@ -1279,8 +1287,8 @@ bool QFontMetricsF::inFont(QChar ch) const
 /*!
     \fn bool QFontMetricsF::inFontUcs4(uint ch) const
 
-    Returns true if the character given by \a ch, encoded in UCS-4/UTF-32,
-    is a valid character in the font; otherwise returns false.
+    Returns \c true if the character given by \a ch, encoded in UCS-4/UTF-32,
+    is a valid character in the font; otherwise returns \c false.
 */
 bool QFontMetricsF::inFontUcs4(uint ucs4) const
 {
@@ -1579,7 +1587,7 @@ QRectF QFontMetricsF::boundingRect(const QRectF &rect, int flags, const QString&
     \li Qt::TextWordBreak breaks the text to fit the rectangle.
     \endlist
 
-    These flags are defined in \l{Qt::TextFlags}.
+    These flags are defined in the \l{Qt::TextFlag} enum.
 
     If Qt::TextExpandTabs is set in \a flags, the following behavior is
     used to interpret tab characters in the text:

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -49,7 +49,7 @@
 
 QT_BEGIN_NAMESPACE
 
-//#define QML_RUNTIME_TESTING
+// #define QSG_RUNTIME_DESCRIPTION
 
 class QSGRenderer;
 
@@ -58,6 +58,14 @@ class QSGRootNode;
 class QSGGeometryNode;
 class QSGTransformNode;
 class QSGClipNode;
+class QSGNodePrivate;
+class QSGBasicGeometryNodePrivate;
+class QSGGeometryNodePrivate;
+
+namespace QSGBatchRenderer {
+    class Renderer;
+    class Updater;
+}
 
 class Q_QUICK_EXPORT QSGNode
 {
@@ -79,16 +87,19 @@ public:
         OwnedByParent               = 0x0001,
         UsePreprocess               = 0x0002,
 
-        // Upper 16 bits reserved for node subclasses
+        // 0x00ff0000 bits reserved for node subclasses
 
         // QSGBasicGeometryNode
         OwnsGeometry                = 0x00010000,
         OwnsMaterial                = 0x00020000,
         OwnsOpaqueMaterial          = 0x00040000
+
+        // Uppermost 8 bits are reserved for internal use.
     };
     Q_DECLARE_FLAGS(Flags, Flag)
 
     enum DirtyStateBit {
+        DirtySubtreeBlocked         = 0x0080,
         DirtyMatrix                 = 0x0100,
         DirtyNodeAdded              = 0x0400,
         DirtyNodeRemoved            = 0x0800,
@@ -143,15 +154,13 @@ public:
 
     virtual void preprocess() { }
 
-#ifdef QML_RUNTIME_TESTING
-    QString description;
-#endif
-
 protected:
     QSGNode(NodeType type);
+    QSGNode(QSGNodePrivate &dd, NodeType type);
 
 private:
     friend class QSGRootNode;
+    friend class QSGBatchRenderer::Renderer;
 
     void init();
     void destroy();
@@ -165,10 +174,17 @@ private:
     int m_subtreeRenderableCount;
 
     Flags m_nodeFlags;
-    DirtyState m_dirtyState;
+    DirtyState m_dirtyState; // Obsolete, remove in Qt 6
 
-    void *m_reserved;
+protected:
+    friend class QSGNodePrivate;
+
+    QScopedPointer<QSGNodePrivate> d_ptr;
 };
+
+#ifdef QSG_RUNTIME_DESCRIPTION
+void Q_QUICK_EXPORT qsgnode_set_description(QSGNode *node, const QString &description);
+#endif
 
 class Q_QUICK_EXPORT QSGBasicGeometryNode : public QSGNode
 {
@@ -184,9 +200,12 @@ public:
 
 protected:
     QSGBasicGeometryNode(NodeType type);
+    QSGBasicGeometryNode(QSGBasicGeometryNodePrivate &dd, NodeType type);
 
 private:
     friend class QSGNodeUpdater;
+    friend class QSGBatchRenderer::Updater;
+
     QSGGeometry *m_geometry;
 
     int m_reserved_start_index;
@@ -217,6 +236,9 @@ public:
 
     void setInheritedOpacity(qreal opacity);
     qreal inheritedOpacity() const { return m_opacity; }
+
+protected:
+    QSGGeometryNode(QSGGeometryNodePrivate &dd);
 
 private:
     friend class QSGNodeUpdater;

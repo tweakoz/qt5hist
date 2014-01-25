@@ -43,6 +43,8 @@
 #include <QtCore>
 #include <QtTest/QtTest>
 
+#include "tst_qvariant_common.h"
+
 #ifdef Q_OS_LINUX
 # include <pthread.h>
 #endif
@@ -111,6 +113,11 @@ private slots:
     void metaObject();
     void constexprMetaTypeIds();
     void constRefs();
+    void convertCustomType_data();
+    void convertCustomType();
+    void compareCustomType_data();
+    void compareCustomType();
+    void customDebugStream();
 };
 
 struct Foo { int i; };
@@ -1302,14 +1309,19 @@ Q_DECLARE_METATYPE(MyObjectPtr)
 
 void tst_QMetaType::automaticTemplateRegistration()
 {
-  {
-    QList<int> intList;
-    intList << 42;
-    QVERIFY(QVariant::fromValue(intList).value<QList<int> >().first() == 42);
-    QVector<QList<int> > vectorList;
-    vectorList << intList;
-    QVERIFY(QVariant::fromValue(vectorList).value<QVector<QList<int> > >().first().first() == 42);
+#define TEST_SEQUENTIAL_CONTAINER(CONTAINER, VALUE_TYPE) \
+  { \
+    CONTAINER<VALUE_TYPE> innerContainer; \
+    innerContainer.push_back(42); \
+    QVERIFY(*QVariant::fromValue(innerContainer).value<CONTAINER<VALUE_TYPE> >().begin() == 42); \
+    QVector<CONTAINER<VALUE_TYPE> > outerContainer; \
+    outerContainer << innerContainer; \
+    QVERIFY(*QVariant::fromValue(outerContainer).value<QVector<CONTAINER<VALUE_TYPE> > >().first().begin() == 42); \
   }
+
+  TEST_SEQUENTIAL_CONTAINER(QList, int)
+  TEST_SEQUENTIAL_CONTAINER(std::vector, int)
+  TEST_SEQUENTIAL_CONTAINER(std::list, int)
 
   {
     QList<QByteArray> bytearrayList;
@@ -1323,14 +1335,9 @@ void tst_QMetaType::automaticTemplateRegistration()
   QCOMPARE(::qMetaTypeId<QVariantList>(), (int)QMetaType::QVariantList);
   QCOMPARE(::qMetaTypeId<QList<QVariant> >(), (int)QMetaType::QVariantList);
 
-  {
-    QList<QVariant> variantList;
-    variantList << 42;
-    QVERIFY(QVariant::fromValue(variantList).value<QList<QVariant> >().first() == 42);
-    QVector<QList<QVariant> > vectorList;
-    vectorList << variantList;
-    QVERIFY(QVariant::fromValue(vectorList).value<QVector<QList<QVariant> > >().first().first() == 42);
-  }
+  TEST_SEQUENTIAL_CONTAINER(QList, QVariant)
+  TEST_SEQUENTIAL_CONTAINER(std::vector, QVariant)
+  TEST_SEQUENTIAL_CONTAINER(std::list, QVariant)
 
   {
     QList<QSharedPointer<QObject> > sharedPointerList;
@@ -1395,6 +1402,31 @@ void tst_QMetaType::automaticTemplateRegistration()
     QCOMPARE(QVariant::fromValue(variantMap).value<QVariantMap>().value(QStringLiteral("4")), QVariant(2));
   }
   {
+    typedef std::map<int, int> IntIntMap;
+    IntIntMap intIntMap;
+    intIntMap[4] = 2;
+    QCOMPARE(QVariant::fromValue(intIntMap).value<IntIntMap>()[4], 2);
+  }
+  {
+    typedef std::map<int, uint> StdIntUIntMap;
+    StdIntUIntMap intUIntMap;
+    intUIntMap[4] = 2;
+    QCOMPARE(QVariant::fromValue(intUIntMap).value<StdIntUIntMap>()[4], (uint)2);
+  }
+  {
+    typedef std::map<int, CustomObject*> StdMapIntCustomObject ;
+    StdMapIntCustomObject intComparableMap;
+    CustomObject *o = 0;
+    intComparableMap[4] = o;
+    QCOMPARE(QVariant::fromValue(intComparableMap).value<StdMapIntCustomObject >()[4], o);
+  }
+  {
+    typedef std::map<QString, QVariant> StdMapStringVariant;
+    StdMapStringVariant variantMap;
+    variantMap[QStringLiteral("4")] = 2;
+    QCOMPARE(QVariant::fromValue(variantMap).value<StdMapStringVariant>()[QStringLiteral("4")], QVariant(2));
+  }
+  {
     typedef QPair<int, int> IntIntPair;
     IntIntPair intIntPair = qMakePair(4, 2);
     QCOMPARE(QVariant::fromValue(intIntPair).value<IntIntPair>().first, 4);
@@ -1410,6 +1442,25 @@ void tst_QMetaType::automaticTemplateRegistration()
     IntComparablePair intComparablePair = qMakePair(4, m);
     QCOMPARE(QVariant::fromValue(intComparablePair).value<IntComparablePair>().first, 4);
     QCOMPARE(QVariant::fromValue(intComparablePair).value<IntComparablePair>().second, m);
+  }
+  {
+    typedef std::pair<int, int> IntIntPair;
+    IntIntPair intIntPair = std::make_pair(4, 2);
+    QCOMPARE(QVariant::fromValue(intIntPair).value<IntIntPair>().first, 4);
+    QCOMPARE(QVariant::fromValue(intIntPair).value<IntIntPair>().second, 2);
+  }
+  {
+    typedef std::pair<int, uint> StdIntUIntPair;
+    StdIntUIntPair intUIntPair = std::make_pair<int, uint>(4, 2);
+    QCOMPARE(QVariant::fromValue(intUIntPair).value<StdIntUIntPair>().first, 4);
+    QCOMPARE(QVariant::fromValue(intUIntPair).value<StdIntUIntPair>().second, (uint)2);
+  }
+  {
+    typedef std::pair<int, CustomQObject*> StdIntComparablePair;
+    CustomQObject* o = 0;
+    StdIntComparablePair intComparablePair = std::make_pair(4, o);
+    QCOMPARE(QVariant::fromValue(intComparablePair).value<StdIntComparablePair>().first, 4);
+    QCOMPARE(QVariant::fromValue(intComparablePair).value<StdIntComparablePair>().second, o);
   }
   {
     typedef QHash<int, UnregisteredType> IntUnregisteredTypeHash;
@@ -1446,17 +1497,14 @@ void tst_QMetaType::automaticTemplateRegistration()
         F(uint, __VA_ARGS__) \
         F(qlonglong, __VA_ARGS__) \
         F(qulonglong, __VA_ARGS__) \
-        F(double, __VA_ARGS__) \
         F(long, __VA_ARGS__) \
         F(short, __VA_ARGS__) \
         F(char, __VA_ARGS__) \
         F(ulong, __VA_ARGS__) \
         F(ushort, __VA_ARGS__) \
         F(uchar, __VA_ARGS__) \
-        F(float, __VA_ARGS__) \
         F(QObject*, __VA_ARGS__) \
-        F(QString, __VA_ARGS__) \
-        F(CustomMovable, __VA_ARGS__)
+        F(QString, __VA_ARGS__)
 
 
     #define CREATE_AND_VERIFY_CONTAINER(CONTAINER, ...) \
@@ -1774,6 +1822,366 @@ void tst_QMetaType::constRefs()
 #endif
 }
 
+struct CustomConvertibleType
+{
+    explicit CustomConvertibleType(const QVariant &foo = QVariant()) : m_foo(foo) {}
+    virtual ~CustomConvertibleType() {}
+    QString toString() const { return m_foo.toString(); }
+    operator QPoint() const { return QPoint(12, 34); }
+    template<typename To>
+    To convert() const { return s_value.value<To>();}
+    template<typename To>
+    To convertOk(bool *ok) const { *ok = s_ok; return s_value.value<To>();}
+
+    QVariant m_foo;
+    static QVariant s_value;
+    static bool s_ok;
+};
+
+bool operator<(const CustomConvertibleType &lhs, const CustomConvertibleType &rhs)
+{ return lhs.m_foo < rhs.m_foo; }
+bool operator==(const CustomConvertibleType &lhs, const CustomConvertibleType &rhs)
+{ return lhs.m_foo == rhs.m_foo; }
+bool operator!=(const CustomConvertibleType &lhs, const CustomConvertibleType &rhs)
+{ return !operator==(lhs, rhs); }
+
+QVariant CustomConvertibleType::s_value;
+bool CustomConvertibleType::s_ok = true;
+
+struct CustomConvertibleType2
+{
+    // implicit
+    CustomConvertibleType2(const CustomConvertibleType &t = CustomConvertibleType())
+        : m_foo(t.m_foo) {}
+    virtual ~CustomConvertibleType2() {}
+
+    QVariant m_foo;
+};
+
+struct CustomDebugStreamableType
+{
+    QString toString() const { return "test"; }
+};
+
+QDebug operator<<(QDebug dbg, const CustomDebugStreamableType&)
+{
+    return dbg << "string-content";
+}
+
+bool operator==(const CustomConvertibleType2 &lhs, const CustomConvertibleType2 &rhs)
+{ return lhs.m_foo == rhs.m_foo; }
+bool operator!=(const CustomConvertibleType2 &lhs, const CustomConvertibleType2 &rhs)
+{ return !operator==(lhs, rhs); }
+
+Q_DECLARE_METATYPE(CustomConvertibleType);
+Q_DECLARE_METATYPE(CustomConvertibleType2);
+Q_DECLARE_METATYPE(CustomDebugStreamableType);
+
+template<typename T, typename U>
+U convert(const T &t)
+{
+    return t;
+}
+
+template<typename From>
+struct ConvertFunctor
+{
+    CustomConvertibleType operator()(const From& f) const
+    {
+        return CustomConvertibleType(QVariant::fromValue(f));
+    }
+};
+
+template<typename From, typename To>
+bool hasRegisteredConverterFunction()
+{
+    return QMetaType::hasRegisteredConverterFunction<From, To>();
+}
+
+template<typename From, typename To>
+void testCustomTypeNotYetConvertible()
+{
+    QVERIFY((!hasRegisteredConverterFunction<From, To>()));
+    QVERIFY((!QVariant::fromValue<From>(From()).canConvert(qMetaTypeId<To>())));
+}
+
+template<typename From, typename To>
+void testCustomTypeConvertible()
+{
+    QVERIFY((hasRegisteredConverterFunction<From, To>()));
+    QVERIFY((QVariant::fromValue<From>(From()).canConvert(qMetaTypeId<To>())));
+}
+
+void customTypeNotYetConvertible()
+{
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QString>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, bool>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, int>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, double>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, float>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QRect>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QRectF>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QPoint>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QPointF>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QSize>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QSizeF>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QLine>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QLineF>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, QChar>();
+    testCustomTypeNotYetConvertible<QString, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<bool, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<int, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<double, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<float, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QRect, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QRectF, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QPoint, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QPointF, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QSize, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QSizeF, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QLine, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QLineF, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<QChar, CustomConvertibleType>();
+    testCustomTypeNotYetConvertible<CustomConvertibleType, CustomConvertibleType2>();
+}
+
+void registerCustomTypeConversions()
+{
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QString>(&CustomConvertibleType::convertOk<QString>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, bool>(&CustomConvertibleType::convert<bool>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, int>(&CustomConvertibleType::convertOk<int>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, double>(&CustomConvertibleType::convert<double>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, float>(&CustomConvertibleType::convertOk<float>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QRect>(&CustomConvertibleType::convert<QRect>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QRectF>(&CustomConvertibleType::convertOk<QRectF>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QPoint>(convert<CustomConvertibleType,QPoint>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QPointF>(&CustomConvertibleType::convertOk<QPointF>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QSize>(&CustomConvertibleType::convert<QSize>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QSizeF>(&CustomConvertibleType::convertOk<QSizeF>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QLine>(&CustomConvertibleType::convert<QLine>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QLineF>(&CustomConvertibleType::convertOk<QLineF>)));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, QChar>(&CustomConvertibleType::convert<QChar>)));
+    QVERIFY((QMetaType::registerConverter<QString, CustomConvertibleType>(ConvertFunctor<QString>())));
+    QVERIFY((QMetaType::registerConverter<bool, CustomConvertibleType>(ConvertFunctor<bool>())));
+    QVERIFY((QMetaType::registerConverter<int, CustomConvertibleType>(ConvertFunctor<int>())));
+    QVERIFY((QMetaType::registerConverter<double, CustomConvertibleType>(ConvertFunctor<double>())));
+    QVERIFY((QMetaType::registerConverter<float, CustomConvertibleType>(ConvertFunctor<float>())));
+    QVERIFY((QMetaType::registerConverter<QRect, CustomConvertibleType>(ConvertFunctor<QRect>())));
+    QVERIFY((QMetaType::registerConverter<QRectF, CustomConvertibleType>(ConvertFunctor<QRectF>())));
+    QVERIFY((QMetaType::registerConverter<QPoint, CustomConvertibleType>(ConvertFunctor<QPoint>())));
+    QVERIFY((QMetaType::registerConverter<QPointF, CustomConvertibleType>(ConvertFunctor<QPointF>())));
+    QVERIFY((QMetaType::registerConverter<QSize, CustomConvertibleType>(ConvertFunctor<QSize>())));
+    QVERIFY((QMetaType::registerConverter<QSizeF, CustomConvertibleType>(ConvertFunctor<QSizeF>())));
+    QVERIFY((QMetaType::registerConverter<QLine, CustomConvertibleType>(ConvertFunctor<QLine>())));
+    QVERIFY((QMetaType::registerConverter<QLineF, CustomConvertibleType>(ConvertFunctor<QLineF>())));
+    QVERIFY((QMetaType::registerConverter<QChar, CustomConvertibleType>(ConvertFunctor<QChar>())));
+    QVERIFY((QMetaType::registerConverter<CustomConvertibleType, CustomConvertibleType2>()));
+    QTest::ignoreMessage(QtWarningMsg, "Type conversion already registered from type CustomConvertibleType to type CustomConvertibleType2");
+    QVERIFY((!QMetaType::registerConverter<CustomConvertibleType, CustomConvertibleType2>()));
+}
+
+void tst_QMetaType::convertCustomType_data()
+{
+    customTypeNotYetConvertible();
+    registerCustomTypeConversions();
+
+    QTest::addColumn<bool>("ok");
+    QTest::addColumn<QString>("testQString");
+    QTest::addColumn<bool>("testBool");
+    QTest::addColumn<int>("testInt");
+    QTest::addColumn<double>("testDouble");
+    QTest::addColumn<float>("testFloat");
+    QTest::addColumn<QRect>("testQRect");
+    QTest::addColumn<QRectF>("testQRectF");
+    QTest::addColumn<QPoint>("testQPoint");
+    QTest::addColumn<QPointF>("testQPointF");
+    QTest::addColumn<QSize>("testQSize");
+    QTest::addColumn<QSizeF>("testQSizeF");
+    QTest::addColumn<QLine>("testQLine");
+    QTest::addColumn<QLineF>("testQLineF");
+    QTest::addColumn<QChar>("testQChar");
+    QTest::addColumn<CustomConvertibleType>("testCustom");
+
+    QTest::newRow("default") << true
+                             << QString::fromLatin1("string") << true << 15
+                             << double(3.14) << float(3.6) << QRect(1, 2, 3, 4)
+                             << QRectF(1.4, 1.9, 10.9, 40.2) << QPoint(12, 34)
+                             << QPointF(9.2, 2.7) << QSize(4, 9) << QSizeF(3.3, 9.8)
+                             << QLine(3, 9, 29, 4) << QLineF(38.9, 28.9, 102.3, 0.0)
+                             << QChar('Q') << CustomConvertibleType(QString::fromLatin1("test"));
+    QTest::newRow("not ok") << false
+                            << QString::fromLatin1("string") << true << 15
+                            << double(3.14) << float(3.6) << QRect(1, 2, 3, 4)
+                            << QRectF(1.4, 1.9, 10.9, 40.2) << QPoint(12, 34)
+                            << QPointF(9.2, 2.7) << QSize(4, 9) << QSizeF(3.3, 9.8)
+                            << QLine(3, 9, 29, 4) << QLineF()
+                            << QChar('Q') << CustomConvertibleType(42);
+}
+
+void tst_QMetaType::convertCustomType()
+{
+    QFETCH(bool, ok);
+    CustomConvertibleType::s_ok = ok;
+
+    CustomConvertibleType t;
+    QVariant v = QVariant::fromValue(t);
+    QFETCH(QString, testQString);
+    CustomConvertibleType::s_value = testQString;
+    QCOMPARE(v.toString(), ok ? testQString : QString());
+    QCOMPARE(v.value<QString>(), ok ? testQString : QString());
+    QVERIFY(CustomConvertibleType::s_value.canConvert<CustomConvertibleType>());
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toString()), testQString);
+
+    QFETCH(bool, testBool);
+    CustomConvertibleType::s_value = testBool;
+    QCOMPARE(v.toBool(), testBool);
+    QCOMPARE(v.value<bool>(), testBool);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toBool()), testBool);
+
+    QFETCH(int, testInt);
+    CustomConvertibleType::s_value = testInt;
+    QCOMPARE(v.toInt(), ok ? testInt : 0);
+    QCOMPARE(v.value<int>(), ok ? testInt : 0);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toInt()), testInt);
+
+    QFETCH(double, testDouble);
+    CustomConvertibleType::s_value = testDouble;
+    QCOMPARE(v.toDouble(), testDouble);
+    QCOMPARE(v.value<double>(), testDouble);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toDouble()), testDouble);
+
+    QFETCH(float, testFloat);
+    CustomConvertibleType::s_value = testFloat;
+    QCOMPARE(v.toFloat(), ok ? testFloat : 0.0);
+    QCOMPARE(v.value<float>(), ok ? testFloat : 0.0);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toFloat()), testFloat);
+
+    QFETCH(QRect, testQRect);
+    CustomConvertibleType::s_value = testQRect;
+    QCOMPARE(v.toRect(), testQRect);
+    QCOMPARE(v.value<QRect>(), testQRect);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toRect()), testQRect);
+
+    QFETCH(QRectF, testQRectF);
+    CustomConvertibleType::s_value = testQRectF;
+    QCOMPARE(v.toRectF(), ok ? testQRectF : QRectF());
+    QCOMPARE(v.value<QRectF>(), ok ? testQRectF : QRectF());
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toRectF()), testQRectF);
+
+    QFETCH(QPoint, testQPoint);
+    CustomConvertibleType::s_value = testQPoint;
+    QCOMPARE(v.toPoint(), testQPoint);
+    QCOMPARE(v.value<QPoint>(), testQPoint);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toPoint()), testQPoint);
+
+    QFETCH(QPointF, testQPointF);
+    CustomConvertibleType::s_value = testQPointF;
+    QCOMPARE(v.toPointF(), ok ? testQPointF : QPointF());
+    QCOMPARE(v.value<QPointF>(), ok ? testQPointF : QPointF());
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toPointF()), testQPointF);
+
+    QFETCH(QSize, testQSize);
+    CustomConvertibleType::s_value = testQSize;
+    QCOMPARE(v.toSize(), testQSize);
+    QCOMPARE(v.value<QSize>(), testQSize);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toSize()), testQSize);
+
+    QFETCH(QSizeF, testQSizeF);
+    CustomConvertibleType::s_value = testQSizeF;
+    QCOMPARE(v.toSizeF(), ok ? testQSizeF : QSizeF());
+    QCOMPARE(v.value<QSizeF>(), ok ? testQSizeF : QSizeF());
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toSizeF()), testQSizeF);
+
+    QFETCH(QLine, testQLine);
+    CustomConvertibleType::s_value = testQLine;
+    QCOMPARE(v.toLine(), testQLine);
+    QCOMPARE(v.value<QLine>(), testQLine);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toLine()), testQLine);
+
+    QFETCH(QLineF, testQLineF);
+    CustomConvertibleType::s_value = testQLineF;
+    QCOMPARE(v.toLineF(), ok ? testQLineF : QLineF());
+    QCOMPARE(v.value<QLineF>(), ok ? testQLineF : QLineF());
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toLineF()), testQLineF);
+
+    QFETCH(QChar, testQChar);
+    CustomConvertibleType::s_value = testQChar;
+    QCOMPARE(v.toChar(), testQChar);
+    QCOMPARE((CustomConvertibleType::s_value.value<CustomConvertibleType>().m_foo.toChar()), testQChar);
+
+    QFETCH(CustomConvertibleType, testCustom);
+    v = QVariant::fromValue(testCustom);
+    QVERIFY(v.canConvert(::qMetaTypeId<CustomConvertibleType2>()));
+    QCOMPARE(v.value<CustomConvertibleType2>().m_foo, testCustom.m_foo);
+}
+
+void tst_QMetaType::compareCustomType_data()
+{
+    QMetaType::registerComparators<CustomConvertibleType>();
+
+    QTest::addColumn<QVariantList>("unsorted");
+    QTest::addColumn<QVariantList>("sorted");
+
+    QTest::newRow("int") << (QVariantList() << 37 << 458 << 1 << 243 << -4 << 383)
+                         << (QVariantList() << -4 << 1 << 37 << 243 << 383 << 458);
+
+    QTest::newRow("dobule") << (QVariantList() << 4934.93 << 0.0 << 302.39 << -39.0)
+                            << (QVariantList() << -39.0 << 0.0 << 302.39 << 4934.93);
+
+    QTest::newRow("QString") << (QVariantList() << "Hello" << "World" << "this" << "is" << "a" << "test")
+                             << (QVariantList() << "a" << "Hello" << "is" << "test" << "this" << "World");
+
+    QTest::newRow("QTime") << (QVariantList() << QTime(14, 39) << QTime(0, 0) << QTime(18, 18) << QTime(9, 27))
+                           << (QVariantList() << QTime(0, 0) << QTime(9, 27) << QTime(14, 39) << QTime(18, 18));
+
+    QTest::newRow("QDate") << (QVariantList() << QDate(2013, 3, 23) << QDate(1900, 12, 1) << QDate(2001, 2, 2) << QDate(1982, 12, 16))
+                           << (QVariantList() << QDate(1900, 12, 1) << QDate(1982, 12, 16) << QDate(2001, 2, 2) << QDate(2013, 3, 23));
+
+    QTest::newRow("mixed")   << (QVariantList() << "Hello" << "World" << QChar('a') << 38 << QChar('z') << -39 << 4.6)
+                             << (QVariantList() << -39 << 4.6 << 38 << QChar('a') << "Hello" << "World" << QChar('z'));
+
+    QTest::newRow("custom") << (QVariantList() << QVariant::fromValue(CustomConvertibleType(1)) << QVariant::fromValue(CustomConvertibleType(100)) << QVariant::fromValue(CustomConvertibleType(50)))
+                            << (QVariantList() << QVariant::fromValue(CustomConvertibleType(1)) << QVariant::fromValue(CustomConvertibleType(50)) << QVariant::fromValue(CustomConvertibleType(100)));
+}
+
+void tst_QMetaType::compareCustomType()
+{
+    QFETCH(QVariantList, unsorted);
+    QFETCH(QVariantList, sorted);
+    qSort(unsorted);
+    QCOMPARE(unsorted, sorted);
+}
+
+struct MessageHandlerCustom : public MessageHandler
+{
+    MessageHandlerCustom(const int typeId)
+        : MessageHandler(typeId, handler)
+    {}
+    static void handler(QtMsgType, const QMessageLogContext &, const QString &msg)
+    {
+        QCOMPARE(msg.trimmed(), expectedMessage.trimmed());
+    }
+    static QString expectedMessage;
+};
+
+QString MessageHandlerCustom::expectedMessage;
+
+void tst_QMetaType::customDebugStream()
+{
+    MessageHandlerCustom handler(::qMetaTypeId<CustomDebugStreamableType>());
+    QVariant v1 = QVariant::fromValue(CustomDebugStreamableType());
+    handler.expectedMessage = "QVariant(CustomDebugStreamableType, )";
+    qDebug() << v1;
+
+    QMetaType::registerConverter<CustomDebugStreamableType, QString>(&CustomDebugStreamableType::toString);
+    handler.expectedMessage = "QVariant(CustomDebugStreamableType, \"test\")";
+    qDebug() << v1;
+
+    QMetaType::registerDebugStreamOperator<CustomDebugStreamableType>();
+    handler.expectedMessage = "QVariant(CustomDebugStreamableType, string-content)";
+    qDebug() << v1;
+}
+
 // Compile-time test, it should be possible to register function pointer types
 class Undefined;
 
@@ -1781,11 +2189,15 @@ typedef Undefined (*UndefinedFunction0)();
 typedef Undefined (*UndefinedFunction1)(Undefined);
 typedef Undefined (*UndefinedFunction2)(Undefined, Undefined);
 typedef Undefined (*UndefinedFunction3)(Undefined, Undefined, Undefined);
+typedef Undefined (*UndefinedFunction4)(Undefined, Undefined, Undefined, Undefined, Undefined, Undefined, Undefined, Undefined);
 
 Q_DECLARE_METATYPE(UndefinedFunction0);
 Q_DECLARE_METATYPE(UndefinedFunction1);
 Q_DECLARE_METATYPE(UndefinedFunction2);
 Q_DECLARE_METATYPE(UndefinedFunction3);
+#ifdef Q_COMPILER_VARIADIC_TEMPLATES
+Q_DECLARE_METATYPE(UndefinedFunction4);
+#endif
 
 QTEST_MAIN(tst_QMetaType)
 #include "tst_qmetatype.moc"

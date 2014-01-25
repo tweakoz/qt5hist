@@ -91,10 +91,16 @@ public:
           expandsOnDoubleClick(true),
           allColumnsShowFocus(false), current(0), spanning(false),
           animationsEnabled(false), columnResizeTimerID(0),
-          autoExpandDelay(-1), hoverBranch(-1), geometryRecursionBlock(false), hasRemovedItems(false) {}
+          autoExpandDelay(-1), hoverBranch(-1), geometryRecursionBlock(false), hasRemovedItems(false),
+          treePosition(0) {}
 
     ~QTreeViewPrivate() {}
     void initialize();
+    int logicalIndexForTree() const;
+    inline bool isTreePosition(int logicalIndex) const
+    {
+        return logicalIndex == logicalIndexForTree();
+    }
 
     QItemViewPaintPairs draggablePaintPairs(const QModelIndexList &indexes, QRect *r) const;
     void adjustViewOptionsForIndex(QStyleOptionViewItem *option, const QModelIndex &current) const;
@@ -148,6 +154,7 @@ public:
 #endif
 
     int firstVisibleItem(int *offset = 0) const;
+    int lastVisibleItem(int firstVisual = -1, int offset = -1) const;
     int columnAt(int x) const;
     bool hasVisibleChildren( const QModelIndex& parent) const;
 
@@ -171,7 +178,7 @@ public:
     // logicalIndices: vector of currently visibly logical indices
     // itemPositions: vector of view item positions (beginning/middle/end/onlyone)
     void calcLogicalIndices(QVector<int> *logicalIndices, QVector<QStyleOptionViewItem::ViewItemPosition> *itemPositions, int left, int right) const;
-
+    int widthHintForIndex(const QModelIndex &index, int hint, const QStyleOptionViewItem &option, int i) const;
     QHeaderView *header;
     int indent;
 
@@ -232,6 +239,8 @@ public:
         return (viewIndex(index) + (header ? 1 : 0)) * model->columnCount()+index.column();
     }
 
+    int accessibleTree2Index(const QModelIndex &index) const;
+
     // used for spanning rows
     QVector<QPersistentModelIndex> spanningIndexes;
 
@@ -251,6 +260,9 @@ public:
 
     // If we should clean the set
     bool hasRemovedItems;
+
+    // tree position
+    int treePosition;
 };
 
 QT_END_NAMESPACE

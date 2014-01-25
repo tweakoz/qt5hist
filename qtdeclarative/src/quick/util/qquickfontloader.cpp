@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -148,7 +148,7 @@ QHash<QUrl, QQuickFontObject*> QQuickFontLoaderPrivate::fonts;
 /*!
     \qmltype FontLoader
     \instantiates QQuickFontLoader
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-text-utility
     \brief Allows fonts to be loaded by name or URL
 
@@ -182,7 +182,7 @@ QQuickFontLoader::~QQuickFontLoader()
 }
 
 /*!
-    \qmlproperty url QtQuick2::FontLoader::source
+    \qmlproperty url QtQuick::FontLoader::source
     The url of the font to load.
 */
 QUrl QQuickFontLoader::source() const
@@ -253,7 +253,7 @@ void QQuickFontLoader::updateFontInfo(const QString& name, QQuickFontLoader::Sta
 }
 
 /*!
-    \qmlproperty string QtQuick2::FontLoader::name
+    \qmlproperty string QtQuick::FontLoader::name
 
     This property holds the name of the font family.
     It is set automatically when a font is loaded using the \c url property.
@@ -294,7 +294,7 @@ void QQuickFontLoader::setName(const QString &name)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::FontLoader::status
+    \qmlproperty enumeration QtQuick::FontLoader::status
 
     This property holds the status of font loading.  It can be one of:
     \list

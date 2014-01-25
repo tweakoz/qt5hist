@@ -76,11 +76,18 @@ public:
 
     void componentComplete();
     virtual QSizeF sizeHint(Qt::SizeHint whichSizeHint) const = 0;
+    virtual void setAlignment(QQuickItem *item, Qt::Alignment align) = 0;
     virtual void invalidate(QQuickItem * childItem = 0);
+    virtual void updateLayoutItems() = 0;
+
+    // iterator
+    virtual QQuickItem *itemAt(int index) const = 0;
+    virtual int itemCount() const = 0;
+
     virtual void rearrange(const QSizeF &);
     bool arrangementIsDirty() const { return m_dirty; }
 protected:
-    bool event(QEvent *e);
+    void updatePolish() Q_DECL_OVERRIDE;
 
     enum Orientation {
         Vertical = 0,
@@ -112,21 +119,21 @@ class QQuickLayoutAttached : public QObject
     Q_PROPERTY(qreal preferredHeight READ preferredHeight WRITE setPreferredHeight NOTIFY preferredHeightChanged)
     Q_PROPERTY(qreal maximumWidth READ maximumWidth WRITE setMaximumWidth NOTIFY maximumWidthChanged)
     Q_PROPERTY(qreal maximumHeight READ maximumHeight WRITE setMaximumHeight NOTIFY maximumHeightChanged)
-    Q_PROPERTY(bool fillHeight READ fillHeight WRITE setFillHeight)
-    Q_PROPERTY(bool fillWidth READ fillWidth WRITE setFillWidth)
-    Q_PROPERTY(int row READ row WRITE setRow)
-    Q_PROPERTY(int column READ column WRITE setColumn)
-    Q_PROPERTY(int rowSpan READ rowSpan WRITE setRowSpan)
-    Q_PROPERTY(int columnSpan READ columnSpan WRITE setColumnSpan)
-    Q_PROPERTY(Qt::Alignment alignment READ alignment WRITE setAlignment)
+    Q_PROPERTY(bool fillHeight READ fillHeight WRITE setFillHeight NOTIFY fillHeightChanged)
+    Q_PROPERTY(bool fillWidth READ fillWidth WRITE setFillWidth NOTIFY fillWidthChanged)
+    Q_PROPERTY(int row READ row WRITE setRow NOTIFY rowChanged)
+    Q_PROPERTY(int column READ column WRITE setColumn NOTIFY columnChanged)
+    Q_PROPERTY(int rowSpan READ rowSpan WRITE setRowSpan NOTIFY rowSpanChanged)
+    Q_PROPERTY(int columnSpan READ columnSpan WRITE setColumnSpan NOTIFY columnSpanChanged)
+    Q_PROPERTY(Qt::Alignment alignment READ alignment WRITE setAlignment NOTIFY alignmentChanged)
 
 public:
     QQuickLayoutAttached(QObject *object);
 
-    qreal minimumWidth() const { return m_minimumWidth < 0 ? sizeHint(Qt::MinimumSize, Qt::Horizontal) : m_minimumWidth; }
+    qreal minimumWidth() const { return !m_isMinimumWidthSet ? sizeHint(Qt::MinimumSize, Qt::Horizontal) : m_minimumWidth; }
     void setMinimumWidth(qreal width);
 
-    qreal minimumHeight() const { return m_minimumHeight < 0 ? sizeHint(Qt::MinimumSize, Qt::Vertical) : m_minimumHeight; }
+    qreal minimumHeight() const { return !m_isMinimumHeightSet ? sizeHint(Qt::MinimumSize, Qt::Vertical) : m_minimumHeight; }
     void setMinimumHeight(qreal height);
 
     qreal preferredWidth() const { return m_preferredWidth; }
@@ -135,10 +142,10 @@ public:
     qreal preferredHeight() const { return m_preferredHeight; }
     void setPreferredHeight(qreal width);
 
-    qreal maximumWidth() const { return m_maximumWidth < 0 ? sizeHint(Qt::MaximumSize, Qt::Horizontal) : m_maximumWidth; }
+    qreal maximumWidth() const { return !m_isMaximumWidthSet ? sizeHint(Qt::MaximumSize, Qt::Horizontal) : m_maximumWidth; }
     void setMaximumWidth(qreal width);
 
-    qreal maximumHeight() const { return m_maximumHeight < 0 ? sizeHint(Qt::MaximumSize, Qt::Vertical) : m_maximumHeight; }
+    qreal maximumHeight() const { return !m_isMaximumHeightSet ? sizeHint(Qt::MaximumSize, Qt::Vertical) : m_maximumHeight; }
     void setMaximumHeight(qreal height);
 
     void setMinimumImplicitSize(const QSizeF &sz);
@@ -160,12 +167,12 @@ public:
     bool isColumnSet() const { return m_column >= 0; }
 
     int rowSpan() const { return m_rowSpan; }
-    void setRowSpan(int span) { m_rowSpan = span; }
+    void setRowSpan(int span);
     int columnSpan() const { return m_columnSpan; }
-    void setColumnSpan(int span) { m_columnSpan = span; }
+    void setColumnSpan(int span);
 
     Qt::Alignment alignment() const { return m_alignment; }
-    void setAlignment (Qt::Alignment align) { m_alignment = align; }
+    void setAlignment(Qt::Alignment align);
 
     bool setChangesNotificationEnabled(bool enabled)
     {
@@ -201,9 +208,15 @@ signals:
     void maximumHeightChanged();
     void fillWidthChanged();
     void fillHeightChanged();
+    void rowChanged();
+    void columnChanged();
+    void rowSpanChanged();
+    void columnSpanChanged();
+    void alignmentChanged();
 
 private:
     void invalidateItem();
+    void repopulateLayout();
     QQuickLayout *parentLayout() const;
     QQuickItem *item() const;
 private:

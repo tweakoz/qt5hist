@@ -63,6 +63,7 @@ QQuickAbstractDialog::QQuickAbstractDialog(QObject *parent)
     , m_windowDecoration(0)
     , m_hasNativeWindows(QGuiApplicationPrivate::platformIntegration()->
          hasCapability(QPlatformIntegration::MultipleWindows))
+    , m_hasAspiredPosition(false)
 {
 }
 
@@ -91,7 +92,8 @@ void QQuickAbstractDialog::setVisible(bool v)
             if (!m_dialogWindow) {
                 m_contentItem = qobject_cast<QQuickItem *>(m_qmlImplementation);
                 if (m_contentItem) {
-                    m_dialogWindow = m_contentItem->window();
+                    if (m_hasNativeWindows)
+                        m_dialogWindow = m_contentItem->window();
                     // An Item-based dialog implementation doesn't come with a window, so
                     // we have to instantiate one iff the platform allows it.
                     if (!m_dialogWindow && m_hasNativeWindows) {
@@ -124,8 +126,24 @@ void QQuickAbstractDialog::setVisible(bool v)
                     }
                 }
             }
-            if (m_dialogWindow)
+            if (m_dialogWindow) {
+                // "grow up" to the size and position expected to achieve
+                if (!m_sizeAspiration.isNull()) {
+                    if (m_hasAspiredPosition)
+                        m_dialogWindow->setGeometry(m_sizeAspiration);
+                    else {
+                        if (m_sizeAspiration.width() > 0)
+                            m_dialogWindow->setWidth(m_sizeAspiration.width());
+                        if (m_sizeAspiration.height() > 0)
+                            m_dialogWindow->setHeight(m_sizeAspiration.height());
+                    }
+                }
                 connect(m_dialogWindow, SIGNAL(visibleChanged(bool)), this, SLOT(visibleChanged(bool)));
+                connect(m_dialogWindow, SIGNAL(xChanged(int)), this, SLOT(setX(int)));
+                connect(m_dialogWindow, SIGNAL(yChanged(int)), this, SLOT(setY(int)));
+                connect(m_dialogWindow, SIGNAL(widthChanged(int)), this, SLOT(setWidth(int)));
+                connect(m_dialogWindow, SIGNAL(heightChanged(int)), this, SLOT(setHeight(int)));
+            }
         }
         if (m_windowDecoration) {
             m_windowDecoration->setVisible(v);
@@ -146,6 +164,8 @@ void QQuickAbstractDialog::decorationLoaded()
 {
     bool ok = false;
     QQuickItem *parentItem = qobject_cast<QQuickItem *>(parent());
+    while (parentItem->parentItem() && !parentItem->parentItem()->inherits("QQuickRootItem"))
+        parentItem = parentItem->parentItem();
     if (m_decorationComponent->isError()) {
         qWarning() << m_decorationComponent->errors();
     } else {
@@ -230,66 +250,84 @@ int QQuickAbstractDialog::x() const
 {
     if (m_dialogWindow)
         return m_dialogWindow->x();
-    return -1;
+    return m_sizeAspiration.x();
 }
 
 int QQuickAbstractDialog::y() const
 {
     if (m_dialogWindow)
         return m_dialogWindow->y();
-    return -1;
+    return m_sizeAspiration.y();
 }
 
 int QQuickAbstractDialog::width() const
 {
     if (m_dialogWindow)
         return m_dialogWindow->width();
-    return -1;
+    return m_sizeAspiration.width();
 }
 
 int QQuickAbstractDialog::height() const
 {
     if (m_dialogWindow)
         return m_dialogWindow->height();
-    return -1;
+    return m_sizeAspiration.height();
 }
 
 void QQuickAbstractDialog::setX(int arg)
 {
+    m_hasAspiredPosition = true;
+    m_sizeAspiration.setX(arg);
     if (helper()) {
         // TODO
     } else if (m_dialogWindow) {
-        m_dialogWindow->setX(arg);
+        if (sender() != m_dialogWindow)
+            m_dialogWindow->setX(arg);
+    } else if (m_contentItem) {
+        m_contentItem->setX(arg);
     }
     emit geometryChanged();
 }
 
 void QQuickAbstractDialog::setY(int arg)
 {
+    m_hasAspiredPosition = true;
+    m_sizeAspiration.setY(arg);
     if (helper()) {
         // TODO
     } else if (m_dialogWindow) {
-        m_dialogWindow->setY(arg);
+        if (sender() != m_dialogWindow)
+            m_dialogWindow->setY(arg);
+    } else if (m_contentItem) {
+        m_contentItem->setY(arg);
     }
     emit geometryChanged();
 }
 
 void QQuickAbstractDialog::setWidth(int arg)
 {
+    m_sizeAspiration.setWidth(arg);
     if (helper()) {
         // TODO
     } else if (m_dialogWindow) {
-        m_dialogWindow->setWidth(arg);
+        if (sender() != m_dialogWindow)
+            m_dialogWindow->setWidth(arg);
+    } else if (m_contentItem) {
+        m_contentItem->setWidth(arg);
     }
     emit geometryChanged();
 }
 
 void QQuickAbstractDialog::setHeight(int arg)
 {
+    m_sizeAspiration.setHeight(arg);
     if (helper()) {
         // TODO
     } else if (m_dialogWindow) {
-        m_dialogWindow->setHeight(arg);
+        if (sender() != m_dialogWindow)
+            m_dialogWindow->setHeight(arg);
+    } else if (m_contentItem) {
+        m_contentItem->setHeight(arg);
     }
     emit geometryChanged();
 }

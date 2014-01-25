@@ -46,7 +46,7 @@
 #include <qstack.h>
 #include <qdebug.h>
 #include <qthread.h>
-#include <qcoreapplication.h>
+#include <qguiapplication.h>
 
 #include "qtextdocument.h"
 #include "qtextformat_p.h"
@@ -54,6 +54,8 @@
 #include "qtextcursor.h"
 #include "qfont_p.h"
 #include "private/qfunctions_p.h"
+
+#include <algorithm>
 
 #ifndef QT_NO_TEXTHTMLPARSER
 
@@ -322,6 +324,13 @@ static const struct QTextHtmlEntity { const char *name; quint16 code; } entities
     { "zwnj", 0x200c }
 };
 
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+bool operator<(const QTextHtmlEntity &entity1, const QTextHtmlEntity &entity2)
+{
+    return QLatin1String(entity1.name) < QLatin1String(entity2.name);
+}
+#endif
+
 Q_STATIC_GLOBAL_OPERATOR bool operator<(const QString &entityStr, const QTextHtmlEntity &entity)
 {
     return entityStr < QLatin1String(entity.name);
@@ -336,8 +345,8 @@ static QChar resolveEntity(const QString &entity)
 {
     const QTextHtmlEntity *start = &entities[0];
     const QTextHtmlEntity *end = &entities[MAX_ENTITY];
-    const QTextHtmlEntity *e = qBinaryFind(start, end, entity);
-    if (e == end)
+    const QTextHtmlEntity *e = std::lower_bound(start, end, entity);
+    if (e == end || (entity < *e))
         return QChar();
     return e->code;
 }
@@ -441,6 +450,12 @@ static const QTextHtmlElement elements[Html_NumElements]= {
     { "var",        Html_var,        QTextHtmlElement::DisplayInline },
 };
 
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+Q_STATIC_GLOBAL_OPERATOR bool operator<(const QTextHtmlElement &e1, const QTextHtmlElement &e2)
+{
+    return QLatin1String(e1.name) < QLatin1String(e2.name);
+}
+#endif
 
 Q_STATIC_GLOBAL_OPERATOR bool operator<(const QString &str, const QTextHtmlElement &e)
 {
@@ -456,8 +471,8 @@ static const QTextHtmlElement *lookupElementHelper(const QString &element)
 {
     const QTextHtmlElement *start = &elements[0];
     const QTextHtmlElement *end = &elements[Html_NumElements];
-    const QTextHtmlElement *e = qBinaryFind(start, end, element);
-    if (e == end)
+    const QTextHtmlElement *e = std::lower_bound(start, end, element);
+    if ((e == end) || (element < *e))
         return 0;
     return e;
 }
@@ -1051,7 +1066,7 @@ void QTextHtmlParserNode::initializeProperties(const QTextHtmlParserNode *parent
                     && !attributes.at(i + 1).isEmpty()) {
                     hasHref = true;
                     charFormat.setUnderlineStyle(QTextCharFormat::SingleUnderline);
-                    charFormat.setForeground(Qt::blue);
+                    charFormat.setForeground(QGuiApplication::palette().link());
                 }
             }
 

@@ -65,6 +65,7 @@
 #include <qtoolbar.h>
 #include <qtoolbutton.h>
 #include <qrubberband.h>
+#include "qtreeview.h"
 #include <private/qcommonstylepixmaps_p.h>
 #include <private/qmath_p.h>
 #include <qdebug.h>
@@ -1329,7 +1330,6 @@ void QCommonStyle::drawControl(ControlElement element, const QStyleOption *opt,
         break;
 #ifndef QT_NO_MENU
     case CE_MenuScroller: {
-        p->fillRect(opt->rect, opt->palette.background());
         QStyleOption arrowOpt = *opt;
         arrowOpt.state |= State_Enabled;
         proxy()->drawPrimitive(((opt->state & State_DownArrow) ? PE_IndicatorArrowDown : PE_IndicatorArrowUp),
@@ -1526,7 +1526,10 @@ void QCommonStyle::drawControl(ControlElement element, const QStyleOption *opt,
 
                 QRect aligned = alignedRect(header->direction, QFlag(header->iconAlignment), pixmap.size() / pixmap.devicePixelRatio(), rect);
                 QRect inter = aligned.intersected(rect);
-                p->drawPixmap(inter.x(), inter.y(), pixmap, inter.x() - aligned.x(), inter.y() - aligned.y(), inter.width(), inter.height());
+                p->drawPixmap(inter.x(), inter.y(), pixmap,
+                              inter.x() - aligned.x(), inter.y() - aligned.y(),
+                              aligned.width() * pixmap.devicePixelRatio(),
+                              pixmap.height() * pixmap.devicePixelRatio());
 
                 if (header->direction == Qt::LeftToRight)
                     rect.setLeft(rect.left() + pixw + 2);
@@ -4248,7 +4251,7 @@ QRect QCommonStyle::subControlRect(ComplexControl cc, const QStyleOptionComplex 
                     if (sc == SC_GroupBoxCheckBox) {
                         int indicatorHeight = proxy()->pixelMetric(PM_IndicatorHeight, opt, widget);
                         left = ltr ? totalRect.left() : (totalRect.right() - indicatorWidth);
-                        int top = totalRect.top() + (fontMetrics.height() - indicatorHeight) / 2;
+                        int top = totalRect.top() + qMax(0, fontMetrics.height() - indicatorHeight) / 2;
                         totalRect.setRect(left, top, indicatorWidth, indicatorHeight);
                     // Adjust for label
                     } else {
@@ -5097,17 +5100,34 @@ int QCommonStyle::styleHint(StyleHint sh, const QStyleOption *opt, const QWidget
             ret = theme->themeHint(QPlatformTheme::ToolButtonStyle).toInt();
         break;
     case SH_RequestSoftwareInputPanel:
-#ifdef Q_OS_ANDROID
         ret = RSIP_OnMouseClick;
-#else
-        ret = RSIP_OnMouseClickAndAlreadyFocused;
-#endif
         break;
     case SH_ScrollBar_Transient:
         ret = false;
         break;
     case SH_Menu_SupportsSections:
         ret = false;
+        break;
+#ifndef QT_NO_TOOLTIP
+    case SH_ToolTip_WakeUpDelay:
+        ret = 700;
+        break;
+    case SH_ToolTip_FallAsleepDelay:
+        ret = 2000;
+        break;
+#endif
+    case SH_Widget_Animate:
+#ifndef QT_NO_TREEVIEW
+        if (qobject_cast<const QTreeView*>(widget)) {
+            ret = false;
+        } else
+#endif
+            {
+            ret = true;
+        }
+        break;
+    case SH_Splitter_OpaqueResize:
+        ret = true;
         break;
     default:
         ret = 0;
@@ -5289,6 +5309,13 @@ QPixmap QCommonStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opti
                     }
                 }
                 break;
+        case SP_LineEditClearButton: {
+            QString themeName = rtl ? QStringLiteral("edit-clear-locationbar-ltr") : QStringLiteral("edit-clear-locationbar-rtl");
+            if (!QIcon::hasThemeIcon(themeName))
+                themeName = QStringLiteral("edit-clear");
+            pixmap = QIcon::fromTheme(themeName).pixmap(16);
+        }
+            break;
         default:
             break;
         }
@@ -5417,6 +5444,8 @@ QPixmap QCommonStyle::standardPixmap(StandardPixmap sp, const QStyleOption *opti
         return QPixmap(QLatin1String(":/qt-project.org/styles/commonstyle/images/media-volume-16.png"));
     case SP_MediaVolumeMuted:
         return QPixmap(QLatin1String(":/qt-project.org/styles/commonstyle/images/media-volume-muted-16.png"));
+    case SP_LineEditClearButton:
+        return QPixmap(QStringLiteral(":/qt-project.org/styles/commonstyle/images/cleartext-16.png"));
 #endif // QT_NO_IMAGEFORMAT_PNG
     default:
         break;

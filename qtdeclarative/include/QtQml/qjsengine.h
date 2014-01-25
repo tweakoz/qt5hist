@@ -1,1 +1,1 @@
-#include "../../src/qml/qml/v8/qjsengine.h"
+#include "../../src/qml/jsapi/qjsengine.h"

@@ -52,6 +52,8 @@
 #include "qaccessible.h"
 #endif
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 #define AUTO_REPEAT_DELAY  300
@@ -231,7 +233,7 @@ void QButtonGroup::addButton(QAbstractButton *button, int id)
         if (ids.isEmpty())
            d->mapping[button] = -2;
         else {
-            qSort(ids);
+            std::sort(ids.begin(), ids.end());
             d->mapping[button] = ids.first()-1;
         }
     } else {
@@ -575,6 +577,20 @@ void QAbstractButtonPrivate::emitReleased()
 #endif
 }
 
+void QAbstractButtonPrivate::emitToggled(bool checked)
+{
+    Q_Q(QAbstractButton);
+    QPointer<QAbstractButton> guard(q);
+    emit q->toggled(checked);
+#ifndef QT_NO_BUTTONGROUP
+    if (guard && group) {
+        emit group->buttonToggled(group->id(q), checked);
+        if (guard && group)
+            emit group->buttonToggled(q, checked);
+    }
+#endif
+}
+
 /*!
     Constructs an abstract button with a \a parent.
 */
@@ -758,7 +774,7 @@ void QAbstractButton::setChecked(bool checked)
     if (guard && checked)
         d->notifyChecked();
     if (guard)
-        emit toggled(checked);
+        d->emitToggled(checked);
 
 
 #ifndef QT_NO_ACCESSIBILITY
@@ -779,7 +795,7 @@ bool QAbstractButton::isChecked() const
   \property QAbstractButton::down
   \brief whether the button is pressed down
 
-  If this property is true, the button is pressed down. The signals
+  If this property is \c true, the button is pressed down. The signals
   pressed() and clicked() are not emitted if you set this property
   to true. The default is false.
 */
@@ -1022,8 +1038,8 @@ void QAbstractButton::nextCheckState()
 }
 
 /*!
-Returns true if \a pos is inside the clickable button rectangle;
-otherwise returns false.
+Returns \c true if \a pos is inside the clickable button rectangle;
+otherwise returns \c false.
 
 By default, the clickable area is the entire widget. Subclasses
 may reimplement this function to provide support for clickable

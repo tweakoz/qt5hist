@@ -53,6 +53,7 @@
 
 #include <QtCore/QtGlobal>
 #include <QtCore/QScopedPointer>
+#include <QtGui/QKeySequence>
 
 QT_BEGIN_NAMESPACE
 
@@ -104,13 +105,15 @@ public:
         SpellCheckUnderlineStyle,
         TabAllWidgets,
         IconPixmapSizes,
-        PasswordMaskCharacter
+        PasswordMaskCharacter,
+        DialogSnapToDefaultButton
     };
 
     enum DialogType {
         FileDialog,
         ColorDialog,
-        FontDialog
+        FontDialog,
+        MessageDialog
     };
 
     enum Palette {
@@ -118,6 +121,8 @@ public:
         ToolTipPalette,
         ToolButtonPalette,
         ButtonPalette,
+        CheckBoxPalette,
+        RadioButtonPalette,
         HeaderPalette,
         ComboBoxPalette,
         ItemViewPalette,
@@ -145,6 +150,8 @@ public:
         MdiSubWindowTitleFont,
         DockWidgetTitleFont,
         PushButtonFont,
+        CheckBoxFont,
+        RadioButtonFont,
         ToolButtonFont,
         ItemViewFont,
         ListViewFont,
@@ -154,6 +161,7 @@ public:
         ComboLineEditFont,
         SmallFont,
         MiniFont,
+        FixedFont,
         NFonts
     };
 
@@ -253,6 +261,11 @@ public:
         AnimateToolBoxUiEffect = 0x40
     };
 
+    enum IconOption {
+        DontUseCustomDirectoryIcons = 0x01
+    };
+    Q_DECLARE_FLAGS(IconOptions, IconOption)
+
     explicit QPlatformTheme();
     virtual ~QPlatformTheme();
 
@@ -274,9 +287,12 @@ public:
     virtual QVariant themeHint(ThemeHint hint) const;
 
     virtual QPixmap standardPixmap(StandardPixmap sp, const QSizeF &size) const;
-    virtual QPixmap fileIconPixmap(const QFileInfo &fileInfo, const QSizeF &size) const;
+    virtual QPixmap fileIconPixmap(const QFileInfo &fileInfo, const QSizeF &size,
+                                   QPlatformTheme::IconOptions iconOptions = 0) const;
 
     virtual QIconEngine *createIconEngine(const QString &iconName) const;
+
+    virtual QList<QKeySequence> keyBindings(QKeySequence::StandardKey key) const;
 
     static QVariant defaultThemeHint(ThemeHint hint);
 

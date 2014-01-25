@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -47,8 +48,14 @@
 #include "qtwindowsglobal.h"
 #include "qwindowsmime.h"
 #include "qwindowsinputcontext.h"
+#include "qwindowstabletsupport.h"
 #ifndef QT_NO_ACCESSIBILITY
-#include "accessible/qwindowsaccessibility.h"
+# include "accessible/qwindowsaccessibility.h"
+#endif
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+# include <private/qguiapplication_p.h>
+# include <private/qsessionmanager_p.h>
+# include "qwindowssessionmanager.h"
 #endif
 #include "qwindowsscreen.h"
 #include "qwindowstheme.h"
@@ -83,6 +90,7 @@ int QWindowsContext::verboseOLE = 0;
 int QWindowsContext::verboseInputMethods = 0;
 int QWindowsContext::verboseDialogs = 0;
 int QWindowsContext::verboseTheming = 0;
+int QWindowsContext::verboseTablet = 0;
 
 // Get verbosity of components from "foo:2,bar:3"
 static inline int componentVerbose(const char *v, const char *keyWord)
@@ -148,6 +156,14 @@ static inline bool useRTL_Extensions(QSysInfo::WinVersion ver)
     return false;
 #endif
 }
+
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+static inline QWindowsSessionManager *platformSessionManager() {
+    QGuiApplicationPrivate *guiPrivate = static_cast<QGuiApplicationPrivate*>(QObjectPrivate::get(qApp));
+    QSessionManagerPrivate *managerPrivate = static_cast<QSessionManagerPrivate*>(QObjectPrivate::get(guiPrivate->session_manager));
+    return static_cast<QWindowsSessionManager *>(managerPrivate->platformSessionManager);
+}
+#endif
 
 /*!
     \class QWindowsUser32DLL
@@ -216,6 +232,7 @@ bool QWindowsUser32DLL::initTouch()
 QWindowsShell32DLL::QWindowsShell32DLL()
     : sHCreateItemFromParsingName(0)
     , sHGetStockIconInfo(0)
+    , sHGetImageList(0)
 {
 }
 
@@ -224,6 +241,7 @@ void QWindowsShell32DLL::init()
     QSystemLibrary library(QStringLiteral("shell32"));
     sHCreateItemFromParsingName = (SHCreateItemFromParsingName)(library.resolve("SHCreateItemFromParsingName"));
     sHGetStockIconInfo = (SHGetStockIconInfo)library.resolve("SHGetStockIconInfo");
+    sHGetImageList = (SHGetImageList)library.resolve("SHGetImageList");
 }
 
 QWindowsUser32DLL QWindowsContext::user32dll;
@@ -259,17 +277,20 @@ struct QWindowsContextPrivate {
     QWindowsMimeConverter m_mimeConverter;
     QWindowsScreenManager m_screenManager;
     QSharedPointer<QWindowCreationContext> m_creationContext;
+#if !defined(QT_NO_TABLETEVENT) && !defined(Q_OS_WINCE)
+    QScopedPointer<QWindowsTabletSupport> m_tabletSupport;
+#endif
     const HRESULT m_oleInitializeResult;
     const QByteArray m_eventType;
     QWindow *m_lastActiveWindow;
     bool m_asyncExpose;
 };
 
-QWindowsContextPrivate::QWindowsContextPrivate() :
-    m_systemInfo(0),
-    m_oleInitializeResult(OleInitialize(NULL)),
-    m_eventType(QByteArrayLiteral("windows_generic_MSG")),
-    m_lastActiveWindow(0), m_asyncExpose(0)
+QWindowsContextPrivate::QWindowsContextPrivate()
+    : m_systemInfo(0)
+    , m_oleInitializeResult(OleInitialize(NULL))
+    , m_eventType(QByteArrayLiteral("windows_generic_MSG"))
+    , m_lastActiveWindow(0), m_asyncExpose(0)
 {
     const QSysInfo::WinVersion ver = QSysInfo::windowsVersion();
 #ifndef Q_OS_WINCE
@@ -310,7 +331,13 @@ QWindowsContext::QWindowsContext() :
         QWindowsContext::verboseInputMethods = componentVerbose(v, "im");
         QWindowsContext::verboseDialogs = componentVerbose(v, "dialogs");
         QWindowsContext::verboseTheming = componentVerbose(v, "theming");
+        QWindowsContext::verboseTablet = componentVerbose(v, "tablet");
     }
+#if !defined(QT_NO_TABLETEVENT) && !defined(Q_OS_WINCE)
+    d->m_tabletSupport.reset(QWindowsTabletSupport::create());
+    if (QWindowsContext::verboseTablet)
+        qDebug() << "Tablet support: " << (d->m_tabletSupport.isNull() ? QStringLiteral("None") : d->m_tabletSupport->description());
+#endif
 }
 
 QWindowsContext::~QWindowsContext()
@@ -631,6 +658,15 @@ QWindowsScreenManager &QWindowsContext::screenManager()
     return d->m_screenManager;
 }
 
+QWindowsTabletSupport *QWindowsContext::tabletSupport() const
+{
+#if !defined(QT_NO_TABLETEVENT) && !defined(Q_OS_WINCE)
+    return d->m_tabletSupport.data();
+#else
+    return 0;
+#endif
+}
+
 /*!
     \brief Convenience to create a non-visible, message-only dummy
     window for example used as clipboard watcher or for GL.
@@ -747,9 +783,15 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
     case QtWindows::InputMethodCloseCandidateWindowEvent:
         // TODO: Release/regrab mouse if a popup has mouse grab.
         return false;
-    case QtWindows::ClipboardEvent:
     case QtWindows::DestroyEvent:
-
+        if (!platformWindow->testFlag(QWindowsWindow::WithinDestroy)) {
+            qWarning() << "External WM_DESTROY received for " << platformWindow->window()
+                       << ", parent: " << platformWindow->window()->parent()
+                       << ", transient parent: " << platformWindow->window()->transientParent();
+            }
+        return false;
+    case QtWindows::ClipboardEvent:
+        return false;
     case QtWindows::UnknownEvent:
         return false;
     case QtWindows::AccessibleObjectFromWindowRequest:
@@ -806,7 +848,12 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
     case QtWindows::KeyEvent:
     case QtWindows::InputMethodKeyEvent:
     case QtWindows::InputMethodKeyDownEvent:
+    case QtWindows::KeyboardLayoutChangeEvent:
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+        return platformSessionManager()->isInteractionBlocked() ? true : d->m_keyMapper.translateKeyEvent(platformWindow->window(), hwnd, msg, result);
+#else
         return d->m_keyMapper.translateKeyEvent(platformWindow->window(), hwnd, msg, result);
+#endif
     case QtWindows::MoveEvent:
         platformWindow->handleMoved();
         return true;
@@ -819,12 +866,18 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
         return true;// maybe available on some SDKs revisit WM_NCCALCSIZE
     case QtWindows::CalculateSize:
         return QWindowsGeometryHint::handleCalculateSize(platformWindow->customMargins(), msg, result);
-#endif
+    case QtWindows::NonClientHitTest:
+        return platformWindow->handleNonClientHitTest(QPoint(msg.pt.x, msg.pt.y), result);
+#endif // !Q_OS_WINCE
     case QtWindows::ExposeEvent:
         return platformWindow->handleWmPaint(hwnd, message, wParam, lParam);
     case QtWindows::NonClientMouseEvent:
         if (platformWindow->frameStrutEventsEnabled())
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+            return platformSessionManager()->isInteractionBlocked() ? true : d->m_mouseHandler.translateMouseEvent(platformWindow->window(), hwnd, et, msg, result);
+#else
             return d->m_mouseHandler.translateMouseEvent(platformWindow->window(), hwnd, et, msg, result);
+#endif
         break;
 /* the mouse tracking on windows already handles the reset of the cursor
  * and does not like somebody else handling it.
@@ -840,9 +893,17 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
     case QtWindows::MouseWheelEvent:
     case QtWindows::MouseEvent:
     case QtWindows::LeaveEvent:
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+        return platformSessionManager()->isInteractionBlocked() ? true : d->m_mouseHandler.translateMouseEvent(platformWindow->window(), hwnd, et, msg, result);
+#else
         return d->m_mouseHandler.translateMouseEvent(platformWindow->window(), hwnd, et, msg, result);
+#endif
     case QtWindows::TouchEvent:
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+        return platformSessionManager()->isInteractionBlocked() ? true : d->m_mouseHandler.translateTouchEvent(platformWindow->window(), hwnd, et, msg, result);
+#else
         return d->m_mouseHandler.translateTouchEvent(platformWindow->window(), hwnd, et, msg, result);
+#endif
     case QtWindows::FocusInEvent: // see QWindowsWindow::requestActivateWindow().
     case QtWindows::FocusOutEvent:
         handleFocusEvent(et, platformWindow);
@@ -853,12 +914,24 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
     case QtWindows::CloseEvent:
         QWindowSystemInterface::handleCloseEvent(platformWindow->window());
         return true;
-    case QtWindows::ThemeChanged: // ### fixme: Compress these events?
+    case QtWindows::ThemeChanged: {
+        // Switch from Aero to Classic changes margins.
+        const Qt::WindowFlags flags = platformWindow->window()->flags();
+        if ((flags & Qt::WindowType_Mask) != Qt::Desktop && !(flags & Qt::FramelessWindowHint))
+            platformWindow->setFlag(QWindowsWindow::FrameDirty);
         if (QWindowsTheme *theme = QWindowsTheme::instance())
             theme->windowsThemeChanged(platformWindow->window());
         return true;
+    }
+    case QtWindows::CompositionSettingsChanged:
+        platformWindow->handleCompositionSettingsChanged();
+        return true;
 #ifndef Q_OS_WINCE
     case QtWindows::ActivateWindowEvent:
+#ifndef QT_NO_TABLETEVENT
+        if (!d->m_tabletSupport.isNull())
+            d->m_tabletSupport->notifyActivate();
+#endif // !QT_NO_TABLETEVENT
         if (platformWindow->testFlag(QWindowsWindow::BlockedByModal))
             if (const QWindow *modalWindow = QGuiApplication::modalWindow())
                 QWindowsWindow::baseWindowOf(modalWindow)->alertWindow();
@@ -868,6 +941,50 @@ bool QWindowsContext::windowsProc(HWND hwnd, UINT message,
     case QtWindows::ContextMenu:
         return handleContextMenuEvent(platformWindow->window(), msg);
 #endif
+    case QtWindows::WhatsThisEvent: {
+#ifndef QT_NO_WHATSTHIS
+        QWindowSystemInterface::handleEnterWhatsThisEvent();
+        return true;
+#endif
+    }   break;
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+    case QtWindows::QueryEndSessionApplicationEvent: {
+        QWindowsSessionManager *sessionManager = platformSessionManager();
+        if (sessionManager->isActive()) // bogus message from windows
+            return true;
+
+        sessionManager->setActive(true);
+        sessionManager->blocksInteraction();
+        sessionManager->clearCancellation();
+
+        QGuiApplicationPrivate *qGuiAppPriv = static_cast<QGuiApplicationPrivate*>(QObjectPrivate::get(qApp));
+        qGuiAppPriv->commitData();
+
+        if (lParam & ENDSESSION_LOGOFF)
+            fflush(NULL);
+
+        return !sessionManager->wasCanceled();
+    }
+    case QtWindows::EndSessionApplicationEvent: {
+        QWindowsSessionManager *sessionManager = platformSessionManager();
+
+        sessionManager->setActive(false);
+        sessionManager->allowsInteraction();
+        bool endsession = (bool) wParam;
+
+        // we receive the message for each toplevel window included internal hidden ones,
+        // but the aboutToQuit signal should be emitted only once.
+        QGuiApplicationPrivate *qGuiAppPriv = static_cast<QGuiApplicationPrivate*>(QObjectPrivate::get(qApp));
+        if (endsession && !qGuiAppPriv->aboutToQuitEmitted) {
+            qGuiAppPriv->aboutToQuitEmitted = true;
+            int index = QGuiApplication::staticMetaObject.indexOfSignal("aboutToQuit()");
+            qApp->qt_metacall(QMetaObject::InvokeMetaMethod, index,0);
+            // since the process will be killed immediately quit() has no real effect
+            QGuiApplication::quit();
+        }
+        return true;
+    }
+#endif // !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
     default:
         break;
     }

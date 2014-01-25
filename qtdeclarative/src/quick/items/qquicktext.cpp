@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -295,44 +295,6 @@ qreal QQuickTextPrivate::getImplicitHeight() const
         me->updateSize();
     }
     return implicitHeight;
-}
-
-/*!
-    \qmlproperty enumeration QtQuick2::Text::renderType
-
-    Override the default rendering type for this component.
-
-    Supported render types are:
-    \list
-    \li Text.QtRendering - the default
-    \li Text.NativeRendering
-    \endlist
-
-    Select Text.NativeRendering if you prefer text to look native on the target platform and do
-    not require advanced features such as transformation of the text. Using such features in
-    combination with the NativeRendering render type will lend poor and sometimes pixelated
-    results.
-
-    On HighDpi "retina" displays and mobile and embedded platforms, this property is ignored
-    and QtRendering is always used.
-*/
-QQuickText::RenderType QQuickText::renderType() const
-{
-    Q_D(const QQuickText);
-    return d->renderType;
-}
-
-void QQuickText::setRenderType(QQuickText::RenderType renderType)
-{
-    Q_D(QQuickText);
-    if (d->renderType == renderType)
-        return;
-
-    d->renderType = renderType;
-    emit renderTypeChanged();
-
-    if (isComponentComplete())
-        d->updateLayout();
 }
 
 void QQuickText::q_imagesLoaded()
@@ -639,17 +601,6 @@ void QQuickTextLine::setY(qreal y)
 {
     if (m_line)
         m_line->setPosition(QPointF(m_line->x(), y));
-}
-
-/*!
-    \qmlmethod QtQuick2::Text::doLayout()
-
-    Triggers a re-layout of the displayed text.
-*/
-void QQuickText::doLayout()
-{
-    Q_D(QQuickText);
-    d->updateSize();
 }
 
 bool QQuickTextPrivate::isLineLaidOutConnected()
@@ -1237,7 +1188,7 @@ void QQuickTextPrivate::ensureDoc()
 /*!
     \qmltype Text
     \instantiates QQuickText
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual
     \inherits Item
     \brief Specifies how to add formatted text to a scene
@@ -1290,7 +1241,7 @@ QQuickText::~QQuickText()
 }
 
 /*!
-  \qmlproperty bool QtQuick2::Text::clip
+  \qmlproperty bool QtQuick::Text::clip
   This property holds whether the text is clipped.
 
   Note that if the text does not fit in the bounding rectangle it will be abruptly chopped.
@@ -1299,7 +1250,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlsignal QtQuick2::Text::onLineLaidOut(object line)
+    \qmlsignal QtQuick::Text::onLineLaidOut(object line)
 
     This handler is called for each line of text that is laid out during the layout
     process. The specified \a line object provides more details about the line that
@@ -1329,7 +1280,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlsignal QtQuick2::Text::onLinkActivated(string link)
+    \qmlsignal QtQuick::Text::onLinkActivated(string link)
 
     This handler is called when the user clicks on a link embedded in the text.
     The link must be in rich text or HTML format and the
@@ -1345,7 +1296,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty string QtQuick2::Text::font.family
+    \qmlproperty string QtQuick::Text::font.family
 
     Sets the family name of the font.
 
@@ -1355,13 +1306,13 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Text::font.bold
+    \qmlproperty bool QtQuick::Text::font.bold
 
     Sets whether the font weight is bold.
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::font.weight
+    \qmlproperty enumeration QtQuick::Text::font.weight
 
     Sets the font's weight.
 
@@ -1380,31 +1331,31 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Text::font.italic
+    \qmlproperty bool QtQuick::Text::font.italic
 
     Sets whether the font has an italic style.
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Text::font.underline
+    \qmlproperty bool QtQuick::Text::font.underline
 
     Sets whether the text is underlined.
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Text::font.strikeout
+    \qmlproperty bool QtQuick::Text::font.strikeout
 
     Sets whether the font has a strikeout style.
 */
 
 /*!
-    \qmlproperty real QtQuick2::Text::font.pointSize
+    \qmlproperty real QtQuick::Text::font.pointSize
 
     Sets the font size in points. The point size must be greater than zero.
 */
 
 /*!
-    \qmlproperty int QtQuick2::Text::font.pixelSize
+    \qmlproperty int QtQuick::Text::font.pixelSize
 
     Sets the font size in pixels.
 
@@ -1413,7 +1364,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty real QtQuick2::Text::font.letterSpacing
+    \qmlproperty real QtQuick::Text::font.letterSpacing
 
     Sets the letter spacing for the font.
 
@@ -1422,7 +1373,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty real QtQuick2::Text::font.wordSpacing
+    \qmlproperty real QtQuick::Text::font.wordSpacing
 
     Sets the word spacing for the font.
 
@@ -1432,7 +1383,7 @@ QQuickText::~QQuickText()
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::font.capitalization
+    \qmlproperty enumeration QtQuick::Text::font.capitalization
 
     Sets the capitalization for the text.
 
@@ -1484,7 +1435,7 @@ void QQuickText::setFont(const QFont &font)
 }
 
 /*!
-    \qmlproperty string QtQuick2::Text::text
+    \qmlproperty string QtQuick::Text::text
 
     The text to display. Text supports both plain and rich text strings.
 
@@ -1522,11 +1473,12 @@ void QQuickText::setText(const QString &n)
     qDeleteAll(d->imgTags);
     d->imgTags.clear();
     d->updateLayout();
+    setAcceptHoverEvents(d->richText || d->styledText);
     emit textChanged(d->text);
 }
 
 /*!
-    \qmlproperty color QtQuick2::Text::color
+    \qmlproperty color QtQuick::Text::color
 
     The text color.
 
@@ -1568,7 +1520,7 @@ void QQuickText::setColor(const QColor &color)
 }
 
 /*!
-    \qmlproperty color QtQuick2::Text::linkColor
+    \qmlproperty color QtQuick::Text::linkColor
 
     The color of links in the text.
 
@@ -1596,7 +1548,7 @@ void QQuickText::setLinkColor(const QColor &color)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::style
+    \qmlproperty enumeration QtQuick::Text::style
 
     Set an additional text style.
 
@@ -1640,7 +1592,7 @@ void QQuickText::setStyle(QQuickText::TextStyle style)
 }
 
 /*!
-    \qmlproperty color QtQuick2::Text::styleColor
+    \qmlproperty color QtQuick::Text::styleColor
 
     Defines the secondary color used by text styles.
 
@@ -1676,9 +1628,9 @@ void QQuickText::setStyleColor(const QColor &color)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::horizontalAlignment
-    \qmlproperty enumeration QtQuick2::Text::verticalAlignment
-    \qmlproperty enumeration QtQuick2::Text::effectiveHorizontalAlignment
+    \qmlproperty enumeration QtQuick::Text::horizontalAlignment
+    \qmlproperty enumeration QtQuick::Text::verticalAlignment
+    \qmlproperty enumeration QtQuick::Text::effectiveHorizontalAlignment
 
     Sets the horizontal and vertical alignment of the text within the Text items
     width and height. By default, the text is vertically aligned to the top. Horizontal
@@ -1801,7 +1753,7 @@ void QQuickText::setVAlign(VAlignment align)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::wrapMode
+    \qmlproperty enumeration QtQuick::Text::wrapMode
 
     Set this property to wrap the text to the Text item's width.  The text will only
     wrap if an explicit width has been set.  wrapMode can be one of:
@@ -1832,7 +1784,7 @@ void QQuickText::setWrapMode(WrapMode mode)
 }
 
 /*!
-    \qmlproperty int QtQuick2::Text::lineCount
+    \qmlproperty int QtQuick::Text::lineCount
 
     Returns the number of lines visible in the text item.
 
@@ -1847,7 +1799,7 @@ int QQuickText::lineCount() const
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Text::truncated
+    \qmlproperty bool QtQuick::Text::truncated
 
     Returns true if the text has been truncated due to \l maximumLineCount
     or \l elide.
@@ -1863,7 +1815,7 @@ bool QQuickText::truncated() const
 }
 
 /*!
-    \qmlproperty int QtQuick2::Text::maximumLineCount
+    \qmlproperty int QtQuick::Text::maximumLineCount
 
     Set this property to limit the number of lines that the text item will show.
     If elide is set to Text.ElideRight, the text will be elided appropriately.
@@ -1903,7 +1855,7 @@ void QQuickText::resetMaximumLineCount()
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::textFormat
+    \qmlproperty enumeration QtQuick::Text::textFormat
 
     The way the text property should be displayed.
 
@@ -2001,12 +1953,13 @@ void QQuickText::setTextFormat(TextFormat format)
         d->determineHorizontalAlignment();
     }
     d->updateLayout();
+    setAcceptHoverEvents(d->richText || d->styledText);
 
     emit textFormatChanged(d->format);
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::elide
+    \qmlproperty enumeration QtQuick::Text::elide
 
     Set this property to elide parts of the text fit to the Text item's width.
     The text will only elide if an explicit width has been set.
@@ -2051,7 +2004,7 @@ void QQuickText::setElideMode(QQuickText::TextElideMode mode)
 }
 
 /*!
-    \qmlproperty url QtQuick2::Text::baseUrl
+    \qmlproperty url QtQuick::Text::baseUrl
 
     This property specifies a base URL which is used to resolve relative URLs
     within the text.
@@ -2240,11 +2193,10 @@ QSGNode *QQuickText::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data
     const qreal dy = QQuickTextUtil::alignedY(d->layedOutTextRect.height(), height(), d->vAlign);
 
     QQuickTextNode *node = 0;
-    if (!oldNode) {
-        node = new QQuickTextNode(QQuickItemPrivate::get(this)->sceneGraphContext(), this);
-    } else {
+    if (!oldNode)
+        node = new QQuickTextNode(this);
+    else
         node = static_cast<QQuickTextNode *>(oldNode);
-    }
 
     node->setUseNativeRenderer(d->renderType == NativeRendering && d->window->devicePixelRatio() <= 1);
     node->deleteContent();
@@ -2290,7 +2242,7 @@ void QQuickText::updatePolish()
 }
 
 /*!
-    \qmlproperty real QtQuick2::Text::contentWidth
+    \qmlproperty real QtQuick::Text::contentWidth
 
     Returns the width of the text, including width past the width
     which is covered due to insufficient wrapping if WrapMode is set.
@@ -2302,7 +2254,7 @@ qreal QQuickText::contentWidth() const
 }
 
 /*!
-    \qmlproperty real QtQuick2::Text::contentHeight
+    \qmlproperty real QtQuick::Text::contentHeight
 
     Returns the height of the text, including height past the height
     which is covered due to there being more text than fits in the set height.
@@ -2314,7 +2266,7 @@ qreal QQuickText::contentHeight() const
 }
 
 /*!
-    \qmlproperty real QtQuick2::Text::lineHeight
+    \qmlproperty real QtQuick::Text::lineHeight
 
     Sets the line height for the text.
     The value can be in pixels or a multiplier depending on lineHeightMode.
@@ -2342,7 +2294,7 @@ void QQuickText::setLineHeight(qreal lineHeight)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::lineHeightMode
+    \qmlproperty enumeration QtQuick::Text::lineHeightMode
 
     This property determines how the line height is specified.
     The possible values are:
@@ -2373,7 +2325,7 @@ void QQuickText::setLineHeightMode(LineHeightMode mode)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Text::fontSizeMode
+    \qmlproperty enumeration QtQuick::Text::fontSizeMode
 
     This property specifies how the font size of the displayed text is determined.
     The possible values are:
@@ -2416,7 +2368,7 @@ void QQuickText::setFontSizeMode(FontSizeMode mode)
 }
 
 /*!
-    \qmlproperty int QtQuick2::Text::minimumPixelSize
+    \qmlproperty int QtQuick::Text::minimumPixelSize
 
     This property specifies the minimum font pixel size of text scaled by the
     fontSizeMode property.
@@ -2444,7 +2396,7 @@ void QQuickText::setMinimumPixelSize(int size)
 }
 
 /*!
-    \qmlproperty int QtQuick2::Text::minimumPointSize
+    \qmlproperty int QtQuick::Text::minimumPointSize
 
     This property specifies the minimum font point \l size of text scaled by
     the fontSizeMode property.
@@ -2583,6 +2535,134 @@ void QQuickText::mouseReleaseEvent(QMouseEvent *event)
 
     if (!event->isAccepted())
         QQuickItem::mouseReleaseEvent(event);
+}
+
+bool QQuickTextPrivate::isLinkHoveredConnected()
+{
+    Q_Q(QQuickText);
+    IS_SIGNAL_CONNECTED(q, QQuickText, linkHovered, (const QString &));
+}
+
+/*!
+    \qmlsignal QtQuick::Text::onLinkHovered(string link)
+    \since 5.2
+
+    This handler is called when the user hovers a link embedded in the
+    text. The link must be in rich text or HTML format and the \a link
+    string provides access to the particular link.
+
+    \sa hoveredLink
+*/
+
+/*!
+    \qmlproperty string QtQuick::Text::hoveredLink
+    \since 5.2
+
+    This property contains the link string when user hovers a link
+    embedded in the text. The link must be in rich text or HTML format
+    and the \a hoveredLink string provides access to the particular link.
+
+    \sa onLinkHovered
+*/
+
+QString QQuickText::hoveredLink() const
+{
+    Q_D(const QQuickText);
+    if (const_cast<QQuickTextPrivate *>(d)->isLinkHoveredConnected()) {
+        if (d->extra.isAllocated())
+            return d->extra->hoveredLink;
+    } else {
+#ifndef QT_NO_CURSOR
+        if (QQuickWindow *wnd = window()) {
+            QPointF pos = QCursor::pos(wnd->screen()) - wnd->position() - mapToScene(QPointF(0, 0));
+            return d->anchorAt(pos);
+        }
+#endif // QT_NO_CURSOR
+    }
+    return QString();
+}
+
+void QQuickTextPrivate::processHoverEvent(QHoverEvent *event)
+{
+    Q_Q(QQuickText);
+    QString link;
+    if (isLinkHoveredConnected()) {
+        if (event->type() != QEvent::HoverLeave)
+            link = anchorAt(event->posF());
+
+        if ((!extra.isAllocated() && !link.isEmpty()) || (extra.isAllocated() && extra->hoveredLink != link)) {
+            extra.value().hoveredLink = link;
+            emit q->linkHovered(extra->hoveredLink);
+        }
+    }
+    event->setAccepted(!link.isEmpty());
+}
+
+void QQuickText::hoverEnterEvent(QHoverEvent *event)
+{
+    Q_D(QQuickText);
+    d->processHoverEvent(event);
+}
+
+void QQuickText::hoverMoveEvent(QHoverEvent *event)
+{
+    Q_D(QQuickText);
+    d->processHoverEvent(event);
+}
+
+void QQuickText::hoverLeaveEvent(QHoverEvent *event)
+{
+    Q_D(QQuickText);
+    d->processHoverEvent(event);
+}
+
+/*!
+    \qmlproperty enumeration QtQuick::Text::renderType
+
+    Override the default rendering type for this component.
+
+    Supported render types are:
+    \list
+    \li Text.QtRendering - the default
+    \li Text.NativeRendering
+    \endlist
+
+    Select Text.NativeRendering if you prefer text to look native on the target platform and do
+    not require advanced features such as transformation of the text. Using such features in
+    combination with the NativeRendering render type will lend poor and sometimes pixelated
+    results.
+
+    On HighDpi "retina" displays and mobile and embedded platforms, this property is ignored
+    and QtRendering is always used.
+*/
+QQuickText::RenderType QQuickText::renderType() const
+{
+    Q_D(const QQuickText);
+    return d->renderType;
+}
+
+void QQuickText::setRenderType(QQuickText::RenderType renderType)
+{
+    Q_D(QQuickText);
+    if (d->renderType == renderType)
+        return;
+
+    d->renderType = renderType;
+    emit renderTypeChanged();
+
+    if (isComponentComplete())
+        d->updateLayout();
+}
+
+/*!
+    \qmlmethod QtQuick::Text::doLayout()
+
+    Triggers a re-layout of the displayed text.
+*/
+void QQuickText::doLayout()
+{
+    Q_D(QQuickText);
+    d->updateSize();
 }
 
 QT_END_NAMESPACE

@@ -43,8 +43,9 @@
 
 
 import QtQuick 2.1
-import QtQuick.Controls 1.0
-import QtQuick.Controls.Styles 1.0
+import QtQuick.Controls 1.1
+import QtQuick.Layouts 1.1
+import QtQuick.Controls.Styles 1.1
 
 Item {
     id: flickable
@@ -53,26 +54,27 @@ Item {
 
     property int tabPosition: tabPositionGroup.current === r2 ? Qt.BottomEdge : Qt.TopEdge
 
-    Row {
+    RowLayout {
         id: contentRow
         anchors.fill:parent
         anchors.margins: 8
         spacing: 16
-        Column {
+        ColumnLayout {
             id: firstColumn
-            spacing: 9
-            Row {
-                spacing:8
+            Layout.minimumWidth: implicitWidth
+            Layout.fillWidth: false
+            RowLayout {
+                id: buttonrow
                 Button {
                     id: button1
                     text: "Button 1"
-                    width: 92
                     tooltip:"This is an interesting tool tip"
+                    Layout.fillWidth: true
                 }
                 Button {
                     id:button2
                     text:"Button 2"
-                    width: 102
+                    Layout.fillWidth: true
                     menu: Menu {
                         MenuItem { text: "This Button" }
                         MenuItem { text: "Happens To Have" }
@@ -81,47 +83,78 @@ Item {
                 }
             }
             ComboBox {
-                id: combo;
-                model: choices;
-                width: parent.width;
+                id: combo
+                model: choices
                 currentIndex: 2
+                Layout.fillWidth: true
             }
-            Row {
-                spacing: 8
+            ComboBox {
+                model: Qt.fontFamilies()
+                Layout.fillWidth: true
+                currentIndex: 47
+            }
+            ComboBox {
+                id: editableCombo
+                editable: true
+                model: choices
+                Layout.fillWidth: true
+                currentIndex: 2
+                onAccepted: {
+                    if (editableCombo.find(currentText) === -1) {
+                        choices.append({text: editText})
+                        currentIndex = editableCombo.find(editText)
+                    }
+                }
+            }
+            RowLayout {
                 SpinBox {
                     id: t1
-                    width: 97
-
+                    Layout.fillWidth: true
                     minimumValue: -50
                     value: -20
                 }
                 SpinBox {
                     id: t2
-                    width:97
+                    Layout.fillWidth: true
                 }
             }
             TextField {
                 id: t3
                 placeholderText: "This is a placeholder for a TextField"
-                width: 200
+                Layout.fillWidth: true
             }
             ProgressBar {
                 // normalize value [0.0 .. 1.0]
                 value: (slider.value - slider.minimumValue) / (slider.maximumValue - slider.minimumValue)
+                Layout.fillWidth: true
             }
             ProgressBar {
                 indeterminate: true
+                Layout.fillWidth: true
             }
             Slider {
                 id: slider
                 value: 0.5
-                width: 200
+                Layout.fillWidth: true
                 tickmarksEnabled: tickmarkCheck.checked
+                stepSize: tickmarksEnabled ? 0.1 : 0
+            }
+            MouseArea {
+                id: busyCheck
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                hoverEnabled:true
+                Layout.preferredHeight: busyIndicator.height
+                BusyIndicator {
+                    id: busyIndicator
+                    running: busyCheck.containsMouse
+                    anchors.horizontalCenter: parent.horizontalCenter
+                }
             }
         }
-        Column {
+        ColumnLayout {
             id: rightcol
-            spacing: 12
+            Layout.fillWidth: true
             anchors {
                 top: parent.top
                 bottom: parent.bottom
@@ -130,43 +163,47 @@ Item {
             GroupBox {
                 id: group1
                 title: "CheckBox"
-                width: area.width
-                Row {
+                Layout.fillWidth: true
+                RowLayout {
+                    Layout.fillWidth: true
                     CheckBox {
                         id: frameCheckbox
                         text: "Text frame"
                         checked: true
-                        width: 100
+                        Layout.minimumWidth: 100
                     }
                     CheckBox {
                         id: tickmarkCheck
                         text: "Tickmarks"
                         checked: false
+                        Layout.minimumWidth: 100
                     }
                     CheckBox {
                         id: wrapCheck
                         text: "Word wrap"
                         checked: true
+                        Layout.minimumWidth: 100
                     }
                 }
             }
             GroupBox {
                 id: group2
                 title:"Tab Position"
-                width: area.width
-                Row {
+                Layout.fillWidth: true
+                RowLayout {
                     ExclusiveGroup { id: tabPositionGroup }
                     RadioButton {
                         id: r1
                         text: "Top"
                         checked: true
                         exclusiveGroup: tabPositionGroup
-                        width: 100
+                        Layout.minimumWidth: 100
                     }
                     RadioButton {
                         id: r2
                         text: "Bottom"
                         exclusiveGroup: tabPositionGroup
+                        Layout.minimumWidth: 100
                     }
                 }
             }
@@ -175,18 +212,17 @@ Item {
                 id: area
                 frameVisible: frameCheckbox.checked
                 text: loremIpsum + loremIpsum
+                textFormat: Qt.RichText
                 wrapMode: wrapCheck.checked ? TextEdit.WordWrap : TextEdit.NoWrap
-                width: contentRow.width - firstColumn.width - contentRow.spacing
-                height: parent.height - group1.height - group2.height - 2 * parent.spacing
-                anchors { right: parent.right }
-            }
-
-            MouseArea {
-                id: contextMenu
-                parent: area.viewport
-                anchors.fill: parent
-                acceptedButtons: Qt.RightButton
-                onPressed: editmenu.popup()
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                MouseArea {
+                    id: contextMenu
+                    parent: area.viewport
+                    anchors.fill: parent
+                    acceptedButtons: Qt.RightButton
+                    onPressed: editmenu.popup()
+                }
             }
         }
     }

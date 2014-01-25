@@ -70,6 +70,7 @@ class QLabel;
 class QVBoxLayout;
 class QPushButton;
 class QWellArray;
+class QColorPickingEventFilter;
 
 class QColorDialogPrivate : public QDialogPrivate
 {
@@ -82,11 +83,13 @@ public:
         { return static_cast<QPlatformColorDialogHelper *>(platformHelper()); }
 
     void init(const QColor &initial);
+    void initWidgets();
     QRgb currentColor() const;
     QColor currentQColor() const;
     void setCurrentColor(QRgb rgb);
     void setCurrentQColor(const QColor &color);
     bool selectColor(const QColor &color);
+    QColor grabScreenColor(const QPoint &p);
 
     int currentAlpha() const;
     void setCurrentAlpha(int a);
@@ -101,6 +104,11 @@ public:
     void _q_nextCustom(int, int);
     void _q_newCustom(int, int);
     void _q_newStandard(int, int);
+    void _q_pickScreenColor();
+    void releaseColorPicking();
+    bool handleColorPickingMouseMove(QMouseEvent *e);
+    bool handleColorPickingMouseButtonRelease(QMouseEvent *e);
+    bool handleColorPickingKeyPress(QKeyEvent *e);
 
     QWellArray *custom;
     QWellArray *standard;
@@ -112,12 +120,17 @@ public:
     QColorShower *cs;
     QLabel *lblBasicColors;
     QLabel *lblCustomColors;
+    QLabel *lblScreenColorInfo;
     QPushButton *ok;
     QPushButton *cancel;
     QPushButton *addCusBt;
+    QPushButton *screenColorPickerButton;
     QColor selectedQColor;
     int nextCust;
     bool smallDisplay;
+    bool screenColorPicking;
+    QColorPickingEventFilter *colorPickingEventFilter;
+    QRgb beforeScreenColorPicking;
     QSharedPointer<QColorDialogOptions> options;
 
     QPointer<QObject> receiverToDisconnectOnClose;

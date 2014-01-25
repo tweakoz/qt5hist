@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QtSerialPort
 description             = Qt Serial Port Reference Documentation
-url                     = http://qt-project.org/doc/qt-$QT_VER/qtserialport
+url                     = http://qt-project.org/doc/qt-$QT_VER
 version                 = $QT_VERSION
 
 qhp.projects            = QtSerialPort
@@ -35,3 +35,6 @@ exampledirs += ../../../examples/serialport
 imagedirs   += images
 
 depends += qtcore qtdoc
+
+navigation.landingpage = "Qt Serial Port"
+navigation.cppclassespage = "Qt Serial Port C++ Classes"

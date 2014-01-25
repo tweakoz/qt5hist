@@ -85,7 +85,6 @@ class Tree
     ClassNode* findClassNode(const QStringList& path, Node* start = 0) const;
     QmlClassNode* findQmlTypeNode(const QStringList& path);
     NamespaceNode* findNamespaceNode(const QStringList& path) const;
-    DocNode* findQmlModuleNode(const QStringList& path, Node* start = 0);
 
     Node* findNodeByNameAndType(const QStringList& path,
                                 Node::Type type,
@@ -128,7 +127,6 @@ class Tree
     void addPropertyFunction(PropertyNode *property,
                              const QString &funcName,
                              PropertyNode::FunctionRole funcRole);
-    void addToQmlModule(Node* node);
     void resolveInheritance(NamespaceNode *rootNode = 0);
     void resolveProperties();
     void resolveCppToQmlLinks();

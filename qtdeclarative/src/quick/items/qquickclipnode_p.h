@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -42,9 +42,10 @@
 #ifndef QQUICKCLIPNODE_P_H
 #define QQUICKCLIPNODE_P_H
 
+#include <private/qtquickglobal_p.h>
 #include <QtQuick/qsgnode.h>
 
-class QQuickDefaultClipNode : public QSGClipNode
+class Q_QUICK_PRIVATE_EXPORT QQuickDefaultClipNode : public QSGClipNode
 {
 public:
     QQuickDefaultClipNode(const QRectF &);

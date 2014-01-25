@@ -138,13 +138,6 @@ static QByteArray escapedString(const QString &s)
             if (u < 0x0800) {
                 *cursor++ = 0xc0 | ((uchar) (u >> 6));
             } else {
-                // is it one of the Unicode non-characters?
-                if (QChar::isNonCharacter(u)) {
-                    *cursor++ = replacement;
-                    ++ch;
-                    continue;
-                }
-
                 if (QChar::requiresSurrogates(u)) {
                     *cursor++ = 0xf0 | ((uchar) (u >> 18));
                     *cursor++ = 0x80 | (((uchar) (u >> 12)) & 0x3f);
@@ -169,9 +162,14 @@ static void valueToJson(const QJsonPrivate::Base *b, const QJsonPrivate::Value &
     case QJsonValue::Bool:
         json += v.toBoolean() ? "true" : "false";
         break;
-    case QJsonValue::Double:
-        json += QByteArray::number(v.toDouble(b), 'g', 17);
+    case QJsonValue::Double: {
+        const double d = v.toDouble(b);
+        if (qIsFinite(d)) // +2 to format to ensure the expected precision
+            json += QByteArray::number(d, 'g', std::numeric_limits<double>::digits10 + 2); // ::digits10 is 15
+        else
+            json += "null"; // +INF || -INF || NaN (see RFC4627#section2.4)
         break;
+    }
     case QJsonValue::String:
         json += '"';
         json += escapedString(v.toString(b));

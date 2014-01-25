@@ -428,7 +428,21 @@ namespace QtQml {
     Q_QML_EXPORT QObject *qmlAttachedPropertiesObject(int *, const QObject *,
                                                       const QMetaObject *, bool create);
 }
+
+#ifdef Q_CC_CLANG
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wheader-hygiene"
+#endif
+
+// This is necessary to allow for QtQuick1 and QtQuick2 scenes in a single application.
 using namespace QtQml;
+
+#ifdef Q_CC_CLANG
+#pragma clang diagnostic pop
+#endif
+
+//The C++ version of protected namespaces in qmldir
+Q_QML_EXPORT bool qmlProtectModule(const char* uri, int majVersion);
 
 template<typename T>
 QObject *qmlAttachedPropertiesObject(const QObject *obj, bool create = true)
@@ -471,6 +485,24 @@ inline int qmlRegisterSingletonType(const char *uri, int versionMajor, int versi
     return QQmlPrivate::qmlregister(QQmlPrivate::SingletonRegistration, &api);
 }
 
+inline int qmlRegisterSingletonType(const QUrl &url, const char *uri, int versionMajor, int versionMinor, const char *qmlName)
+{
+    if (url.isRelative()) {
+        // User input check must go here, because QQmlPrivate::qmlregister is also used internally for composite types
+        qWarning("qmlRegisterSingletonType requires absolute URLs.");
+        return 0;
+    }
+
+    QQmlPrivate::RegisterCompositeSingletonType type = {
+        url,
+        uri,
+        versionMajor,
+        versionMinor,
+        qmlName
+    };
+
+    return QQmlPrivate::qmlregister(QQmlPrivate::CompositeSingletonRegistration, &type);
+}
 
 inline int qmlRegisterType(const QUrl &url, const char *uri, int versionMajor, int versionMinor, const char *qmlName)
 {

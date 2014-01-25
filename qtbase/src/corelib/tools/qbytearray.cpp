@@ -556,6 +556,7 @@ QByteArray qUncompress(const uchar* data, int nbytes)
         d.take(); // realloc was successful
         d.reset(p);
         d->offset = sizeof(QByteArrayData);
+        d->size = 0; // Shut up valgrind "uninitialized variable" warning
 
         int res = ::uncompress((uchar*)d->data(), &len,
                                (uchar*)data+4, nbytes-4);
@@ -585,7 +586,7 @@ QByteArray qUncompress(const uchar* data, int nbytes)
             d->data()[len] = 0;
 
             {
-                QByteArrayDataPtr dataPtr = { reinterpret_cast<QByteArrayData *>(d.take()) };
+                QByteArrayDataPtr dataPtr = { d.take() };
                 return QByteArray(dataPtr);
             }
 
@@ -794,6 +795,27 @@ static inline char qToLower(char c)
     \sa QString, QBitArray
 */
 
+/*!
+    \enum QByteArray::Base64Option
+    \since 5.2
+
+    This enum contains the options available for encoding and decoding Base64.
+    Base64 is defined by \l{RFC 4648}, with the following options:
+
+    \value Base64Encoding     (default) The regular Base64 alphabet, called simply "base64"
+    \value Base64UrlEncoding  An alternate alphabet, called "base64url", which replaces two
+                              characters in the alphabet to be more friendly to URLs.
+    \value KeepTrailingEquals (default) Keeps the trailing padding equal signs at the end
+                              of the encoded data, so the data is always a size multiple of
+                              four.
+    \value OmitTrailingEquals Omits adding the padding equal signs at the end of the encoded
+                              data.
+
+    QByteArray::fromBase64() ignores the KeepTrailingEquals and
+    OmitTrailingEquals options and will not flag errors in case they are
+    missing or if there are too many of them.
+*/
+
 /*! \fn QByteArray::iterator QByteArray::begin()
 
     \internal
@@ -888,6 +910,15 @@ static inline char qToLower(char c)
     \sa operator=()
 */
 
+/*!
+    \fn QByteArray::QByteArray(QByteArray &&other)
+
+    Move-constructs a QByteArray instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
+*/
+
 /*! \fn QByteArray::QByteArray(QByteArrayDataPtr dd)
 
     \internal
@@ -943,6 +974,14 @@ QByteArray &QByteArray::operator=(const char *str)
     return *this;
 }
 
+/*!
+    \fn QByteArray &QByteArray::operator=(QByteArray &&other)
+
+    Move-assigns \a other to this QByteArray instance.
+
+    \since 5.2
+*/
+
 /*! \fn void QByteArray::swap(QByteArray &other)
     \since 4.8
 
@@ -970,7 +1009,7 @@ QByteArray &QByteArray::operator=(const char *str)
 
 /*! \fn bool QByteArray::isEmpty() const
 
-    Returns true if the byte array has size 0; otherwise returns false.
+    Returns \c true if the byte array has size 0; otherwise returns \c false.
 
     Example:
     \snippet code/src_corelib_tools_qbytearray.cpp 7
@@ -1173,8 +1212,8 @@ QByteArray &QByteArray::operator=(const char *str)
 
 /*! \fn bool QByteArray::contains(const QByteArray &ba) const
 
-    Returns true if the byte array contains an occurrence of the byte
-    array \a ba; otherwise returns false.
+    Returns \c true if the byte array contains an occurrence of the byte
+    array \a ba; otherwise returns \c false.
 
     \sa indexOf(), count()
 */
@@ -1183,16 +1222,16 @@ QByteArray &QByteArray::operator=(const char *str)
 
     \overload
 
-    Returns true if the byte array contains the string \a str;
-    otherwise returns false.
+    Returns \c true if the byte array contains the string \a str;
+    otherwise returns \c false.
 */
 
 /*! \fn bool QByteArray::contains(char ch) const
 
     \overload
 
-    Returns true if the byte array contains the character \a ch;
-    otherwise returns false.
+    Returns \c true if the byte array contains the character \a ch;
+    otherwise returns \c false.
 */
 
 /*!
@@ -1295,7 +1334,7 @@ void QByteArray::chop(int n)
 
 /*! \fn bool QByteArray::isNull() const
 
-    Returns true if this byte array is null; otherwise returns false.
+    Returns \c true if this byte array is null; otherwise returns \c false.
 
     Example:
     \snippet code/src_corelib_tools_qbytearray.cpp 13
@@ -1812,10 +1851,10 @@ QByteArray &QByteArray::insert(int i, char ch)
 
 QByteArray &QByteArray::remove(int pos, int len)
 {
-    if (len <= 0  || pos >= d->size || pos < 0)
+    if (len <= 0  || uint(pos) >= uint(d->size))
         return *this;
     detach();
-    if (pos + len >= d->size) {
+    if (len >= d->size - pos) {
         resize(pos);
     } else {
         memmove(d->data() + pos, d->data() + pos + len, d->size - pos - len);
@@ -2495,8 +2534,8 @@ int QByteArray::count(char ch) const
 */
 
 /*!
-    Returns true if this byte array starts with byte array \a ba;
-    otherwise returns false.
+    Returns \c true if this byte array starts with byte array \a ba;
+    otherwise returns \c false.
 
     Example:
     \snippet code/src_corelib_tools_qbytearray.cpp 25
@@ -2514,8 +2553,8 @@ bool QByteArray::startsWith(const QByteArray &ba) const
 
 /*! \overload
 
-    Returns true if this byte array starts with string \a str;
-    otherwise returns false.
+    Returns \c true if this byte array starts with string \a str;
+    otherwise returns \c false.
 */
 bool QByteArray::startsWith(const char *str) const
 {
@@ -2529,8 +2568,8 @@ bool QByteArray::startsWith(const char *str) const
 
 /*! \overload
 
-    Returns true if this byte array starts with character \a ch;
-    otherwise returns false.
+    Returns \c true if this byte array starts with character \a ch;
+    otherwise returns \c false.
 */
 bool QByteArray::startsWith(char ch) const
 {
@@ -2540,8 +2579,8 @@ bool QByteArray::startsWith(char ch) const
 }
 
 /*!
-    Returns true if this byte array ends with byte array \a ba;
-    otherwise returns false.
+    Returns \c true if this byte array ends with byte array \a ba;
+    otherwise returns \c false.
 
     Example:
     \snippet code/src_corelib_tools_qbytearray.cpp 26
@@ -2559,8 +2598,8 @@ bool QByteArray::endsWith(const QByteArray &ba) const
 
 /*! \overload
 
-    Returns true if this byte array ends with string \a str; otherwise
-    returns false.
+    Returns \c true if this byte array ends with string \a str; otherwise
+    returns \c false.
 */
 bool QByteArray::endsWith(const char *str) const
 {
@@ -2574,8 +2613,8 @@ bool QByteArray::endsWith(const char *str) const
 
 /*! \overload
 
-    Returns true if this byte array ends with character \a ch;
-    otherwise returns false.
+    Returns \c true if this byte array ends with character \a ch;
+    otherwise returns \c false.
 */
 bool QByteArray::endsWith(char ch) const
 {
@@ -2773,8 +2812,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator==(const QString &str) const
 
-    Returns true if this byte array is equal to string \a str;
-    otherwise returns false.
+    Returns \c true if this byte array is equal to string \a str;
+    otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2790,8 +2829,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator!=(const QString &str) const
 
-    Returns true if this byte array is not equal to string \a str;
-    otherwise returns false.
+    Returns \c true if this byte array is not equal to string \a str;
+    otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2807,8 +2846,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator<(const QString &str) const
 
-    Returns true if this byte array is lexically less than string \a
-    str; otherwise returns false.
+    Returns \c true if this byte array is lexically less than string \a
+    str; otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2824,8 +2863,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator>(const QString &str) const
 
-    Returns true if this byte array is lexically greater than string
-    \a str; otherwise returns false.
+    Returns \c true if this byte array is lexically greater than string
+    \a str; otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2841,8 +2880,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator<=(const QString &str) const
 
-    Returns true if this byte array is lexically less than or equal
-    to string \a str; otherwise returns false.
+    Returns \c true if this byte array is lexically less than or equal
+    to string \a str; otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2858,8 +2897,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
 /*! \fn bool QByteArray::operator>=(const QString &str) const
 
-    Returns true if this byte array is greater than or equal to string
-    \a str; otherwise returns false.
+    Returns \c true if this byte array is greater than or equal to string
+    \a str; otherwise returns \c false.
 
     The Unicode data is converted into 8-bit characters using
     QString::toUtf8().
@@ -2878,8 +2917,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is equal to byte array \a a2;
-    otherwise returns false.
+    Returns \c true if byte array \a a1 is equal to byte array \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator==(const QByteArray &a1, const char *a2)
@@ -2887,8 +2926,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is equal to string \a a2;
-    otherwise returns false.
+    Returns \c true if byte array \a a1 is equal to string \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator==(const char *a1, const QByteArray &a2)
@@ -2896,8 +2935,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is equal to byte array \a a2;
-    otherwise returns false.
+    Returns \c true if string \a a1 is equal to byte array \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator!=(const QByteArray &a1, const QByteArray &a2)
@@ -2905,8 +2944,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is not equal to byte array \a a2;
-    otherwise returns false.
+    Returns \c true if byte array \a a1 is not equal to byte array \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator!=(const QByteArray &a1, const char *a2)
@@ -2914,8 +2953,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is not equal to string \a a2;
-    otherwise returns false.
+    Returns \c true if byte array \a a1 is not equal to string \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator!=(const char *a1, const QByteArray &a2)
@@ -2923,8 +2962,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is not equal to byte array \a a2;
-    otherwise returns false.
+    Returns \c true if string \a a1 is not equal to byte array \a a2;
+    otherwise returns \c false.
 */
 
 /*! \fn bool operator<(const QByteArray &a1, const QByteArray &a2)
@@ -2932,8 +2971,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically less than byte array
-    \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically less than byte array
+    \a a2; otherwise returns \c false.
 */
 
 /*! \fn inline bool operator<(const QByteArray &a1, const char *a2)
@@ -2941,8 +2980,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically less than string
-    \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically less than string
+    \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator<(const char *a1, const QByteArray &a2)
@@ -2950,8 +2989,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is lexically less than byte array
-    \a a2; otherwise returns false.
+    Returns \c true if string \a a1 is lexically less than byte array
+    \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator<=(const QByteArray &a1, const QByteArray &a2)
@@ -2959,8 +2998,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically less than or equal
-    to byte array \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically less than or equal
+    to byte array \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator<=(const QByteArray &a1, const char *a2)
@@ -2968,8 +3007,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically less than or equal
-    to string \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically less than or equal
+    to string \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator<=(const char *a1, const QByteArray &a2)
@@ -2977,8 +3016,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is lexically less than or equal
-    to byte array \a a2; otherwise returns false.
+    Returns \c true if string \a a1 is lexically less than or equal
+    to byte array \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>(const QByteArray &a1, const QByteArray &a2)
@@ -2986,8 +3025,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically greater than byte
-    array \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically greater than byte
+    array \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>(const QByteArray &a1, const char *a2)
@@ -2995,8 +3034,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically greater than string
-    \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically greater than string
+    \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>(const char *a1, const QByteArray &a2)
@@ -3004,8 +3043,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is lexically greater than byte array
-    \a a2; otherwise returns false.
+    Returns \c true if string \a a1 is lexically greater than byte array
+    \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>=(const QByteArray &a1, const QByteArray &a2)
@@ -3013,8 +3052,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically greater than or
-    equal to byte array \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically greater than or
+    equal to byte array \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>=(const QByteArray &a1, const char *a2)
@@ -3022,8 +3061,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if byte array \a a1 is lexically greater than or
-    equal to string \a a2; otherwise returns false.
+    Returns \c true if byte array \a a1 is lexically greater than or
+    equal to string \a a2; otherwise returns \c false.
 */
 
 /*! \fn bool operator>=(const char *a1, const QByteArray &a2)
@@ -3031,8 +3070,8 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
 
     \overload
 
-    Returns true if string \a a1 is lexically greater than or
-    equal to byte array \a a2; otherwise returns false.
+    Returns \c true if string \a a1 is lexically greater than or
+    equal to byte array \a a2; otherwise returns \c false.
 */
 
 /*! \fn const QByteArray operator+(const QByteArray &a1, const QByteArray &a2)
@@ -3086,7 +3125,7 @@ QDataStream &operator>>(QDataStream &in, QByteArray &ba)
     replaced with a single space.
 
     Whitespace means any character for which the standard C++
-    isspace() function returns true. This includes the ASCII
+    isspace() function returns \c true. This includes the ASCII
     characters '\\t', '\\n', '\\v', '\\f', '\\r', and ' '.
 
     Example:
@@ -3124,7 +3163,7 @@ QByteArray QByteArray::simplified() const
     and the end.
 
     Whitespace means any character for which the standard C++
-    isspace() function returns true. This includes the ASCII
+    isspace() function returns \c true. This includes the ASCII
     characters '\\t', '\\n', '\\v', '\\f', '\\r', and ' '.
 
     Example:
@@ -3151,7 +3190,7 @@ QByteArray QByteArray::trimmed() const
     }
     int l = end - start + 1;
     if (l <= 0) {
-        QByteArrayDataPtr empty = { reinterpret_cast<QByteArrayData *>(Data::allocate(0)) };
+        QByteArrayDataPtr empty = { Data::allocate(0) };
         return QByteArray(empty);
     }
     return QByteArray(s+start, l);
@@ -3538,14 +3577,34 @@ float QByteArray::toFloat(bool *ok) const
 
     \snippet code/src_corelib_tools_qbytearray.cpp 39
 
-    The algorithm used to encode Base64-encoded data is defined in \l{RFC 2045}.
+    The algorithm used to encode Base64-encoded data is defined in \l{RFC 4648}.
 
     \sa fromBase64()
 */
 QByteArray QByteArray::toBase64() const
 {
-    const char alphabet[] = "ABCDEFGH" "IJKLMNOP" "QRSTUVWX" "YZabcdef"
-		            "ghijklmn" "opqrstuv" "wxyz0123" "456789+/";
+    return toBase64(Base64Encoding);
+}
+
+/*!
+    \since 5.2
+    \overload
+
+    Returns a copy of the byte array, encoded using the options \a options.
+
+    \snippet code/src_corelib_tools_qbytearray.cpp 39bis
+
+    The algorithm used to encode Base64-encoded data is defined in \l{RFC 4648}.
+
+    \sa fromBase64()
+*/
+QByteArray QByteArray::toBase64(Base64Options options) const
+{
+    const char alphabet_base64[] = "ABCDEFGH" "IJKLMNOP" "QRSTUVWX" "YZabcdef"
+                                   "ghijklmn" "opqrstuv" "wxyz0123" "456789+/";
+    const char alphabet_base64url[] = "ABCDEFGH" "IJKLMNOP" "QRSTUVWX" "YZabcdef"
+                                      "ghijklmn" "opqrstuv" "wxyz0123" "456789-_";
+    const char *const alphabet = options & Base64UrlEncoding ? alphabet_base64url : alphabet_base64;
     const char padchar = '=';
     int padlen = 0;
 
@@ -3554,26 +3613,38 @@ QByteArray QByteArray::toBase64() const
     int i = 0;
     char *out = tmp.data();
     while (i < d->size) {
-	int chunk = 0;
+        // encode 3 bytes at a time
+        int chunk = 0;
         chunk |= int(uchar(d->data()[i++])) << 16;
-	if (i == d->size) {
-	    padlen = 2;
-	} else {
+        if (i == d->size) {
+            padlen = 2;
+        } else {
             chunk |= int(uchar(d->data()[i++])) << 8;
-	    if (i == d->size) padlen = 1;
-            else chunk |= int(uchar(d->data()[i++]));
-	}
+            if (i == d->size)
+                padlen = 1;
+            else
+                chunk |= int(uchar(data()[i++]));
+        }
 
-	int j = (chunk & 0x00fc0000) >> 18;
-	int k = (chunk & 0x0003f000) >> 12;
-	int l = (chunk & 0x00000fc0) >> 6;
-	int m = (chunk & 0x0000003f);
-	*out++ = alphabet[j];
-	*out++ = alphabet[k];
-	if (padlen > 1) *out++ = padchar;
-	else *out++ = alphabet[l];
-	if (padlen > 0) *out++ = padchar;
-	else *out++ = alphabet[m];
+        int j = (chunk & 0x00fc0000) >> 18;
+        int k = (chunk & 0x0003f000) >> 12;
+        int l = (chunk & 0x00000fc0) >> 6;
+        int m = (chunk & 0x0000003f);
+        *out++ = alphabet[j];
+        *out++ = alphabet[k];
+
+        if (padlen > 1) {
+            if ((options & OmitTrailingEquals) == 0)
+                *out++ = padchar;
+        } else {
+            *out++ = alphabet[l];
+        }
+        if (padlen > 0) {
+            if ((options & OmitTrailingEquals) == 0)
+                *out++ = padchar;
+        } else {
+            *out++ = alphabet[m];
+        }
     }
 
     tmp.truncate(out - tmp.data());
@@ -3888,7 +3959,7 @@ QByteArray QByteArray::fromRawData(const char *data, int size)
         x = Data::fromRawData(data, size);
         Q_CHECK_PTR(x);
     }
-    QByteArrayDataPtr dataPtr = { reinterpret_cast<QByteArrayData *>(x) };
+    QByteArrayDataPtr dataPtr = { x };
     return QByteArray(dataPtr);
 }
 
@@ -3932,11 +4003,33 @@ QByteArray &QByteArray::setRawData(const char *data, uint size)
 
     \snippet code/src_corelib_tools_qbytearray.cpp 44
 
-    The algorithm used to decode Base64-encoded data is defined in \l{RFC 2045}.
+    The algorithm used to decode Base64-encoded data is defined in \l{RFC 4648}.
 
     \sa toBase64()
 */
 QByteArray QByteArray::fromBase64(const QByteArray &base64)
+{
+    return fromBase64(base64, Base64Encoding);
+}
+
+/*!
+    \since 5.2
+    \overload
+
+    Returns a decoded copy of the Base64 array \a base64, using the alphabet
+    defined by \a options. Input is not checked for validity; invalid
+    characters in the input are skipped, enabling the decoding process to
+    continue with subsequent characters.
+
+    For example:
+
+    \snippet code/src_corelib_tools_qbytearray.cpp 44bis
+
+    The algorithm used to decode Base64-encoded data is defined in \l{RFC 4648}.
+
+    \sa toBase64()
+*/
+QByteArray QByteArray::fromBase64(const QByteArray &base64, Base64Options options)
 {
     unsigned int buf = 0;
     int nbits = 0;
@@ -3944,31 +4037,35 @@ QByteArray QByteArray::fromBase64(const QByteArray &base64)
 
     int offset = 0;
     for (int i = 0; i < base64.size(); ++i) {
-	int ch = base64.at(i);
-	int d;
+        int ch = base64.at(i);
+        int d;
 
-	if (ch >= 'A' && ch <= 'Z')
-	    d = ch - 'A';
-	else if (ch >= 'a' && ch <= 'z')
-	    d = ch - 'a' + 26;
-	else if (ch >= '0' && ch <= '9')
-	    d = ch - '0' + 52;
-	else if (ch == '+')
-	    d = 62;
-	else if (ch == '/')
-	    d = 63;
-	else
-	    d = -1;
+        if (ch >= 'A' && ch <= 'Z')
+            d = ch - 'A';
+        else if (ch >= 'a' && ch <= 'z')
+            d = ch - 'a' + 26;
+        else if (ch >= '0' && ch <= '9')
+            d = ch - '0' + 52;
+        else if (ch == '+' && (options & Base64UrlEncoding) == 0)
+            d = 62;
+        else if (ch == '-' && (options & Base64UrlEncoding) != 0)
+            d = 62;
+        else if (ch == '/' && (options & Base64UrlEncoding) == 0)
+            d = 63;
+        else if (ch == '_' && (options & Base64UrlEncoding) != 0)
+            d = 63;
+        else
+            d = -1;
 
-	if (d != -1) {
-	    buf = (buf << 6) | d;
-	    nbits += 6;
-	    if (nbits >= 8) {
-		nbits -= 8;
-		tmp[offset++] = buf >> nbits;
-		buf &= (1 << nbits) - 1;
-	    }
-	}
+        if (d != -1) {
+            buf = (buf << 6) | d;
+            nbits += 6;
+            if (nbits >= 8) {
+                nbits -= 8;
+                tmp[offset++] = buf >> nbits;
+                buf &= (1 << nbits) - 1;
+            }
+        }
     }
 
     tmp.truncate(offset);

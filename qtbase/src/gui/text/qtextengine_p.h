@@ -96,6 +96,20 @@ typedef quint8 q_hb_bitfield;
 #endif
 
 typedef struct {
+    typedef enum {
+        NoJustification= 0,   /* Justification can't be applied after this glyph */
+        Arabic_Space   = 1,   /* This glyph represents a space inside arabic text */
+        Character      = 2,   /* Inter-character justification point follows this glyph */
+        Space          = 4,   /* This glyph represents a blank outside an Arabic run */
+        Arabic_Normal  = 7,   /* Normal Middle-Of-Word glyph that connects to the right (begin) */
+        Arabic_Waw     = 8,   /* Next character is final form of Waw/Ain/Qaf/Fa */
+        Arabic_BaRa    = 9,   /* Next two chars are Ba + Ra/Ya/AlefMaksura */
+        Arabic_Alef    = 10,  /* Next character is final form of Alef/Tah/Lam/Kaf/Gaf */
+        Arabic_HaaDal  = 11,  /* Next character is final form of Haa/Dal/Taa Marbutah */
+        Arabic_Seen    = 12,  /* Initial or Medial form Of Seen/Sad */
+        Arabic_Kashida = 13   /* Kashida(U+640) in middle of word */
+    } JustificationClass;
+
     q_hb_bitfield justification   :4;  /* Justification class */
     q_hb_bitfield clusterStart    :1;  /* First glyph of representation of cluster */
     q_hb_bitfield mark            :1;  /* needs to be positioned around base char */
@@ -174,15 +188,6 @@ struct QGlyphJustification
 };
 Q_DECLARE_TYPEINFO(QGlyphJustification, Q_PRIMITIVE_TYPE);
 
-struct QGlyphLayoutInstance
-{
-    QFixedPoint offset;
-    QFixedPoint advance;
-    glyph_t glyph;
-    QGlyphJustification justification;
-    QGlyphAttributes attributes;
-};
-
 struct QGlyphLayout
 {
     // init to 0 not needed, done when shaping
@@ -236,28 +241,6 @@ struct QGlyphLayout
 
     inline QFixed effectiveAdvance(int item) const
     { return (advances_x[item] + QFixed::fromFixed(justifications[item].space_18d6)) * !attributes[item].dontPrint; }
-
-    inline QGlyphLayoutInstance instance(int position) const {
-        QGlyphLayoutInstance g;
-        g.offset.x = offsets[position].x;
-        g.offset.y = offsets[position].y;
-        g.glyph = glyphs[position];
-        g.advance.x = advances_x[position];
-        g.advance.y = advances_y[position];
-        g.justification = justifications[position];
-        g.attributes = attributes[position];
-        return g;
-    }
-
-    inline void setInstance(int position, const QGlyphLayoutInstance &g) {
-        offsets[position].x = g.offset.x;
-        offsets[position].y = g.offset.y;
-        glyphs[position] = g.glyph;
-        advances_x[position] = g.advance.x;
-        advances_y[position] = g.advance.y;
-        justifications[position] = g.justification;
-        attributes[position] = g.attributes;
-    }
 
     inline void clear(int first = 0, int last = -1) {
         if (last == -1)
@@ -685,7 +668,10 @@ private:
     void setBoundary(int strPos) const;
     void addRequiredBoundaries() const;
     void shapeText(int item) const;
-    void shapeTextWithHarfbuzz(int item) const;
+#ifdef QT_ENABLE_HARFBUZZ_NG
+    int shapeTextWithHarfbuzzNG(const QScriptItem &si, const ushort *string, int itemLength, QFontEngine *fontEngine, const QVector<uint> &itemBoundaries, bool kerningEnabled) const;
+#endif
+    int shapeTextWithHarfbuzz(const QScriptItem &si, const ushort *string, int itemLength, QFontEngine *fontEngine, const QVector<uint> &itemBoundaries, bool kerningEnabled) const;
     void splitItem(int item, int pos) const;
 
     int endOfLine(int lineNum);

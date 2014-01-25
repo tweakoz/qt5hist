@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -40,7 +40,7 @@
 ****************************************************************************/
 
 #include <QtQuick/private/qsgcontext_p.h>
-#include <QtQuick/private/qsgdefaultrenderer_p.h>
+#include <QtQuick/private/qsgbatchrenderer_p.h>
 #include <QtQuick/private/qsgdistancefieldutil_p.h>
 #include <QtQuick/private/qsgdefaultdistancefieldglyphcache_p.h>
 #include <QtQuick/private/qsgdefaultrectanglenode_p.h>
@@ -49,7 +49,7 @@
 #include <QtQuick/private/qsgdistancefieldglyphnode_p.h>
 #include <QtQuick/private/qsgdistancefieldglyphnode_p_p.h>
 #include <QtQuick/private/qsgshareddistancefieldglyphcache_p.h>
-#include <QtQuick/QSGFlatColorMaterial>
+#include <QtQuick/private/qsgatlastexture_p.h>
 
 #include <QtQuick/private/qsgtexture_p.h>
 #include <QtQuick/private/qquickpixmapcache_p.h>
@@ -72,15 +72,7 @@
 
 #include <private/qqmlprofilerservice_p.h>
 
-DEFINE_BOOL_CONFIG_OPTION(qmlFlashMode, QML_FLASH_MODE)
-DEFINE_BOOL_CONFIG_OPTION(qmlTranslucentMode, QML_TRANSLUCENT_MODE)
 DEFINE_BOOL_CONFIG_OPTION(qmlDisableDistanceField, QML_DISABLE_DISTANCEFIELD)
-
-
-#ifndef QSG_NO_RENDER_TIMING
-static bool qsg_render_timing = !qgetenv("QSG_RENDER_TIMING").isEmpty();
-static QElapsedTimer qsg_renderer_timer;
-#endif
 
 /*
     Comments about this class from Gunnar:
@@ -99,45 +91,37 @@ static QElapsedTimer qsg_renderer_timer;
     to defining plugin interfaces..
 */
 
-
 QT_BEGIN_NAMESPACE
 
 class QSGContextPrivate : public QObjectPrivate
 {
 public:
     QSGContextPrivate()
-        : gl(0)
-        , depthStencilBufferManager(0)
-        , distanceFieldCacheManager(0)
-    #if !defined(QT_OPENGL_ES) || defined(QT_OPENGL_ES_2_ANGLE)
-        , distanceFieldAntialiasing(QSGGlyphNode::HighQualitySubPixelAntialiasing)
-    #else
-        , distanceFieldAntialiasing(QSGGlyphNode::GrayAntialiasing)
-    #endif
-        , flashMode(qmlFlashMode())
+        : antialiasingMethod(QSGContext::UndecidedAntialiasing)
         , distanceFieldDisabled(qmlDisableDistanceField())
+        , distanceFieldAntialiasing(
+#if !defined(QT_OPENGL_ES) || defined(QT_OPENGL_ES_2_ANGLE)
+              QSGGlyphNode::HighQualitySubPixelAntialiasing
+#else
+              QSGGlyphNode::GrayAntialiasing
+#endif
+              )
     {
-        renderAlpha = qmlTranslucentMode() ? 0.5 : 1;
     }
 
     ~QSGContextPrivate()
     {
     }
 
-    QOpenGLContext *gl;
-
-    QHash<QSGMaterialType *, QSGMaterialShader *> materials;
-    QMutex textureMutex;
-    QHash<QQuickTextureFactory *, QSGTexture *> textures;
-    QSGDepthStencilBufferManager *depthStencilBufferManager;
-    QSGDistanceFieldGlyphCacheManager *distanceFieldCacheManager;
-
+    QMutex mutex;
+    QSGContext::AntialiasingMethod antialiasingMethod;
+    bool distanceFieldDisabled;
     QSGDistanceFieldGlyphNode::AntialiasingMode distanceFieldAntialiasing;
 
-    bool flashMode;
-    float renderAlpha;
-    bool distanceFieldDisabled;
+    static QOpenGLContext *sharedOpenGLContext;
 };
+
+QOpenGLContext *QSGContextPrivate::sharedOpenGLContext = 0;
 
 class QSGTextureCleanupEvent : public QEvent
 {
@@ -146,6 +130,20 @@ public:
     ~QSGTextureCleanupEvent() { delete texture; }
     QSGTexture *texture;
 };
+
+namespace QSGMultisampleAntialiasing {
+    class ImageNode : public QSGDefaultImageNode {
+    public:
+        void setAntialiasing(bool) { }
+    };
+
+
+    class RectangleNode : public QSGDefaultRectangleNode {
+    public:
+        void setAntialiasing(bool) { }
+    };
+}
+
 
 /*!
     \class QSGContext
@@ -174,145 +172,55 @@ QSGContext::QSGContext(QObject *parent) :
 
 QSGContext::~QSGContext()
 {
-    invalidate();
-}
-
-
-
-void QSGContext::invalidate()
-{
-    Q_D(QSGContext);
-    d->textureMutex.lock();
-    qDeleteAll(d->textures.values());
-    d->textures.clear();
-    d->textureMutex.unlock();
-    qDeleteAll(d->materials.values());
-    d->materials.clear();
-    delete d->depthStencilBufferManager;
-    d->depthStencilBufferManager = 0;
-    delete d->distanceFieldCacheManager;
-    d->distanceFieldCacheManager = 0;
-
-    d->gl = 0;
-
-    emit invalidated();
-}
-
-
-QSGTexture *QSGContext::textureForFactory(QQuickTextureFactory *factory, QQuickWindow *window)
-{
-    Q_D(QSGContext);
-    if (!factory)
-        return 0;
-
-    d->textureMutex.lock();
-    QSGTexture *texture = d->textures.value(factory);
-    if (!texture) {
-        if (QQuickDefaultTextureFactory *dtf = qobject_cast<QQuickDefaultTextureFactory *>(factory))
-            texture = createTexture(dtf->image());
-        else
-            texture = factory->createTexture(window);
-        d->textures.insert(factory, texture);
-        connect(factory, SIGNAL(destroyed(QObject *)), this, SLOT(textureFactoryDestroyed(QObject *)), Qt::DirectConnection);
-    }
-    d->textureMutex.unlock();
-    return texture;
-}
-
-
-void QSGContext::textureFactoryDestroyed(QObject *o)
-{
-    Q_D(QSGContext);
-    QQuickTextureFactory *f = static_cast<QQuickTextureFactory *>(o);
-
-    d->textureMutex.lock();
-    QSGTexture *t = d->textures.take(f);
-    d->textureMutex.unlock();
-
-    if (t) {
-        if (t->thread() == thread())
-            t->deleteLater();
-        else
-            QCoreApplication::postEvent(this, new QSGTextureCleanupEvent(t));
-    }
-}
-
-
-QOpenGLContext *QSGContext::glContext() const
-{
-    Q_D(const QSGContext);
-    return d->gl;
 }
 
 /*!
-    Initializes the scene graph context with the GL context \a context. This also
-    emits the ready() signal so that the QML graph can start building scene graph nodes.
+ * This function is used by the Qt WebEngine to set up context sharing
+ * across multiple windows. Do not use it for any other purpose.
  */
-void QSGContext::initialize(QOpenGLContext *context)
+void QSGContext::setSharedOpenGLContext(QOpenGLContext *context)
+{
+    QSGContextPrivate::sharedOpenGLContext = context;
+}
+
+QOpenGLContext *QSGContext::sharedOpenGLContext()
+{
+    return QSGContextPrivate::sharedOpenGLContext;
+}
+
+void QSGContext::renderContextInitialized(QSGRenderContext *renderContext)
 {
     Q_D(QSGContext);
 
-    // Sanity check the surface format, in case it was overridden by the application
-    QSurfaceFormat requested = defaultSurfaceFormat();
-    QSurfaceFormat actual = context->format();
-    if (requested.depthBufferSize() > 0 && actual.depthBufferSize() <= 0)
-        qWarning("QSGContext::initialize: depth buffer support missing, expect rendering errors");
-    if (requested.stencilBufferSize() > 0 && actual.stencilBufferSize() <= 0)
-        qWarning("QSGContext::initialize: stencil buffer support missing, expect rendering errors");
-
-    Q_ASSERT(!d->gl);
-    d->gl = context;
-
-    precompileMaterials();
-
-    emit initialized();
-}
-
-#define QSG_PRECOMPILE_MATERIAL(name) { name m; prepareMaterial(&m); }
-
-/*
- * Some glsl compilers take their time compiling materials, and
- * the way the scene graph is being processed, these materials
- * get compiled when they are first taken into use. This can
- * easily lead to skipped frames. By precompiling the most
- * common materials, we potentially add a few milliseconds to the
- * start up, and reduce the chance of avoiding skipped frames
- * later on.
- */
-void QSGContext::precompileMaterials()
-{
-    if (qEnvironmentVariableIsEmpty("QSG_NO_MATERIAL_PRELOADING")) {
-        QSG_PRECOMPILE_MATERIAL(QSGVertexColorMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGFlatColorMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGOpaqueTextureMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGTextureMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGSmoothTextureMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGSmoothColorMaterial);
-        QSG_PRECOMPILE_MATERIAL(QSGDistanceFieldTextMaterial);
-    }
-}
-
-
-/*!
-    Returns if the scene graph context is ready or not, meaning that it has a valid
-    GL context.
- */
-bool QSGContext::isReady() const
-{
-    Q_D(const QSGContext);
-    return d->gl;
-}
-
-
-void QSGContext::renderNextFrame(QSGRenderer *renderer, GLuint fboId)
-{
-    if (fboId) {
-        QSGBindableFboId bindable(fboId);
-        renderer->renderScene(bindable);
-    } else {
-        renderer->renderScene();
+    d->mutex.lock();
+    if (d->antialiasingMethod == UndecidedAntialiasing) {
+        QByteArray aaType = qgetenv("QSG_ANTIALIASING_METHOD");
+        if (aaType == "msaa") {
+            d->antialiasingMethod = MsaaAntialiasing;
+        } else if (aaType == "vertex") {
+            d->antialiasingMethod = VertexAntialiasing;
+        } else {
+            if (renderContext->openglContext()->format().samples() > 0)
+                d->antialiasingMethod = MsaaAntialiasing;
+            else
+                d->antialiasingMethod = VertexAntialiasing;
+        }
     }
 
+    static bool dumped = false;
+    if (!dumped && qEnvironmentVariableIsSet("QSG_INFO")) {
+        dumped = true;
+        qDebug() << "GL_VENDOR:     " << (const char *) glGetString(GL_VENDOR);
+        qDebug() << "GL_RENDERER:   " << (const char *) glGetString(GL_RENDERER);
+        qDebug() << "GL_VERSION:    " << (const char *) glGetString(GL_VERSION);
+        qDebug() << "GL_EXTENSIONS:\n   " << QByteArray((const char *) glGetString(GL_EXTENSIONS)).replace(" ", "\n    ").constData();
+    }
+
+    d->mutex.unlock();
+}
+
+void QSGContext::renderContextInvalidated(QSGRenderContext *)
+{
 }
 
 /*!
@@ -320,7 +228,10 @@ void QSGContext::renderNextFrame(QSGRenderer *renderer, GLuint fboId)
  */
 QSGRectangleNode *QSGContext::createRectangleNode()
 {
-    return new QSGDefaultRectangleNode;
+    Q_D(QSGContext);
+    return d->antialiasingMethod == MsaaAntialiasing
+            ? new QSGMultisampleAntialiasing::RectangleNode
+            : new QSGDefaultRectangleNode;
 }
 
 /*!
@@ -328,64 +239,26 @@ QSGRectangleNode *QSGContext::createRectangleNode()
  */
 QSGImageNode *QSGContext::createImageNode()
 {
-    return new QSGDefaultImageNode;
-}
-
-/*!
-    Factory function for scene graph backends of the distance-field glyph cache.
- */
-QSGDistanceFieldGlyphCache *QSGContext::distanceFieldGlyphCache(const QRawFont &font)
-{
     Q_D(QSGContext);
-
-    if (!d->distanceFieldCacheManager)
-        d->distanceFieldCacheManager = new QSGDistanceFieldGlyphCacheManager;
-
-    QSGDistanceFieldGlyphCache *cache = d->distanceFieldCacheManager->cache(font);
-    if (!cache) {
-        QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
-        if (platformIntegration != 0
-            && platformIntegration->hasCapability(QPlatformIntegration::SharedGraphicsCache)) {
-            QFontEngine *fe = QRawFontPrivate::get(font)->fontEngine;
-            if (!fe->faceId().filename.isEmpty()) {
-                QByteArray keyName = fe->faceId().filename;
-                if (font.style() != QFont::StyleNormal)
-                    keyName += QByteArray(" I");
-                if (font.weight() != QFont::Normal)
-                    keyName += ' ' + QByteArray::number(font.weight());
-                keyName += QByteArray(" DF");
-                QPlatformSharedGraphicsCache *sharedGraphicsCache =
-                        platformIntegration->createPlatformSharedGraphicsCache(keyName);
-
-                if (sharedGraphicsCache != 0) {
-                    sharedGraphicsCache->ensureCacheInitialized(keyName,
-                                                                QPlatformSharedGraphicsCache::OpenGLTexture,
-                                                                QPlatformSharedGraphicsCache::Alpha8);
-
-                    cache = new QSGSharedDistanceFieldGlyphCache(keyName,
-                                                                sharedGraphicsCache,
-                                                                d->distanceFieldCacheManager,
-                                                                glContext(),
-                                                                font);
-                }
-            }
-        }
-        if (!cache)
-            cache = new QSGDefaultDistanceFieldGlyphCache(d->distanceFieldCacheManager, glContext(), font);
-        d->distanceFieldCacheManager->insertCache(font, cache);
-    }
-    return cache;
+    return d->antialiasingMethod == MsaaAntialiasing
+            ? new QSGMultisampleAntialiasing::ImageNode
+            : new QSGDefaultImageNode;
 }
 
 /*!
     Factory function for scene graph backends of the Text elements which supports native
     text rendering. Used in special cases where native look and feel is a main objective.
 */
-QSGGlyphNode *QSGContext::createNativeGlyphNode()
+QSGGlyphNode *QSGContext::createNativeGlyphNode(QSGRenderContext *rc)
 {
 #if defined(QT_OPENGL_ES) && !defined(QT_OPENGL_ES_2_ANGLE)
-    return createGlyphNode();
+    Q_D(QSGContext);
+    if (d->distanceFieldDisabled)
+        return new QSGDefaultGlyphNode;
+    else
+        return createGlyphNode(rc);
 #else
+    Q_UNUSED(rc);
     return new QSGDefaultGlyphNode;
 #endif
 }
@@ -393,32 +266,18 @@ QSGGlyphNode *QSGContext::createNativeGlyphNode()
 /*!
     Factory function for scene graph backends of the Text elements;
  */
-QSGGlyphNode *QSGContext::createGlyphNode()
+QSGGlyphNode *QSGContext::createGlyphNode(QSGRenderContext *rc)
 {
     Q_D(QSGContext);
 
     if (d->distanceFieldDisabled) {
-        return createNativeGlyphNode();
+        return createNativeGlyphNode(rc);
     } else {
-        QSGDistanceFieldGlyphNode *node = new QSGDistanceFieldGlyphNode(this);
+        QSGDistanceFieldGlyphNode *node = new QSGDistanceFieldGlyphNode(rc);
         node->setPreferredAntialiasingMode(d->distanceFieldAntialiasing);
         return node;
     }
 }
-
-/*!
-    Factory function for the scene graph renderers.
-
-    The renderers are used for the toplevel renderer and once for every
-    QQuickShaderEffectSource used in the QML scene.
- */
-QSGRenderer *QSGContext::createRenderer()
-{
-    return new QSGDefaultRenderer(this);
-}
-
-
-
 
 QSurfaceFormat QSGContext::defaultSurfaceFormat() const
 {
@@ -430,24 +289,6 @@ QSurfaceFormat QSGContext::defaultSurfaceFormat() const
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     return format;
 }
-
-
-/*!
-    Factory function for texture objects.
-
-    If \a image is a valid image, the QSGTexture::setImage function
-    will be called with \a image as argument.
- */
-
-QSGTexture *QSGContext::createTexture(const QImage &image) const
-{
-    QSGPlainTexture *t = new QSGPlainTexture();
-    if (!image.isNull())
-        t->setImage(image);
-    return t;
-}
-
-
 
 /*!
     Returns the minimum supported framebuffer object size.
@@ -462,125 +303,6 @@ QSize QSGContext::minimumFBOSize() const
 #endif
 }
 
-
-
-/*!
-    Returns a shared pointer to a depth stencil buffer that can be used with \a fbo.
-  */
-QSharedPointer<QSGDepthStencilBuffer> QSGContext::depthStencilBufferForFbo(QOpenGLFramebufferObject *fbo)
-{
-    Q_D(QSGContext);
-    if (!d->gl)
-        return QSharedPointer<QSGDepthStencilBuffer>();
-    QSGDepthStencilBufferManager *manager = depthStencilBufferManager();
-    QSGDepthStencilBuffer::Format format;
-    format.size = fbo->size();
-    format.samples = fbo->format().samples();
-    format.attachments = QSGDepthStencilBuffer::DepthAttachment | QSGDepthStencilBuffer::StencilAttachment;
-    QSharedPointer<QSGDepthStencilBuffer> buffer = manager->bufferForFormat(format);
-    if (buffer.isNull()) {
-        buffer = QSharedPointer<QSGDepthStencilBuffer>(new QSGDefaultDepthStencilBuffer(d->gl, format));
-        manager->insertBuffer(buffer);
-    }
-    return buffer;
-}
-
-/*!
-    Returns a pointer to the context's depth/stencil buffer manager. This is useful for custom
-    implementations of \l depthStencilBufferForFbo().
-  */
-QSGDepthStencilBufferManager *QSGContext::depthStencilBufferManager()
-{
-    Q_D(QSGContext);
-    if (!d->gl)
-        return 0;
-    if (!d->depthStencilBufferManager)
-        d->depthStencilBufferManager = new QSGDepthStencilBufferManager(d->gl);
-    return d->depthStencilBufferManager;
-}
-
-
-/*!
-    Returns a material shader for the given material.
- */
-
-QSGMaterialShader *QSGContext::prepareMaterial(QSGMaterial *material)
-{
-    Q_D(QSGContext);
-    QSGMaterialType *type = material->type();
-    QSGMaterialShader *shader = d->materials.value(type);
-    if (shader)
-        return shader;
-
-#ifndef QSG_NO_RENDER_TIMING
-    if (qsg_render_timing  || QQmlProfilerService::enabled)
-        qsg_renderer_timer.start();
-#endif
-
-    shader = material->createShader();
-    shader->compile();
-    shader->initialize();
-    d->materials[type] = shader;
-
-#ifndef QSG_NO_RENDER_TIMING
-    if (qsg_render_timing)
-        printf("   - compiling material: %dms\n", (int) qsg_renderer_timer.elapsed());
-
-    if (QQmlProfilerService::enabled) {
-        QQmlProfilerService::sceneGraphFrame(
-                    QQmlProfilerService::SceneGraphContextFrame,
-                    qsg_renderer_timer.nsecsElapsed());
-    }
-#endif
-
-    return shader;
-}
-
-
-
-/*!
-    Sets whether the scene graph should render with flashing update rectangles or not
-  */
-
-void QSGContext::setFlashModeEnabled(bool enabled)
-{
-    d_func()->flashMode = enabled;
-}
-
-
-/*!
-    Returns true if the scene graph should be rendered with flashing update rectangles
- */
-bool QSGContext::isFlashModeEnabled() const
-{
-    return d_func()->flashMode;
-}
-
-
-/*!
-    Sets the toplevel opacity for rendering. This value will be multiplied into all
-    drawing calls where possible.
-
-    The default value is 1. Any other value will cause artifacts and is primarily
-    useful for debugging.
- */
-void QSGContext::setRenderAlpha(qreal renderAlpha)
-{
-    d_func()->renderAlpha = renderAlpha;
-}
-
-
-/*!
-    Returns the toplevel opacity used for rendering.
-
-    The default value is 1.
-
-    \sa setRenderAlpha()
- */
-qreal QSGContext::renderAlpha() const
-{
-    return d_func()->renderAlpha;
-}
 
 
 /*!
@@ -611,5 +333,283 @@ QAnimationDriver *QSGContext::createAnimationDriver(QObject *parent)
     return new QAnimationDriver(parent);
 }
 
+QSGRenderContext::QSGRenderContext(QSGContext *context)
+    : m_gl(0)
+    , m_sg(context)
+    , m_atlasManager(0)
+    , m_depthStencilManager(0)
+    , m_distanceFieldCacheManager(0)
+    , m_brokenIBOs(false)
+    , m_serializedRender(false)
+{
+}
+
+QSGRenderContext::~QSGRenderContext()
+{
+    invalidate();
+}
+
+static QBasicMutex qsg_framerender_mutex;
+
+void QSGRenderContext::renderNextFrame(QSGRenderer *renderer, GLuint fboId)
+{
+    if (m_serializedRender)
+        qsg_framerender_mutex.lock();
+
+    if (fboId) {
+        QSGBindableFboId bindable(fboId);
+        renderer->renderScene(bindable);
+    } else {
+        renderer->renderScene();
+    }
+
+    if (m_serializedRender)
+        qsg_framerender_mutex.unlock();
+
+}
+
+/*!
+    Factory function for scene graph backends of the distance-field glyph cache.
+ */
+QSGDistanceFieldGlyphCache *QSGRenderContext::distanceFieldGlyphCache(const QRawFont &font)
+{
+    if (!m_distanceFieldCacheManager)
+        m_distanceFieldCacheManager = new QSGDistanceFieldGlyphCacheManager;
+
+    QSGDistanceFieldGlyphCache *cache = m_distanceFieldCacheManager->cache(font);
+    if (!cache) {
+        QPlatformIntegration *platformIntegration = QGuiApplicationPrivate::platformIntegration();
+        if (platformIntegration != 0
+            && platformIntegration->hasCapability(QPlatformIntegration::SharedGraphicsCache)) {
+            QFontEngine *fe = QRawFontPrivate::get(font)->fontEngine;
+            if (!fe->faceId().filename.isEmpty()) {
+                QByteArray keyName = fe->faceId().filename;
+                if (font.style() != QFont::StyleNormal)
+                    keyName += QByteArray(" I");
+                if (font.weight() != QFont::Normal)
+                    keyName += ' ' + QByteArray::number(font.weight());
+                keyName += QByteArray(" DF");
+                QPlatformSharedGraphicsCache *sharedGraphicsCache =
+                        platformIntegration->createPlatformSharedGraphicsCache(keyName);
+
+                if (sharedGraphicsCache != 0) {
+                    sharedGraphicsCache->ensureCacheInitialized(keyName,
+                                                                QPlatformSharedGraphicsCache::OpenGLTexture,
+                                                                QPlatformSharedGraphicsCache::Alpha8);
+
+                    cache = new QSGSharedDistanceFieldGlyphCache(keyName,
+                                                                 sharedGraphicsCache,
+                                                                 m_distanceFieldCacheManager,
+                                                                 openglContext(),
+                                                                 font);
+                }
+            }
+        }
+        if (!cache)
+            cache = new QSGDefaultDistanceFieldGlyphCache(m_distanceFieldCacheManager, openglContext(), font);
+        m_distanceFieldCacheManager->insertCache(font, cache);
+    }
+
+    return cache;
+}
+
+#define QSG_RENDERCONTEXT_PROPERTY "_q_sgrendercontext"
+
+QSGRenderContext *QSGRenderContext::from(QOpenGLContext *context)
+{
+    return qobject_cast<QSGRenderContext *>(context->property(QSG_RENDERCONTEXT_PROPERTY).value<QObject *>());
+}
+
+void QSGRenderContext::registerFontengineForCleanup(QFontEngine *engine)
+{
+    m_fontEnginesToClean << engine;
+}
+
+/*!
+    Initializes the scene graph render context with the GL context \a context. This also
+    emits the ready() signal so that the QML graph can start building scene graph nodes.
+ */
+void QSGRenderContext::initialize(QOpenGLContext *context)
+{
+    // Sanity check the surface format, in case it was overridden by the application
+    QSurfaceFormat requested = m_sg->defaultSurfaceFormat();
+    QSurfaceFormat actual = context->format();
+    if (requested.depthBufferSize() > 0 && actual.depthBufferSize() <= 0)
+        qWarning("QSGContext::initialize: depth buffer support missing, expect rendering errors");
+    if (requested.stencilBufferSize() > 0 && actual.stencilBufferSize() <= 0)
+        qWarning("QSGContext::initialize: stencil buffer support missing, expect rendering errors");
+
+    if (!m_atlasManager)
+        m_atlasManager = new QSGAtlasTexture::Manager();
+
+    Q_ASSERT_X(!m_gl, "QSGRenderContext::initialize", "already initialized!");
+    m_gl = context;
+    m_gl->setProperty(QSG_RENDERCONTEXT_PROPERTY, QVariant::fromValue(this));
+    m_sg->renderContextInitialized(this);
+
+#ifdef Q_OS_LINUX
+    const char *vendor = (const char *) glGetString(GL_VENDOR);
+    if (strstr(vendor, "nouveau"))
+        m_brokenIBOs = true;
+    const char *renderer = (const char *) glGetString(GL_RENDERER);
+    if (strstr(renderer, "llvmpipe"))
+        m_serializedRender = true;
+#endif
+
+    emit initialized();
+}
+
+void QSGRenderContext::invalidate()
+{
+    if (!m_gl)
+        return;
+
+    qDeleteAll(m_textures.values());
+    m_textures.clear();
+
+    /* The cleanup of the atlas textures is a bit intriguing.
+       As part of the cleanup in the threaded render loop, we
+       do:
+       1. call this function
+       2. call QCoreApp::sendPostedEvents() to immediately process
+          any pending deferred deletes.
+       3. delete the GL context.
+
+       As textures need the atlas manager while cleaning up, the
+       manager needs to be cleaned up after the textures, so
+       we post a deleteLater here at the very bottom so it gets
+       deferred deleted last.
+
+       Another alternative would be to use a QPointer in
+       QSGAtlasTexture::Texture, but this seemed simpler.
+     */
+    m_atlasManager->invalidate();
+    m_atlasManager->deleteLater();
+    m_atlasManager = 0;
+
+    // The following piece of code will read/write to the font engine's caches,
+    // potentially from different threads. However, this is safe because this
+    // code is only called from QQuickWindow's shutdown which is called
+    // only when the GUI is blocked, and multiple threads will call it in
+    // sequence. (see qsgdefaultglyphnode_p.cpp's init())
+    for (QSet<QFontEngine *>::const_iterator it = m_fontEnginesToClean.constBegin(),
+         end = m_fontEnginesToClean.constEnd(); it != end; ++it) {
+        (*it)->clearGlyphCache(m_gl);
+    }
+    m_fontEnginesToClean.clear();
+
+    delete m_depthStencilManager;
+    m_depthStencilManager = 0;
+
+    delete m_distanceFieldCacheManager;
+    m_distanceFieldCacheManager = 0;
+
+    m_gl->setProperty(QSG_RENDERCONTEXT_PROPERTY, QVariant());
+    m_gl = 0;
+
+    m_sg->renderContextInvalidated(this);
+    emit invalidated();
+}
+
+/*!
+    Returns a shared pointer to a depth stencil buffer that can be used with \a fbo.
+  */
+QSharedPointer<QSGDepthStencilBuffer> QSGRenderContext::depthStencilBufferForFbo(QOpenGLFramebufferObject *fbo)
+{
+    if (!m_gl)
+        return QSharedPointer<QSGDepthStencilBuffer>();
+    QSGDepthStencilBufferManager *manager = depthStencilBufferManager();
+    QSGDepthStencilBuffer::Format format;
+    format.size = fbo->size();
+    format.samples = fbo->format().samples();
+    format.attachments = QSGDepthStencilBuffer::DepthAttachment | QSGDepthStencilBuffer::StencilAttachment;
+    QSharedPointer<QSGDepthStencilBuffer> buffer = manager->bufferForFormat(format);
+    if (buffer.isNull()) {
+        buffer = QSharedPointer<QSGDepthStencilBuffer>(new QSGDefaultDepthStencilBuffer(m_gl, format));
+        manager->insertBuffer(buffer);
+    }
+    return buffer;
+}
+
+/*!
+    Returns a pointer to the context's depth/stencil buffer manager. This is useful for custom
+    implementations of \l depthStencilBufferForFbo().
+  */
+QSGDepthStencilBufferManager *QSGRenderContext::depthStencilBufferManager()
+{
+    if (!m_gl)
+        return 0;
+    if (!m_depthStencilManager)
+        m_depthStencilManager = new QSGDepthStencilBufferManager(m_gl);
+    return m_depthStencilManager;
+}
+
+
+/*!
+    Factory function for texture objects.
+
+    If \a image is a valid image, the QSGTexture::setImage function
+    will be called with \a image as argument.
+ */
+
+QSGTexture *QSGRenderContext::createTexture(const QImage &image) const
+{
+    QSGTexture *t = m_atlasManager->create(image);
+    if (t)
+        return t;
+    return createTextureNoAtlas(image);
+}
+
+QSGTexture *QSGRenderContext::createTextureNoAtlas(const QImage &image) const
+{
+    QSGPlainTexture *t = new QSGPlainTexture();
+    if (!image.isNull())
+        t->setImage(image);
+    return t;
+}
+
+/*!
+    Factory function for the scene graph renderers.
+
+    The renderers are used for the toplevel renderer and once for every
+    QQuickShaderEffectSource used in the QML scene.
+ */
+QSGRenderer *QSGRenderContext::createRenderer()
+{
+    return new QSGBatchRenderer::Renderer(this);
+}
+
+QSGTexture *QSGRenderContext::textureForFactory(QQuickTextureFactory *factory, QQuickWindow *window)
+{
+    if (!factory)
+        return 0;
+
+    m_mutex.lock();
+    QSGTexture *texture = m_textures.value(factory);
+    m_mutex.unlock();
+
+    if (!texture) {
+        if (QQuickDefaultTextureFactory *dtf = qobject_cast<QQuickDefaultTextureFactory *>(factory))
+            texture = createTexture(dtf->image());
+        else
+            texture = factory->createTexture(window);
+
+        m_mutex.lock();
+        m_textures.insert(factory, texture);
+        m_mutex.unlock();
+
+        connect(factory, SIGNAL(destroyed(QObject *)), this, SLOT(textureFactoryDestroyed(QObject *)), Qt::DirectConnection);
+    }
+    return texture;
+}
+
+void QSGRenderContext::textureFactoryDestroyed(QObject *o)
+{
+    m_mutex.lock();
+    QSGTexture *t = m_textures.take(static_cast<QQuickTextureFactory *>(o));
+    m_mutex.unlock();
+    if (t)
+        t->deleteLater();
+}
 
 QT_END_NAMESPACE

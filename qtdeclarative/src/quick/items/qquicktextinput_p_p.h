@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -189,9 +189,9 @@ public:
     QPointF pressPos;
     QPointF tripleClickStartPoint;
 
-    QQmlGuard<QQmlComponent> cursorComponent;
+    QPointer<QQmlComponent> cursorComponent;
 #ifndef QT_NO_VALIDATOR
-    QQmlGuard<QValidator> m_validator;
+    QPointer<QValidator> m_validator;
 #endif
 
     qreal hscroll;

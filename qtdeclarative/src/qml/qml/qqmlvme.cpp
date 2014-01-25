@@ -58,14 +58,14 @@
 #include "qqmlcomponent_p.h"
 #include "qqmlvmemetaobject_p.h"
 #include "qqmlcontext_p.h"
-#include <private/qv4bindings_p.h>
-#include <private/qv8bindings_p.h>
 #include "qqmlglobal_p.h"
 #include <private/qfinitestack_p.h>
 #include "qqmlscriptstring.h"
 #include "qqmlscriptstring_p.h"
 #include "qqmlpropertyvalueinterceptor_p.h"
 #include "qqmlvaluetypeproxybinding_p.h"
+#include "qqmlexpression_p.h"
+#include "qqmlcontextwrapper_p.h"
 
 #include <QStack>
 #include <QPointF>
@@ -226,6 +226,18 @@ static QVariant variantFromString(const QString &string)
     return QQmlStringConverters::variantFromString(string);
 }
 
+static QV4::ExecutionContext *qmlBindingContext(QQmlEngine *engine, QV4::ExecutionEngine *v4, QV4::SafeValue *qmlBindingWrappers, QQmlContextData *context, QObject *scope, int objIdx)
+{
+    QV4::Scope valueScope(v4);
+    QV4::Scoped<QV4::QmlBindingWrapper> wrapper(valueScope, qmlBindingWrappers[objIdx]);
+    if (!wrapper) {
+        QV4::ScopedObject scopeObject(valueScope, QV4::QmlContextWrapper::qmlScope(QV8Engine::get(engine), context, scope));
+        wrapper = new (v4->memoryManager) QV4::QmlBindingWrapper(v4->rootContext, scopeObject);
+        qmlBindingWrappers[objIdx] = wrapper;
+    }
+    return wrapper->context();
+}
+
 // XXX we probably need some form of "work count" here to prevent us checking this 
 // for every instruction.
 #define QML_BEGIN_INSTR_COMMON(I) { \
@@ -296,12 +308,13 @@ static QVariant variantFromString(const QString &string)
 
 #define QML_STORE_VAR(name, value) \
     QML_BEGIN_INSTR(name) \
-        v8::Handle<v8::Value> v8value = value; \
+        tmpValue = (value); \
+        QV4::ValueRef valueref(tmpValue); \
         QObject *target = objects.top(); \
         CLEAN_PROPERTY(target, instr.propertyIndex); \
         QQmlVMEMetaObject *vmemo = QQmlVMEMetaObject::get(target); \
         Q_ASSERT(vmemo); \
-        vmemo->setVMEProperty(instr.propertyIndex, v8value); \
+        vmemo->setVMEProperty(instr.propertyIndex, valueref); \
     QML_END_INSTR(name)
 
 #define QML_STORE_POINTER(name, value) \
@@ -339,10 +352,11 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
 
     QQmlEngine *engine = states.at(0).context->engine;
     QQmlEnginePrivate *ep = QQmlEnginePrivate::get(engine);
-
-    // Need a v8 handle scope and execution context for StoreVar instructions.
-    v8::HandleScope handleScope;
-    v8::Context::Scope contextScope(ep->v8engine()->context());
+    QV4::ExecutionEngine *v4 = ep->v4engine();
+    QV4::Scope valueScope(v4);
+    QV4::ScopedValue tmpValue(valueScope);
+    QV4::SafeValue *qmlBindingWrappers = valueScope.alloc(objects.capacity());
+    std::fill(qmlBindingWrappers, qmlBindingWrappers + objects.capacity(), QV4::Primitive::undefinedValue());
 
     int status = -1; // needed for dbus
     QQmlPropertyPrivate::WriteFlags flags = QQmlPropertyPrivate::BypassInterceptor |
@@ -376,7 +390,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
         // Store a created object in a property.  These all pop from the objects stack.
         QML_STORE_VALUE(StoreObject, QObject *, objects.pop());
         QML_STORE_VALUE(StoreVariantObject, QVariant, QVariant::fromValue(objects.pop()));
-        QML_STORE_VAR(StoreVarObject, ep->v8engine()->newQObject(objects.pop()));
+        QML_STORE_VAR(StoreVarObject, QV4::QObjectWrapper::wrap(ep->v4engine(), objects.pop()));
 
         // Store a literal value in a corresponding property
         QML_STORE_VALUE(StoreFloat, float, instr.value);
@@ -386,8 +400,8 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
         QML_STORE_PROVIDER_VALUE(StoreColor, QMetaType::QColor, instr.value);
         QML_STORE_VALUE(StoreDate, QDate, QDate::fromJulianDay(instr.value));
         QML_STORE_VALUE(StoreDateTime, QDateTime,
-                        QDateTime(QDate::fromJulianDay(instr.date), *(QTime *)&instr.time));
-        QML_STORE_POINTER(StoreTime, (QTime *)&instr.time);
+                        QDateTime(QDate::fromJulianDay(instr.date), QTime::fromMSecsSinceStartOfDay(instr.time)));
+        QML_STORE_VALUE(StoreTime, QTime, QTime::fromMSecsSinceStartOfDay(instr.time));
         QML_STORE_POINTER(StorePoint, (QPoint *)&instr.point);
         QML_STORE_POINTER(StorePointF, (QPointF *)&instr.point);
         QML_STORE_POINTER(StoreSize, (QSize *)&instr.size);
@@ -425,9 +439,9 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
         // Store a literal value in a var property.
         // We deliberately do not use string converters here
         QML_STORE_VAR(StoreVar, ep->v8engine()->fromVariant(PRIMITIVES.at(instr.value)));
-        QML_STORE_VAR(StoreVarInteger, v8::Integer::New(instr.value));
-        QML_STORE_VAR(StoreVarDouble, v8::Number::New(instr.value));
-        QML_STORE_VAR(StoreVarBool, v8::Boolean::New(instr.value));
+        QML_STORE_VAR(StoreVarInteger, QV4::Primitive::fromInt32(instr.value));
+        QML_STORE_VAR(StoreVarDouble, QV4::Primitive::fromDouble(instr.value));
+        QML_STORE_VAR(StoreVarBool, QV4::Primitive::fromBoolean(instr.value));
 
         // Store a literal value in a QJSValue property.
         QML_STORE_VALUE(StoreJSValueString, QJSValue, QJSValue(PRIMITIVES.at(instr.value)));
@@ -449,10 +463,6 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             CTXT->setParent(parentCtxt);
             if (instr.contextCache != -1) 
                 CTXT->setIdPropertyData(COMP->contextCaches.at(instr.contextCache));
-            if (instr.compiledBinding != -1) {
-                const char *v4data = DATAS.at(instr.compiledBinding).constData();
-                CTXT->v4bindings = new QV4Bindings(v4data, CTXT);
-            }
             if (states.count() == 1) {
                 rootContext = CTXT;
                 rootContext->activeVMEData = data;
@@ -476,8 +486,6 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
                 // double dispose.  It is possible we could do this more efficiently using some form of
                 // referencing instead.
                 CTXT->importedScripts = creationContext->importedScripts;
-                for (int ii = 0; ii < CTXT->importedScripts.count(); ++ii)
-                    CTXT->importedScripts[ii] = qPersistentNew<v8::Object>(CTXT->importedScripts[ii]);
             }
         QML_END_INSTR(Init)
 
@@ -552,6 +560,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             ddata->outerContext = CTXT;
             ddata->lineNumber = instr.line;
             ddata->columnNumber = instr.column;
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(CompleteQMLObject)
 
         QML_BEGIN_INSTR(CreateCppObject)
@@ -624,11 +633,12 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
                 ddata->parentFrozen = true;
             }
             objects.push(o);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(CreateCppObject)
 
         QML_BEGIN_INSTR(CreateSimpleObject)
             QObject *o = (QObject *)operator new(instr.typeSize + sizeof(QQmlData));   
-            ::memset(o, 0, instr.typeSize + sizeof(QQmlData));
+            ::memset(static_cast<void *>(o), 0, instr.typeSize + sizeof(QQmlData));
             instr.create(o);
 
             QQmlData *ddata = (QQmlData *)(((const char *)o) + instr.typeSize);
@@ -653,6 +663,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
 
             ddata->parentFrozen = true;
             objects.push(o);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(CreateSimpleObject)
 
         QML_BEGIN_INSTR(SetId)
@@ -691,6 +702,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             QQmlComponentPrivate::get(qcomp)->creationContext = CTXT;
 
             objects.push(qcomp);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
             INSTRUCTIONSTREAM += instr.count;
         QML_END_INSTR(CreateComponent)
 
@@ -702,7 +714,8 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             const QQmlVMEMetaData *data = 
                 (const QQmlVMEMetaData *)DATAS.at(instr.aliasData).constData();
 
-            (void)new QQmlVMEMetaObject(target, propertyCache, data);
+            QV4::ExecutionContext *qmlContext = qmlBindingContext(engine, QV8Engine::getV4(engine), qmlBindingWrappers, CTXT, target, objects.count() - 1);
+            (void)new QQmlVMEMetaObject(target, propertyCache, data, qmlContext, COMP);
 
             QQmlData *ddata = QQmlData::get(target, true);
             if (ddata->propertyCache) ddata->propertyCache->release();
@@ -764,17 +777,27 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             QObject *target = objects.top();
             QObject *context = objects.at(objects.count() - 1 - instr.context);
 
+            QV4::ExecutionContext *qmlContext = qmlBindingContext(engine, QV8Engine::getV4(engine), qmlBindingWrappers, CTXT, context, objects.count() - 1 - instr.context);
+
+            QV4::Function *runtimeFunction = COMP->compilationUnit->runtimeFunctions[instr.runtimeFunctionIndex];
+
+            tmpValue = QV4::FunctionObject::creatScriptFunction(qmlContext, runtimeFunction);
+
             QQmlBoundSignal *bs = new QQmlBoundSignal(target, instr.signalIndex, target, engine);
             QQmlBoundSignalExpression *expr =
                 new QQmlBoundSignalExpression(target, instr.signalIndex,
-                                              CTXT, context, DATAS.at(instr.value),
-                                              true, COMP->name, instr.line, instr.column);
-            expr->setParameterCountForJS(instr.parameterCount);
+                                              CTXT, context, tmpValue);
             bs->takeExpression(expr);
         QML_END_INSTR(StoreSignal)
 
         QML_BEGIN_INSTR(StoreImportedScript)
-            CTXT->importedScripts << run(CTXT, SCRIPTS.at(instr.value));
+            QV4::Scope scope(v4);
+            QV4::ScopedObject scripts(scope, CTXT->importedScripts.value());
+            if (!scripts) {
+                scripts = v4->newArrayObject();
+                CTXT->importedScripts = scripts;
+            }
+            scripts->putIndexed(instr.value, SCRIPTS.at(instr.value)->scriptValueForContext(CTXT));
         QML_END_INSTR(StoreImportedScript)
 
         QML_BEGIN_INSTR(StoreScriptString)
@@ -806,10 +829,6 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             status->classBegin();
         QML_END_INSTR(BeginObject)
 
-        QML_BEGIN_INSTR(InitV8Bindings)
-            CTXT->v8bindings = new QV8Bindings(&PROGRAMS[instr.programIndex], instr.line, CTXT);
-        QML_END_INSTR(InitV8Bindings)
-
         QML_BEGIN_INSTR(StoreBinding)
             QObject *target = 
                 objects.at(objects.count() - 1 - instr.owner);
@@ -819,9 +838,13 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             if (instr.isRoot && BINDINGSKIPLIST.testBit(instr.property.coreIndex))
                 QML_NEXT_INSTR(StoreBinding);
 
-            QQmlBinding *bind = new QQmlBinding(PRIMITIVES.at(instr.value), true, 
-                                                context, CTXT, COMP->name, instr.line,
-                                                instr.column);
+            QV4::ExecutionContext *qmlContext = qmlBindingContext(engine, QV8Engine::getV4(engine), qmlBindingWrappers, CTXT, context, objects.count() - 1 - instr.context);
+
+            QV4::Function *runtimeFunction = COMP->compilationUnit->runtimeFunctions[instr.functionIndex];
+
+            tmpValue = QV4::FunctionObject::creatScriptFunction(qmlContext, runtimeFunction);
+
+            QQmlBinding *bind = new QQmlBinding(tmpValue, context, CTXT, COMP->name, instr.line, instr.column);
             bindValues.push(bind);
             bind->m_mePtr = &bindValues.top();
             bind->setTarget(target, instr.property, CTXT);
@@ -843,86 +866,6 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
                 bind->addToObject();
             }
         QML_END_INSTR(StoreBinding)
-
-        QML_BEGIN_INSTR(StoreV4Binding)
-            QObject *target = 
-                objects.at(objects.count() - 1 - instr.owner);
-            QObject *scope = 
-                objects.at(objects.count() - 1 - instr.context);
-
-            int propertyIdx = (instr.property & 0x0000FFFF);
-
-            if (instr.isRoot && BINDINGSKIPLIST.testBit(propertyIdx))
-                QML_NEXT_INSTR(StoreV4Binding);
-
-            QQmlAbstractBinding *binding = CTXT->v4bindings->configBinding(target, scope, &instr);
-            bindValues.push(binding);
-            binding->m_mePtr = &bindValues.top();
-
-            if (instr.isAlias) {
-                QQmlAbstractBinding *old =
-                    QQmlPropertyPrivate::setBindingNoEnable(target,
-                                                            propertyIdx,
-                                                            instr.propType ? (instr.property >> 16) : -1,
-                                                            binding);
-                if (old) { old->destroy(); }
-            } else {
-                Q_ASSERT(binding->propertyIndex() == instr.property);
-                Q_ASSERT(binding->object() == target);
-
-                CLEAN_PROPERTY(target, instr.property);
-
-                binding->addToObject();
-
-                if (instr.propType == 0) {
-                    // All non-valuetype V4 bindings are safe bindings
-                    QQmlData *data = QQmlData::get(target);
-                    Q_ASSERT(data);
-                    data->setPendingBindingBit(target, propertyIdx);
-                }
-            }
-        QML_END_INSTR(StoreV4Binding)
-
-        QML_BEGIN_INSTR(StoreV8Binding)
-            QObject *target = 
-                objects.at(objects.count() - 1 - instr.owner);
-            QObject *scope = 
-                objects.at(objects.count() - 1 - instr.context);
-
-            int coreIndex = instr.property.coreIndex;
-
-            if (instr.isRoot && BINDINGSKIPLIST.testBit(coreIndex))
-                QML_NEXT_INSTR(StoreV8Binding);
-
-            QQmlAbstractBinding *binding = CTXT->v8bindings->configBinding(target, scope,
-                                                                                   &instr);
-            if (binding && !instr.isFallback) {
-                bindValues.push(binding);
-                binding->m_mePtr = &bindValues.top();
-
-                if (instr.isAlias) {
-                    QQmlAbstractBinding *old =
-                        QQmlPropertyPrivate::setBindingNoEnable(target, coreIndex,
-                                                                instr.property.getValueTypeCoreIndex(),
-                                                                binding);
-                    if (old) { old->destroy(); }
-                } else {
-                    typedef QQmlPropertyPrivate QDPP;
-                    Q_ASSERT(binding->propertyIndex() == QDPP::bindingIndex(instr.property));
-                    Q_ASSERT(binding->object() == target);
-
-                    CLEAN_PROPERTY(target, QDPP::bindingIndex(instr.property));
-
-                    binding->addToObject();
-
-                    if (instr.isSafe && !instr.property.isValueTypeVirtual()) {
-                        QQmlData *data = QQmlData::get(target);
-                        Q_ASSERT(data);
-                        data->setPendingBindingBit(target, coreIndex);
-                    }
-                }
-            }
-        QML_END_INSTR(StoreV8Binding)
 
         QML_BEGIN_INSTR(StoreValueSource)
             QObject *obj = objects.pop();
@@ -1008,6 +951,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
                 VME_EXCEPTION(tr("Unable to create attached object"), instr.line);
 
             objects.push(qmlObject);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(FetchAttached)
 
         QML_BEGIN_INSTR(FetchQList)
@@ -1036,6 +980,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
                 VME_EXCEPTION(tr("Cannot set properties on %1 as it is null").arg(QString::fromUtf8(target->metaObject()->property(instr.property).name())), instr.line);
 
             objects.push(obj);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(FetchObject)
 
         QML_BEGIN_INSTR(PopQList)
@@ -1092,6 +1037,7 @@ QObject *QQmlVME::run(QList<QQmlError> *errors,
             Q_ASSERT(valueHandler);
             valueHandler->read(target, instr.property);
             objects.push(valueHandler);
+            qmlBindingWrappers[objects.count() - 1] = QV4::Primitive::undefinedValue();
         QML_END_INSTR(FetchValueType)
 
         QML_BEGIN_INSTR(PopValueType)
@@ -1165,123 +1111,6 @@ void QQmlVME::reset()
     states.clear();
     rootContext = 0;
     creationContext = 0;
-}
-
-// Must be called with a handle scope and context
-void QQmlScriptData::initialize(QQmlEngine *engine)
-{
-    Q_ASSERT(m_program.IsEmpty());
-    Q_ASSERT(engine);
-    Q_ASSERT(!hasEngine());
-
-    QQmlEnginePrivate *ep = QQmlEnginePrivate::get(engine);
-    QV8Engine *v8engine = ep->v8engine();
-
-    // If compilation throws an error, a surrounding v8::TryCatch will record it.
-    v8::Local<v8::Script> program = v8engine->qmlModeCompile(m_programSource.constData(),
-                                                             m_programSource.length(), urlString, 1);
-    if (program.IsEmpty())
-        return;
-
-    m_program = qPersistentNew<v8::Script>(program);
-    m_programSource.clear(); // We don't need this anymore
-
-    addToEngine(engine);
-
-    addref();
-}
-
-v8::Persistent<v8::Object> QQmlVME::run(QQmlContextData *parentCtxt, QQmlScriptData *script)
-{
-    if (script->m_loaded)
-        return qPersistentNew<v8::Object>(script->m_value);
-
-    v8::Persistent<v8::Object> rv;
-
-    Q_ASSERT(parentCtxt && parentCtxt->engine);
-    QQmlEnginePrivate *ep = QQmlEnginePrivate::get(parentCtxt->engine);
-    QV8Engine *v8engine = ep->v8engine();
-
-    if (script->hasError()) {
-        ep->warning(script->error());
-        return rv;
-    }
-
-    bool shared = script->pragmas & QQmlScript::Object::ScriptBlock::Shared;
-
-    QQmlContextData *effectiveCtxt = parentCtxt;
-    if (shared)
-        effectiveCtxt = 0;
-
-    // Create the script context if required
-    QQmlContextData *ctxt = new QQmlContextData;
-    ctxt->isInternal = true;
-    ctxt->isJSContext = true;
-    if (shared)
-        ctxt->isPragmaLibraryContext = true;
-    else
-        ctxt->isPragmaLibraryContext = parentCtxt->isPragmaLibraryContext;
-    ctxt->url = script->url;
-    ctxt->urlString = script->urlString;
-
-    // For backward compatibility, if there are no imports, we need to use the
-    // imports from the parent context.  See QTBUG-17518.
-    if (!script->importCache->isEmpty()) {
-        ctxt->imports = script->importCache;
-    } else if (effectiveCtxt) {
-        ctxt->imports = effectiveCtxt->imports;
-        ctxt->importedScripts = effectiveCtxt->importedScripts;
-        for (int ii = 0; ii < ctxt->importedScripts.count(); ++ii)
-            ctxt->importedScripts[ii] = qPersistentNew<v8::Object>(ctxt->importedScripts[ii]);
-    }
-
-    if (ctxt->imports) {
-        ctxt->imports->addref();
-    }
-
-    if (effectiveCtxt) {
-        ctxt->setParent(effectiveCtxt, true);
-    } else {
-        ctxt->engine = parentCtxt->engine; // Fix for QTBUG-21620
-    }
-
-    for (int ii = 0; ii < script->scripts.count(); ++ii) {
-        ctxt->importedScripts << run(ctxt, script->scripts.at(ii)->scriptData());
-    }
-
-    v8::HandleScope handle_scope;
-    v8::Context::Scope scope(v8engine->context());
-
-    v8::TryCatch try_catch;
-    if (!script->isInitialized())
-        script->initialize(parentCtxt->engine);
-
-    v8::Local<v8::Object> qmlglobal = v8engine->qmlScope(ctxt, 0);
-    v8engine->contextWrapper()->takeContextOwnership(qmlglobal);
-
-    if (!script->m_program.IsEmpty()) {
-        script->m_program->Run(qmlglobal);
-    } else {
-        // Compilation failed.
-        Q_ASSERT(try_catch.HasCaught());
-    }
-
-    if (try_catch.HasCaught()) {
-        v8::Local<v8::Message> message = try_catch.Message();
-        if (!message.IsEmpty()) {
-            QQmlError error;
-            QQmlExpressionPrivate::exceptionToError(message, error);
-            ep->warning(error);
-        }
-    } 
-
-    rv = qPersistentNew<v8::Object>(qmlglobal);
-    if (shared) {
-        script->m_value = qPersistentNew<v8::Object>(qmlglobal);
-        script->m_loaded = true;
-    }
-
-    return rv;
 }
 
 #ifdef QML_THREADED_VME_INTERPRETER
@@ -1449,7 +1278,7 @@ void QQmlVMEGuard::guard(QQmlVME *vme)
     clear();
     
     m_objectCount = vme->objects.count();
-    m_objects = new QQmlGuard<QObject>[m_objectCount];
+    m_objects = new QPointer<QObject>[m_objectCount];
     for (int ii = 0; ii < m_objectCount; ++ii)
         m_objects[ii] = vme->objects[ii];
 

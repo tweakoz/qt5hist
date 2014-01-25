@@ -1,6 +1,6 @@
 /***************************************************************************
 **
-** Copyright (C) 2011 - 2012 Research In Motion
+** Copyright (C) 2011 - 2013 BlackBerry Limited. All rights reserved.
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the plugins of the Qt Toolkit.
@@ -43,11 +43,9 @@
 #define QQNXWINDOW_H
 
 #include <qpa/qplatformwindow.h>
+#include "qqnxabstractcover.h"
 
-#include "qqnxbuffer.h"
-
-#include <QtGui/QImage>
-#include <QtCore/QMutex>
+#include <QtCore/QScopedPointer>
 
 #if !defined(QT_NO_OPENGL)
 #include <EGL/egl.h>
@@ -60,9 +58,6 @@ QT_BEGIN_NAMESPACE
 // all surfaces double buffered
 #define MAX_BUFFER_COUNT    2
 
-#if !defined(QT_NO_OPENGL)
-class QQnxGLContext;
-#endif
 class QQnxScreen;
 
 class QSurfaceFormat;
@@ -71,7 +66,7 @@ class QQnxWindow : public QPlatformWindow
 {
 friend class QQnxScreen;
 public:
-    QQnxWindow(QWindow *window, screen_context_t context);
+    QQnxWindow(QWindow *window, screen_context_t context, bool needRootWindow);
     virtual ~QQnxWindow();
 
     void setGeometry(const QRect &rect);
@@ -83,17 +78,9 @@ public:
     WId winId() const { return (WId)m_window; }
     screen_window_t nativeHandle() const { return m_window; }
 
-    // Called by QQnxGLContext::createSurface()
-    QSize requestedBufferSize() const;
-
-    void adjustBufferSize();
+    virtual void adjustBufferSize() = 0;
     void setBufferSize(const QSize &size);
     QSize bufferSize() const { return m_bufferSize; }
-    bool hasBuffers() const { return !m_bufferSize.isEmpty(); }
-
-    QQnxBuffer &renderBuffer();
-    void scroll(const QRegion &region, int dx, int dy, bool flush=false);
-    void post(const QRegion &dirty);
 
     void setScreen(QQnxScreen *platformScreen);
 
@@ -102,67 +89,66 @@ public:
     void lower();
     void requestActivateWindow();
     void setWindowState(Qt::WindowState state);
+    void setExposed(bool exposed);
+
+    void propagateSizeHints();
 
     void gainedFocus();
+    void setMMRendererWindowName(const QString &name);
+    void setMMRendererWindow(screen_window_t handle);
+    void clearMMRendererWindow();
 
     QQnxScreen *screen() const { return m_screen; }
     const QList<QQnxWindow*>& children() const { return m_childWindows; }
 
-#if !defined(QT_NO_OPENGL)
-    void setPlatformOpenGLContext(QQnxGLContext *platformOpenGLContext);
-    QQnxGLContext *platformOpenGLContext() const { return m_platformOpenGLContext; }
-#endif
-
     QQnxWindow *findWindow(screen_window_t windowHandle);
 
-    void blitFrom(QQnxWindow *sourceWindow, const QPoint &sourceOffset, const QRegion &targetRegion);
     void minimize();
 
+    QString mmRendererWindowName() const { return m_mmRendererWindowName; }
+
+    screen_window_t mmRendererWindow() const { return m_mmRendererWindow; }
+
+    void setRotation(int rotation);
+
+    QByteArray groupName() const { return m_windowGroupName; }
+
+protected:
+    virtual int pixelFormat() const = 0;
+    virtual void resetBuffers() = 0;
+
+    void initWindow();
+
+    screen_context_t m_screenContext;
+    QScopedPointer<QQnxAbstractCover> m_cover;
+
+    QQnxWindow *m_parentWindow;
+
 private:
+    void createWindowGroup();
     QRect setGeometryHelper(const QRect &rect);
     void removeFromParent();
     void setOffset(const QPoint &setOffset);
     void updateVisibility(bool parentVisible);
     void updateZorder(int &topZorder);
+    void updateZorder(screen_window_t window, int &zOrder);
     void applyWindowState();
 
-    void fetchBuffers();
-
-    // Copies content from the previous buffer (back buffer) to the current buffer (front buffer)
-    void blitPreviousToCurrent(const QRegion &region, int dx, int dy, bool flush=false);
-
-    void blitHelper(QQnxBuffer &source, QQnxBuffer &target, const QPoint &sourceOffset,
-                    const QPoint &targetOffset, const QRegion &region, bool flush = false);
-
-    static int platformWindowFormatToNativeFormat(const QSurfaceFormat &format);
-
-    screen_context_t m_screenContext;
     screen_window_t m_window;
     QSize m_bufferSize;
-    QQnxBuffer m_buffers[MAX_BUFFER_COUNT];
-    int m_currentBufferIndex;
-    int m_previousBufferIndex;
-    QRegion m_previousDirty;
-    QRegion m_scrolled;
 
-#if !defined(QT_NO_OPENGL)
-    QQnxGLContext *m_platformOpenGLContext;
-#endif
     QQnxScreen *m_screen;
     QList<QQnxWindow*> m_childWindows;
-    QQnxWindow *m_parentWindow;
     bool m_visible;
+    bool m_exposed;
     QRect m_unmaximizedGeometry;
     Qt::WindowState m_windowState;
+    QString m_mmRendererWindowName;
+    screen_window_t m_mmRendererWindow;
 
-    // This mutex is used to protect access to the m_requestedBufferSize
-    // member. This member is used in conjunction with QQnxGLContext::requestNewSurface()
-    // to coordinate recreating the EGL surface which involves destroying any
-    // existing EGL surface; resizing the native window buffers; and creating a new
-    // EGL surface. All of this has to be done from the thread that is calling
-    // QQnxGLContext::makeCurrent()
-    mutable QMutex m_mutex;
-    QSize m_requestedBufferSize;
+    QByteArray m_windowGroupName;
+
+    bool m_isTopLevel;
 };
 
 QT_END_NAMESPACE

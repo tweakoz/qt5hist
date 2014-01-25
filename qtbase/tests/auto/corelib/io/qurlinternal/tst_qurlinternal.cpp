@@ -56,10 +56,11 @@
 #define STRINGPREP_BIDI_LEADTRAIL_NOT_RAL 5
 
 struct ushortarray {
-    ushortarray(unsigned short *array = 0)
+    ushortarray() {}
+    template <size_t N>
+    ushortarray(unsigned short (&array)[N])
     {
-        if (array)
-            memcpy(points, array, sizeof(points));
+        memcpy(points, array, N*sizeof(unsigned short));
     }
 
     unsigned short points[100];
@@ -824,12 +825,20 @@ void tst_QUrlInternal::correctEncodedMistakes()
     QFETCH(QString, expected);
 
     // prepend some data to be sure that it remains there
-    QString output = QTest::currentDataTag();
-    expected.prepend(output);
+    QString dataTag = QTest::currentDataTag();
+    QString output = dataTag;
 
     if (!qt_urlRecode(output, input.constData(), input.constData() + input.length(), 0))
         output += input;
-    QCOMPARE(output, expected);
+    QCOMPARE(output, dataTag + expected);
+
+    // now try the full decode mode
+    output = dataTag;
+    QString expected2 = QUrl::fromPercentEncoding(expected.toLatin1());
+
+    if (!qt_urlRecode(output, input.constData(), input.constData() + input.length(), QUrl::FullyDecoded))
+        output += input;
+    QCOMPARE(output, dataTag + expected2);
 }
 
 static void addUtf8Data(const char *name, const char *data)
@@ -955,8 +964,10 @@ void tst_QUrlInternal::encodingRecode_data()
     addUtf8Data("utf8-string-2", "\xDF\xBF\xE0\xA0\x80""A");
     addUtf8Data("utf8-string-3", "\xE0\xA0\x80\xDF\xBF...");
 
+    QTest::newRow("encode-unicode-noncharacter") << QString(QChar(0xffff)) << F(QUrl::FullyEncoded) << "%EF%BF%BF";
+    QTest::newRow("decode-unicode-noncharacter") << QString(QChar(0xffff)) << F(QUrl::PrettyDecoded) << QString::fromUtf8("\xEF\xBF\xBF");
+
     // special cases: stuff we can encode, but not decode
-    QTest::newRow("unicode-noncharacter") << QString(QChar(0xffff)) << F(QUrl::FullyEncoded) << "%EF%BF%BF";
     QTest::newRow("unicode-lo-surrogate") << QString(QChar(0xD800)) << F(QUrl::FullyEncoded) << "%ED%A0%80";
     QTest::newRow("unicode-hi-surrogate") << QString(QChar(0xDC00)) << F(QUrl::FullyEncoded) << "%ED%B0%80";
 
@@ -1002,9 +1013,6 @@ void tst_QUrlInternal::encodingRecodeInvalidUtf8_data()
     extern void loadInvalidUtf8Rows();
     loadInvalidUtf8Rows();
 
-    extern void loadNonCharactersRows();
-    loadNonCharactersRows();
-
     QTest::newRow("utf8-mix-4") << QByteArray("\xE0.A2\x80");
     QTest::newRow("utf8-mix-5") << QByteArray("\xE0\xA2.80");
     QTest::newRow("utf8-mix-6") << QByteArray("\xE0\xA2\x33");
@@ -1027,6 +1035,15 @@ void tst_QUrlInternal::encodingRecodeInvalidUtf8()
     if (!qt_urlRecode(output, input.constData(), input.constData() + input.length(), QUrl::FullyEncoded))
         output += input;
     QCOMPARE(output, QTest::currentDataTag() + input);
+
+    // verify for security reasons that all bad UTF-8 data got replaced by QChar::ReplacementCharacter
+    output = QTest::currentDataTag();
+    if (!qt_urlRecode(output, input.constData(), input.constData() + input.length(), QUrl::FullyEncoded))
+        output += input;
+    for (int i = strlen(QTest::currentDataTag()); i < output.length(); ++i) {
+        QVERIFY2(output.at(i).unicode() < 0x80 || output.at(i) == QChar::ReplacementCharacter,
+                 qPrintable(QString("Character at i == %1 was U+%2").arg(i).arg(output.at(i).unicode(), 4, 16, QLatin1Char('0'))));
+    }
 }
 
 void tst_QUrlInternal::recodeByteArray_data()

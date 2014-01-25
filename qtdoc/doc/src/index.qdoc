@@ -35,30 +35,43 @@
         \div {class="indexboxcont indexboxbar"}
             \div {class="sectionlist normallist"}
                 \div {class="heading"}
-                    \title Qt 5.1
+                    \title Qt 5.2
                 \enddiv
 
                 Qt is a full development framework with tools designed to streamline
                 the creation of applications and user interfaces for desktop,
-                embedded and mobile platforms.
+                embedded, and mobile platforms.
 
                 \list
 
-                \li \b{Qt Framework} - intuitive APIs for C++ and CSS/JavaScript-
-                like programming with Qt Quick for rapid UI creation
+                \li \b{Qt Framework} - intuitive APIs for C++ and JavaScript-like
+                programming with Qt Quick for rapid UI creation
 
-                \li \b{Qt
-                Creator IDE} - powerful cross-platform integrated development
-                environment, including UI designer tools and on-device debugging
+                \li \b{Qt Creator IDE} - a powerful cross-platform integrated
+                development environment, including UI designer tools and on-
+                device debugging
 
-                \li \b{Tools and toolchains} - internationalization support, embedded toolchains
-                and more.
+                \li \b{Tools and toolchains} - internationalization support,
+                embedded toolchains, and more.
                 \endlist
 
                 With Qt, you can reuse code efficiently to target multiple platforms
                 with one code base. The modular C++ class library and developer
                 tools easily enables developers to create applications for one
                 platform and easily build and run to deploy on another platform.
+
+                Qt Framework and tools are available under both open-source and
+                commercial licenses.
+
+                \list
+                    \li \l{Qt Homepage}{Qt Open-source}
+                    \li \l{Qt Enterprise}
+                    \li \l{Qt Enterprise}{Qt Mobile}
+                \endlist
+
+                The commercially licensed Qt Enterprise and Qt Mobile products
+                contain additional functionality and productivity tools. For
+                details, see \l{Qt Enterprise}{qt.digia.com}.
 
                 \section1 Getting Started
                 \list
@@ -88,7 +101,8 @@
                 \li \l{Multimedia}
                 \li \l{Networking and Connectivity}
                 \li \l{Graphics}
-                \li \l{QML Application Developer Resources}{QML Applications}
+                \li \l{Mobile APIs}
+                \li \l{QML Applications}
                 \endlist
                 \list
                 \li \l{Qt Overviews}{All Qt Overviews}

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -64,9 +64,6 @@ public:
     virtual void updateStates(QSGNode *n);
     virtual bool isNodeBlocked(QSGNode *n, QSGNode *root) const;
 
-    void setToplevelOpacity(qreal alpha) { m_opacity_stack.last() = alpha; }
-    qreal toplevelOpacity() const { return m_opacity_stack.last(); }
-
 protected:
     virtual void enterTransformNode(QSGTransformNode *);
     virtual void leaveTransformNode(QSGTransformNode *);
@@ -88,8 +85,6 @@ protected:
     const QSGClipNode *m_current_clip;
 
     int m_force_update;
-
-    qreal m_toplevel_alpha;
 };
 
 QT_END_NAMESPACE

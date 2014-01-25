@@ -59,6 +59,7 @@
 #include <qheaderview.h>
 #include <qmath.h>
 #include <qmetaobject.h>
+#include <qabstractproxymodel.h>
 #include <private/qguiapplication_p.h>
 #include <private/qapplication_p.h>
 #include <private/qcombobox_p.h>
@@ -173,18 +174,28 @@ QStyleOptionMenuItem QComboMenuDelegate::getStyleOption(const QStyleOptionViewIt
     return menuOption;
 }
 
-#ifdef QT_KEYPAD_NAVIGATION
-void QComboBoxPrivate::_q_completerActivated()
+#ifndef QT_NO_COMPLETER
+void QComboBoxPrivate::_q_completerActivated(const QModelIndex &index)
 {
     Q_Q(QComboBox);
+    if (index.isValid() && q->completer()) {
+        QAbstractProxyModel *proxy = qobject_cast<QAbstractProxyModel *>(q->completer()->completionModel());
+        if (proxy) {
+            q->setCurrentIndex(proxy->mapToSource(index).row());
+            emitActivated(currentIndex);
+        }
+    }
+
+#  ifdef QT_KEYPAD_NAVIGATION
     if ( QApplication::keypadNavigationEnabled()
          && q->isEditable()
          && q->completer()
          && q->completer()->completionMode() == QCompleter::UnfilteredPopupCompletion ) {
         q->setEditFocus(false);
     }
+#  endif // QT_KEYPAD_NAVIGATION
 }
-#endif
+#endif // !QT_NO_COMPLETER
 
 void QComboBoxPrivate::updateArrow(QStyle::StateFlag state)
 {
@@ -396,7 +407,7 @@ void QComboBoxPrivateContainer::leaveEvent(QEvent *)
 }
 
 QComboBoxPrivateContainer::QComboBoxPrivateContainer(QAbstractItemView *itemView, QComboBox *parent)
-    : QFrame(parent, Qt::Popup), combo(parent), view(0), top(0), bottom(0)
+    : QFrame(parent, Qt::Popup), combo(parent), view(0), top(0), bottom(0), maybeIgnoreMouseButtonRelease(false)
 {
     // we need the combobox and itemview
     Q_ASSERT(parent);
@@ -656,10 +667,15 @@ bool QComboBoxPrivateContainer::eventFilter(QObject *o, QEvent *e)
             }
         }
         break;
+    case QEvent::MouseButtonPress:
+        maybeIgnoreMouseButtonRelease = false;
+        break;
     case QEvent::MouseButtonRelease: {
+        bool ignoreEvent = maybeIgnoreMouseButtonRelease && popupTimer.elapsed() < QApplication::doubleClickInterval();
+
         QMouseEvent *m = static_cast<QMouseEvent *>(e);
         if (isVisible() && view->rect().contains(m->pos()) && view->currentIndex().isValid()
-            && !blockMouseReleaseTimer.isActive()
+            && !blockMouseReleaseTimer.isActive() && !ignoreEvent
             && (view->currentIndex().flags() & Qt::ItemIsEnabled)
             && (view->currentIndex().flags() & Qt::ItemIsSelectable)) {
             combo->hidePopup();
@@ -1149,6 +1165,14 @@ void QComboBoxPrivate::_q_editingFinished()
 void QComboBoxPrivate::_q_returnPressed()
 {
     Q_Q(QComboBox);
+
+    // The insertion code below does not apply when the policy is QComboBox::NoInsert.
+    // In case a completer is installed, item activation via the completer is handled
+    // in _q_completerActivated(). Otherwise _q_editingFinished() updates the current
+    // index as appropriate.
+    if (insertPolicy == QComboBox::NoInsert)
+        return;
+
     if (lineEdit && !lineEdit->text().isEmpty()) {
         if (q->count() >= maxCount && !(this->insertPolicy == QComboBox::InsertAtCurrent))
             return;
@@ -1191,7 +1215,6 @@ void QComboBoxPrivate::_q_returnPressed()
                     break;
             }
             break;
-        case QComboBox::NoInsert:
         default:
             break;
         }
@@ -1356,7 +1379,7 @@ int QComboBox::maxCount() const
 
     Use setCompleter() instead.
 
-    By default, this property is true.
+    By default, this property is \c true.
 
     \sa editable
 */
@@ -1393,6 +1416,7 @@ void QComboBox::setAutoCompletion(bool enable)
         if (d->lineEdit->completer())
             return;
         d->completer = new QCompleter(d->model, d->lineEdit);
+        connect(d->completer, SIGNAL(activated(QModelIndex)), this, SLOT(_q_completerActivated(QModelIndex)));
         d->completer->setCaseSensitivity(d->autoCompletionCaseSensitivity);
         d->completer->setCompletionMode(QCompleter::InlineCompletion);
         d->completer->setCompletionColumn(d->modelColumn);
@@ -1449,7 +1473,7 @@ void QComboBox::setAutoCompletionCaseSensitivity(Qt::CaseSensitivity sensitivity
     Note that it is always possible to programmatically insert duplicate items into the
     combobox.
 
-    By default, this property is false (duplicates are not allowed).
+    By default, this property is \c false (duplicates are not allowed).
 */
 bool QComboBox::duplicatesEnabled() const
 {
@@ -1608,7 +1632,7 @@ void QComboBox::setIconSize(const QSize &size)
     \property QComboBox::editable
     \brief whether the combo box can be edited by the user
 
-    By default, this property is false. The effect of editing depends
+    By default, this property is \c false. The effect of editing depends
     on the insert policy.
 
     \sa InsertPolicy
@@ -1805,8 +1829,10 @@ void QComboBox::setCompleter(QCompleter *c)
     if (!d->lineEdit)
         return;
     d->lineEdit->setCompleter(c);
-    if (c)
+    if (c) {
+        connect(c, SIGNAL(activated(QModelIndex)), this, SLOT(_q_completerActivated(QModelIndex)));
         c->setWidget(this);
+    }
 }
 
 /*!
@@ -2062,6 +2088,20 @@ QString QComboBox::currentText() const
         return d->itemText(d->currentIndex);
     else
         return QString();
+}
+
+/*!
+    \property QComboBox::currentData
+    \brief the data for the current item
+    \since 5.2
+
+    By default, for an empty combo box or a combo box in which no current
+    item is set, this property contains an invalid QVariant.
+*/
+QVariant QComboBox::currentData(int role) const
+{
+    Q_D(const QComboBox);
+    return d->currentIndex.data(role);
 }
 
 /*!
@@ -2527,6 +2567,7 @@ void QComboBox::showPopup()
     container->setUpdatesEnabled(false);
 #endif
 
+    bool startTimer = !container->isVisible();
     container->raise();
     container->show();
     container->updateScrollers();
@@ -2546,6 +2587,10 @@ void QComboBox::showPopup()
     if (QApplication::keypadNavigationEnabled())
         view()->setEditFocus(true);
 #endif
+    if (startTimer) {
+        container->popupTimer.start();
+        container->maybeIgnoreMouseButtonRelease = true;
+    }
 }
 
 /*!
@@ -2841,6 +2886,11 @@ void QComboBox::mousePressEvent(QMouseEvent *e)
         }
 #endif
         showPopup();
+        // The code below ensures that regular mousepress and pick item still works
+        // If it was not called the viewContainer would ignore event since it didn't have
+        // a mousePressEvent first.
+        if (d->viewContainer())
+            d->viewContainer()->maybeIgnoreMouseButtonRelease = false;
     } else {
 #ifdef QT_KEYPAD_NAVIGATION
         if (QApplication::keypadNavigationEnabled() && sc == QStyle::SC_ComboBoxEditField && d->lineEdit) {
@@ -3023,7 +3073,7 @@ void QComboBox::wheelEvent(QWheelEvent *e)
             newIndex--;
             while ((newIndex >= 0) && !(d->model->flags(d->model->index(newIndex,d->modelColumn,d->root)) & Qt::ItemIsEnabled))
                 newIndex--;
-        } else {
+        } else if (e->delta() < 0) {
             newIndex++;
             while ((newIndex < count()) && !(d->model->flags(d->model->index(newIndex,d->modelColumn,d->root)) & Qt::ItemIsEnabled))
                 newIndex++;

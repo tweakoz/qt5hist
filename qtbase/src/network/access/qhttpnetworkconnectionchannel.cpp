@@ -183,6 +183,9 @@ void QHttpNetworkConnectionChannel::close()
     else
         state = QHttpNetworkConnectionChannel::ClosingState;
 
+    // pendingEncrypt must only be true in between connected and encrypted states
+    pendingEncrypt = false;
+
     if (socket)
         socket->close();
 }
@@ -205,6 +208,17 @@ bool QHttpNetworkConnectionChannel::sendRequest()
             // _q_connected or _q_encrypted
             return false;
         }
+        QString scheme = request.url().scheme();
+        if (scheme == QLatin1String("preconnect-http")
+            || scheme == QLatin1String("preconnect-https")) {
+            state = QHttpNetworkConnectionChannel::IdleState;
+            reply->d_func()->state = QHttpNetworkReplyPrivate::AllDoneState;
+            allDone();
+            connection->preConnectFinished(); // will only decrease the counter
+            reply = 0; // so we can reuse this channel
+            return true; // we have a working connection and are done
+        }
+
         written = 0; // excluding the header
         bytesTotal = 0;
 
@@ -222,8 +236,8 @@ bool QHttpNetworkConnectionChannel::sendRequest()
             QAuthenticator &auth = authenticator;
             if (url.userName() != auth.user()
                 || (!url.password().isEmpty() && url.password() != auth.password())) {
-                auth.setUser(url.userName());
-                auth.setPassword(url.password());
+                auth.setUser(url.userName(QUrl::FullyDecoded));
+                auth.setPassword(url.password(QUrl::FullyDecoded));
                 connection->d_func()->copyCredentials(connection->d_func()->indexOf(socket), &auth, false);
             }
             // clear the userinfo,  since we use the same request for resending
@@ -1031,7 +1045,7 @@ void QHttpNetworkConnectionChannel::_q_disconnected()
 void QHttpNetworkConnectionChannel::_q_connected()
 {
     // For the Happy Eyeballs we need to check if this is the first channel to connect.
-    if (connection->d_func()->networkLayerState == QHttpNetworkConnectionPrivate::InProgress) {
+    if (connection->d_func()->networkLayerState == QHttpNetworkConnectionPrivate::HostLookupPending || connection->d_func()->networkLayerState == QHttpNetworkConnectionPrivate::IPv4or6) {
         if (connection->d_func()->delayedConnectionTimer.isActive())
             connection->d_func()->delayedConnectionTimer.stop();
         if (networkLayerPreference == QAbstractSocket::IPv4Protocol)
@@ -1198,7 +1212,7 @@ void QHttpNetworkConnectionChannel::_q_error(QAbstractSocket::SocketError socket
     QPointer<QHttpNetworkConnection> that = connection;
     QString errorString = connection->d_func()->errorDetail(errorCode, socket, socket->errorString());
 
-    // In the InProgress state the channel should not emit the error.
+    // In the HostLookupPending state the channel should not emit the error.
     // This will instead be handled by the connection.
     if (!connection->d_func()->shouldEmitChannelError(socket))
         return;

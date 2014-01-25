@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -78,8 +78,8 @@ void QSGDefaultGlyphNode::setGlyphs(const QPointF &position, const QGlyphRun &gl
     m_position = position;
     m_glyphs = glyphs;
 
-#ifdef QML_RUNTIME_TESTING
-    description = QLatin1String("glyphs");
+#ifdef QSG_RUNTIME_DESCRIPTION
+    qsgnode_set_description(this, QLatin1String("glyphs"));
 #endif
 }
 
@@ -112,10 +112,10 @@ void QSGDefaultGlyphNode::update()
     } else {
         QSGStyledTextMaterial *material = new QSGStyledTextMaterial(font);
         if (m_style == QQuickText::Sunken) {
-            material->setStyleShift(QPointF(0, -1));
+            material->setStyleShift(QVector2D(0, -1));
             margins.setTop(1);
         } else if (m_style == QQuickText::Raised) {
-            material->setStyleShift(QPointF(0, 1));
+            material->setStyleShift(QVector2D(0, 1));
             margins.setBottom(1);
         }
         material->setStyleColor(m_styleColor);

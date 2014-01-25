@@ -70,6 +70,7 @@ public:
     inline QSet<T> &operator=(const QSet<T> &other)
         { q_hash = other.q_hash; return *this; }
 #ifdef Q_COMPILER_RVALUE_REFS
+    inline QSet(QSet &&other) : q_hash(qMove(other.q_hash)) {}
     inline QSet<T> &operator=(QSet<T> &&other)
         { qSwap(q_hash, other.q_hash); return *this; }
 #endif
@@ -180,7 +181,10 @@ public:
     inline const_iterator cend() const { return q_hash.end(); }
     inline const_iterator constEnd() const { return q_hash.constEnd(); }
     iterator erase(iterator i)
-        { return q_hash.erase(reinterpret_cast<typename Hash::iterator &>(i)); }
+    {
+        Q_ASSERT_X(isValidIterator(i), "QSet::erase", "The specified const_iterator argument 'i' is invalid");
+        return q_hash.erase(reinterpret_cast<typename Hash::iterator &>(i));
+    }
 
     // more Qt
     typedef iterator Iterator;
@@ -233,6 +237,10 @@ public:
 
 private:
     Hash q_hash;
+    bool isValidIterator(const iterator &i) const
+    {
+        return q_hash.isValidIterator(reinterpret_cast<const typename Hash::iterator&>(i));
+    }
 };
 
 template <class T>
@@ -253,8 +261,16 @@ Q_INLINE_TEMPLATE QSet<T> &QSet<T>::unite(const QSet<T> &other)
 template <class T>
 Q_INLINE_TEMPLATE QSet<T> &QSet<T>::intersect(const QSet<T> &other)
 {
-    QSet<T> copy1(*this);
-    QSet<T> copy2(other);
+    QSet<T> copy1;
+    QSet<T> copy2;
+    if (size() <= other.size()) {
+        copy1 = *this;
+        copy2 = other;
+    } else {
+        copy1 = other;
+        copy2 = *this;
+        *this = copy1;
+    }
     typename QSet<T>::const_iterator i = copy1.constEnd();
     while (i != copy1.constBegin()) {
         --i;

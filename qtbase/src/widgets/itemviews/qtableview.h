@@ -159,6 +159,8 @@ protected:
 
     void updateGeometries();
 
+    QSize viewportSizeHint() const Q_DECL_OVERRIDE;
+
     int sizeHintForRow(int row) const;
     int sizeHintForColumn(int column) const;
 

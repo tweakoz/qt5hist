@@ -56,6 +56,7 @@ QT_BEGIN_NAMESPACE
 class QWindow;
 class QPlatformScreen;
 class QWindowsScreenManager;
+class QWindowsTabletSupport;
 class QWindowsWindow;
 class QWindowsMimeConverter;
 struct QWindowCreationContext;
@@ -107,9 +108,11 @@ struct QWindowsShell32DLL
 
     typedef HRESULT (WINAPI *SHCreateItemFromParsingName)(PCWSTR, IBindCtx *, const GUID&, void **);
     typedef HRESULT (WINAPI *SHGetStockIconInfo)(int , int , _SHSTOCKICONINFO *);
+    typedef HRESULT (WINAPI *SHGetImageList)(int, REFIID , void **);
 
     SHCreateItemFromParsingName sHCreateItemFromParsingName;
     SHGetStockIconInfo sHGetStockIconInfo;
+    SHGetImageList sHGetImageList;
 };
 #endif // Q_OS_WINCE
 
@@ -135,6 +138,7 @@ public:
     static int verboseInputMethods;
     static int verboseDialogs;
     static int verboseTheming;
+    static int verboseTablet;
 
     explicit QWindowsContext();
     ~QWindowsContext();
@@ -185,6 +189,7 @@ public:
 
     QWindowsMimeConverter &mimeConverter() const;
     QWindowsScreenManager &screenManager();
+    QWindowsTabletSupport *tabletSupport() const;
 #ifndef Q_OS_WINCE
     static QWindowsUser32DLL user32dll;
     static QWindowsShell32DLL shell32dll;

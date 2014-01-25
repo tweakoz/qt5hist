@@ -59,9 +59,10 @@
 #include "qset.h"
 #include "qstyle.h"
 #include "qvarlengtharray.h"
-#if defined(Q_WS_MAC)
-#include "private/qt_mac_p.h"
-#include "qlibrary.h"
+#if defined(Q_OS_MACX)
+#include <QtCore/QMetaMethod>
+#include <QtGui/QGuiApplication>
+#include <qpa/qplatformnativeinterface.h>
 #elif !defined(QT_NO_STYLE_WINDOWSVISTA)
 #include "qwizard_win_p.h"
 #include "qtimer.h"
@@ -604,7 +605,7 @@ public:
     void _q_updateButtonStates();
     void _q_handleFieldObjectDestroyed(QObject *);
     void setStyle(QStyle *style);
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MACX
     static QPixmap findDefaultBackgroundPixmap();
 #endif
 
@@ -1344,6 +1345,33 @@ void QWizardPrivate::updateCurrentPage()
     updateButtonTexts();
 }
 
+static QString object_name_for_button(QWizard::WizardButton which)
+{
+    switch (which) {
+    case QWizard::CommitButton:
+        return QLatin1String("qt_wizard_") + QLatin1String("commit");
+    case QWizard::FinishButton:
+        return QLatin1String("qt_wizard_") + QLatin1String("finish");
+    case QWizard::CancelButton:
+        return QLatin1String("qt_wizard_") + QLatin1String("cancel");
+    case QWizard::BackButton:
+    case QWizard::NextButton:
+    case QWizard::HelpButton:
+    case QWizard::CustomButton1:
+    case QWizard::CustomButton2:
+    case QWizard::CustomButton3:
+        // Make navigation buttons detectable as passive interactor in designer
+        return QLatin1String("__qt__passive_wizardbutton") + QString::number(which);
+    case QWizard::Stretch:
+    case QWizard::NoButton:
+    //case QWizard::NStandardButtons:
+    //case QWizard::NButtons:
+        ;
+    }
+    Q_UNREACHABLE();
+    return QString();
+}
+
 bool QWizardPrivate::ensureButton(QWizard::WizardButton which) const
 {
     Q_Q(const QWizard);
@@ -1355,20 +1383,8 @@ bool QWizardPrivate::ensureButton(QWizard::WizardButton which) const
         QStyle *style = q->style();
         if (style != QApplication::style()) // Propagate style
             pushButton->setStyle(style);
-        // Make navigation buttons detectable as passive interactor in designer
-        switch (which) {
-            case QWizard::CommitButton:
-            case QWizard::FinishButton:
-            case QWizard::CancelButton:
-            break;
-        default: {
-            QString objectName = QLatin1String("__qt__passive_wizardbutton");
-            objectName += QString::number(which);
-            pushButton->setObjectName(objectName);
-        }
-            break;
-        }
-#ifdef Q_WS_MAC
+        pushButton->setObjectName(object_name_for_button(which));
+#ifdef Q_OS_MACX
         pushButton->setAutoDefault(false);
 #endif
         pushButton->hide();
@@ -1706,32 +1722,22 @@ void QWizardPrivate::setStyle(QStyle *style)
         it.value()->setStyle(style);
 }
 
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MACX
 
 QPixmap QWizardPrivate::findDefaultBackgroundPixmap()
 {
-    QCFType<CFURLRef> url;
-    const int ExpectedImageWidth = 242;
-    const int ExpectedImageHeight = 414;
-    if (LSFindApplicationForInfo(kLSUnknownCreator, CFSTR("com.apple.KeyboardSetupAssistant"),
-                                 0, 0, &url) == noErr) {
-        QCFType<CFBundleRef> bundle = CFBundleCreate(kCFAllocatorDefault, url);
-        if (bundle) {
-            url = CFBundleCopyResourceURL(bundle, CFSTR("Background"), CFSTR("tif"), 0);
-            if (url) {
-                QCFType<CGImageSourceRef> imageSource = CGImageSourceCreateWithURL(url, 0);
-                QCFType<CGImageRef> image = CGImageSourceCreateImageAtIndex(imageSource, 0, 0);
-                if (image) {
-                    int width = CGImageGetWidth(image);
-                    int height = CGImageGetHeight(image);
-                    if (width == ExpectedImageWidth && height == ExpectedImageHeight)
-                        return QPixmap::fromMacCGImageRef(image);
-                }
-            }
-        }
-    }
-    return QPixmap();
-
+    QGuiApplication *app = qobject_cast<QGuiApplication *>(QCoreApplication::instance());
+    if (!app)
+        return QPixmap();
+    QPlatformNativeInterface *platformNativeInterface = app->platformNativeInterface();
+    int at = platformNativeInterface->metaObject()->indexOfMethod("defaultBackgroundPixmapForQWizard()");
+    if (at == -1)
+        return QPixmap();
+    QMetaMethod defaultBackgroundPixmapForQWizard = platformNativeInterface->metaObject()->method(at);
+    QPixmap result;
+    if (!defaultBackgroundPixmapForQWizard.invoke(platformNativeInterface, Q_RETURN_ARG(QPixmap, result)))
+        return QPixmap();
+    return result;
 }
 
 #endif
@@ -1972,7 +1978,7 @@ void QWizardAntiFlickerWidget::paintEvent(QPaintEvent *)
     Another way is to reimplement validateCurrentPage() (or
     QWizardPage::validatePage()) to perform some last-minute
     validation (and show an error message if the user has entered
-    incomplete or invalid information). If the function returns true,
+    incomplete or invalid information). If the function returns \c true,
     the next page is shown (or the wizard finishes); otherwise, the
     current page stays up.
 
@@ -2340,8 +2346,8 @@ QWizardPage *QWizard::page(int theid) const
 /*!
     \fn bool QWizard::hasVisitedPage(int id) const
 
-    Returns true if the page history contains page \a id; otherwise,
-    returns false.
+    Returns \c true if the page history contains page \a id; otherwise,
+    returns \c false.
 
     Pressing \uicontrol Back marks the current page as "unvisited" again.
 
@@ -2437,7 +2443,7 @@ QWizardPage *QWizard::currentPage() const
     By default, this property has a value of -1, indicating that no page is
     currently shown.
 
-    \sa currentIdChanged(), currentPage()
+    \sa currentPage()
 */
 int QWizard::currentId() const
 {
@@ -2553,7 +2559,7 @@ void QWizard::setOption(WizardOption option, bool on)
 }
 
 /*!
-    Returns true if the given \a option is enabled; otherwise, returns
+    Returns \c true if the given \a option is enabled; otherwise, returns
     false.
 
     \sa options, setOption(), setWizardStyle()
@@ -2842,7 +2848,7 @@ QPixmap QWizard::pixmap(WizardPixmap which) const
 {
     Q_D(const QWizard);
     Q_ASSERT(uint(which) < NPixmaps);
-#ifdef Q_WS_MAC
+#ifdef Q_OS_MACX
     if (which == BackgroundPixmap && d->defaultPixmaps[BackgroundPixmap].isNull())
         d->defaultPixmaps[BackgroundPixmap] = d->findDefaultBackgroundPixmap();
 #endif
@@ -3285,7 +3291,7 @@ void QWizard::cleanupPage(int theid)
 /*!
     This virtual function is called by QWizard when the user clicks
     \uicontrol Next or \uicontrol Finish to perform some last-minute validation.
-    If it returns true, the next page is shown (or the wizard
+    If it returns \c true, the next page is shown (or the wizard
     finishes); otherwise, the current page stays up.
 
     The default implementation calls QWizardPage::validatePage() on
@@ -3372,7 +3378,7 @@ int QWizard::nextId() const
     \endlist
 
     Normally, the \uicontrol Next button and the \uicontrol Finish button of a
-    wizard are mutually exclusive. If isFinalPage() returns true, \uicontrol
+    wizard are mutually exclusive. If isFinalPage() returns \c true, \uicontrol
     Finish is available; otherwise, \uicontrol Next is available. By
     default, isFinalPage() is true only when nextId() returns -1. If
     you want to show \uicontrol Next and \uicontrol Final simultaneously for a
@@ -3575,10 +3581,10 @@ void QWizardPage::cleanupPage()
 /*!
     This virtual function is called by QWizard::validateCurrentPage()
     when the user clicks \uicontrol Next or \uicontrol Finish to perform some
-    last-minute validation. If it returns true, the next page is shown
+    last-minute validation. If it returns \c true, the next page is shown
     (or the wizard finishes); otherwise, the current page stays up.
 
-    The default implementation returns true.
+    The default implementation returns \c true.
 
     When possible, it is usually better style to disable the \uicontrol
     Next or \uicontrol Finish button (by specifying \l{mandatory fields} or
@@ -3596,8 +3602,8 @@ bool QWizardPage::validatePage()
     the \uicontrol Next or \uicontrol Finish button should be enabled or
     disabled.
 
-    The default implementation returns true if all \l{mandatory
-    fields} are filled; otherwise, it returns false.
+    The default implementation returns \c true if all \l{mandatory
+    fields} are filled; otherwise, it returns \c false.
 
     If you reimplement this function, make sure to emit completeChanged(),
     from the rest of your implementation, whenever the value of isComplete()
@@ -3643,12 +3649,12 @@ bool QWizardPage::isComplete() const
 /*!
     Explicitly sets this page to be final if \a finalPage is true.
 
-    After calling setFinalPage(true), isFinalPage() returns true and the \uicontrol
+    After calling setFinalPage(true), isFinalPage() returns \c true and the \uicontrol
     Finish button is visible (and enabled if isComplete() returns
     true).
 
-    After calling setFinalPage(false), isFinalPage() returns true if
-    nextId() returns -1; otherwise, it returns false.
+    After calling setFinalPage(false), isFinalPage() returns \c true if
+    nextId() returns -1; otherwise, it returns \c false.
 
     \sa isComplete(), QWizard::HaveFinishButtonOnEarlyPages
 */
@@ -3665,8 +3671,8 @@ void QWizardPage::setFinalPage(bool finalPage)
     This function is called by QWizard to determine whether the \uicontrol
     Finish button should be shown for this page or not.
 
-    By default, it returns true if there is no next page
-    (i.e., nextId() returns -1); otherwise, it returns false.
+    By default, it returns \c true if there is no next page
+    (i.e., nextId() returns -1); otherwise, it returns \c false.
 
     By explicitly calling setFinalPage(true), you can let the user perform an
     "early finish".
@@ -3712,7 +3718,7 @@ void QWizardPage::setCommitPage(bool commitPage)
 }
 
 /*!
-    Returns true if this page is a commit page; otherwise returns false.
+    Returns \c true if this page is a commit page; otherwise returns \c false.
 
     \sa setCommitPage()
 */

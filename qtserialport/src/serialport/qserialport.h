@@ -55,13 +55,16 @@ class QSerialPortPrivate;
 class Q_SERIALPORT_EXPORT QSerialPort : public QIODevice
 {
     Q_OBJECT
+    Q_DECLARE_PRIVATE(QSerialPort)
 
     Q_PROPERTY(qint32 baudRate READ baudRate WRITE setBaudRate NOTIFY baudRateChanged)
     Q_PROPERTY(DataBits dataBits READ dataBits WRITE setDataBits NOTIFY dataBitsChanged)
     Q_PROPERTY(Parity parity READ parity WRITE setParity NOTIFY parityChanged)
     Q_PROPERTY(StopBits stopBits READ stopBits WRITE setStopBits NOTIFY stopBitsChanged)
     Q_PROPERTY(FlowControl flowControl READ flowControl WRITE setFlowControl NOTIFY flowControlChanged)
+#if QT_DEPRECATED_SINCE(5, 2)
     Q_PROPERTY(DataErrorPolicy dataErrorPolicy READ dataErrorPolicy WRITE setDataErrorPolicy NOTIFY dataErrorPolicyChanged)
+#endif
     Q_PROPERTY(bool dataTerminalReady READ isDataTerminalReady WRITE setDataTerminalReady NOTIFY dataTerminalReadyChanged)
     Q_PROPERTY(bool requestToSend READ isRequestToSend WRITE setRequestToSend NOTIFY requestToSendChanged)
     Q_PROPERTY(SerialPortError error READ error RESET clearError NOTIFY error)
@@ -69,6 +72,12 @@ class Q_SERIALPORT_EXPORT QSerialPort : public QIODevice
 
     Q_ENUMS(BaudRate DataBits Parity StopBits FlowControl DataErrorPolicy SerialPortError)
     Q_FLAGS(Directions PinoutSignals)
+
+#if defined(Q_OS_WIN32) || defined(Q_OS_WINCE)
+    typedef void* Handle;
+#else
+    typedef int Handle;
+#endif
 
 public:
 
@@ -122,6 +131,16 @@ public:
         UnknownFlowControl = -1
     };
 
+#if QT_DEPRECATED_SINCE(5, 2)
+#if defined _MSC_VER
+#pragma deprecated(UnknownBaud)
+#pragma deprecated(UnknownDataBits)
+#pragma deprecated(UnknownParity)
+#pragma deprecated(UnknownStopBits)
+#pragma deprecated(UnknownFlowControl)
+#endif
+#endif
+
     enum PinoutSignal {
         NoSignal = 0x00,
         TransmittedDataSignal = 0x01,
@@ -137,6 +156,7 @@ public:
     };
     Q_DECLARE_FLAGS(PinoutSignals, PinoutSignal)
 
+#if QT_DEPRECATED_SINCE(5, 2)
     enum DataErrorPolicy {
         SkipPolicy,
         PassZeroPolicy,
@@ -144,6 +164,7 @@ public:
         StopReceivingPolicy,
         UnknownPolicy = -1
     };
+#endif
 
     enum SerialPortError {
         NoError,
@@ -157,7 +178,9 @@ public:
         ReadError,
         ResourceError,
         UnsupportedOperationError,
-        UnknownError
+        UnknownError,
+        TimeoutError,
+        NotOpenError
     };
 
     explicit QSerialPort(QObject *parent = 0);
@@ -176,8 +199,8 @@ public:
     void setSettingsRestoredOnClose(bool restore);
     bool settingsRestoredOnClose() const;
 
-    bool setBaudRate(qint32 baudRate, Directions dir = AllDirections);
-    qint32 baudRate(Directions dir = AllDirections) const;
+    bool setBaudRate(qint32 baudRate, Directions directions = AllDirections);
+    qint32 baudRate(Directions directions = AllDirections) const;
 
     bool setDataBits(DataBits dataBits);
     DataBits dataBits() const;
@@ -200,11 +223,13 @@ public:
     PinoutSignals pinoutSignals();
 
     bool flush();
-    bool clear(Directions dir = AllDirections);
+    bool clear(Directions directions = AllDirections);
     bool atEnd() const Q_DECL_OVERRIDE;
 
-    bool setDataErrorPolicy(DataErrorPolicy policy = IgnorePolicy);
-    DataErrorPolicy dataErrorPolicy() const;
+#if QT_DEPRECATED_SINCE(5, 2)
+    QT_DEPRECATED bool setDataErrorPolicy(DataErrorPolicy policy = IgnorePolicy);
+    QT_DEPRECATED DataErrorPolicy dataErrorPolicy() const;
+#endif
 
     SerialPortError error() const;
     void clearError();
@@ -224,8 +249,10 @@ public:
     bool sendBreak(int duration = 0);
     bool setBreakEnabled(bool set = true);
 
+    Handle handle() const;
+
 Q_SIGNALS:
-    void baudRateChanged(qint32 baudRate, QSerialPort::Directions dir);
+    void baudRateChanged(qint32 baudRate, QSerialPort::Directions directions);
     void dataBitsChanged(QSerialPort::DataBits dataBits);
     void parityChanged(QSerialPort::Parity parity);
     void stopBitsChanged(QSerialPort::StopBits stopBits);
@@ -246,7 +273,6 @@ private:
 
     QSerialPortPrivate * const d_ptr;
 
-    Q_DECLARE_PRIVATE(QSerialPort)
     Q_DISABLE_COPY(QSerialPort)
 };
 

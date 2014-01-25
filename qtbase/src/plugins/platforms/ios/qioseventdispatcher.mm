@@ -40,283 +40,473 @@
 ****************************************************************************/
 
 #include "qioseventdispatcher.h"
-#import "qiosapplicationdelegate.h"
-#include <qdebug.h>
-#include <qpa/qwindowsysteminterface.h>
-#include <QtCore/QThread>
+#include "qiosapplicationdelegate.h"
+#include "qiosglobal.h"
+
+#include <QtCore/qprocessordetection.h>
 #include <QtCore/private/qcoreapplication_p.h>
-#include <UIKit/UIApplication.h>
+#include <QtCore/private/qthread_p.h>
+
+#import <Foundation/NSArray.h>
+#import <Foundation/NSString.h>
+#import <Foundation/NSProcessInfo.h>
+#import <Foundation/NSThread.h>
+#import <Foundation/NSNotification.h>
+
+#import <UIKit/UIApplication.h>
+
+#include <setjmp.h> // Here be dragons
+
+#include <sys/mman.h>
+
+#define qAlignDown(val, align) val & ~(align - 1)
+#define qAlignUp(val, align) qAlignDown(val + (align - 1), align)
+
+static const size_t kBytesPerKiloByte = 1024;
+static const long kPageSize = sysconf(_SC_PAGESIZE);
+
+/*
+    The following diagram shows the layout of the reserved
+    stack in relation to the regular stack, and the basic
+    flow of the initial startup sequence. Note how we end
+    up back in applicationDidLaunch after the user's main
+    recurses into qApp-exec(), which allows us to return
+    from applicationDidLaunch and spin the run-loop at the
+    same level (UIApplicationMain) as iOS nativly does.
+
+        +-----------------------------+
+        |            qtmn()           |
+        |     +--------------------+ <-- base
+        | +---->      main()       |  |
+        | |   +--------------------+  |
+        | |   |        ...         |  |
+        | |   +--------------------+  |
+        | |   |    qApp->exec()    |  |
+        | |   +--------------------+  |
+        | |   |  processEvents()   |  |
+        | |   |                    |  |
+        | | +--+   longjmp(a)      |  |
+        | | | |                    |  |
+        | | | +--------------------+  |
+        | | | |                    |  |
+        | | | |                    |  |
+        | | | |       unused       |  |
+        | | | |                    |  |
+        | | | |                    |  |
+        | | | +--------------------+ <-- limit
+        | | | |    memory guard    |  |
+        | | | +--------------------+ <-- reservedStack
+        +-|-|-------------------------+
+        | | |  UIApplicationMain()    |
+        +-|-|-------------------------+
+        | | | applicationDidLaunch()  |
+        | | |                         |
+        | | +-->   setjmp(a)          |
+        | +----+  trampoline()        |
+        |                             |
+        +-----------------------------+
+
+    Note: the diagram does not reflect alignment issues.
+*/
+
+namespace
+{
+    struct Stack
+    {
+        uintptr_t base;
+        uintptr_t limit;
+
+        static size_t computeSize(size_t requestedSize)
+        {
+            if (!requestedSize)
+                return 0;
+
+            // The stack size must be a multiple of 4 KB
+            size_t stackSize = qAlignUp(requestedSize, 4 * kBytesPerKiloByte);
+
+            // Be at least 16 KB
+            stackSize = qMax(16 * kBytesPerKiloByte, stackSize);
+
+            // Have enough extra space for our (aligned) memory guard
+            stackSize += (2 * kPageSize);
+
+            // But not exceed the 1MB maximum (adjusted to account for current stack usage)
+            stackSize = qMin(stackSize, ((1024 - 64) * kBytesPerKiloByte));
+
+            // Which we verify, just in case
+            struct rlimit stackLimit = {0, 0};
+            if (getrlimit(RLIMIT_STACK, &stackLimit) == 0 && stackSize > stackLimit.rlim_cur)
+                qFatal("Unexpectedly exceeded stack limit");
+
+            return stackSize;
+        }
+
+        void adopt(void* memory, size_t size)
+        {
+            uintptr_t memoryStart = uintptr_t(memory);
+
+            // Add memory guard at the end of the reserved stack, so that any stack
+            // overflow during the user's main will trigger an exception at that point,
+            // and not when we return and find that the current stack has been smashed.
+            // We allow read though, so that garbage-collection can pass through our
+            // stack in its mark phase without triggering access violations.
+            uintptr_t memoryGuardStart = qAlignUp(memoryStart, kPageSize);
+            if (mprotect((void*)memoryGuardStart, kPageSize, PROT_READ))
+                qWarning() << "Failed to add memory guard:" << strerror(errno);
+
+            // We don't consider the memory guard part of the usable stack space
+            limit = memoryGuardStart + kPageSize;
+
+            // The stack grows downwards in memory, so the stack base is actually
+            // at the end of the reserved stack space. And, as the memory guard
+            // was page aligned, we need to align down the base as well, to
+            // keep the requirement that the stack size is a multiple of 4K.
+            base = qAlignDown(memoryStart + size, kPageSize);
+        }
+
+        bool isValid()
+        {
+            return base && limit;
+        }
+
+        size_t size()
+        {
+            return base - limit;
+        }
+
+        static const int kScribblePattern;
+
+        void scribble()
+        {
+            memset_pattern4((void*)limit, &kScribblePattern, size());
+        }
+
+        void printUsage()
+        {
+            uintptr_t highWaterMark = limit;
+            for (; highWaterMark < base; highWaterMark += 4) {
+                if (memcmp((void*)highWaterMark, &kScribblePattern, 4))
+                    break;
+            }
+
+            qDebug("main() used roughly %lu bytes of stack space", (base - highWaterMark));
+        }
+    };
+
+    const int Stack::kScribblePattern = 0xfafafafa;
+
+    Stack userMainStack;
+
+    jmp_buf processEventEnterJumpPoint;
+    jmp_buf processEventExitJumpPoint;
+
+    bool applicationAboutToTerminate = false;
+    jmp_buf applicationWillTerminateJumpPoint;
+
+    bool debugStackUsage = false;
+}
+
+extern "C" int __attribute__((weak)) main(int argc, char *argv[])
+{
+    @autoreleasepool {
+        size_t defaultStackSize = 512 * kBytesPerKiloByte; // Same as secondary threads
+
+        uint requestedStackSize = qMax(0, infoPlistValue(@"QtRunLoopIntegrationStackSize", defaultStackSize));
+
+        if (infoPlistValue(@"QtRunLoopIntegrationDisableSeparateStack", false))
+            requestedStackSize = 0;
+
+        char reservedStack[Stack::computeSize(requestedStackSize)];
+
+        if (sizeof(reservedStack) > 0) {
+            userMainStack.adopt(reservedStack, sizeof(reservedStack));
+
+            if (infoPlistValue(@"QtRunLoopIntegrationDebugStackUsage", false)) {
+                debugStackUsage = true;
+                userMainStack.scribble();
+                qDebug("Effective stack size is %lu bytes", userMainStack.size());
+            }
+        }
+
+        qEventDispatcherDebug() << "Running UIApplicationMain"; qIndent();
+        return UIApplicationMain(argc, argv, nil, NSStringFromClass([QIOSApplicationDelegate class]));
+    }
+}
+
+enum SetJumpResult
+{
+    kJumpPointSetSuccessfully = 0,
+    kJumpedFromEventDispatcherProcessEvents,
+    kJumpedFromEventLoopExecInterrupt,
+    kJumpedFromUserMainTrampoline,
+};
+
+// We define qt_main so that user_main_trampoline() will not cause
+// missing symbols in the case of hybrid applications that don't
+// user our main wrapper. Since the symbol is weak, it will not
+// get used or cause a clash in the normal Qt application usecase,
+// where we rename main to qt_main.
+extern "C" int __attribute__((weak)) qt_main(int argc, char *argv[])
+{
+    Q_UNUSED(argc);
+    Q_UNUSED(argv);
+
+    Q_UNREACHABLE();
+}
+
+static void __attribute__((noinline, noreturn)) user_main_trampoline()
+{
+    NSArray *arguments = [[NSProcessInfo processInfo] arguments];
+    int argc = arguments.count;
+    char **argv = new char*[argc];
+    for (int i = 0; i < argc; ++i) {
+        NSString *arg = [arguments objectAtIndex:i];
+        argv[i] = reinterpret_cast<char *>(malloc([arg lengthOfBytesUsingEncoding:[NSString defaultCStringEncoding]]));
+        strcpy(argv[i], [arg cStringUsingEncoding:[NSString defaultCStringEncoding]]);
+    }
+
+    int exitCode = qt_main(argc, argv);
+    delete[] argv;
+
+    qEventDispatcherDebug() << "Returned from main with exit code " << exitCode;
+
+    if (Q_UNLIKELY(debugStackUsage))
+        userMainStack.printUsage();
+
+    if (applicationAboutToTerminate)
+        longjmp(applicationWillTerminateJumpPoint, kJumpedFromUserMainTrampoline);
+
+    // We end up here if the user's main() never calls QApplication::exec(),
+    // or if we return from exec() after quitting the application. If so we
+    // follow the expected behavior from the point of the user's main(), which
+    // is to exit with the given exit code.
+    exit(exitCode);
+}
+
+// If we don't have a stack set up, we're not running inside
+// iOS' native/root level run-loop in UIApplicationMain.
+static bool rootLevelRunLoopIntegration()
+{
+    return userMainStack.isValid();
+}
+
+@interface QIOSApplicationStateTracker : NSObject
+@end
+
+@implementation QIOSApplicationStateTracker
+
++ (void) load
+{
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+        selector:@selector(applicationDidFinishLaunching)
+        name:UIApplicationDidFinishLaunchingNotification
+        object:nil];
+
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+        selector:@selector(applicationWillTerminate)
+        name:UIApplicationWillTerminateNotification
+        object:nil];
+}
+
+#if defined(Q_PROCESSOR_X86)
+#  define SET_STACK_POINTER "mov %0, %%esp"
+#  define FUNCTION_CALL_ALIGNMENT 16
+#elif defined(Q_PROCESSOR_ARM)
+#  define SET_STACK_POINTER "mov sp, %0"
+#  define FUNCTION_CALL_ALIGNMENT 4
+#else
+#  error "Unknown processor family"
+#endif
+
++ (void) applicationDidFinishLaunching
+{
+    if (!isQtApplication())
+        return;
+
+    if (!rootLevelRunLoopIntegration()) {
+        // We schedule the main-redirection for the next run-loop pass, so that we
+        // can return from this function and let UIApplicationMain finish its job.
+        // This results in running Qt's application eventloop as a nested runloop.
+        qEventDispatcherDebug() << "Scheduling main() on next run-loop pass";
+        CFRunLoopTimerRef userMainTimer = CFRunLoopTimerCreateWithHandler(kCFAllocatorDefault,
+             CFAbsoluteTimeGetCurrent(), 0, 0, 0, ^(CFRunLoopTimerRef) { user_main_trampoline(); });
+        CFRunLoopAddTimer(CFRunLoopGetMain(), userMainTimer, kCFRunLoopCommonModes);
+        CFRelease(userMainTimer);
+        return;
+    }
+
+    switch (setjmp(processEventEnterJumpPoint)) {
+    case kJumpPointSetSuccessfully:
+        qEventDispatcherDebug() << "Running main() on separate stack"; qIndent();
+
+        // Redirect the stack pointer to the start of the reserved stack. This ensures
+        // that when we longjmp out of the event dispatcher and continue execution, the
+        // 'Qt main' call-stack will not be smashed, as it lives in a part of the stack
+        // that was allocated back in main().
+        __asm__ __volatile__(
+            SET_STACK_POINTER
+            : /* no outputs */
+            : "r" (qAlignDown(userMainStack.base, FUNCTION_CALL_ALIGNMENT))
+        );
+
+        user_main_trampoline();
+
+        Q_UNREACHABLE();
+        break;
+    case kJumpedFromEventDispatcherProcessEvents:
+        // We've returned from the longjmp in the event dispatcher,
+        // and the stack has been restored to its old self.
+        qUnIndent(); qEventDispatcherDebug() << "Returned from processEvents";
+
+        if (Q_UNLIKELY(debugStackUsage))
+            userMainStack.printUsage();
+
+        break;
+    default:
+        qFatal("Unexpected jump result in event loop integration");
+    }
+}
+
+// We treat applicationWillTerminate as SIGTERM, even if it can't be ignored,
+// and follow the bash convention of encoding the signal number in the upper
+// four bits of the exit code (exit(3) will only pass on the lower 8 bits).
+static const char kApplicationWillTerminateExitCode = SIGTERM | 0x80;
+
++ (void) applicationWillTerminate
+{
+    if (!isQtApplication())
+        return;
+
+    if (!rootLevelRunLoopIntegration())
+        return;
+
+    // Normally iOS just sends SIGKILL to quit applications, in which case there's
+    // no chance for us to clean up anything, but in some rare cases iOS will tell
+    // us that the application is about to be terminated.
+
+    // We try to play nice with Qt by ending the main event loop, which will result
+    // in QCoreApplication::aboutToQuit() being emitted, and main() returning to the
+    // trampoline. The trampoline then redirects us back here, so that we can return
+    // to UIApplicationMain instead of calling exit().
+
+    applicationAboutToTerminate = true;
+    switch (setjmp(applicationWillTerminateJumpPoint)) {
+    case kJumpPointSetSuccessfully:
+        qEventDispatcherDebug() << "Exiting qApp with SIGTERM exit code"; qIndent();
+        qApp->exit(kApplicationWillTerminateExitCode);
+
+        // The runloop will not exit when the application is about to terminate,
+        // so we'll never see the exit activity and have a chance to return from
+        // QEventLoop::exec(). We initiate the return manually as a workaround.
+        qEventDispatcherDebug() << "Manually triggering return from event loop exec";
+        static_cast<QIOSEventDispatcher *>(qApp->eventDispatcher())->interruptEventLoopExec();
+        break;
+    case kJumpedFromUserMainTrampoline:
+        // The user's main has returned, so we're ready to let iOS terminate the application
+        qUnIndent(); qEventDispatcherDebug() << "kJumpedFromUserMainTrampoline, allowing iOS to terminate";
+        break;
+    default:
+        qFatal("Unexpected jump result in event loop integration");
+    }
+}
+
+@end
 
 QT_BEGIN_NAMESPACE
 QT_USE_NAMESPACE
 
-static Boolean runLoopSourceEqualCallback(const void *info1, const void *info2)
-{
-    return info1 == info2;
-}
-
-void QIOSEventDispatcher::postedEventsRunLoopCallback(void *info)
-{
-    QIOSEventDispatcher *self = static_cast<QIOSEventDispatcher *>(info);
-    self->processPostedEvents();
-}
-
-void QIOSEventDispatcher::nonBlockingTimerRunLoopCallback(CFRunLoopTimerRef, void *info)
-{
-    // The (one and only) CFRunLoopTimer has fired, which means that at least
-    // one QTimer should now fire as well. Note that CFRunLoopTimer's callback will
-    // never recurse. So if the app starts a new QEventLoop within this callback, other
-    // timers will stop working. The work-around is to forward the callback to a
-    // dedicated CFRunLoopSource that can recurse:
-    QIOSEventDispatcher *self = static_cast<QIOSEventDispatcher *>(info);
-    CFRunLoopSourceSignal(self->m_blockingTimerRunLoopSource);
-}
-
-void QIOSEventDispatcher::blockingTimerRunLoopCallback(void *info)
-{
-    // TODO:
-    // We also need to block this new timer source
-    // along with the posted event source when calling processEvents()
-    // "manually" to prevent livelock deep in CFRunLoop.
-
-    QIOSEventDispatcher *self = static_cast<QIOSEventDispatcher *>(info);
-    self->m_timerInfoList.activateTimers();
-    self->maybeStartCFRunLoopTimer();
-}
-
-void QIOSEventDispatcher::maybeStartCFRunLoopTimer()
-{
-    // Find out when the next registered timer should fire, and schedule
-    // runLoopTimer accordingly. If the runLoopTimer does not yet exist, and
-    // at least one timer is registered, start by creating the timer:
-    if (m_timerInfoList.isEmpty()) {
-        Q_ASSERT(m_runLoopTimerRef == 0);
-        return;
-    }
-
-    CFAbsoluteTime ttf = CFAbsoluteTimeGetCurrent();
-    CFTimeInterval interval;
-
-    if (m_runLoopTimerRef == 0) {
-        // start the CFRunLoopTimer
-        CFTimeInterval oneyear = CFTimeInterval(3600. * 24. * 365.);
-
-        // calculate when the next timer should fire:
-        struct timespec tv;
-        if (m_timerInfoList.timerWait(tv)) {
-            interval = qMax(tv.tv_sec + tv.tv_nsec / 1000000000., 0.0000001);
-        } else {
-            // this shouldn't really happen, but in case it does, set the timer
-            // to fire a some point in the distant future:
-            interval = oneyear;
-        }
-
-        ttf += interval;
-        CFRunLoopTimerContext info = { 0, this, 0, 0, 0 };
-        // create the timer with a large interval, as recommended by the CFRunLoopTimerSetNextFireDate()
-        // documentation, since we will adjust the timer's time-to-fire as needed to keep Qt timers working
-        m_runLoopTimerRef = CFRunLoopTimerCreate(0, ttf, oneyear, 0, 0, QIOSEventDispatcher::nonBlockingTimerRunLoopCallback, &info);
-        Q_ASSERT(m_runLoopTimerRef != 0);
-
-        CFRunLoopAddTimer(CFRunLoopGetMain(), m_runLoopTimerRef, kCFRunLoopCommonModes);
-    } else {
-        struct timespec tv;
-        // Calculate when the next timer should fire:
-        if (m_timerInfoList.timerWait(tv)) {
-            interval = qMax(tv.tv_sec + tv.tv_nsec / 1000000000., 0.0000001);
-        } else {
-            // no timers can fire, but we cannot stop the CFRunLoopTimer, set the timer to fire at some
-            // point in the distant future (the timer interval is one year)
-            interval = CFRunLoopTimerGetInterval(m_runLoopTimerRef);
-        }
-
-        ttf += interval;
-        CFRunLoopTimerSetNextFireDate(m_runLoopTimerRef, ttf);
-    }
-}
-
-void QIOSEventDispatcher::maybeStopCFRunLoopTimer()
-{
-    if (m_runLoopTimerRef == 0)
-        return;
-
-    CFRunLoopTimerInvalidate(m_runLoopTimerRef);
-    CFRelease(m_runLoopTimerRef);
-    m_runLoopTimerRef = 0;
-}
-
-void QIOSEventDispatcher::processPostedEvents()
-{
-    QWindowSystemInterface::sendWindowSystemEvents(QEventLoop::AllEvents);
-}
-
 QIOSEventDispatcher::QIOSEventDispatcher(QObject *parent)
-    : QAbstractEventDispatcher(parent)
-    , m_interrupted(false)
-    , m_runLoopTimerRef(0)
+    : QEventDispatcherCoreFoundation(parent)
+    , m_processEventCallsAfterExec(0)
+    , m_runLoopExitObserver(this, &QIOSEventDispatcher::handleRunLoopExit, kCFRunLoopExit)
 {
-    m_cfSocketNotifier.setHostEventDispatcher(this);
-
-    CFRunLoopRef mainRunLoop = CFRunLoopGetMain();
-    CFRunLoopSourceContext context;
-    bzero(&context, sizeof(CFRunLoopSourceContext));
-    context.equal = runLoopSourceEqualCallback;
-    context.info = this;
-
-    // source used to handle timers:
-    context.perform = QIOSEventDispatcher::blockingTimerRunLoopCallback;
-    m_blockingTimerRunLoopSource = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &context);
-    Q_ASSERT(m_blockingTimerRunLoopSource);
-    CFRunLoopAddSource(mainRunLoop, m_blockingTimerRunLoopSource, kCFRunLoopCommonModes);
-
-    // source used to handle posted events:
-    context.perform = QIOSEventDispatcher::postedEventsRunLoopCallback;
-    m_postedEventsRunLoopSource = CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &context);
-    Q_ASSERT(m_postedEventsRunLoopSource);
-    CFRunLoopAddSource(mainRunLoop, m_postedEventsRunLoopSource, kCFRunLoopCommonModes);
 }
 
-QIOSEventDispatcher::~QIOSEventDispatcher()
+bool __attribute__((returns_twice)) QIOSEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
 {
-    CFRunLoopRef mainRunLoop = CFRunLoopGetMain();
-    CFRunLoopRemoveSource(mainRunLoop, m_postedEventsRunLoopSource, kCFRunLoopCommonModes);
-    CFRelease(m_postedEventsRunLoopSource);
+    if (!rootLevelRunLoopIntegration())
+        return QEventDispatcherCoreFoundation::processEvents(flags);
 
-    qDeleteAll(m_timerInfoList);
-    maybeStopCFRunLoopTimer();
-    CFRunLoopRemoveSource(CFRunLoopGetMain(), m_blockingTimerRunLoopSource, kCFRunLoopCommonModes);
-    CFRelease(m_blockingTimerRunLoopSource);
-
-    m_cfSocketNotifier.removeSocketNotifiers();
-}
-
-bool QIOSEventDispatcher::processEvents(QEventLoop::ProcessEventsFlags flags)
-{
-    m_interrupted = false;
-    bool eventsProcessed = false;
-
-    bool excludeUserEvents = flags & QEventLoop::ExcludeUserInputEvents;
-    bool execFlagSet = (flags & QEventLoop::DialogExec) || (flags & QEventLoop::EventLoopExec);
-    bool useExecMode = execFlagSet && !excludeUserEvents;
-
-    if (useExecMode) {
-        NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
-        while ([runLoop runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]] && !m_interrupted);
-        eventsProcessed = true;
-    } else {
-        if (!(flags & QEventLoop::WaitForMoreEvents))
-            wakeUp();
-        eventsProcessed = [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode beforeDate:[NSDate distantFuture]];
-    }
-    return eventsProcessed;
-}
-
-bool QIOSEventDispatcher::hasPendingEvents()
-{
-    qDebug() << __FUNCTION__ << "not implemented";
-    return false;
-}
-
-void QIOSEventDispatcher::registerSocketNotifier(QSocketNotifier *notifier)
-{
-    m_cfSocketNotifier.registerSocketNotifier(notifier);
-}
-
-void QIOSEventDispatcher::unregisterSocketNotifier(QSocketNotifier *notifier)
-{
-    m_cfSocketNotifier.unregisterSocketNotifier(notifier);
-}
-
-void QIOSEventDispatcher::registerTimer(int timerId, int interval, Qt::TimerType timerType, QObject *obj)
-{
-#ifndef QT_NO_DEBUG
-    if (timerId < 1 || interval < 0 || !obj) {
-        qWarning("QIOSEventDispatcher::registerTimer: invalid arguments");
-        return;
-    } else if (obj->thread() != thread() || thread() != QThread::currentThread()) {
-        qWarning("QIOSEventDispatcher: timers cannot be started from another thread");
-        return;
-    }
-#endif
-
-    m_timerInfoList.registerTimer(timerId, interval, timerType, obj);
-    maybeStartCFRunLoopTimer();
-}
-
-bool QIOSEventDispatcher::unregisterTimer(int timerId)
-{
-#ifndef QT_NO_DEBUG
-    if (timerId < 1) {
-        qWarning("QIOSEventDispatcher::unregisterTimer: invalid argument");
-        return false;
-    } else if (thread() != QThread::currentThread()) {
-        qWarning("QObject::killTimer: timers cannot be stopped from another thread");
+    if (applicationAboutToTerminate) {
+        qEventDispatcherDebug() << "Detected QEventLoop exec after application termination";
+        // Re-issue exit, and return immediately
+        qApp->exit(kApplicationWillTerminateExitCode);
         return false;
     }
-#endif
 
-    bool returnValue = m_timerInfoList.unregisterTimer(timerId);
-    m_timerInfoList.isEmpty() ? maybeStopCFRunLoopTimer() : maybeStartCFRunLoopTimer();
-    return returnValue;
-}
+    if (!m_processEventCallsAfterExec && (flags & QEventLoop::EventLoopExec)) {
+        ++m_processEventCallsAfterExec;
 
-bool QIOSEventDispatcher::unregisterTimers(QObject *object)
-{
-#ifndef QT_NO_DEBUG
-    if (!object) {
-        qWarning("QIOSEventDispatcher::unregisterTimers: invalid argument");
-        return false;
-    } else if (object->thread() != thread() || thread() != QThread::currentThread()) {
-        qWarning("QObject::killTimers: timers cannot be stopped from another thread");
-        return false;
+        m_runLoopExitObserver.addToMode(kCFRunLoopCommonModes);
+
+        // We set a new jump point here that we can return to when the event loop
+        // is asked to exit, so that we can return from QEventLoop::exec().
+        switch (setjmp(processEventExitJumpPoint)) {
+        case kJumpPointSetSuccessfully:
+            qEventDispatcherDebug() << "QEventLoop exec detected, jumping back to native runloop";
+            longjmp(processEventEnterJumpPoint, kJumpedFromEventDispatcherProcessEvents);
+            break;
+        case kJumpedFromEventLoopExecInterrupt:
+            // The event loop has exited (either by the hand of the user, or the iOS termination
+            // signal), and we jumped back though processEventExitJumpPoint. We return from processEvents,
+            // which will emit aboutToQuit if it's QApplication's event loop, and then return to the user's
+            // main, which can do whatever it wants, including calling exec() on the application again.
+            qEventDispatcherDebug() << "kJumpedFromEventLoopExecInterrupt, returning with eventsProcessed = true";
+            return true;
+        default:
+            qFatal("Unexpected jump result in event loop integration");
+        }
+
+        Q_UNREACHABLE();
     }
-#endif
 
-    bool returnValue = m_timerInfoList.unregisterTimers(object);
-    m_timerInfoList.isEmpty() ? maybeStopCFRunLoopTimer() : maybeStartCFRunLoopTimer();
-    return returnValue;
+    if (m_processEventCallsAfterExec)
+        ++m_processEventCallsAfterExec;
+
+    bool processedEvents = QEventDispatcherCoreFoundation::processEvents(flags);
+
+    if (m_processEventCallsAfterExec)
+        --m_processEventCallsAfterExec;
+
+    return processedEvents;
 }
 
-QList<QAbstractEventDispatcher::TimerInfo> QIOSEventDispatcher::registeredTimers(QObject *object) const
+void QIOSEventDispatcher::handleRunLoopExit(CFRunLoopActivity activity)
 {
-#ifndef QT_NO_DEBUG
-    if (!object) {
-        qWarning("QIOSEventDispatcher:registeredTimers: invalid argument");
-        return QList<TimerInfo>();
+    Q_UNUSED(activity);
+    Q_ASSERT(activity == kCFRunLoopExit);
+
+    if (m_processEventCallsAfterExec == 1 && !QThreadData::current()->eventLoops.top()->isRunning()) {
+        qEventDispatcherDebug() << "Root runloop level exited";
+        interruptEventLoopExec();
     }
-#endif
-
-    return m_timerInfoList.registeredTimers(object);
 }
 
-int QIOSEventDispatcher::remainingTime(int timerId)
+void QIOSEventDispatcher::interruptEventLoopExec()
 {
-#ifndef QT_NO_DEBUG
-    if (timerId < 1) {
-        qWarning("QIOSEventDispatcher::remainingTime: invalid argument");
-        return -1;
+    Q_ASSERT(m_processEventCallsAfterExec == 1);
+
+    --m_processEventCallsAfterExec;
+
+    m_runLoopExitObserver.removeFromMode(kCFRunLoopCommonModes);
+
+    // We re-set applicationProcessEventsReturnPoint here so that future
+    // calls to QEventLoop::exec() will end up back here after entering
+    // processEvents, instead of back in didFinishLaunchingWithOptions.
+    switch (setjmp(processEventEnterJumpPoint)) {
+    case kJumpPointSetSuccessfully:
+        qEventDispatcherDebug() << "Jumping back to processEvents";
+        longjmp(processEventExitJumpPoint, kJumpedFromEventLoopExecInterrupt);
+        break;
+    case kJumpedFromEventDispatcherProcessEvents:
+        // QEventLoop was re-executed
+        qEventDispatcherDebug() << "kJumpedFromEventDispatcherProcessEvents";
+        break;
+    default:
+        qFatal("Unexpected jump result in event loop integration");
     }
-#endif
-
-    return m_timerInfoList.timerRemainingTime(timerId);
-}
-
-void QIOSEventDispatcher::wakeUp()
-{
-    CFRunLoopSourceSignal(m_postedEventsRunLoopSource);
-    CFRunLoopWakeUp(CFRunLoopGetMain());
-}
-
-void QIOSEventDispatcher::interrupt()
-{
-    wakeUp();
-    m_interrupted = true;
-}
-
-void QIOSEventDispatcher::flush()
-{
-    // X11 only.
 }
 
 QT_END_NAMESPACE
-

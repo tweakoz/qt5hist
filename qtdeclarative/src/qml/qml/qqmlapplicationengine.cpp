@@ -44,6 +44,7 @@
 #include <QQmlComponent>
 #include "qqmlapplicationengine.h"
 #include "qqmlapplicationengine_p.h"
+#include "qqmlfileselector.h"
 
 QT_BEGIN_NAMESPACE
 
@@ -53,6 +54,10 @@ QQmlApplicationEnginePrivate::QQmlApplicationEnginePrivate(QQmlEngine *e)
 }
 
 QQmlApplicationEnginePrivate::~QQmlApplicationEnginePrivate()
+{
+}
+
+void QQmlApplicationEnginePrivate::cleanUp()
 {
     qDeleteAll(objects);
 #ifndef QT_NO_TRANSLATIONS
@@ -72,6 +77,7 @@ void QQmlApplicationEnginePrivate::init()
         QCoreApplication::installTranslator(qtTranslator);
     translators << qtTranslator;
 #endif
+    new QQmlFileSelector(q,q);
     QCoreApplication::instance()->setProperty("__qml_using_qqmlapplicationengine", QVariant(true));
 }
 
@@ -168,13 +174,12 @@ void QQmlApplicationEnginePrivate::_q_finishLoad(QObject *o)
   \li Connecting Qt.quit() to QCoreApplication::quit()
   \li Automatically loads translation files from an i18n directory adjacent to the main QML file.
   \li Automatically sets an incubuation controller if the scene contains a QQuickWindow.
+  \li Automatically sets a \c QQmlFileSelector as the url interceptor, applying file selectors to all
+  QML files and assets.
   \endlist
 
   The engine behavior can be further tweaked by using the inherited methods from QQmlEngine.
 
-  \note In the future QQmlApplicationEngine may automatically apply file selectors.
-  To ensure forwards compatibility, do not use folder names containing a '+' character in your QML file
-  structure.
 */
 
 /*!
@@ -229,7 +234,8 @@ QQmlApplicationEngine::QQmlApplicationEngine(const QString &filePath, QObject *p
 */
 QQmlApplicationEngine::~QQmlApplicationEngine()
 {
-    //Instantiated root objects cleaned up in private class
+    Q_D(QQmlApplicationEngine);
+    d->cleanUp();//Instantiated root objects must be deleted before the engine
 }
 
 /*!

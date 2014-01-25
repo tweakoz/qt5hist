@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -228,6 +228,7 @@ QSGSharedDistanceFieldGlyphCache::QSGSharedDistanceFieldGlyphCache(const QByteAr
             this, SLOT(reportItemsInvalidated(QByteArray,QVector<quint32>)),
             Qt::DirectConnection);
 
+    Q_ASSERT(c);
     QQuickWindow *window = static_cast<QQuickWindow *>(c->surface());
     Q_ASSERT(window != 0);
 
@@ -300,7 +301,7 @@ void QSGSharedDistanceFieldGlyphCache::waitForGlyphs()
     }
 }
 
-void QSGSharedDistanceFieldGlyphCache::storeGlyphs(const QHash<glyph_t, QImage> &glyphs)
+void QSGSharedDistanceFieldGlyphCache::storeGlyphs(const QList<QDistanceField> &glyphs)
 {
     {
         QMutexLocker locker(&m_pendingGlyphsMutex);
@@ -312,14 +313,12 @@ void QSGSharedDistanceFieldGlyphCache::storeGlyphs(const QHash<glyph_t, QImage> 
         int glyphCount = glyphs.size();
         QVector<quint32> glyphIds(glyphCount);
         QVector<QImage> images(glyphCount);
-        QHash<glyph_t, QImage>::const_iterator it = glyphs.constBegin();
-        int i=0;
-        while (it != glyphs.constEnd()) {
-            m_requestedGlyphsThatHaveNotBeenReturned.insert(it.key());
-            glyphIds[i] = it.key();
-            images[i] = it.value();
-
-            ++it; ++i;
+        for (int i = 0; i < glyphs.size(); ++i) {
+            const QDistanceField &df = glyphs.at(i);
+            m_requestedGlyphsThatHaveNotBeenReturned.insert(df.glyph());
+            glyphIds[i] = df.glyph();
+            // ### TODO: Handle QDistanceField in QPlatformSharedGraphicsCache
+            images[i] = df.toImage(QImage::Format_Indexed8);
         }
 
         m_hasPostedEvents = true;
@@ -533,7 +532,7 @@ void QSGSharedDistanceFieldGlyphCache::saveTexture(GLuint textureId, int width, 
         glEnableVertexAttribArray(0);
         glEnableVertexAttribArray(1);
 
-        int textureUniformLocation = glGetUniformLocation(shaderProgram, "texture");
+        int textureUniformLocation = glGetUniformLocation(shaderProgram, "_qt_texture");
         glUniform1i(textureUniformLocation, 0);
     }
 

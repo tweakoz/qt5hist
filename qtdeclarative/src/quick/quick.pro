@@ -1,7 +1,7 @@
 TARGET = QtQuick
 
 QT = core-private gui-private qml-private
-QT_PRIVATE = v8-private network
+QT_PRIVATE =  network
 
 DEFINES   += QT_NO_URL_CAST_FROM_STRING QT_NO_INTEGER_EVENT_COORDINATES
 win32-msvc*:DEFINES *= _CRT_SECURE_NO_WARNINGS
@@ -18,8 +18,8 @@ ANDROID_LIB_DEPENDENCIES = \
     lib/libQt5QuickParticles.so
 ANDROID_LIB_DEPENDENCY_REPLACEMENTS = \
     "plugins/platforms/android/libqtforandroid.so:plugins/platforms/android/libqtforandroidGL.so"
-MODULE_PLUGIN_TYPES = \
-    accessible
+MODULE_PLUGIN_TYPES += \
+    accessible/libqtaccessiblequick.so
 ANDROID_BUNDLED_FILES += \
     qml \
     lib/libQt5QuickParticles.so
@@ -37,6 +37,9 @@ HEADERS += \
     qtquick2_p.h
 
 SOURCES += qtquick2.cpp
+
+# To make #include "qquickcontext2d_jsclass.cpp" work
+INCLUDEPATH += $$PWD
 
 mac {
     # FIXME: this is a workaround for broken qmake logic in qtAddModule()

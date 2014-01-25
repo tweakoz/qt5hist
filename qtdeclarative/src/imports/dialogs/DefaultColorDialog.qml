@@ -45,29 +45,59 @@ import "qml"
 
 AbstractColorDialog {
     id: root
-    property bool _valueSet: true // guard to prevent binding loops
-    function _setControlsFromColor() {
-        _valueSet = false
-        hueSlider.value = root.hue
-        saturationSlider.value = root.saturation
-        lightnessSlider.value = root.lightness
-        alphaSlider.value = root.alpha
-        crosshairs.x = root.lightness * paletteMap.width
-        crosshairs.y = (1.0 - root.saturation) * paletteMap.height
-        _valueSet = true
+    property bool __valueSet: true // guard to prevent binding loops
+    function __setControlsFromColor() {
+        __valueSet = false
+        hueSlider.value = root.currentHue
+        saturationSlider.value = root.currentSaturation
+        lightnessSlider.value = root.currentLightness
+        alphaSlider.value = root.currentAlpha
+        crosshairs.x = root.currentLightness * paletteMap.width
+        crosshairs.y = (1.0 - root.currentSaturation) * paletteMap.height
+        __valueSet = true
     }
-    onColorChanged: _setControlsFromColor()
+    onCurrentColorChanged: __setControlsFromColor()
+    onSelectionAccepted: root.color = root.currentColor
 
     Rectangle {
         id: content
         property int maxSize: 0.9 * Math.min(Screen.desktopAvailableWidth, Screen.desktopAvailableHeight)
-        implicitHeight: Math.min(maxSize, Screen.logicalPixelDensity * (usePaletteMap ? 100 : 50))
+        implicitHeight: Math.min(maxSize, Screen.pixelDensity * (usePaletteMap ? 100 : 50))
         implicitWidth: usePaletteMap ? implicitHeight - bottomMinHeight : implicitHeight * 1.5
         color: palette.window
+        focus: root.visible
         property real bottomMinHeight: sliders.height + buttonRow.height + outerSpacing * 3
         property real spacing: 8
         property real outerSpacing: 12
         property bool usePaletteMap: true
+
+        Keys.onPressed: {
+            event.accepted = true
+            switch (event.key) {
+            case Qt.Key_Return:
+            case Qt.Key_Select:
+                accept()
+                break
+            case Qt.Key_Escape:
+            case Qt.Key_Back:
+                reject()
+                break
+            case Qt.Key_C:
+                if (event.modifiers & Qt.ControlModifier)
+                    colorField.copyAll()
+                break
+            case Qt.Key_V:
+                if (event.modifiers & Qt.ControlModifier) {
+                    colorField.paste()
+                    root.currentColor = colorField.text
+                }
+                break
+            default:
+                // do nothing
+                event.accepted = false
+                break
+            }
+        }
 
         // set the preferred width based on height, to avoid "letterboxing" the paletteMap
         onHeightChanged: implicitHeight = Math.max((usePaletteMap ? 480 : bottomMinHeight), height)
@@ -89,7 +119,7 @@ AbstractColorDialog {
                 id: paletteMap
                 x: (parent.width - width) / 2
                 width: height
-                onWidthChanged: root._setControlsFromColor()
+                onWidthChanged: root.__setControlsFromColor()
                 height: parent.height
                 source: "images/checkers.png"
                 fillMode: Image.Tile
@@ -204,7 +234,7 @@ AbstractColorDialog {
             ColorSlider {
                 id: hueSlider
                 value: 0.5
-                onValueChanged: if (_valueSet) root.color = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
+                onValueChanged: if (__valueSet) root.currentColor = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
                 text: qsTr("Hue")
                 trackDelegate: Rectangle {
                     rotation: -90
@@ -225,7 +255,7 @@ AbstractColorDialog {
                 id: saturationSlider
                 visible: !content.usePaletteMap
                 value: 0.5
-                onValueChanged: if (_valueSet) root.color = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
+                onValueChanged: if (__valueSet) root.currentColor = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
                 text: qsTr("Saturation")
                 trackDelegate: Rectangle {
                     rotation: -90
@@ -241,7 +271,7 @@ AbstractColorDialog {
                 id: lightnessSlider
                 visible: !content.usePaletteMap
                 value: 0.5
-                onValueChanged: if (_valueSet) root.color = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
+                onValueChanged: if (__valueSet) root.currentColor = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
                 text: qsTr("Luminosity")
                 trackDelegate: Rectangle {
                     rotation: -90
@@ -259,7 +289,7 @@ AbstractColorDialog {
                 minimum: 0.0
                 maximum: 1.0
                 value: 1.0
-                onValueChanged: if (_valueSet) root.color = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
+                onValueChanged: if (__valueSet) root.currentColor = Qt.hsla(hueSlider.value, saturationSlider.value, lightnessSlider.value, alphaSlider.value)
                 text: qsTr("Alpha")
                 visible: root.showAlphaChannel
                 trackDelegate: Item {
@@ -294,11 +324,12 @@ AbstractColorDialog {
             }
             Row {
                 spacing: content.spacing
+                height: parent.height
                 TextField {
                     id: colorField
-                    text: root.color
+                    text: root.currentColor.toString()
                     anchors.verticalCenter: parent.verticalCenter
-                    onAccepted:  root.color = text
+                    onAccepted:  root.currentColor = text
                     Component.onCompleted: width = implicitWidth + 10
                 }
                 Image {

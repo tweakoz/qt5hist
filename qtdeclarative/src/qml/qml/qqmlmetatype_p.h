@@ -72,6 +72,8 @@ class QHashedString;
 class QHashedStringRef;
 class QReadWriteLock;
 
+namespace QV4 { struct String; }
+
 class Q_QML_PRIVATE_EXPORT QQmlMetaType
 {
 public:
@@ -84,7 +86,7 @@ public:
     static QQmlType *qmlType(const QMetaObject *);
     static QQmlType *qmlType(const QMetaObject *metaObject, const QHashedStringRef &module, int version_major, int version_minor);
     static QQmlType *qmlType(int);
-    static QQmlType *qmlType(const QUrl &url);
+    static QQmlType *qmlType(const QUrl &url, bool includeNonFileImports = false);
     static QQmlType *qmlTypeFromIndex(int);
 
     static QMetaProperty defaultProperty(const QMetaObject *);
@@ -111,6 +113,7 @@ public:
     static StringConverter customStringConverter(int);
 
     static bool isAnyModule(const QString &uri);
+    static bool isLockedModule(const QString &uri, int majorVersion);
     static bool isModule(const QString &module, int versionMajor, int versionMinor);
     static QQmlTypeModule *typeModule(const QString &uri, int majorVersion);
 
@@ -136,7 +139,6 @@ private:
 
 struct QQmlMetaTypeData;
 class QHashedCStringRef;
-class QHashedV8String;
 class Q_QML_PRIVATE_EXPORT QQmlType
 {
 public:
@@ -167,6 +169,8 @@ public:
     bool isSingleton() const;
     bool isInterface() const;
     bool isComposite() const;
+    bool isCompositeSingleton() const;
+
     int typeId() const;
     int qListTypeId() const;
 
@@ -196,6 +200,7 @@ public:
         QObject *(*qobjectCallback)(QQmlEngine *, QJSEngine *);
         const QMetaObject *instanceMetaObject;
         QString typeName;
+        QUrl url; // used by composite singletons
 
         void setQObjectApi(QQmlEngine *, QObject *);
         QObject *qobjectApi(QQmlEngine *) const;
@@ -209,11 +214,12 @@ public:
         QHash<QQmlEngine *, QObject *> qobjectApis;
     };
     SingletonInstanceInfo *singletonInstanceInfo() const;
+
     QUrl sourceUrl() const;
 
     int enumValue(const QHashedStringRef &, bool *ok) const;
     int enumValue(const QHashedCStringRef &, bool *ok) const;
-    int enumValue(const QHashedV8String &, bool *ok) const;
+    int enumValue(const QV4::String *, bool *ok) const;
 private:
     QQmlType *superType() const;
     friend class QQmlTypePrivate;
@@ -223,19 +229,22 @@ private:
         CppType = 0,
         SingletonType = 1,
         InterfaceType = 2,
-        CompositeType = 3
+        CompositeType = 3,
+        CompositeSingletonType = 4
     };
     friend QString registrationTypeString(RegistrationType);
-    friend bool checkRegistration(RegistrationType, QQmlMetaTypeData *, const char *, const QString &);
+    friend bool checkRegistration(RegistrationType, QQmlMetaTypeData *, const char *, const QString &, int);
     friend int registerType(const QQmlPrivate::RegisterType &);
     friend int registerSingletonType(const QQmlPrivate::RegisterSingletonType &);
     friend int registerInterface(const QQmlPrivate::RegisterInterface &);
     friend int registerCompositeType(const QQmlPrivate::RegisterCompositeType &);
+    friend int registerCompositeSingletonType(const QQmlPrivate::RegisterCompositeSingletonType &);
     friend Q_QML_EXPORT void qmlClearTypeRegistrations();
     QQmlType(int, const QQmlPrivate::RegisterInterface &);
     QQmlType(int, const QString &, const QQmlPrivate::RegisterSingletonType &);
     QQmlType(int, const QString &, const QQmlPrivate::RegisterType &);
     QQmlType(int, const QString &, const QQmlPrivate::RegisterCompositeType &);
+    QQmlType(int, const QString &, const QQmlPrivate::RegisterCompositeSingletonType &);
     ~QQmlType();
 
     QQmlTypePrivate *d;
@@ -252,7 +261,7 @@ public:
     int maximumMinorVersion() const;
 
     QQmlType *type(const QHashedStringRef &, int);
-    QQmlType *type(const QHashedV8String &, int);
+    QQmlType *type(const QV4::String *, int);
 
     QList<QQmlType*> singletonTypes(int) const;
 
@@ -261,6 +270,7 @@ private:
     friend void addTypeToData(QQmlType* type, QQmlMetaTypeData *data);
     friend struct QQmlMetaTypeData;
     friend Q_QML_EXPORT void qmlClearTypeRegistrations();
+    friend class QQmlTypeModulePrivate;
 
     QQmlTypeModule();
     ~QQmlTypeModule();
@@ -279,7 +289,7 @@ public:
     int minorVersion() const;
 
     QQmlType *type(const QHashedStringRef &) const;
-    QQmlType *type(const QHashedV8String &) const;
+    QQmlType *type(const QV4::String *) const;
 
 private:
     QQmlTypeModule *m_module;

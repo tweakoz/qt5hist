@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -81,11 +81,13 @@ static QElapsedTimer qsg_renderer_timer;
 
 QT_BEGIN_NAMESPACE
 
+#if !defined(QT_NO_DEBUG) && defined(QT_OPENGL_ES_2)
 inline static bool isPowerOfTwo(int x)
 {
     // Assumption: x >= 1
     return x == (x & -x);
 }
+#endif
 
 QSGTexturePrivate::QSGTexturePrivate()
     : wrapChanged(false)
@@ -101,7 +103,7 @@ QSGTexturePrivate::QSGTexturePrivate()
 
 static int qt_debug_texture_count = 0;
 
-#if defined(Q_OS_LINUX) || defined (Q_OS_MAC)
+#if (defined(Q_OS_LINUX) || defined (Q_OS_MAC)) && !defined(Q_OS_ANDROID)
 DEFINE_BOOL_CONFIG_OPTION(qmlDebugLeakBacktrace, QML_DEBUG_LEAK_BACKTRACE)
 
 #define BACKTRACE_SIZE 20
@@ -491,6 +493,8 @@ QSGTexture::WrapMode QSGTexture::verticalWrapMode() const
 void QSGTexture::updateBindOptions(bool force)
 {
     Q_D(QSGTexture);
+    force |= isAtlasTexture();
+
     if (force || d->filteringChanged) {
         bool linear = d->filterMode == Linear;
         GLint minFilter = linear ? GL_LINEAR : GL_NEAREST;
@@ -678,16 +682,21 @@ void QSGPlainTexture::bind()
     GLenum externalFormat = GL_RGBA;
     GLenum internalFormat = GL_RGBA;
 
-    const char *extensions = (const char *) glGetString(GL_EXTENSIONS);
-    if (strstr(extensions, "GL_EXT_bgra")) {
+    QOpenGLContext *context = QOpenGLContext::currentContext();
+    if (context->hasExtension(QByteArrayLiteral("GL_EXT_bgra"))) {
         externalFormat = GL_BGRA;
 #ifdef QT_OPENGL_ES
         internalFormat = GL_BGRA;
 #endif
-    } else if (strstr(extensions, "GL_EXT_texture_format_BGRA8888")
-               || strstr(extensions, "GL_IMG_texture_format_BGRA8888")) {
+    } else if (context->hasExtension(QByteArrayLiteral("GL_EXT_texture_format_BGRA8888"))
+            || context->hasExtension(QByteArrayLiteral("GL_IMG_texture_format_BGRA8888"))) {
         externalFormat = GL_BGRA;
         internalFormat = GL_BGRA;
+#ifdef Q_OS_IOS
+    } else if (context->hasExtension(QByteArrayLiteral("GL_APPLE_texture_format_BGRA8888"))) {
+        externalFormat = GL_BGRA;
+        internalFormat = GL_RGBA;
+#endif
     } else {
         qsg_swizzleBGRAToRGBA(&tmp);
     }
@@ -707,8 +716,7 @@ void QSGPlainTexture::bind()
 
 
     if (m_has_mipmaps) {
-        QOpenGLContext *ctx = QOpenGLContext::currentContext();
-        ctx->functions()->glGenerateMipmap(GL_TEXTURE_2D);
+        context->functions()->glGenerateMipmap(GL_TEXTURE_2D);
         m_mipmaps_generated = true;
     }
 

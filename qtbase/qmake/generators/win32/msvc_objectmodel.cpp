@@ -320,6 +320,7 @@ VCCLCompilerTool::VCCLCompilerTool()
         CallingConvention(callConventionDefault),
         CompileAs(compileAsDefault),
         CompileAsManaged(managedDefault),
+        CompileAsWinRT(unset),
         CompileOnly(unset),
         DebugInformationFormat(debugDisabled),
         DefaultCharIsUnsigned(unset),
@@ -942,6 +943,12 @@ bool VCCLCompilerTool::parseOption(const char* option)
                 found = false; break;
             }
             break;
+        case 'W':
+            if (third == '-')
+                CompileAsWinRT = _False;
+            else
+                CompileAsWinRT = _True;
+            break;
         default:
             found = false; break;
         }
@@ -1165,6 +1172,7 @@ VCLinkerTool::VCLinkerTool()
         IgnoreAllDefaultLibraries(unset),
         IgnoreEmbeddedIDL(unset),
         IgnoreImportLibrary(_True),
+        ImageHasSafeExceptionHandlers(unset),
         LargeAddressAware(addrAwareDefault),
         LinkDLL(unset),
         LinkIncremental(linkIncrementalDefault),
@@ -1198,7 +1206,8 @@ VCLinkerTool::VCLinkerTool()
         AllowIsolation(unset),
         AssemblyDebug(unset),
         CLRUnmanagedCodeCheck(unset),
-        DelaySign(unset)
+        DelaySign(unset),
+        GenerateWindowsMetadata(unset)
 {
 }
 
@@ -1258,6 +1267,7 @@ bool VCLinkerTool::parseOption(const char* option)
     displayHash("/SWAPRUN"); displayHash("/TLBID"); displayHash("/TLBOUT");
     displayHash("/TSAWARE"); displayHash("/VERBOSE"); displayHash("/VERSION");
     displayHash("/VXD"); displayHash("/WS "); displayHash("/libpath");
+    displayHash("/WINMD"); displayHash("/WINMDFILE:");
 
 #endif
 #ifdef USE_DISPLAY_HASH
@@ -1369,6 +1379,15 @@ bool VCLinkerTool::parseOption(const char* option)
             GenerateManifest = _False;
         else
             GenerateManifest = _True;
+        break;
+    case 0x34be314: // /WINMD[:NO]
+        if ((*(option+6) == ':' && (*(option+7) == 'N' || *(option+7) == 'n')))
+            GenerateWindowsMetadata = _False;
+        else
+            GenerateWindowsMetadata = _True;
+        break;
+    case 0x31be7e5: // /WINMDFILE:filename
+        WindowsMetadataFile = option+11;
         break;
     case 0x8b64559: // /MANIFESTDEPENDENCY:manifest_dependency
         AdditionalManifestDependencies += option+20;
@@ -1636,11 +1655,12 @@ bool VCLinkerTool::parseOption(const char* option)
                 StackCommitSize = both[1].toLongLong();
         }
         break;
-    case 0x75AA4D8: // /SAFESH:{NO}
-        {
+    case 0x75AA4D8: // /SAFESEH:{NO}
+        if (config->CompilerVersion >= NET2010)
+            ImageHasSafeExceptionHandlers = (option[8] == ':') ? _False : _True;
+        else
             AdditionalOptions += option;
-            break;
-        }
+        break;
 	case 0x9B3C00D:
     case 0x78dc00d: // /SUBSYSTEM:{CONSOLE|EFI_APPLICATION|EFI_BOOT_SERVICE_DRIVER|EFI_ROM|EFI_RUNTIME_DRIVER|NATIVE|POSIX|WINDOWS|WINDOWSCE}[,major[.minor]]
         {
@@ -2101,7 +2121,9 @@ VCPreLinkEventTool::VCPreLinkEventTool()
 // VCConfiguration --------------------------------------------------
 
 VCConfiguration::VCConfiguration()
-    :        ATLMinimizesCRunTimeLibraryUsage(unset),
+    :   WinRT(false),
+        WinPhone(false),
+        ATLMinimizesCRunTimeLibraryUsage(unset),
         BuildBrowserInformation(unset),
         CharacterSet(charSetNotSet),
         ConfigurationType(typeApplication),
@@ -2311,7 +2333,7 @@ bool VCFilter::addExtraCompiler(const VCFilterFile &info)
                     inputs += Option::fixPathToTargetOS(file, false);
                 }
             }
-            deps += inputs; // input files themselves too..
+            deps = inputs + deps; // input files themselves too..
 
             // Replace variables for command w/all input files
             // ### join gives path issues with directories containing spaces!
@@ -2319,7 +2341,7 @@ bool VCFilter::addExtraCompiler(const VCFilterFile &info)
                                                          inputs.join(' '),
                                                          out);
         } else {
-            deps += inFile; // input file itself too..
+            deps.prepend(inFile); // input file itself too..
             cmd = Project->replaceExtraCompilerVariables(tmp_cmd,
                                                          inFile,
                                                          out);
@@ -2356,14 +2378,14 @@ bool VCFilter::addExtraCompiler(const VCFilterFile &info)
 
         deps += CustomBuildTool.AdditionalDependencies;
         // Make sure that all deps are only once
-        QHash<QString, bool> uniqDeps;
+        QStringList uniqDeps;
         for (int c = 0; c < deps.count(); ++c) {
             QString aDep = deps.at(c).trimmed();
             if (!aDep.isEmpty())
-                uniqDeps[aDep] = false;
+                uniqDeps << aDep;
         }
-        CustomBuildTool.AdditionalDependencies = uniqDeps.keys();
-        CustomBuildTool.AdditionalDependencies.sort();
+        uniqDeps.removeDuplicates();
+        CustomBuildTool.AdditionalDependencies = uniqDeps;
     }
 
     // Ensure that none of the output files are also dependencies. Or else, the custom buildstep
@@ -2455,6 +2477,7 @@ void VCProjectWriter::write(XmlOutput &xml, VCProjectSingleConfig &tool)
     outputFilter(tempProj, xml, "TranslationFiles");
     outputFilter(tempProj, xml, "FormFiles");
     outputFilter(tempProj, xml, "ResourceFiles");
+    outputFilter(tempProj, xml, "DeploymentFiles");
 
     QSet<QString> extraCompilersInProject;
     for (int i = 0; i < tool.ExtraCompilersFiles.count(); ++i) {
@@ -2507,6 +2530,7 @@ void VCProjectWriter::write(XmlOutput &xml, VCProject &tool)
     outputFilter(tool, xml, "TranslationFiles");
     outputFilter(tool, xml, "FormFiles");
     outputFilter(tool, xml, "ResourceFiles");
+    outputFilter(tool, xml, "DeploymentFiles");
     for (int x = 0; x < tool.ExtraCompilers.count(); ++x) {
         outputFilter(tool, xml, tool.ExtraCompilers.at(x));
     }
@@ -2837,7 +2861,7 @@ void VCProjectWriter::outputFilter(VCProject &project, XmlOutput &xml, const QSt
         root = new TreeNode;
 
     QString name, extfilter, guid;
-    triState parse;
+    triState parse = unset;
 
     for (int i = 0; i < project.SingleProjects.count(); ++i) {
         VCFilter filter;
@@ -2858,6 +2882,8 @@ void VCProjectWriter::outputFilter(VCProject &project, XmlOutput &xml, const QSt
             filter = projectSingleConfig.FormFiles;
         } else if (filtername == "ResourceFiles") {
             filter = projectSingleConfig.ResourceFiles;
+        } else if (filtername == "DeploymentFiles") {
+            filter = projectSingleConfig.DeploymentFiles;
         } else {
             // ExtraCompilers
             filter = project.SingleProjects[i].filterForExtraCompiler(filtername);
@@ -2918,6 +2944,8 @@ void VCProjectWriter::outputFileConfigs(VCProject &project, XmlOutput &xml, cons
             filter = projectSingleConfig.FormFiles;
         } else if (filtername == "ResourceFiles") {
             filter = projectSingleConfig.ResourceFiles;
+        } else if (filtername == "DeploymentFiles") {
+            filter = projectSingleConfig.DeploymentFiles;
         } else {
             // ExtraCompilers
             filter = project.SingleProjects[i].filterForExtraCompiler(filtername);

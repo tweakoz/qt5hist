@@ -52,7 +52,7 @@
 
 static QList<QCocoaMenuBar*> static_menubars;
 
-static inline QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *getMenuLoader()
+static inline QCocoaMenuLoader *getMenuLoader()
 {
     return [NSApp QT_MANGLE_NAMESPACE(qt_qcocoamenuLoader)];
 }
@@ -149,15 +149,17 @@ void QCocoaMenuBar::syncMenu(QPlatformMenu *menu)
     Q_FOREACH (QCocoaMenuItem *item, cocoaMenu->items())
         cocoaMenu->syncMenuItem(item);
 
-    // If the NSMenu has no visble items, or only separators, we should hide it
-    // on the menubar. This can happen after syncing the menu items since they
-    // can be moved to other menus.
     BOOL shouldHide = YES;
-    for (NSMenuItem *item in [cocoaMenu->nsMenu() itemArray])
-        if (![item isSeparatorItem] && ![item isHidden]) {
-            shouldHide = NO;
-            break;
-        }
+    if (cocoaMenu->isVisible()) {
+        // If the NSMenu has no visble items, or only separators, we should hide it
+        // on the menubar. This can happen after syncing the menu items since they
+        // can be moved to other menus.
+        for (NSMenuItem *item in [cocoaMenu->nsMenu() itemArray])
+            if (![item isSeparatorItem] && ![item isHidden]) {
+                shouldHide = NO;
+                break;
+            }
+    }
     [cocoaMenu->nsMenuItem() setHidden:shouldHide];
 }
 
@@ -173,6 +175,7 @@ void QCocoaMenuBar::handleReparent(QWindow *newParentWindow)
     if (newParentWindow == NULL) {
         m_window = NULL;
     } else {
+        newParentWindow->create();
         m_window = static_cast<QCocoaWindow*>(newParentWindow->handle());
         m_window->setMenubar(this);
     }
@@ -238,7 +241,7 @@ void QCocoaMenuBar::updateMenuBarImmediately()
         }
     }
 
-    QT_MANGLE_NAMESPACE(QCocoaMenuLoader) *loader = getMenuLoader();
+    QCocoaMenuLoader *loader = getMenuLoader();
     [loader ensureAppMenuInMenu:mb->nsMenu()];
 
     NSMutableSet *mergedItems = [[NSMutableSet setWithCapacity:0] retain];

@@ -480,6 +480,15 @@ void **QListData::erase(void **xi)
 */
 
 /*!
+    \fn QList::QList(QList<T> &&other)
+
+    Move-constructs a QList instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
+*/
+
+/*!
     \fn QList<T> QList<T>::mid(int pos, int length) const
 
     Returns a list whose elements are copied from this list,
@@ -527,6 +536,14 @@ void **QListData::erase(void **xi)
     list.
 */
 
+/*!
+    \fn QList &QList::operator=(QList<T> &&other)
+
+    Move-assigns \a other to this QList instance.
+
+    \since 5.2
+*/
+
 /*! \fn void QList::swap(QList<T> &other)
     \since 4.8
 
@@ -536,7 +553,7 @@ void **QListData::erase(void **xi)
 
 /*! \fn bool QList::operator==(const QList<T> &other) const
 
-    Returns true if \a other is equal to this list; otherwise returns
+    Returns \c true if \a other is equal to this list; otherwise returns
     false.
 
     Two lists are considered equal if they contain the same values in
@@ -550,8 +567,8 @@ void **QListData::erase(void **xi)
 
 /*! \fn bool QList::operator!=(const QList<T> &other) const
 
-    Returns true if \a other is not equal to this list; otherwise
-    returns false.
+    Returns \c true if \a other is not equal to this list; otherwise
+    returns \c false.
 
     Two lists are considered equal if they contain the same values in
     the same order.
@@ -601,7 +618,7 @@ void **QListData::erase(void **xi)
 
 /*! \fn bool QList::isEmpty() const
 
-    Returns true if the list contains no items; otherwise returns
+    Returns \c true if the list contains no items; otherwise returns
     false.
 
     \sa size()
@@ -630,7 +647,10 @@ void **QListData::erase(void **xi)
     \a i must be a valid index position in the list (i.e., 0 <= \a i <
     size()).
 
-    This function is very fast (\l{constant time}).
+    If this function is called on a list that is currently being shared, it
+    will trigger a copy of all elements. Otherwise, this function runs in
+    \l{constant time}. If you do not want to modify the list you should use
+    QList::at().
 
     \sa at(), value()
 */
@@ -639,7 +659,7 @@ void **QListData::erase(void **xi)
 
     \overload
 
-    Same as at().
+    Same as at(). This function runs in \l{constant time}.
 */
 
 /*! \fn QList::reserve(int alloc)
@@ -664,10 +684,10 @@ void **QListData::erase(void **xi)
 
     This is the same as list.insert(size(), \a value).
 
-    This operation is typically very fast (\l{constant time}),
-    because QList preallocates extra space on both sides of its
-    internal buffer to allow for fast growth at both ends of the
-    list.
+    If this list is not shared, this operation is typically
+    very fast (amortized \l{constant time}), because QList
+    preallocates extra space on both sides of its internal
+    buffer to allow for fast growth at both ends of the list.
 
     \sa operator<<(), prepend(), insert()
 */
@@ -692,8 +712,9 @@ void **QListData::erase(void **xi)
 
     This is the same as list.insert(0, \a value).
 
-    This operation is usually very fast (\l{constant time}), because
-    QList preallocates extra space on both sides of its internal
+    If this list is not shared, this operation is typically
+    very fast (amortized \l{constant time}), because QList
+    preallocates extra space on both sides of its internal
     buffer to allow for fast growth at both ends of the list.
 
     \sa append(), insert()
@@ -750,7 +771,7 @@ void **QListData::erase(void **xi)
     \since 4.4
 
     Removes the first occurrence of \a value in the list and returns
-    true on success; otherwise returns false.
+    true on success; otherwise returns \c false.
 
     Example:
     \snippet code/src_corelib_tools_qlistdata.cpp 10
@@ -785,7 +806,7 @@ void **QListData::erase(void **xi)
     same as takeAt(0). This function assumes the list is not empty. To
     avoid failure, call isEmpty() before calling this function.
 
-    This operation takes \l{constant time}.
+    If this list is not shared, this operation takes \l{constant time}.
 
     If you don't use the return value, removeFirst() is more
     efficient.
@@ -800,7 +821,7 @@ void **QListData::erase(void **xi)
     not empty. To avoid failure, call isEmpty() before calling this
     function.
 
-    This operation takes \l{constant time}.
+    If this list is not shared, this operation takes \l{constant time}.
 
     If you don't use the return value, removeLast() is more
     efficient.
@@ -877,8 +898,8 @@ void **QListData::erase(void **xi)
 
 /*! \fn bool QList::contains(const T &value) const
 
-    Returns true if the list contains an occurrence of \a value;
-    otherwise returns false.
+    Returns \c true if the list contains an occurrence of \a value;
+    otherwise returns \c false.
 
     This function requires the value type to have an implementation of
     \c operator==().
@@ -899,8 +920,8 @@ void **QListData::erase(void **xi)
 /*! \fn bool QList::startsWith(const T &value) const
     \since 4.5
 
-    Returns true if this list is not empty and its first
-    item is equal to \a value; otherwise returns false.
+    Returns \c true if this list is not empty and its first
+    item is equal to \a value; otherwise returns \c false.
 
     \sa isEmpty(), contains()
 */
@@ -908,8 +929,8 @@ void **QListData::erase(void **xi)
 /*! \fn bool QList::endsWith(const T &value) const
     \since 4.5
 
-    Returns true if this list is not empty and its last
-    item is equal to \a value; otherwise returns false.
+    Returns \c true if this list is not empty and its last
+    item is equal to \a value; otherwise returns \c false.
 
     \sa isEmpty(), contains()
 */
@@ -1179,7 +1200,7 @@ void **QListData::erase(void **xi)
 /*! \fn bool QList::empty() const
 
     This function is provided for STL compatibility. It is equivalent
-    to isEmpty() and returns true if the list is empty.
+    to isEmpty() and returns \c true if the list is empty.
 */
 
 /*! \fn QList<T> &QList::operator+=(const QList<T> &other)
@@ -1271,6 +1292,11 @@ void **QListData::erase(void **xi)
     iterators over a long period of time, we recommend that you use
     QLinkedList rather than QList.
 
+    \warning Iterators on implicitly shared containers do not work
+    exactly like STL-iterators. You should avoid copying a container
+    while iterators are active on that container. For more information,
+    read \l{Implicit sharing iterator problem}.
+
     \sa QList::const_iterator, QMutableListIterator
 */
 
@@ -1355,8 +1381,8 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator==(const iterator &other) const
     \fn bool QList::iterator::operator==(const const_iterator &other) const
 
-    Returns true if \a other points to the same item as this
-    iterator; otherwise returns false.
+    Returns \c true if \a other points to the same item as this
+    iterator; otherwise returns \c false.
 
     \sa operator!=()
 */
@@ -1365,8 +1391,8 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator!=(const iterator &other) const
     \fn bool QList::iterator::operator!=(const const_iterator &other) const
 
-    Returns true if \a other points to a different item than this
-    iterator; otherwise returns false.
+    Returns \c true if \a other points to a different item than this
+    iterator; otherwise returns \c false.
 
     \sa operator==()
 */
@@ -1375,7 +1401,7 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator<(const iterator& other) const
     \fn bool QList::iterator::operator<(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is less than
+    Returns \c true if the item pointed to by this iterator is less than
     the item pointed to by the \a other iterator.
 */
 
@@ -1383,7 +1409,7 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator<=(const iterator& other) const
     \fn bool QList::iterator::operator<=(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is less than
+    Returns \c true if the item pointed to by this iterator is less than
     or equal to the item pointed to by the \a other iterator.
 */
 
@@ -1391,7 +1417,7 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator>(const iterator& other) const
     \fn bool QList::iterator::operator>(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is greater
+    Returns \c true if the item pointed to by this iterator is greater
     than the item pointed to by the \a other iterator.
 */
 
@@ -1399,7 +1425,7 @@ void **QListData::erase(void **xi)
     \fn bool QList::iterator::operator>=(const iterator& other) const
     \fn bool QList::iterator::operator>=(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is greater
+    Returns \c true if the item pointed to by this iterator is greater
     than or equal to the item pointed to by the \a other iterator.
 */
 
@@ -1521,6 +1547,11 @@ void **QListData::erase(void **xi)
     iterators over a long period of time, we recommend that you use
     QLinkedList rather than QList.
 
+    \warning Iterators on implicitly shared containers do not work
+    exactly like STL-iterators. You should avoid copying a container
+    while iterators are active on that container. For more information,
+    read \l{Implicit sharing iterator problem}.
+
     \sa QList::iterator, QListIterator
 */
 
@@ -1602,16 +1633,16 @@ void **QListData::erase(void **xi)
 
 /*! \fn bool QList::const_iterator::operator==(const const_iterator &other) const
 
-    Returns true if \a other points to the same item as this
-    iterator; otherwise returns false.
+    Returns \c true if \a other points to the same item as this
+    iterator; otherwise returns \c false.
 
     \sa operator!=()
 */
 
 /*! \fn bool QList::const_iterator::operator!=(const const_iterator &other) const
 
-    Returns true if \a other points to a different item than this
-    iterator; otherwise returns false.
+    Returns \c true if \a other points to a different item than this
+    iterator; otherwise returns \c false.
 
     \sa operator==()
 */
@@ -1619,28 +1650,28 @@ void **QListData::erase(void **xi)
 /*!
     \fn bool QList::const_iterator::operator<(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is less than
+    Returns \c true if the item pointed to by this iterator is less than
     the item pointed to by the \a other iterator.
 */
 
 /*!
     \fn bool QList::const_iterator::operator<=(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is less than
+    Returns \c true if the item pointed to by this iterator is less than
     or equal to the item pointed to by the \a other iterator.
 */
 
 /*!
     \fn bool QList::const_iterator::operator>(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is greater
+    Returns \c true if the item pointed to by this iterator is greater
     than the item pointed to by the \a other iterator.
 */
 
 /*!
     \fn bool QList::const_iterator::operator>=(const const_iterator& other) const
 
-    Returns true if the item pointed to by this iterator is greater
+    Returns \c true if the item pointed to by this iterator is greater
     than or equal to the item pointed to by the \a other iterator.
 */
 

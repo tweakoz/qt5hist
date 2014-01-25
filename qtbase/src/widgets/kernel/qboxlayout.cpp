@@ -52,8 +52,8 @@
 QT_BEGIN_NAMESPACE
 
 /*
-    Returns true if the \a widget can be added to the \a layout;
-    otherwise returns false.
+    Returns \c true if the \a widget can be added to the \a layout;
+    otherwise returns \c false.
 */
 static bool checkWidget(QLayout *layout, QWidget *widget)
 {
@@ -140,6 +140,7 @@ public:
     void calcHfw(int);
 
     void effectiveMargins(int *left, int *top, int *right, int *bottom) const;
+    QLayoutItem* replaceAt(int index, QLayoutItem*) Q_DECL_OVERRIDE;
 };
 
 QBoxLayoutPrivate::~QBoxLayoutPrivate()
@@ -442,6 +443,21 @@ void QBoxLayoutPrivate::calcHfw(int w)
     hfwWidth = w;
     hfwHeight = h;
     hfwMinHeight = mh;
+}
+
+QLayoutItem* QBoxLayoutPrivate::replaceAt(int index, QLayoutItem *item)
+{
+    Q_Q(QBoxLayout);
+    if (!item)
+        return 0;
+    QBoxLayoutItem *b = list.value(index);
+    if (!b)
+        return 0;
+    QLayoutItem *r = b->item;
+
+    b->item = item;
+    q->invalidate();
+    return r;
 }
 
 
@@ -1096,7 +1112,7 @@ void QBoxLayout::addStrut(int size)
 /*!
     Sets the stretch factor for \a widget to \a stretch and returns
     true if \a widget is found in this layout (not including child
-    layouts); otherwise returns false.
+    layouts); otherwise returns \c false.
 
     \sa setAlignment()
 */
@@ -1120,8 +1136,8 @@ bool QBoxLayout::setStretchFactor(QWidget *widget, int stretch)
     \overload
 
     Sets the stretch factor for the layout \a layout to \a stretch and
-    returns true if \a layout is found in this layout (not including
-    child layouts); otherwise returns false.
+    returns \c true if \a layout is found in this layout (not including
+    child layouts); otherwise returns \c false.
 */
 bool QBoxLayout::setStretchFactor(QLayout *layout, int stretch)
 {

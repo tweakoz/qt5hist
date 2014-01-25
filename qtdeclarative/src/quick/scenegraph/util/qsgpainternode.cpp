@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -111,7 +111,7 @@ QSGPainterNode::QSGPainterNode(QQuickPaintedItem *item)
     , m_dirtyRenderTarget(false)
     , m_dirtyTexture(false)
 {
-    m_context = static_cast<QQuickPaintedItemPrivate *>(QObjectPrivate::get(item))->sceneGraphContext();
+    m_context = static_cast<QQuickPaintedItemPrivate *>(QObjectPrivate::get(item))->sceneGraphRenderContext();
 
     setMaterial(&m_materialO);
     setOpaqueMaterial(&m_material);
@@ -260,7 +260,7 @@ void QSGPainterNode::updateRenderTarget()
 
     if (m_actualRenderTarget == QQuickPaintedItem::FramebufferObject ||
             m_actualRenderTarget == QQuickPaintedItem::InvertedYFramebufferObject) {
-        const QOpenGLContext *ctx = m_context->glContext();
+        const QOpenGLContext *ctx = m_context->openglContext();
         if (m_fbo && !m_dirtyGeometry && (!ctx->format().samples() || !m_multisamplingSupported))
             return;
 
@@ -323,7 +323,7 @@ void QSGPainterNode::updateFBOSize()
         fboWidth = qMax(QT_MINIMUM_DYNAMIC_FBO_SIZE, qt_next_power_of_two(m_size.width()));
         fboHeight = qMax(QT_MINIMUM_DYNAMIC_FBO_SIZE, qt_next_power_of_two(m_size.height()));
     } else {
-        QSize minimumFBOSize = m_context->minimumFBOSize();
+        QSize minimumFBOSize = m_context->sceneGraphContext()->minimumFBOSize();
         fboWidth = qMax(minimumFBOSize.width(), m_size.width());
         fboHeight = qMax(minimumFBOSize.height(), m_size.height());
     }

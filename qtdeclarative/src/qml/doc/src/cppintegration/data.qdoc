@@ -59,7 +59,7 @@ instance which already has a parent.
 \section1 Basic Qt Data Types
 
 By default, QML recognizes the following Qt data types, which are
-automatically converted to a corresponding \l {QML Basic Type}{QML basic type}
+automatically converted to a corresponding \l {QML Basic Types}{QML basic type}
 when passed from C++ to QML and vice-versa:
 
 \table
@@ -83,7 +83,7 @@ when passed from C++ to QML and vice-versa:
         \li \l string
     \row
         \li QUrl
-        \li real
+        \li \l url
     \row
         \li QColor
         \li \l color
@@ -124,7 +124,7 @@ QQuaternion and QMatrix4x4, are only available from QML when the \l {Qt Quick}
 module is included.
 
 As a convenience, many of these types can be specified in QML by string values,
-or by a related method provided by the \l {QtQml2::Qt} object. For example, the \l
+or by a related method provided by the \l {QtQml::Qt} object. For example, the \l
 {Image::sourceSize} property is of type \l size (which automatically translates
 to the QSize type) and can be specified by a string value formatted as
 "width\c{x}height", or by the Qt.size() function:

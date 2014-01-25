@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -46,7 +46,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype KeyEvent
     \instantiates QQuickKeyEvent
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-input-events
 
     \brief Provides information about a key event
@@ -62,7 +62,7 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::KeyEvent::key
+    \qmlproperty int QtQuick::KeyEvent::key
 
     This property holds the code of the key that was pressed or released.
 
@@ -79,7 +79,7 @@ Item {
 */
 
 /*!
-    \qmlproperty string QtQuick2::KeyEvent::text
+    \qmlproperty string QtQuick::KeyEvent::text
 
     This property holds the Unicode text that the key generated.
     The text returned can be an empty string in cases where modifier keys,
@@ -88,13 +88,13 @@ Item {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::KeyEvent::isAutoRepeat
+    \qmlproperty bool QtQuick::KeyEvent::isAutoRepeat
 
     This property holds whether this event comes from an auto-repeating key.
 */
 
 /*!
-    \qmlproperty quint32 QtQuick2::KeyEvent::nativeScanCode
+    \qmlproperty quint32 QtQuick::KeyEvent::nativeScanCode
 
     This property contains the native scan code of the key that was pressed. It is
     passed through from QKeyEvent unchanged.
@@ -103,14 +103,14 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::KeyEvent::count
+    \qmlproperty int QtQuick::KeyEvent::count
 
     This property holds the number of keys involved in this event. If \l KeyEvent::text
     is not empty, this is simply the length of the string.
 */
 
 /*!
-    \qmlproperty bool QtQuick2::KeyEvent::accepted
+    \qmlproperty bool QtQuick::KeyEvent::accepted
 
     Setting \a accepted to true prevents the key event from being
     propagated to the item's parent.
@@ -120,7 +120,7 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::KeyEvent::modifiers
+    \qmlproperty int QtQuick::KeyEvent::modifiers
 
     This property holds the keyboard modifier flags that existed immediately
     before the event occurred.
@@ -147,11 +147,31 @@ Item {
     \endqml
 */
 
+/*!
+    \qmlmethod bool QtQuick::KeyEvent::matches(StandardKey key)
+    \since 5.2
+
+    Returns \c true if the key event matches the given standard \a key; otherwise returns \c false.
+
+    \qml
+    Item {
+        focus: true
+        Keys.onPressed: {
+            if (event.matches(StandardKey.Undo))
+                myModel.undo();
+            else if (event.matches(StandardKey.Redo))
+                myModel.redo();
+        }
+    }
+    \endqml
+
+    \sa QKeySequence::StandardKey
+*/
 
 /*!
     \qmltype MouseEvent
     \instantiates QQuickMouseEvent
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-input-events
 
     \brief Provides information about a mouse event
@@ -168,15 +188,15 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::MouseEvent::x
-    \qmlproperty int QtQuick2::MouseEvent::y
+    \qmlproperty int QtQuick::MouseEvent::x
+    \qmlproperty int QtQuick::MouseEvent::y
 
     These properties hold the coordinates of the position supplied by the mouse event.
 */
 
 
 /*!
-    \qmlproperty bool QtQuick2::MouseEvent::accepted
+    \qmlproperty bool QtQuick::MouseEvent::accepted
 
     Setting \a accepted to true prevents the mouse event from being
     propagated to items below this item.
@@ -186,7 +206,7 @@ Item {
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::MouseEvent::button
+    \qmlproperty enumeration QtQuick::MouseEvent::button
 
     This property holds the button that caused the event.  It can be one of:
     \list
@@ -197,14 +217,14 @@ Item {
 */
 
 /*!
-    \qmlproperty bool QtQuick2::MouseEvent::wasHeld
+    \qmlproperty bool QtQuick::MouseEvent::wasHeld
 
     This property is true if the mouse button has been held pressed longer the
     threshold (800ms).
 */
 
 /*!
-    \qmlproperty int QtQuick2::MouseEvent::buttons
+    \qmlproperty int QtQuick::MouseEvent::buttons
 
     This property holds the mouse buttons pressed when the event was generated.
     For mouse move events, this is all buttons that are pressed down. For mouse
@@ -220,7 +240,7 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::MouseEvent::modifiers
+    \qmlproperty int QtQuick::MouseEvent::modifiers
 
     This property holds the keyboard modifier flags that existed immediately
     before the event occurred.
@@ -250,7 +270,7 @@ Item {
 /*!
     \qmltype WheelEvent
     \instantiates QQuickWheelEvent
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-input-events
     \brief Provides information about a mouse wheel event
 
@@ -265,14 +285,14 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::WheelEvent::x
-    \qmlproperty int QtQuick2::WheelEvent::y
+    \qmlproperty int QtQuick::WheelEvent::x
+    \qmlproperty int QtQuick::WheelEvent::y
 
     These properties hold the coordinates of the position supplied by the wheel event.
 */
 
 /*!
-    \qmlproperty bool QtQuick2::WheelEvent::accepted
+    \qmlproperty bool QtQuick::WheelEvent::accepted
 
     Setting \a accepted to true prevents the wheel event from being
     propagated to items below this item.
@@ -282,7 +302,7 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::WheelEvent::buttons
+    \qmlproperty int QtQuick::WheelEvent::buttons
 
     This property holds the mouse buttons pressed when the wheel event was generated.
 
@@ -295,7 +315,7 @@ Item {
 */
 
 /*!
-    \qmlproperty point QtQuick2::WheelEvent::angleDelta
+    \qmlproperty point QtQuick::WheelEvent::angleDelta
 
     This property holds the distance that the wheel is rotated in wheel degrees.
     The x and y cordinate of this property holds the delta in horizontal and
@@ -309,7 +329,7 @@ Item {
 */
 
 /*!
-    \qmlproperty point QtQuick2::WheelEvent::pixelDelta
+    \qmlproperty point QtQuick::WheelEvent::pixelDelta
 
     This property holds the delta in screen pixels and is available in plataforms that
     have high-resolution trackpads, such as Mac OS X.
@@ -321,7 +341,7 @@ Item {
 */
 
 /*!
-    \qmlproperty int QtQuick2::WheelEvent::modifiers
+    \qmlproperty int QtQuick::WheelEvent::modifiers
 
     This property holds the keyboard modifier flags that existed immediately
     before the event occurred.

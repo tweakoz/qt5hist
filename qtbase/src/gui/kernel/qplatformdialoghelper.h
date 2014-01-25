@@ -57,6 +57,7 @@
 #include <QtCore/QSharedDataPointer>
 #include <QtCore/QSharedPointer>
 #include <QtCore/QDir>
+#include <QtCore/QUrl>
 #include <QtGui/QRgb>
 
 QT_BEGIN_NAMESPACE
@@ -71,13 +72,13 @@ class QUrl;
 class QColorDialogOptionsPrivate;
 class QFontDialogOptionsPrivate;
 class QFileDialogOptionsPrivate;
+class QMessageDialogOptionsPrivate;
 
 class Q_GUI_EXPORT QPlatformDialogHelper : public QObject
 {
     Q_OBJECT
 public:
     enum StyleHint {
-        SnapToDefaultButton
     };
     enum DialogCode { Rejected, Accepted };
 
@@ -163,7 +164,11 @@ class Q_GUI_EXPORT QFontDialogOptions
 public:
     enum FontDialogOption {
         NoButtons           = 0x00000001,
-        DontUseNativeDialog = 0x00000002
+        DontUseNativeDialog = 0x00000002,
+        ScalableFonts       = 0x00000004,
+        NonScalableFonts    = 0x00000008,
+        MonospacedFonts     = 0x00000010,
+        ProportionalFonts   = 0x00000020
     };
 
     Q_DECLARE_FLAGS(FontDialogOptions, FontDialogOption)
@@ -217,13 +222,14 @@ public:
 
     enum FileDialogOption
     {
-        ShowDirsOnly          = 0x00000001,
-        DontResolveSymlinks   = 0x00000002,
-        DontConfirmOverwrite  = 0x00000004,
-        DontUseSheet          = 0x00000008,
-        DontUseNativeDialog   = 0x00000010,
-        ReadOnly              = 0x00000020,
-        HideNameFilterDetails = 0x00000040
+        ShowDirsOnly                = 0x00000001,
+        DontResolveSymlinks         = 0x00000002,
+        DontConfirmOverwrite        = 0x00000004,
+        DontUseSheet                = 0x00000008,
+        DontUseNativeDialog         = 0x00000010,
+        ReadOnly                    = 0x00000020,
+        HideNameFilterDetails       = 0x00000040,
+        DontUseCustomDirectoryIcons = 0x00000080
     };
     Q_DECLARE_FLAGS(FileDialogOptions, FileDialogOption)
 
@@ -260,6 +266,9 @@ public:
     void setNameFilters(const QStringList &filters);
     QStringList nameFilters() const;
 
+    void setMimeTypeFilters(const QStringList &filters);
+    QStringList mimeTypeFilters() const;
+
     void setDefaultSuffix(const QString &suffix);
     QString defaultSuffix() const;
 
@@ -270,14 +279,14 @@ public:
     QString labelText(DialogLabel label) const;
     bool isLabelExplicitlySet(DialogLabel label);
 
-    QString initialDirectory() const;
-    void setInitialDirectory(const QString &);
+    QUrl initialDirectory() const;
+    void setInitialDirectory(const QUrl &);
 
     QString initiallySelectedNameFilter() const;
     void setInitiallySelectedNameFilter(const QString &);
 
-    QStringList initiallySelectedFiles() const;
-    void setInitiallySelectedFiles(const QStringList &);
+    QList<QUrl> initiallySelectedFiles() const;
+    void setInitiallySelectedFiles(const QList<QUrl> &);
 
 private:
     QSharedDataPointer<QFileDialogOptionsPrivate> d;
@@ -290,13 +299,15 @@ class Q_GUI_EXPORT QPlatformFileDialogHelper : public QPlatformDialogHelper
     Q_OBJECT
 public:
     virtual bool defaultNameFilterDisables() const = 0;
-    virtual void setDirectory(const QString &directory) = 0;
-    virtual QString directory() const = 0;
-    virtual void selectFile(const QString &filename) = 0;
-    virtual QStringList selectedFiles() const = 0;
+    virtual void setDirectory(const QUrl &directory) = 0;
+    virtual QUrl directory() const = 0;
+    virtual void selectFile(const QUrl &filename) = 0;
+    virtual QList<QUrl> selectedFiles() const = 0;
     virtual void setFilter() = 0;
     virtual void selectNameFilter(const QString &filter) = 0;
     virtual QString selectedNameFilter() const = 0;
+
+    virtual bool isSupportedUrl(const QUrl &url) const;
 
     const QSharedPointer<QFileDialogOptions> &options() const;
     void setOptions(const QSharedPointer<QFileDialogOptions> &options);
@@ -305,14 +316,111 @@ public:
     static const char *filterRegExp;
 
 Q_SIGNALS:
-    void fileSelected(const QString &file);
-    void filesSelected(const QStringList &files);
-    void currentChanged(const QString &path);
-    void directoryEntered(const QString &directory);
+    void fileSelected(const QUrl &file);
+    void filesSelected(const QList<QUrl> &files);
+    void currentChanged(const QUrl &path);
+    void directoryEntered(const QUrl &directory);
     void filterSelected(const QString &filter);
 
 private:
     QSharedPointer<QFileDialogOptions> m_options;
+};
+
+class Q_GUI_EXPORT QMessageDialogOptions
+{
+public:
+    // Keep in sync with QMessageBox::Icon
+    enum Icon { NoIcon, Information, Warning, Critical, Question };
+
+    enum StandardButton {
+        // keep this in sync with QDialogButtonBox::StandardButton and QMessageBox::StandardButton
+        NoButton           = 0x00000000,
+        Ok                 = 0x00000400,
+        Save               = 0x00000800,
+        SaveAll            = 0x00001000,
+        Open               = 0x00002000,
+        Yes                = 0x00004000,
+        YesToAll           = 0x00008000,
+        No                 = 0x00010000,
+        NoToAll            = 0x00020000,
+        Abort              = 0x00040000,
+        Retry              = 0x00080000,
+        Ignore             = 0x00100000,
+        Close              = 0x00200000,
+        Cancel             = 0x00400000,
+        Discard            = 0x00800000,
+        Help               = 0x01000000,
+        Apply              = 0x02000000,
+        Reset              = 0x04000000,
+        RestoreDefaults    = 0x08000000,
+
+
+        FirstButton        = Ok,                // internal
+        LastButton         = RestoreDefaults    // internal
+    };
+
+    Q_DECLARE_FLAGS(StandardButtons, StandardButton)
+
+    enum ButtonRole {
+        InvalidRole = -1,
+        AcceptRole,
+        RejectRole,
+        DestructiveRole,
+        ActionRole,
+        HelpRole,
+        YesRole,
+        NoRole,
+        ResetRole,
+        ApplyRole,
+
+        NRoles
+    };
+
+    QMessageDialogOptions();
+    QMessageDialogOptions(const QMessageDialogOptions &rhs);
+    QMessageDialogOptions &operator=(const QMessageDialogOptions &rhs);
+    ~QMessageDialogOptions();
+
+    void swap(QMessageDialogOptions &other) { qSwap(d, other.d); }
+
+    QString windowTitle() const;
+    void setWindowTitle(const QString &);
+
+    void setIcon(Icon icon);
+    Icon icon() const;
+
+    void setText(const QString &text);
+    QString text() const;
+
+    void setInformativeText(const QString &text);
+    QString informativeText() const;
+
+    void setDetailedText(const QString &text);
+    QString detailedText() const;
+
+    void setStandardButtons(StandardButtons buttons);
+    StandardButtons standardButtons() const;
+
+    static ButtonRole buttonRole(StandardButton button);
+
+private:
+    QSharedDataPointer<QMessageDialogOptionsPrivate> d;
+};
+
+Q_DECLARE_SHARED(QMessageDialogOptions)
+
+class Q_GUI_EXPORT QPlatformMessageDialogHelper : public QPlatformDialogHelper
+{
+    Q_OBJECT
+public:
+    const QSharedPointer<QMessageDialogOptions> &options() const;
+    void setOptions(const QSharedPointer<QMessageDialogOptions> &options);
+
+Q_SIGNALS:
+    void clicked(QMessageDialogOptions::StandardButton button, QMessageDialogOptions::ButtonRole role);
+
+private:
+    QSharedPointer<QMessageDialogOptions> m_options;
 };
 
 QT_END_NAMESPACE

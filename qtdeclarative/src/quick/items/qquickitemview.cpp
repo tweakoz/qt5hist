@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -326,7 +326,7 @@ void QQuickItemView::setModel(const QVariant &model)
             d->updateSectionCriteria();
             d->refill();
             d->currentIndex = -1;
-            setCurrentIndex(0);
+            setCurrentIndex(d->model->count() > 0 ? 0 : -1);
             d->updateViewport();
 
             if (d->transitioner && d->transitioner->populateTransition) {

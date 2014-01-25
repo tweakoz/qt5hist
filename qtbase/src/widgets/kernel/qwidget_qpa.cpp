@@ -53,6 +53,7 @@
 #include <qpa/qplatformintegration.h>
 #include "QtGui/private/qwindow_p.h"
 #include "QtGui/private/qguiapplication_p.h"
+#include <private/qwindowcontainer_p.h>
 
 #include <qpa/qplatformcursor.h>
 #include <QtGui/QGuiApplication>
@@ -110,7 +111,8 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
 
     win->setFlags(data.window_flags);
     fixPosIncludesFrame();
-    if (q->testAttribute(Qt::WA_Moved))
+    if (q->testAttribute(Qt::WA_Moved)
+        || !QGuiApplicationPrivate::platformIntegration()->hasCapability(QPlatformIntegration::WindowManagement))
         win->setGeometry(q->geometry());
     else
         win->resize(q->size());
@@ -153,7 +155,10 @@ void QWidgetPrivate::create_sys(WId window, bool initializeWindow, bool destroyO
     }
 
     setWindowModified_helper();
-    setWinId(win->winId());
+    WId id = win->winId();
+    // See the QPlatformWindow::winId() documentation
+    Q_ASSERT(id != WId(0));
+    setWinId(id);
 
     // Check children and create windows for them if necessary
     q_createNativeChildrenAndSetParent(q);
@@ -263,8 +268,11 @@ void QWidgetPrivate::setParent_sys(QWidget *newparent, Qt::WindowFlags f)
     bool explicitlyHidden = q->testAttribute(Qt::WA_WState_Hidden) && q->testAttribute(Qt::WA_WState_ExplicitShowHide);
 
     // Reparenting toplevel to child
-    if (wasCreated && !(f & Qt::Window) && (oldFlags & Qt::Window) && !q->testAttribute(Qt::WA_NativeWindow))
+    if (wasCreated && !(f & Qt::Window) && (oldFlags & Qt::Window) && !q->testAttribute(Qt::WA_NativeWindow)) {
+        if (extra && extra->hasWindowContainer)
+            QWindowContainer::toplevelAboutToBeDestroyed(q);
         q->destroy();
+    }
 
     adjustFlags(f, q);
     data.window_flags = f;
@@ -527,7 +535,8 @@ void QWidgetPrivate::show_sys()
         }
         const QRect windowRect = window->geometry();
         if (windowRect != geomRect) {
-            if (q->testAttribute(Qt::WA_Moved))
+            if (q->testAttribute(Qt::WA_Moved)
+                || !QGuiApplicationPrivate::platformIntegration()->hasCapability(QPlatformIntegration::WindowManagement))
                 window->setGeometry(geomRect);
             else
                 window->resize(geomRect.size());
@@ -900,6 +909,8 @@ void QWidgetPrivate::createTLSysExtra()
             extra->topextra->window->setMinimumSize(QSize(extra->minw, extra->minh));
         if (extra->maxw != QWIDGETSIZE_MAX || extra->maxh != QWIDGETSIZE_MAX)
             extra->topextra->window->setMaximumSize(QSize(extra->maxw, extra->maxh));
+        if (extra->topextra->opacity != 255 && q->isWindow())
+            extra->topextra->window->setOpacity(qreal(extra->topextra->opacity) / qreal(255));
 #ifdef Q_OS_WIN
         // Pass on native parent handle for Widget embedded into Active X.
         const QVariant activeXNativeParentHandle = q->property(activeXNativeParentHandleProperty);

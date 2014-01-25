@@ -93,6 +93,7 @@ public:
     QString m_unTrPrefix; // QM specific
     QString m_sourceFileName;
     QString m_targetFileName;
+    QStringList m_excludes;
     QDir m_sourceDir;
     QDir m_targetDir; // FIXME: TS specific
     QSet<QString> m_projectRoots;
@@ -134,7 +135,7 @@ public:
     int find(const QString &context) const;
 
     void replaceSorted(const TranslatorMessage &msg);
-    void extend(const TranslatorMessage &msg); // Only for single-location messages
+    void extend(const TranslatorMessage &msg, ConversionData &cd); // Only for single-location messages
     void append(const TranslatorMessage &msg);
     void appendSorted(const TranslatorMessage &msg);
 

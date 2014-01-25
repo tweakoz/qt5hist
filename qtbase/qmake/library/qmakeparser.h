@@ -79,6 +79,7 @@ public:
 };
 
 class ProFileCache;
+class QMakeVfs;
 
 class QMAKE_EXPORT QMakeParser
 {
@@ -86,11 +87,18 @@ public:
     // Call this from a concurrency-free context
     static void initialize();
 
-    QMakeParser(ProFileCache *cache, QMakeParserHandler *handler);
+    enum ParseFlag {
+        ParseDefault = 0,
+        ParseUseCache = 1,
+        ParseReportMissing = 2
+    };
+    Q_DECLARE_FLAGS(ParseFlags, ParseFlag)
+
+    QMakeParser(ProFileCache *cache, QMakeVfs *vfs, QMakeParserHandler *handler);
 
     enum SubGrammar { FullGrammar, TestGrammar, ValueGrammar };
     // fileName is expected to be absolute and cleanPath()ed.
-    ProFile *parsedProFile(const QString &fileName, bool cache = false);
+    ProFile *parsedProFile(const QString &fileName, ParseFlags flags = ParseDefault);
     ProFile *parsedProBlock(const QString &contents, const QString &name, int line = 0,
                             SubGrammar grammar = FullGrammar);
 
@@ -129,7 +137,7 @@ private:
         ushort terminator; // '}' if replace function call is braced, ':' if test function
     };
 
-    bool read(ProFile *pro);
+    bool read(ProFile *pro, ParseFlags flags);
     bool read(ProFile *pro, const QString &content, int line, SubGrammar grammar);
 
     ALWAYS_INLINE void putTok(ushort *&tokPtr, ushort tok);
@@ -175,12 +183,15 @@ private:
 
     ProFileCache *m_cache;
     QMakeParserHandler *m_handler;
+    QMakeVfs *m_vfs;
 
     // This doesn't help gcc 3.3 ...
     template<typename T> friend class QTypeInfo;
 
     friend class ProFileCache;
 };
+
+Q_DECLARE_OPERATORS_FOR_FLAGS(QMakeParser::ParseFlags)
 
 class QMAKE_EXPORT ProFileCache
 {

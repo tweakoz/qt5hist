@@ -237,7 +237,11 @@ int Tokenizer::getToken()
                 return getTokenAfterPreprocessor();
             case '&':
                 yyCh = getChar();
-                if (yyCh == '&' || yyCh == '=') {
+                /*
+                  Removed check for '&&', only interpret '&=' as an operator.
+                  '&&' is also used for an rvalue reference. QTBUG-32675
+                 */
+                if (yyCh == '=') {
                     yyCh = getChar();
                     return Tok_SomeOperator;
                 }
@@ -711,7 +715,7 @@ bool Tokenizer::popSkipping()
 }
 
 /*
-  Returns true if the condition evaluates as true, otherwise false.  The
+  Returns \c true if the condition evaluates as true, otherwise false.  The
   condition is represented by a string.  Unsophisticated parsing techniques are
   used.  The preprocessing method could be named StriNg-Oriented PreProcessing,
   as SNOBOL stands for StriNg-Oriented symBOlic Language.

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -1023,7 +1023,7 @@ void QQuickListViewPrivate::updateInlineSection(FxListItemSG *listItem)
 
 void QQuickListViewPrivate::updateStickySections()
 {
-    if (!sectionCriteria
+    if (!sectionCriteria || !sectionCriteria->delegate()
             || (!sectionCriteria->labelPositioning() && !currentSectionItem && !nextSectionItem))
         return;
 
@@ -1360,16 +1360,18 @@ void QQuickListViewPrivate::itemGeometryChanged(QQuickItem *item, const QRectF &
             if (visibleItems.count() && item == visibleItems.first()->item) {
                 FxListItemSG *listItem = static_cast<FxListItemSG*>(visibleItems.first());
                 if (orient == QQuickListView::Vertical) {
+                    const qreal oldItemEndPosition = verticalLayoutDirection == QQuickItemView::BottomToTop ? -oldGeometry.y() : oldGeometry.y() + oldGeometry.height();
                     qreal diff = newGeometry.height() - oldGeometry.height();
-                    if (verticalLayoutDirection == QQuickListView::TopToBottom && listItem->endPosition() < q->contentY())
+                    if (verticalLayoutDirection == QQuickListView::TopToBottom && oldItemEndPosition < q->contentY())
                         listItem->setPosition(listItem->position() - diff, true);
-                    else if (verticalLayoutDirection == QQuickListView::BottomToTop && listItem->endPosition() > q->contentY())
+                    else if (verticalLayoutDirection == QQuickListView::BottomToTop && oldItemEndPosition > q->contentY())
                         listItem->setPosition(listItem->position() + diff, true);
                 } else {
+                    const qreal oldItemEndPosition = q->effectiveLayoutDirection() == Qt::RightToLeft ? -oldGeometry.x() : oldGeometry.x() + oldGeometry.width();
                     qreal diff = newGeometry.width() - oldGeometry.width();
-                    if (q->effectiveLayoutDirection() == Qt::LeftToRight && listItem->endPosition() < q->contentX())
+                    if (q->effectiveLayoutDirection() == Qt::LeftToRight && oldItemEndPosition < q->contentX())
                         listItem->setPosition(listItem->position() - diff, true);
-                    else if (q->effectiveLayoutDirection() == Qt::RightToLeft && listItem->endPosition() > q->contentX())
+                    else if (q->effectiveLayoutDirection() == Qt::RightToLeft && oldItemEndPosition > q->contentX())
                         listItem->setPosition(listItem->position() + diff, true);
                 }
             }
@@ -1644,7 +1646,7 @@ bool QQuickListViewPrivate::flick(AxisData &data, qreal minExtent, qreal maxExte
 /*!
     \qmltype ListView
     \instantiates QQuickListView
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-views
     \inherits Flickable
     \brief Provides a list view of items provided by a model
@@ -1688,6 +1690,7 @@ bool QQuickListViewPrivate::flick(AxisData &data, qreal minExtent, qreal maxExte
     The list view itself is a focus scope (see \l{Keyboard Focus in Qt Quick} for more details).
 
     Delegates are instantiated as needed and may be destroyed at any time.
+    They are parented to ListView's \l {Flickable::contentItem}{contentItem}, not to the view itself.
     State should \e never be stored in a delegate.
 
     ListView attaches a number of properties to the root item of the delegate, for example
@@ -1741,7 +1744,7 @@ bool QQuickListViewPrivate::flick(AxisData &data, qreal minExtent, qreal maxExte
             \image listview-layout-righttoleft.png
     \endtable
 
-    \sa {QML Data Models}, GridView, {quick/modelviews/listview}{ListView examples}
+    \sa {QML Data Models}, GridView, PathView, {Qt Quick Examples - Views}
 */
 QQuickListView::QQuickListView(QQuickItem *parent)
     : QQuickItemView(*(new QQuickListViewPrivate), parent)
@@ -1753,7 +1756,7 @@ QQuickListView::~QQuickListView()
 }
 
 /*!
-    \qmlattachedproperty bool QtQuick2::ListView::isCurrentItem
+    \qmlattachedproperty bool QtQuick::ListView::isCurrentItem
     This attached property is true if this delegate is the current item; otherwise false.
 
     It is attached to each instance of the delegate.
@@ -1764,14 +1767,14 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedproperty ListView QtQuick2::ListView::view
+    \qmlattachedproperty ListView QtQuick::ListView::view
     This attached property holds the view that manages this delegate instance.
 
     It is attached to each instance of the delegate.
 */
 
 /*!
-    \qmlattachedproperty string QtQuick2::ListView::previousSection
+    \qmlattachedproperty string QtQuick::ListView::previousSection
     This attached property holds the section of the previous element.
 
     It is attached to each instance of the delegate.
@@ -1780,7 +1783,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedproperty string QtQuick2::ListView::nextSection
+    \qmlattachedproperty string QtQuick::ListView::nextSection
     This attached property holds the section of the next element.
 
     It is attached to each instance of the delegate.
@@ -1789,7 +1792,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedproperty string QtQuick2::ListView::section
+    \qmlattachedproperty string QtQuick::ListView::section
     This attached property holds the section of this element.
 
     It is attached to each instance of the delegate.
@@ -1798,7 +1801,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedproperty bool QtQuick2::ListView::delayRemove
+    \qmlattachedproperty bool QtQuick::ListView::delayRemove
 
     This attached property holds whether the delegate may be destroyed. It
     is attached to each instance of the delegate. The default value is false.
@@ -1814,7 +1817,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedsignal QtQuick2::ListView::onAdd()
+    \qmlattachedsignal QtQuick::ListView::onAdd()
     This attached signal handler is called immediately after an item is added to the view.
 
     If an \l add transition is specified, it is applied immediately after
@@ -1822,7 +1825,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlattachedsignal QtQuick2::ListView::onRemove()
+    \qmlattachedsignal QtQuick::ListView::onRemove()
     This attached handler is called immediately before an item is removed from the view.
 
     If a \l remove transition has been specified, it is applied after
@@ -1830,7 +1833,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlproperty model QtQuick2::ListView::model
+    \qmlproperty model QtQuick::ListView::model
     This property holds the model providing data for the list.
 
     The model provides the set of data that is used to create the items
@@ -1842,7 +1845,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-    \qmlproperty Component QtQuick2::ListView::delegate
+    \qmlproperty Component QtQuick::ListView::delegate
 
     The delegate provides a template defining each item instantiated by the view.
     The index is exposed as an accessible \c index property.  Properties of the
@@ -1860,11 +1863,12 @@ QQuickListView::~QQuickListView()
     alignment of items.
 
     \note Delegates are instantiated as needed and may be destroyed at any time.
+    They are parented to ListView's \l {Flickable::contentItem}{contentItem}, not to the view itself.
     State should \e never be stored in a delegate.
 */
 /*!
-    \qmlproperty int QtQuick2::ListView::currentIndex
-    \qmlproperty Item QtQuick2::ListView::currentItem
+    \qmlproperty int QtQuick::ListView::currentIndex
+    \qmlproperty Item QtQuick::ListView::currentItem
 
     The \c currentIndex property holds the index of the current item, and
     \c currentItem holds the current item.   Setting the currentIndex to -1
@@ -1879,7 +1883,7 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-  \qmlproperty Item QtQuick2::ListView::highlightItem
+  \qmlproperty Item QtQuick::ListView::highlightItem
 
     This holds the highlight item created from the \l highlight component.
 
@@ -1890,12 +1894,12 @@ QQuickListView::~QQuickListView()
 */
 
 /*!
-  \qmlproperty int QtQuick2::ListView::count
+  \qmlproperty int QtQuick::ListView::count
   This property holds the number of items in the view.
 */
 
 /*!
-    \qmlproperty Component QtQuick2::ListView::highlight
+    \qmlproperty Component QtQuick::ListView::highlight
     This property holds the component to use as the highlight.
 
     An instance of the highlight component is created for each list.
@@ -1903,11 +1907,12 @@ QQuickListView::~QQuickListView()
     so as to stay with the current item, unless the highlightFollowsCurrentItem
     property is false.
 
-    \sa highlightItem, highlightFollowsCurrentItem, {quick/modelviews/listview}{ListView examples}
+    \sa highlightItem, highlightFollowsCurrentItem,
+    {Qt Quick Examples - Views#Highlight demonstrates adding a custom highlight to a ListView.}{ListView highlight example}
 */
 
 /*!
-    \qmlproperty bool QtQuick2::ListView::highlightFollowsCurrentItem
+    \qmlproperty bool QtQuick::ListView::highlightFollowsCurrentItem
     This property holds whether the highlight is managed by the view.
 
     If this property is true (the default value), the highlight is moved smoothly
@@ -1927,9 +1932,9 @@ QQuickListView::~QQuickListView()
 */
 //###Possibly rename these properties, since they are very useful even without a highlight?
 /*!
-    \qmlproperty real QtQuick2::ListView::preferredHighlightBegin
-    \qmlproperty real QtQuick2::ListView::preferredHighlightEnd
-    \qmlproperty enumeration QtQuick2::ListView::highlightRangeMode
+    \qmlproperty real QtQuick::ListView::preferredHighlightBegin
+    \qmlproperty real QtQuick::ListView::preferredHighlightEnd
+    \qmlproperty enumeration QtQuick::ListView::highlightRangeMode
 
     These properties define the preferred range of the highlight (for the current item)
     within the view. The \c preferredHighlightBegin value must be less than the
@@ -1971,7 +1976,7 @@ void QQuickListView::setHighlightFollowsCurrentItem(bool autoHighlight)
 }
 
 /*!
-    \qmlproperty real QtQuick2::ListView::spacing
+    \qmlproperty real QtQuick::ListView::spacing
 
     This property holds the spacing between items.
 
@@ -1994,7 +1999,7 @@ void QQuickListView::setSpacing(qreal spacing)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ListView::orientation
+    \qmlproperty enumeration QtQuick::ListView::orientation
     This property holds the orientation of the list.
 
     Possible values:
@@ -2040,7 +2045,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 }
 
 /*!
-  \qmlproperty enumeration QtQuick2::ListView::layoutDirection
+  \qmlproperty enumeration QtQuick::ListView::layoutDirection
   This property holds the layout direction of a horizontally-oriented list.
 
   Possible values:
@@ -2057,7 +2062,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 
 
 /*!
-    \qmlproperty enumeration QtQuick2::ListView::effectiveLayoutDirection
+    \qmlproperty enumeration QtQuick::ListView::effectiveLayoutDirection
     This property holds the effective layout direction of a horizontally-oriented list.
 
     When using the attached property \l {LayoutMirroring::enabled}{LayoutMirroring::enabled} for locale layouts,
@@ -2069,7 +2074,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 
 
 /*!
-  \qmlproperty enumeration QtQuick2::ListView::verticalLayoutDirection
+  \qmlproperty enumeration QtQuick::ListView::verticalLayoutDirection
   This property holds the layout direction of a vertically-oriented list.
 
   Possible values:
@@ -2086,7 +2091,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 
 
 /*!
-    \qmlproperty bool QtQuick2::ListView::keyNavigationWraps
+    \qmlproperty bool QtQuick::ListView::keyNavigationWraps
     This property holds whether the list wraps key navigation.
 
     If this is true, key navigation that would move the current item selection
@@ -2098,7 +2103,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 
 
 /*!
-    \qmlproperty int QtQuick2::ListView::cacheBuffer
+    \qmlproperty int QtQuick::ListView::cacheBuffer
     This property determines whether delegates are retained outside the
     visible area of the view.
 
@@ -2125,10 +2130,10 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
 
 
 /*!
-    \qmlproperty string QtQuick2::ListView::section.property
-    \qmlproperty enumeration QtQuick2::ListView::section.criteria
-    \qmlproperty Component QtQuick2::ListView::section.delegate
-    \qmlproperty enumeration QtQuick2::ListView::section.labelPositioning
+    \qmlproperty string QtQuick::ListView::section.property
+    \qmlproperty enumeration QtQuick::ListView::section.criteria
+    \qmlproperty Component QtQuick::ListView::section.delegate
+    \qmlproperty enumeration QtQuick::ListView::section.labelPositioning
 
     These properties determine the expression to be evaluated and appearance
     of the section labels.
@@ -2199,7 +2204,7 @@ QQuickViewSection *QQuickListView::sectionCriteria()
 }
 
 /*!
-    \qmlproperty string QtQuick2::ListView::currentSection
+    \qmlproperty string QtQuick::ListView::currentSection
     This property holds the section that is currently at the beginning of the view.
 */
 QString QQuickListView::currentSection() const
@@ -2209,10 +2214,10 @@ QString QQuickListView::currentSection() const
 }
 
 /*!
-    \qmlproperty real QtQuick2::ListView::highlightMoveVelocity
-    \qmlproperty int QtQuick2::ListView::highlightMoveDuration
-    \qmlproperty real QtQuick2::ListView::highlightResizeVelocity
-    \qmlproperty int QtQuick2::ListView::highlightResizeDuration
+    \qmlproperty real QtQuick::ListView::highlightMoveVelocity
+    \qmlproperty int QtQuick::ListView::highlightMoveDuration
+    \qmlproperty real QtQuick::ListView::highlightResizeVelocity
+    \qmlproperty int QtQuick::ListView::highlightResizeDuration
 
     These properties control the speed of the move and resize animations for the
     highlight delegate.
@@ -2290,7 +2295,7 @@ void QQuickListView::setHighlightResizeDuration(int duration)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ListView::snapMode
+    \qmlproperty enumeration QtQuick::ListView::snapMode
 
     This property determines how the view scrolling will settle following a drag or flick.
     The possible values are:
@@ -2328,7 +2333,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 
 
 /*!
-    \qmlproperty Component QtQuick2::ListView::footer
+    \qmlproperty Component QtQuick::ListView::footer
     This property holds the component to use as the footer.
 
     An instance of the footer component is created for each view.  The
@@ -2339,7 +2344,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 
 
 /*!
-    \qmlproperty Component QtQuick2::ListView::header
+    \qmlproperty Component QtQuick::ListView::header
     This property holds the component to use as the header.
 
     An instance of the header component is created for each view.  The
@@ -2349,7 +2354,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Item QtQuick2::ListView::headerItem
+    \qmlproperty Item QtQuick::ListView::headerItem
     This holds the header item created from the \l header component.
 
     An instance of the header component is created for each view.  The
@@ -2359,7 +2364,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Item QtQuick2::ListView::footerItem
+    \qmlproperty Item QtQuick::ListView::footerItem
     This holds the footer item created from the \l footer component.
 
     An instance of the footer component is created for each view.  The
@@ -2369,7 +2374,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::populate
+    \qmlproperty Transition QtQuick::ListView::populate
 
     This property holds the transition to apply to the items that are initially created
     for a view.
@@ -2403,7 +2408,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::add
+    \qmlproperty Transition QtQuick::ListView::add
 
     This property holds the transition to apply to items that are added to the view.
 
@@ -2437,7 +2442,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::addDisplaced
+    \qmlproperty Transition QtQuick::ListView::addDisplaced
 
     This property holds the transition to apply to items within the view that are displaced by
     the addition of other items to the view.
@@ -2476,7 +2481,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::move
+    \qmlproperty Transition QtQuick::ListView::move
 
     This property holds the transition to apply to items in the view that are being moved due
     to a move operation in the view's \l model.
@@ -2505,7 +2510,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::moveDisplaced
+    \qmlproperty Transition QtQuick::ListView::moveDisplaced
 
     This property holds the transition to apply to items that are displaced by a move operation in
     the view's \l model.
@@ -2541,7 +2546,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::remove
+    \qmlproperty Transition QtQuick::ListView::remove
 
     This property holds the transition to apply to items that are removed from the view.
 
@@ -2578,7 +2583,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::removeDisplaced
+    \qmlproperty Transition QtQuick::ListView::removeDisplaced
 
     This property holds the transition to apply to items in the view that are displaced by the
     removal of other items in the view.
@@ -2613,7 +2618,7 @@ void QQuickListView::setSnapMode(SnapMode mode)
 */
 
 /*!
-    \qmlproperty Transition QtQuick2::ListView::displaced
+    \qmlproperty Transition QtQuick::ListView::displaced
     This property holds the generic transition to apply to items that have been displaced by
     any model operation that affects the view.
 
@@ -2812,7 +2817,7 @@ void QQuickListView::initItem(int index, QObject *object)
 
 
 /*!
-    \qmlmethod QtQuick2::ListView::incrementCurrentIndex()
+    \qmlmethod QtQuick::ListView::incrementCurrentIndex()
 
     Increments the current index.  The current index will wrap
     if keyNavigationWraps is true and it is currently at the end.
@@ -2832,7 +2837,7 @@ void QQuickListView::incrementCurrentIndex()
 }
 
 /*!
-    \qmlmethod QtQuick2::ListView::decrementCurrentIndex()
+    \qmlmethod QtQuick::ListView::decrementCurrentIndex()
 
     Decrements the current index.  The current index will wrap
     if keyNavigationWraps is true and it is currently at the beginning.
@@ -3019,7 +3024,7 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 }
 
 /*!
-    \qmlmethod QtQuick2::ListView::positionViewAtIndex(int index, PositionMode mode)
+    \qmlmethod QtQuick::ListView::positionViewAtIndex(int index, PositionMode mode)
 
     Positions the view such that the \a index is at the position specified by
     \a mode:
@@ -3056,8 +3061,8 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 */
 
 /*!
-    \qmlmethod QtQuick2::ListView::positionViewAtBeginning()
-    \qmlmethod QtQuick2::ListView::positionViewAtEnd()
+    \qmlmethod QtQuick::ListView::positionViewAtBeginning()
+    \qmlmethod QtQuick::ListView::positionViewAtEnd()
 
     Positions the view at the beginning or end, taking into account any header or footer.
 
@@ -3076,7 +3081,7 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 */
 
 /*!
-    \qmlmethod int QtQuick2::ListView::indexAt(int x, int y)
+    \qmlmethod int QtQuick::ListView::indexAt(int x, int y)
 
     Returns the index of the visible item containing the point \a x, \a y in content
     coordinates.  If there is no item at the point specified, or the item is
@@ -3089,7 +3094,7 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 */
 
 /*!
-    \qmlmethod Item QtQuick2::ListView::itemAt(int x, int y)
+    \qmlmethod Item QtQuick::ListView::itemAt(int x, int y)
 
     Returns the visible item containing the point \a x, \a y in content
     coordinates.  If there is no item at the point specified, or the item is
@@ -3102,7 +3107,7 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 */
 
 /*!
-    \qmlmethod QtQuick2::ListView::forceLayout()
+    \qmlmethod QtQuick::ListView::forceLayout()
 
     Responding to changes in the model is usually batched to happen only once
     per frame. This means that inside script blocks it is possible for the
@@ -3111,7 +3116,7 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
     This method forces the ListView to immediately respond to any outstanding
     changes in the model.
 
-    \since QtQuick 2.1
+    \since 5.1
 
     \b Note: methods should only be called after the Component has completed.
 */

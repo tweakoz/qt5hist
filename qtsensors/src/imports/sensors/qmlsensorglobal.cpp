@@ -47,7 +47,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype SensorGlobal
     \instantiates QmlSensorGlobal
-    \inqmlmodule QtSensors 5.0
+    \inqmlmodule QtSensors
     \since QtSensors 5.0
     \brief The SensorGlobal element provides the module API.
 
@@ -60,7 +60,7 @@ QT_BEGIN_NAMESPACE
     import QtSensors 5.0 as Sensors
     ...
         Component.onCompleted: {
-            var types = Sensors.sensorTypes();
+            var types = Sensors.QmlSensors.sensorTypes();
             console.log(types.join(", "));
         }
     \endcode

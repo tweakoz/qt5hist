@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -50,6 +50,11 @@
 #include <qqmlinfo.h>
 #include <private/qqmlengine_p.h>
 #include <QtCore/QBuffer>
+#include <QtCore/qdatetime.h>
+
+#include <private/qv4value_p.h>
+#include <private/qv4functionobject_p.h>
+#include <private/qv4scopedvalue_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -107,7 +112,7 @@ QSGTexture *QQuickCanvasPixmap::texture()
             Q_ASSERT(m_pixmap->textureFactory());
             m_texture = m_pixmap->textureFactory()->createTexture(m_window);
         } else {
-            m_texture = QQuickWindowPrivate::get(m_window)->context->createTexture(m_image);
+            m_texture = m_window->createTextureFromImage(m_image, QQuickWindow::TextureCanUseAtlas);
         }
     }
     return m_texture;
@@ -176,7 +181,7 @@ public:
     QString contextType;
     QHash<QUrl, QQmlRefPointer<QQuickCanvasPixmap> > pixmaps;
     QUrl baseUrl;
-    QMap<int, v8::Persistent<v8::Function> > animationCallbacks;
+    QMap<int, QV4::PersistentValue> animationCallbacks;
 };
 
 QQuickCanvasItemPrivate::QQuickCanvasItemPrivate()
@@ -203,8 +208,8 @@ QQuickCanvasItemPrivate::~QQuickCanvasItemPrivate()
 /*!
     \qmltype Canvas
     \instantiates QQuickCanvasItem
-    \inqmlmodule QtQuick 2
-    \since QtQuick 2.0
+    \inqmlmodule QtQuick
+    \since 5.0
     \inherits Item
     \ingroup qtquick-canvas
     \ingroup qtquick-visual
@@ -300,7 +305,7 @@ QQuickCanvasItem::~QQuickCanvasItem()
 }
 
 /*!
-    \qmlproperty size QtQuick2::Canvas::available
+    \qmlproperty size QtQuick::Canvas::available
 
     Indicates when Canvas is able to provide a drawing context to operate on.
 */
@@ -311,7 +316,7 @@ bool QQuickCanvasItem::isAvailable() const
 }
 
 /*!
-    \qmlproperty string QtQuick2::Canvas::contextType
+    \qmlproperty string QtQuick::Canvas::contextType
     The type of drawing context to use.
 
     This property is set to the name of the active context type.
@@ -351,7 +356,7 @@ void QQuickCanvasItem::setContextType(const QString &contextType)
 }
 
 /*!
-    \qmlproperty object QtQuick2::Canvas::context
+    \qmlproperty object QtQuick::Canvas::context
     Holds the active drawing context.
 
     If the canvas is ready and there has been a successful call to getContext()
@@ -359,17 +364,17 @@ void QQuickCanvasItem::setContextType(const QString &contextType)
     this property will contain the current drawing context, otherwise null.
 */
 
-QQmlV8Handle QQuickCanvasItem::context() const
+QQmlV4Handle QQuickCanvasItem::context() const
 {
     Q_D(const QQuickCanvasItem);
     if (d->context)
-        return QQmlV8Handle::fromHandle(d->context->v8value());
+        return QQmlV4Handle(d->context->v4value());
 
-    return QQmlV8Handle::fromHandle(v8::Null());
+    return QQmlV4Handle(QV4::Encode::null());
 }
 
 /*!
-    \qmlproperty size QtQuick2::Canvas::canvasSize
+    \qmlproperty size QtQuick::Canvas::canvasSize
     Holds the logical canvas size that the context paints on.
 
     By default, the canvas size is the same size as the current canvas item
@@ -402,7 +407,7 @@ void QQuickCanvasItem::setCanvasSize(const QSizeF & size)
 }
 
 /*!
-    \qmlproperty size QtQuick2::Canvas::tileSize
+    \qmlproperty size QtQuick::Canvas::tileSize
     Holds the canvas rendering tile size.
 
     The Canvas item enters tiled mode by setting canvasSize, tileSize and the
@@ -437,7 +442,7 @@ void QQuickCanvasItem::setTileSize(const QSize & size)
 }
 
 /*!
-    \qmlproperty rect QtQuick2::Canvas::canvasWindow
+    \qmlproperty rect QtQuick::Canvas::canvasWindow
      Holds the current canvas visible window.
 
      By default the canvasWindow size is the same as the Canvas item size with
@@ -470,7 +475,7 @@ void QQuickCanvasItem::setCanvasWindow(const QRectF& rect)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Canvas::renderTarget
+    \qmlproperty enumeration QtQuick::Canvas::renderTarget
     Holds the current canvas render target.
 
     \list
@@ -507,7 +512,7 @@ void QQuickCanvasItem::setRenderTarget(QQuickCanvasItem::RenderTarget target)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Canvas::renderStrategy
+    \qmlproperty enumeration QtQuick::Canvas::renderStrategy
     Holds the current canvas rendering strategy.
 
     \list
@@ -597,7 +602,7 @@ void QQuickCanvasItem::geometryChanged(const QRectF &newGeometry, const QRectF &
         emit canvasWindowChanged();
     }
 
-    if (d->available)
+    if (d->available && newSize != oldGeometry.size())
         requestPaint();
 }
 
@@ -652,16 +657,18 @@ void QQuickCanvasItem::updatePolish()
         d->context->prepare(d->canvasSize.toSize(), d->tileSize, d->canvasWindow.toRect(), d->dirtyRect.toRect(), d->smooth, d->antialiasing);
 
     if (d->animationCallbacks.size() > 0 && isVisible()) {
-        QMap<int, v8::Persistent<v8::Function> > animationCallbacks = d->animationCallbacks;
+        QMap<int, QV4::PersistentValue> animationCallbacks = d->animationCallbacks;
         d->animationCallbacks.clear();
 
+        QV4::ExecutionEngine *v4 = QQmlEnginePrivate::getV4Engine(qmlEngine(this));
+        QV4::Scope scope(v4);
+        QV4::ScopedCallData callData(scope, 1);
+        callData->thisObject = QV4::QObjectWrapper::wrap(v4, this);
+
         foreach (int key, animationCallbacks.keys()) {
-            v8::HandleScope handle_scope;
-            v8::Handle<v8::Object> self = QQmlEnginePrivate::getV8Engine(qmlEngine(this))->newQObject(this).As<v8::Object>();
-            v8::Handle<v8::Value> args[] = { v8::Uint32::New(QDateTime::currentDateTimeUtc().toTime_t()) };
-            v8::Persistent<v8::Function> f = animationCallbacks.value(key);
-            f->Call(self, 1, args);
-            f.Dispose();
+            QV4::ScopedFunctionObject f(scope, animationCallbacks.value(key).value());
+            callData->args[0] = QV4::Primitive::fromUInt32(QDateTime::currentDateTimeUtc().toTime_t());
+            f->call(callData);
         }
     }
     else {
@@ -712,7 +719,7 @@ QSGNode *QQuickCanvasItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
 }
 
 /*!
-    \qmlmethod object QtQuick2::Canvas::getContext(string contextId, any... args)
+    \qmlmethod object QtQuick::Canvas::getContext(string contextId, any... args)
 
     Returns a drawing context or null if no context available.
 
@@ -728,53 +735,57 @@ QSGNode *QQuickCanvasItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
     Canvas only supports a 2d context.
 */
 
-void QQuickCanvasItem::getContext(QQmlV8Function *args)
+void QQuickCanvasItem::getContext(QQmlV4Function *args)
 {
     Q_D(QQuickCanvasItem);
 
-    if (args->Length() < 1 || !(*args)[0]->IsString()) {
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedString str(scope, (*args)[0]);
+    if (!str) {
         qmlInfo(this) << "getContext should be called with a string naming the required context type";
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
     if (!d->available) {
         qmlInfo(this) << "Unable to use getContext() at this time, please wait for available: true";
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
-    QString contextId = QString::fromUtf16(*v8::String::Value((*args)[0]));
+    QString contextId = str->toQString();
 
     if (d->context != 0) {
         if (d->context->contextNames().contains(contextId, Qt::CaseInsensitive)) {
-            args->returnValue(d->context->v8value());
+            args->setReturnValue(d->context->v4value());
             return;
         }
 
         qmlInfo(this) << "Canvas already initialized with a different context type";
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
     if (createContext(contextId))
-        args->returnValue(d->context->v8value());
+        args->setReturnValue(d->context->v4value());
     else
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
 }
 
 /*!
-    \qmlmethod long QtQuick2::Canvas::requestAnimationFrame(callback)
+    \qmlmethod long QtQuick::Canvas::requestAnimationFrame(callback)
 
     This function schedules callback to be invoked before composing the Qt Quick
     scene.
 */
 
-void QQuickCanvasItem::requestAnimationFrame(QQmlV8Function *args)
+void QQuickCanvasItem::requestAnimationFrame(QQmlV4Function *args)
 {
-    if (args->Length() < 1 || !(*args)[0]->IsFunction()) {
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedFunctionObject f(scope, (*args)[0]);
+    if (!f) {
         qmlInfo(this) << "requestAnimationFrame should be called with an animation callback function";
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
@@ -782,34 +793,36 @@ void QQuickCanvasItem::requestAnimationFrame(QQmlV8Function *args)
 
     static int id = 0;
 
-    d->animationCallbacks.insert(++id, v8::Persistent<v8::Function>::New(((*args)[0]).As<v8::Function>()));
+    d->animationCallbacks.insert(++id, QV4::PersistentValue(f));
 
     if (isVisible())
         polish();
 
-    args->returnValue(v8::Int32::New(id));
+    args->setReturnValue(QV4::Encode(id));
 }
 
 /*!
-    \qmlmethod QtQuick2::Canvas::cancelRequestAnimationFrame(long handle)
+    \qmlmethod QtQuick::Canvas::cancelRequestAnimationFrame(long handle)
 
     This function will cancel the animation callback referenced by \a handle.
 */
 
-void QQuickCanvasItem::cancelRequestAnimationFrame(QQmlV8Function *args)
+void QQuickCanvasItem::cancelRequestAnimationFrame(QQmlV4Function *args)
 {
-    if (args->Length() < 1 || !(*args)[0]->IsInt32()) {
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedValue v(scope, (*args)[0]);
+    if (!v->isInteger()) {
         qmlInfo(this) << "cancelRequestAnimationFrame should be called with an animation callback id";
-        args->returnValue(v8::Null());
+        args->setReturnValue(QV4::Encode::null());
         return;
     }
 
-    d_func()->animationCallbacks.remove((*args)[0]->Int32Value());
+    d_func()->animationCallbacks.remove(v->integerValue());
 }
 
 
 /*!
-    \qmlmethod QtQuick2::Canvas::requestPaint()
+    \qmlmethod QtQuick::Canvas::requestPaint()
 
     Request the entire visible region be re-drawn.
 
@@ -822,7 +835,7 @@ void QQuickCanvasItem::requestPaint()
 }
 
 /*!
-    \qmlmethod QtQuick2::Canvas::markDirty(rect area)
+    \qmlmethod QtQuick::Canvas::markDirty(rect area)
 
     Mark the given \a area as dirty, so that when this area is visible the
     canvas renderer will redraw it. This will trigger the onPaint signal
@@ -849,7 +862,7 @@ void QQuickCanvasItem::checkAnimationCallbacks()
 }
 
 /*!
-  \qmlmethod bool QtQuick2::Canvas::save(string filename)
+  \qmlmethod bool QtQuick::Canvas::save(string filename)
 
    Save the current canvas content into an image file \a filename.
    The saved image format is automatically decided by the \a filename's
@@ -878,7 +891,7 @@ QQmlRefPointer<QQuickCanvasPixmap> QQuickCanvasItem::loadedPixmap(const QUrl& ur
 }
 
 /*!
-    \qmlsignal QtQuick2::Canvas::onImageLoaded()
+    \qmlsignal QtQuick::Canvas::onImageLoaded()
 
     This handler is called when an image has been loaded.
 
@@ -886,7 +899,7 @@ QQmlRefPointer<QQuickCanvasPixmap> QQuickCanvasItem::loadedPixmap(const QUrl& ur
 */
 
 /*!
-  \qmlmethod QtQuick2::Canvas::loadImage(url image)
+  \qmlmethod QtQuick::Canvas::loadImage(url image)
     Loads the given \c image asynchronously.
 
     When the image is ready, onImageLoaded will be emitted.
@@ -914,7 +927,7 @@ void QQuickCanvasItem::loadImage(const QUrl& url)
     }
 }
 /*!
-  \qmlmethod QtQuick2::Canvas::unloadImage(url image)
+  \qmlmethod QtQuick::Canvas::unloadImage(url image)
   Unloads the \c image.
 
   Once an image is unloaded it cannot be painted by the canvas context
@@ -930,7 +943,7 @@ void QQuickCanvasItem::unloadImage(const QUrl& url)
 }
 
 /*!
-  \qmlmethod QtQuick2::Canvas::isImageError(url image)
+  \qmlmethod QtQuick::Canvas::isImageError(url image)
   Returns true if the \a image failed to load.
 
   \sa loadImage()
@@ -944,7 +957,7 @@ bool QQuickCanvasItem::isImageError(const QUrl& url) const
 }
 
 /*!
-  \qmlmethod QtQuick2::Canvas::isImageLoading(url image)
+  \qmlmethod QtQuick::Canvas::isImageLoading(url image)
   Returns true if the \a image is currently loading.
 
   \sa loadImage()
@@ -957,7 +970,7 @@ bool QQuickCanvasItem::isImageLoading(const QUrl& url) const
         && d->pixmaps.value(fullPathUrl)->pixmap()->isLoading();
 }
 /*!
-  \qmlmethod QtQuick2::Canvas::isImageLoaded(url image)
+  \qmlmethod QtQuick::Canvas::isImageLoaded(url image)
   Returns true if the \a image is successfully loaded and ready to use.
 
   \sa loadImage()
@@ -984,7 +997,7 @@ QImage QQuickCanvasItem::toImage(const QRectF& rect) const
 }
 
 /*!
-  \qmlmethod string QtQuick2::Canvas::toDataURL(string mimeType)
+  \qmlmethod string QtQuick::Canvas::toDataURL(string mimeType)
 
    Returns a data URL for the image in the canvas.
 
@@ -1080,7 +1093,7 @@ QRect QQuickCanvasItem::tiledRect(const QRectF &window, const QSize &tileSize)
 }
 
 /*!
-    \qmlsignal QtQuick2::Canvas::onPaint(rect region)
+    \qmlsignal QtQuick::Canvas::onPaint(rect region)
 
     This handler is called to render the \a region. If a context is active it
     can be referenced from the context property.
@@ -1090,7 +1103,7 @@ QRect QQuickCanvasItem::tiledRect(const QRectF &window, const QSize &tileSize)
 */
 
 /*!
-    \qmlsignal QtQuick2::Canvas::onPainted()
+    \qmlsignal QtQuick::Canvas::onPainted()
 
     This handler is called after all context painting commands are executed and
     the Canvas has been rendered.

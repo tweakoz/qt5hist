@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -50,6 +50,8 @@
 #include <QEasingCurve>
 #include <QTime>
 #include <QtNumeric>
+
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -808,7 +810,7 @@ int QQuickTimeLinePrivate::advance(int t)
         length -= qMin(length, advanceTime);
         syncPoint -= advanceTime;
 
-        qSort(updates.begin(), updates.end());
+        std::sort(updates.begin(), updates.end());
         updateQueue = &updates;
         for (int ii = 0; ii < updates.count(); ++ii) {
             const Update &v = updates.at(ii).second;

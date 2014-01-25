@@ -41,6 +41,7 @@
 
 #include "qmakeparser.h"
 
+#include "qmakevfs.h"
 #include "ioutils.h"
 using namespace QMakeInternal;
 
@@ -142,18 +143,19 @@ void QMakeParser::initialize()
     statics.strLITERAL_WHITESPACE = QLatin1String("LITERAL_WHITESPACE");
 }
 
-QMakeParser::QMakeParser(ProFileCache *cache, QMakeParserHandler *handler)
+QMakeParser::QMakeParser(ProFileCache *cache, QMakeVfs *vfs, QMakeParserHandler *handler)
     : m_cache(cache)
     , m_handler(handler)
+    , m_vfs(vfs)
 {
     // So that single-threaded apps don't have to call initialize() for now.
     initialize();
 }
 
-ProFile *QMakeParser::parsedProFile(const QString &fileName, bool cache)
+ProFile *QMakeParser::parsedProFile(const QString &fileName, ParseFlags flags)
 {
     ProFile *pro;
-    if (cache && m_cache) {
+    if ((flags & ParseUseCache) && m_cache) {
         ProFileCache::Entry *ent;
 #ifdef PROPARSER_THREAD_SAFE
         QMutexLocker locker(&m_cache->mutex);
@@ -182,7 +184,7 @@ ProFile *QMakeParser::parsedProFile(const QString &fileName, bool cache)
             locker.unlock();
 #endif
             pro = new ProFile(fileName);
-            if (!read(pro)) {
+            if (!read(pro, flags)) {
                 delete pro;
                 pro = 0;
             } else {
@@ -203,7 +205,7 @@ ProFile *QMakeParser::parsedProFile(const QString &fileName, bool cache)
         }
     } else {
         pro = new ProFile(fileName);
-        if (!read(pro)) {
+        if (!read(pro, flags)) {
             delete pro;
             pro = 0;
         }
@@ -228,26 +230,16 @@ void QMakeParser::discardFileFromCache(const QString &fileName)
         m_cache->discardFile(fileName);
 }
 
-bool QMakeParser::read(ProFile *pro)
+bool QMakeParser::read(ProFile *pro, ParseFlags flags)
 {
-    QFile file(pro->fileName());
-    if (!file.open(QIODevice::ReadOnly)) {
-        if (m_handler && IoUtils::exists(pro->fileName()))
+    QString content;
+    QString errStr;
+    if (!m_vfs->readFile(pro->fileName(), &content, &errStr)) {
+        if (m_handler && ((flags & ParseReportMissing) || m_vfs->exists(pro->fileName())))
             m_handler->message(QMakeParserHandler::ParserIoError,
-                               fL1S("Cannot read %1: %2").arg(pro->fileName(), file.errorString()));
+                               fL1S("Cannot read %1: %2").arg(pro->fileName(), errStr));
         return false;
     }
-
-    QByteArray bcont = file.readAll();
-    if (bcont.startsWith("\xef\xbb\xbf")) {
-        // UTF-8 BOM will cause subtle errors
-        m_handler->message(QMakeParserHandler::ParserIoError,
-                           fL1S("Unexpected UTF-8 BOM in %1").arg(pro->fileName()));
-        return false;
-    }
-    QString content(QString::fromLocal8Bit(bcont));
-    bcont.clear();
-    file.close();
     return read(pro, content, 1, FullGrammar);
 }
 

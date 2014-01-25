@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -47,8 +47,6 @@
 #include <private/qqmlglobal_p.h>
 
 #include <private/qqmlcomponent_p.h>
-
-#include <private/qv8_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -160,7 +158,7 @@ qreal QQuickLoaderPrivate::getImplicitHeight() const
 /*!
     \qmltype Loader
     \instantiates QQuickLoader
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-dynamic
     \inherits Item
 
@@ -272,7 +270,7 @@ qreal QQuickLoaderPrivate::getImplicitHeight() const
 
     In some cases you may wish to use a Loader within a view delegate to improve delegate
     loading performance. This works well in most cases, but there is one important issue to
-    be aware of related to the \l{QtQuick2::Component#creation-context}{creation context} of a Component.
+    be aware of related to the \l{QtQuick::Component#creation-context}{creation context} of a Component.
 
     In the following example, the \c index context property inserted by the ListView into \c delegateComponent's
     context will be inaccessible to Text, as the Loader will use the creation context of \c myComponent as the parent
@@ -312,7 +310,7 @@ QQuickLoader::~QQuickLoader()
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Loader::active
+    \qmlproperty bool QtQuick::Loader::active
     This property is \c true if the Loader is currently active.
     The default value for this property is \c true.
 
@@ -375,7 +373,7 @@ void QQuickLoader::setActive(bool newVal)
 
 
 /*!
-    \qmlproperty url QtQuick2::Loader::source
+    \qmlproperty url QtQuick::Loader::source
     This property holds the URL of the QML component to instantiate.
 
     Since \c {QtQuick 2.0}, Loader is able to load any type of object; it
@@ -435,7 +433,7 @@ void QQuickLoader::loadFromSource()
 }
 
 /*!
-    \qmlproperty Component QtQuick2::Loader::sourceComponent
+    \qmlproperty Component QtQuick::Loader::sourceComponent
     This property holds the \l{Component} to instantiate.
 
     \qml
@@ -503,7 +501,7 @@ void QQuickLoader::loadFromSourceComponent()
 }
 
 /*!
-    \qmlmethod object QtQuick2::Loader::setSource(url source, object properties)
+    \qmlmethod object QtQuick::Loader::setSource(url source, object properties)
 
     Creates an object instance of the given \a source component that will have
     the given \a properties. The \a properties argument is optional.  The instance
@@ -564,23 +562,24 @@ void QQuickLoader::loadFromSourceComponent()
 
     \sa source, active
 */
-void QQuickLoader::setSource(QQmlV8Function *args)
+void QQuickLoader::setSource(QQmlV4Function *args)
 {
     Q_ASSERT(args);
     Q_D(QQuickLoader);
 
     bool ipvError = false;
-    args->returnValue(v8::Undefined());
-    v8::Handle<v8::Object> ipv = d->extractInitialPropertyValues(args, this, &ipvError);
+    args->setReturnValue(QV4::Encode::undefined());
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedValue ipv(scope, d->extractInitialPropertyValues(args, this, &ipvError));
     if (ipvError)
         return;
 
     d->clear();
     QUrl sourceUrl = d->resolveSourceUrl(args);
-    if (!ipv.IsEmpty()) {
+    if (!ipv->isUndefined()) {
         d->disposeInitialPropertyValues();
-        d->initialPropertyValues = qPersistentNew(ipv);
-        d->qmlGlobalForIpv = qPersistentNew(args->qmlGlobal());
+        d->initialPropertyValues = ipv.asReturnedValue();
+        d->qmlGlobalForIpv = args->qmlGlobal();
     }
 
     setSource(sourceUrl, false); // already cleared and set ipv above.
@@ -588,10 +587,6 @@ void QQuickLoader::setSource(QQmlV8Function *args)
 
 void QQuickLoaderPrivate::disposeInitialPropertyValues()
 {
-    if (!initialPropertyValues.IsEmpty())
-        qPersistentDispose(initialPropertyValues);
-    if (!qmlGlobalForIpv.IsEmpty())
-        qPersistentDispose(qmlGlobalForIpv);
 }
 
 void QQuickLoaderPrivate::load()
@@ -645,12 +640,16 @@ void QQuickLoaderPrivate::setInitialState(QObject *obj)
         itemContext = 0;
     }
 
-    if (initialPropertyValues.IsEmpty())
+    if (initialPropertyValues.isUndefined())
         return;
 
     QQmlComponentPrivate *d = QQmlComponentPrivate::get(component);
     Q_ASSERT(d && d->engine);
-    d->initializeObjectWithInitialProperties(qmlGlobalForIpv, initialPropertyValues, obj);
+    QV4::ExecutionEngine *v4 = qmlGlobalForIpv.engine();
+    Q_ASSERT(v4);
+    QV4::Scope scope(v4);
+    QV4::ScopedValue ipv(scope, initialPropertyValues.value());
+    d->initializeObjectWithInitialProperties(qmlGlobalForIpv, ipv, obj);
 }
 
 void QQuickLoaderIncubator::statusChanged(Status status)
@@ -722,7 +721,7 @@ void QQuickLoaderPrivate::_q_sourceLoaded()
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Loader::status
+    \qmlproperty enumeration QtQuick::Loader::status
 
     This property holds the status of QML loading.  It can be one of:
     \list
@@ -812,7 +811,7 @@ void QQuickLoader::componentComplete()
 }
 
 /*!
-    \qmlsignal QtQuick2::Loader::onLoaded()
+    \qmlsignal QtQuick::Loader::onLoaded()
 
     This handler is called when the \l status becomes \c Loader.Ready, or on successful
     initial load.
@@ -820,7 +819,7 @@ void QQuickLoader::componentComplete()
 
 
 /*!
-\qmlproperty real QtQuick2::Loader::progress
+\qmlproperty real QtQuick::Loader::progress
 
 This property holds the progress of loading QML data from the network, from
 0.0 (nothing loaded) to 1.0 (finished).  Most QML files are quite small, so
@@ -842,7 +841,7 @@ qreal QQuickLoader::progress() const
 }
 
 /*!
-\qmlproperty bool QtQuick2::Loader::asynchronous
+\qmlproperty bool QtQuick::Loader::asynchronous
 
 This property holds whether the component will be instantiated asynchronously.
 
@@ -906,7 +905,7 @@ void QQuickLoaderPrivate::_q_updateSize(bool loaderGeometryChanged)
 }
 
 /*!
-    \qmlproperty object QtQuick2::Loader::item
+    \qmlproperty object QtQuick::Loader::item
     This property holds the top-level object that is currently loaded.
 
     Since \c {QtQuick 2.0}, Loader can load any object type.
@@ -926,10 +925,11 @@ void QQuickLoader::geometryChanged(const QRectF &newGeometry, const QRectF &oldG
     QQuickItem::geometryChanged(newGeometry, oldGeometry);
 }
 
-QUrl QQuickLoaderPrivate::resolveSourceUrl(QQmlV8Function *args)
+QUrl QQuickLoaderPrivate::resolveSourceUrl(QQmlV4Function *args)
 {
-    QV8Engine *v8engine = args->engine();
-    QString arg = v8engine->toString((*args)[0]->ToString());
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedValue v(scope, (*args)[0]);
+    QString arg = v->toQString();
     if (arg.isEmpty())
         return QUrl();
 
@@ -938,21 +938,22 @@ QUrl QQuickLoaderPrivate::resolveSourceUrl(QQmlV8Function *args)
     return context->resolvedUrl(QUrl(arg));
 }
 
-v8::Handle<v8::Object> QQuickLoaderPrivate::extractInitialPropertyValues(QQmlV8Function *args, QObject *loader, bool *error)
+QV4::ReturnedValue QQuickLoaderPrivate::extractInitialPropertyValues(QQmlV4Function *args, QObject *loader, bool *error)
 {
-    v8::Local<v8::Object> valuemap;
-    if (args->Length() >= 2) {
-        v8::Local<v8::Value> v = (*args)[1];
-        if (!v->IsObject() || v->IsArray()) {
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedValue valuemap(scope, QV4::Primitive::undefinedValue());
+    if (args->length() >= 2) {
+        QV4::ScopedValue v(scope, (*args)[1]);
+        if (!v->isObject() || v->asArrayObject()) {
             *error = true;
             qmlInfo(loader) << QQuickLoader::tr("setSource: value is not an object");
         } else {
             *error = false;
-            valuemap = v8::Local<v8::Object>::Cast(v);
+            valuemap = v;
         }
     }
 
-    return valuemap;
+    return valuemap.asReturnedValue();
 }
 
 #include <moc_qquickloader_p.cpp>

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -55,7 +55,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype PathElement
     \instantiates QQuickPathElement
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief PathElement is the base path type
 
@@ -68,7 +68,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype Path
     \instantiates QQuickPath
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a path for use by \l PathView
 
@@ -93,8 +93,8 @@ QQuickPath::~QQuickPath()
 }
 
 /*!
-    \qmlproperty real QtQuick2::Path::startX
-    \qmlproperty real QtQuick2::Path::startY
+    \qmlproperty real QtQuick::Path::startX
+    \qmlproperty real QtQuick::Path::startY
     These properties hold the starting position of the path.
 */
 qreal QQuickPath::startX() const
@@ -142,7 +142,7 @@ bool QQuickPath::hasStartY() const
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Path::closed
+    \qmlproperty bool QtQuick::Path::closed
     This property holds whether the start and end of the path are identical.
 */
 bool QQuickPath::isClosed() const
@@ -166,7 +166,7 @@ bool QQuickPath::hasEnd() const
 }
 
 /*!
-    \qmlproperty list<PathElement> QtQuick2::Path::pathElements
+    \qmlproperty list<PathElement> QtQuick::Path::pathElements
     This property holds the objects composing the path.
 
     \default
@@ -888,7 +888,7 @@ bool QQuickCurve::hasRelativeY()
 /*!
     \qmltype PathAttribute
     \instantiates QQuickPathAttribute
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Specifies how to set an attribute at a given position in a Path
 
@@ -919,7 +919,7 @@ bool QQuickCurve::hasRelativeY()
 */
 
 /*!
-    \qmlproperty string QtQuick2::PathAttribute::name
+    \qmlproperty string QtQuick::PathAttribute::name
     This property holds the name of the attribute to change.
 
     This attribute will be available to the delegate as PathView.<name>
@@ -948,7 +948,7 @@ void QQuickPathAttribute::setName(const QString &name)
 }
 
 /*!
-   \qmlproperty real QtQuick2::PathAttribute::value
+   \qmlproperty real QtQuick::PathAttribute::value
    This property holds the value for the attribute.
 
    The value specified can be used to influence the visual appearance
@@ -1005,7 +1005,7 @@ void QQuickPathAttribute::setValue(qreal value)
 /*!
     \qmltype PathLine
     \instantiates QQuickPathLine
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a straight line
 
@@ -1023,8 +1023,8 @@ void QQuickPathAttribute::setValue(qreal value)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathLine::x
-    \qmlproperty real QtQuick2::PathLine::y
+    \qmlproperty real QtQuick::PathLine::x
+    \qmlproperty real QtQuick::PathLine::y
 
     Defines the end point of the line.
 
@@ -1032,8 +1032,8 @@ void QQuickPathAttribute::setValue(qreal value)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathLine::relativeX
-    \qmlproperty real QtQuick2::PathLine::relativeY
+    \qmlproperty real QtQuick::PathLine::relativeX
+    \qmlproperty real QtQuick::PathLine::relativeY
 
     Defines the end point of the line relative to its start.
 
@@ -1064,7 +1064,7 @@ void QQuickPathLine::addToPath(QPainterPath &path, const QQuickPathData &data)
 /*!
     \qmltype PathQuad
     \instantiates QQuickPathQuad
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a quadratic Bezier curve with a control point
 
@@ -1085,8 +1085,8 @@ void QQuickPathLine::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathQuad::x
-    \qmlproperty real QtQuick2::PathQuad::y
+    \qmlproperty real QtQuick::PathQuad::x
+    \qmlproperty real QtQuick::PathQuad::y
 
     Defines the end point of the curve.
 
@@ -1094,8 +1094,8 @@ void QQuickPathLine::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathQuad::relativeX
-    \qmlproperty real QtQuick2::PathQuad::relativeY
+    \qmlproperty real QtQuick::PathQuad::relativeX
+    \qmlproperty real QtQuick::PathQuad::relativeY
 
     Defines the end point of the curve relative to its start.
 
@@ -1109,8 +1109,8 @@ void QQuickPathLine::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-   \qmlproperty real QtQuick2::PathQuad::controlX
-   \qmlproperty real QtQuick2::PathQuad::controlY
+   \qmlproperty real QtQuick::PathQuad::controlX
+   \qmlproperty real QtQuick::PathQuad::controlY
 
    Defines the position of the control point.
 */
@@ -1151,8 +1151,8 @@ void QQuickPathQuad::setControlY(qreal y)
 }
 
 /*!
-   \qmlproperty real QtQuick2::PathQuad::relativeControlX
-   \qmlproperty real QtQuick2::PathQuad::relativeControlY
+   \qmlproperty real QtQuick::PathQuad::relativeControlX
+   \qmlproperty real QtQuick::PathQuad::relativeControlY
 
     Defines the position of the control point relative to the curve's start.
 
@@ -1216,7 +1216,7 @@ void QQuickPathQuad::addToPath(QPainterPath &path, const QQuickPathData &data)
 /*!
     \qmltype PathCubic
     \instantiates QQuickPathCubic
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a cubic Bezier curve with two control points
 
@@ -1241,8 +1241,8 @@ void QQuickPathQuad::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathCubic::x
-    \qmlproperty real QtQuick2::PathCubic::y
+    \qmlproperty real QtQuick::PathCubic::x
+    \qmlproperty real QtQuick::PathCubic::y
 
     Defines the end point of the curve.
 
@@ -1250,8 +1250,8 @@ void QQuickPathQuad::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathCubic::relativeX
-    \qmlproperty real QtQuick2::PathCubic::relativeY
+    \qmlproperty real QtQuick::PathCubic::relativeX
+    \qmlproperty real QtQuick::PathCubic::relativeY
 
     Defines the end point of the curve relative to its start.
 
@@ -1265,8 +1265,8 @@ void QQuickPathQuad::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-   \qmlproperty real QtQuick2::PathCubic::control1X
-   \qmlproperty real QtQuick2::PathCubic::control1Y
+   \qmlproperty real QtQuick::PathCubic::control1X
+   \qmlproperty real QtQuick::PathCubic::control1Y
 
     Defines the position of the first control point.
 */
@@ -1299,8 +1299,8 @@ void QQuickPathCubic::setControl1Y(qreal y)
 }
 
 /*!
-   \qmlproperty real QtQuick2::PathCubic::control2X
-   \qmlproperty real QtQuick2::PathCubic::control2Y
+   \qmlproperty real QtQuick::PathCubic::control2X
+   \qmlproperty real QtQuick::PathCubic::control2Y
 
     Defines the position of the second control point.
 */
@@ -1333,10 +1333,10 @@ void QQuickPathCubic::setControl2Y(qreal y)
 }
 
 /*!
-   \qmlproperty real QtQuick2::PathCubic::relativeControl1X
-   \qmlproperty real QtQuick2::PathCubic::relativeControl1Y
-   \qmlproperty real QtQuick2::PathCubic::relativeControl2X
-   \qmlproperty real QtQuick2::PathCubic::relativeControl2Y
+   \qmlproperty real QtQuick::PathCubic::relativeControl1X
+   \qmlproperty real QtQuick::PathCubic::relativeControl1Y
+   \qmlproperty real QtQuick::PathCubic::relativeControl2X
+   \qmlproperty real QtQuick::PathCubic::relativeControl2Y
 
     Defines the positions of the control points relative to the curve's start.
 
@@ -1440,7 +1440,7 @@ void QQuickPathCubic::addToPath(QPainterPath &path, const QQuickPathData &data)
 /*!
     \qmltype PathCurve
     \instantiates QQuickPathCatmullRomCurve
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a point on a Catmull-Rom curve
 
@@ -1458,8 +1458,8 @@ void QQuickPathCubic::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathCurve::x
-    \qmlproperty real QtQuick2::PathCurve::y
+    \qmlproperty real QtQuick::PathCurve::x
+    \qmlproperty real QtQuick::PathCurve::y
 
     Defines the end point of the curve.
 
@@ -1467,8 +1467,8 @@ void QQuickPathCubic::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathCurve::relativeX
-    \qmlproperty real QtQuick2::PathCurve::relativeY
+    \qmlproperty real QtQuick::PathCurve::relativeX
+    \qmlproperty real QtQuick::PathCurve::relativeY
 
     Defines the end point of the curve relative to its start.
 
@@ -1586,7 +1586,7 @@ void QQuickPathCatmullRomCurve::addToPath(QPainterPath &path, const QQuickPathDa
 /*!
     \qmltype PathArc
     \instantiates QQuickPathArc
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines an arc with the given radius
 
@@ -1607,8 +1607,8 @@ void QQuickPathCatmullRomCurve::addToPath(QPainterPath &path, const QQuickPathDa
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathArc::x
-    \qmlproperty real QtQuick2::PathArc::y
+    \qmlproperty real QtQuick::PathArc::x
+    \qmlproperty real QtQuick::PathArc::y
 
     Defines the end point of the arc.
 
@@ -1616,8 +1616,8 @@ void QQuickPathCatmullRomCurve::addToPath(QPainterPath &path, const QQuickPathDa
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathArc::relativeX
-    \qmlproperty real QtQuick2::PathArc::relativeY
+    \qmlproperty real QtQuick::PathArc::relativeX
+    \qmlproperty real QtQuick::PathArc::relativeY
 
     Defines the end point of the arc relative to its start.
 
@@ -1631,8 +1631,8 @@ void QQuickPathCatmullRomCurve::addToPath(QPainterPath &path, const QQuickPathDa
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathArc::radiusX
-    \qmlproperty real QtQuick2::PathArc::radiusY
+    \qmlproperty real QtQuick::PathArc::radiusX
+    \qmlproperty real QtQuick::PathArc::radiusY
 
     Defines the radius of the arc.
 
@@ -1674,7 +1674,7 @@ void QQuickPathArc::setRadiusY(qreal radius)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::PathArc::useLargeArc
+    \qmlproperty bool QtQuick::PathArc::useLargeArc
     Whether to use a large arc as defined by the arc points.
 
     Given fixed start and end positions, radius, and direction,
@@ -1707,7 +1707,7 @@ void QQuickPathArc::setUseLargeArc(bool largeArc)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::PathArc::direction
+    \qmlproperty enumeration QtQuick::PathArc::direction
 
     Defines the direction of the arc. Possible values are
     PathArc.Clockwise (default) and PathArc.Counterclockwise.
@@ -1757,7 +1757,7 @@ void QQuickPathArc::addToPath(QPainterPath &path, const QQuickPathData &data)
 /*!
     \qmltype PathSvg
     \instantiates QQuickPathSvg
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Defines a path using an SVG path data string
 
@@ -1778,7 +1778,7 @@ void QQuickPathArc::addToPath(QPainterPath &path, const QQuickPathData &data)
 */
 
 /*!
-    \qmlproperty string QtQuick2::PathSvg::path
+    \qmlproperty string QtQuick::PathSvg::path
 
     The SVG path data string specifying the path.
 
@@ -1810,7 +1810,7 @@ void QQuickPathSvg::addToPath(QPainterPath &path, const QQuickPathData &)
 /*!
     \qmltype PathPercent
     \instantiates QQuickPathPercent
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-paths
     \brief Manipulates the way a path is interpreted
 
@@ -1859,7 +1859,7 @@ void QQuickPathSvg::addToPath(QPainterPath &path, const QQuickPathData &)
 */
 
 /*!
-    \qmlproperty real QtQuick2::PathPercent::value
+    \qmlproperty real QtQuick::PathPercent::value
     The proportion of items that should be laid out up to this point.
 
     This value should always be higher than the last value specified

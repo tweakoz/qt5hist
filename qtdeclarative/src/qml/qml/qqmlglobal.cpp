@@ -181,7 +181,7 @@ QVariant QQmlValueTypeProvider::createVariantFromString(int type, const QString 
     return QVariant();
 }
 
-QVariant QQmlValueTypeProvider::createVariantFromJsObject(int type, QQmlV8Handle obj, QV8Engine *e, bool *ok)
+QVariant QQmlValueTypeProvider::createVariantFromJsObject(int type, QQmlV4Handle obj, QV8Engine *e, bool *ok)
 {
     QVariant v;
 
@@ -262,7 +262,7 @@ bool QQmlValueTypeProvider::createFromString(int, const QString &, void *, size_
 bool QQmlValueTypeProvider::createStringFrom(int, const void *, QString *) { return false; }
 bool QQmlValueTypeProvider::variantFromString(const QString &, QVariant *) { return false; }
 bool QQmlValueTypeProvider::variantFromString(int, const QString &, QVariant *) { return false; }
-bool QQmlValueTypeProvider::variantFromJsObject(int, QQmlV8Handle, QV8Engine *, QVariant *) { return false; }
+bool QQmlValueTypeProvider::variantFromJsObject(int, QQmlV4Handle, QV8Engine *, QVariant *) { return false; }
 bool QQmlValueTypeProvider::equal(int, const void *, const void *, size_t) { return false; }
 bool QQmlValueTypeProvider::store(int, const void *, void *, size_t) { return false; }
 bool QQmlValueTypeProvider::read(int, const void *, size_t, int, void *) { return false; }
@@ -403,6 +403,14 @@ QQmlApplication::QQmlApplication(QObject *parent)
 {
     connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()),
             this, SIGNAL(aboutToQuit()));
+    connect(QCoreApplication::instance(), SIGNAL(applicationNameChanged()),
+            this, SIGNAL(nameChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(applicationVersionChanged()),
+            this, SIGNAL(versionChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(organizationNameChanged()),
+            this, SIGNAL(organizationChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(organizationDomainChanged()),
+            this, SIGNAL(domainChanged()));
 }
 
 QQmlApplication::QQmlApplication(QQmlApplicationPrivate &dd, QObject *parent)
@@ -410,6 +418,14 @@ QQmlApplication::QQmlApplication(QQmlApplicationPrivate &dd, QObject *parent)
 {
     connect(QCoreApplication::instance(), SIGNAL(aboutToQuit()),
             this, SIGNAL(aboutToQuit()));
+    connect(QCoreApplication::instance(), SIGNAL(applicationNameChanged()),
+            this, SIGNAL(nameChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(applicationVersionChanged()),
+            this, SIGNAL(versionChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(organizationNameChanged()),
+            this, SIGNAL(organizationChanged()));
+    connect(QCoreApplication::instance(), SIGNAL(organizationDomainChanged()),
+            this, SIGNAL(domainChanged()));
 }
 
 QStringList QQmlApplication::args()
@@ -432,16 +448,34 @@ QString QQmlApplication::version() const
     return QCoreApplication::instance()->applicationVersion();
 }
 
+QString QQmlApplication::organization() const
+{
+    return QCoreApplication::instance()->organizationName();
+}
+
+QString QQmlApplication::domain() const
+{
+    return QCoreApplication::instance()->organizationDomain();
+}
+
 void QQmlApplication::setName(const QString &arg)
 {
     QCoreApplication::instance()->setApplicationName(arg);
-    emit nameChanged(); //Note that we don't get notified if it's changed from C++
 }
 
 void QQmlApplication::setVersion(const QString &arg)
 {
     QCoreApplication::instance()->setApplicationVersion(arg);
-    emit versionChanged(); //Note that we don't get notified if it's changed from C++
+}
+
+void QQmlApplication::setOrganization(const QString &arg)
+{
+    QCoreApplication::instance()->setOrganizationName(arg);
+}
+
+void QQmlApplication::setDomain(const QString &arg)
+{
+    QCoreApplication::instance()->setOrganizationDomain(arg);
 }
 
 QT_END_NAMESPACE

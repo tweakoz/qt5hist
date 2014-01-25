@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -69,7 +69,7 @@ public:
     virtual void flush();
 
     virtual void setV8Engine(QV8Engine *engine) = 0;
-    virtual v8::Handle<v8::Object> v8value() const = 0;
+    virtual QV4::ReturnedValue v4value() const = 0;
 
     virtual QSGDynamicTexture *texture() const = 0;
 

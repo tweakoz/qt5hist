@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QtSvg
 description             = Qt SVG Reference Documentation
-url                     = http://qt-project.org/doc/qt-$QT_VER/qtsvg
+url                     = http://qt-project.org/doc/qt-$QT_VER
 version                 = $QT_VERSION
 
 qhp.projects            = QtSvg
@@ -25,7 +25,8 @@ qhp.QtSvg.subprojects.classes.sortPages = true
 depends += qtcore \
            qtwidgets \
            qtgui \
-           qtdesigner
+           qtdesigner \
+           qtdoc
 
 tagfile                 = ../../../doc/qtsvg/qtsvg.tags
 
@@ -38,5 +39,9 @@ sourcedirs  += .. \
 exampledirs += ../../../examples/svg \
                snippets/
 
+examplesinstallpath = svg
 
 imagedirs   += images
+
+navigation.landingpage = "Qt SVG"
+navigation.cppclassespage = "Qt SVG C++ Classes"

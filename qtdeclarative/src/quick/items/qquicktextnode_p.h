@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -77,7 +77,7 @@ public:
     };
     Q_DECLARE_FLAGS(Decorations, Decoration)
 
-    QQuickTextNode(QSGContext *, QQuickItem *ownerElement);
+    QQuickTextNode(QQuickItem *ownerElement);
     ~QQuickTextNode();
 
     static bool isComplexRichText(QTextDocument *);
@@ -110,7 +110,6 @@ private:
     void initEngine(const QColor &textColor, const QColor &selectedTextColor, const QColor &selectionColor, const QColor& anchorColor = QColor()
             , const QPointF &position = QPointF());
 
-    QSGContext *m_context;
     QSGSimpleRectNode *m_cursorNode;
     QList<QSGTexture *> m_textures;
     QQuickItem *m_ownerElement;

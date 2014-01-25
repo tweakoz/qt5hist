@@ -55,7 +55,7 @@ class QXcbScreen;
 class QXcbIntegration : public QPlatformIntegration
 {
 public:
-    QXcbIntegration(const QStringList &parameters);
+    QXcbIntegration(const QStringList &parameters, int &argc, char **argv);
     ~QXcbIntegration();
 
     QPlatformWindow *createPlatformWindow(QWindow *window) const;
@@ -67,7 +67,8 @@ public:
     QPlatformOffscreenSurface *createPlatformOffscreenSurface(QOffscreenSurface *surface) const;
 
     bool hasCapability(Capability cap) const;
-    QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+    QAbstractEventDispatcher *createEventDispatcher() const;
+    void initialize();
 
     void moveToScreen(QWindow *window, int screen);
 
@@ -101,6 +102,11 @@ public:
 
     QByteArray wmClass() const;
 
+#if !defined(QT_NO_SESSIONMANAGER) && defined(XCB_USE_SM)
+    QPlatformSessionManager *createPlatformSessionManager(const QString &id, const QString &key) const Q_DECL_OVERRIDE;
+#endif
+
+    void sync();
 private:
     QList<QXcbConnection *> m_connections;
 
@@ -108,10 +114,9 @@ private:
     QScopedPointer<QXcbNativeInterface> m_nativeInterface;
 
     QScopedPointer<QPlatformInputContext> m_inputContext;
-    QAbstractEventDispatcher *m_eventDispatcher;
 
 #ifndef QT_NO_ACCESSIBILITY
-    QScopedPointer<QPlatformAccessibility> m_accessibility;
+    mutable QScopedPointer<QPlatformAccessibility> m_accessibility;
 #endif
 
     QScopedPointer<QPlatformServices> m_services;
@@ -119,6 +124,7 @@ private:
     friend class QXcbConnection; // access QPlatformIntegration::screenAdded()
 
     mutable QByteArray m_wmClass;
+    const char *m_instanceName;
 };
 
 QT_END_NAMESPACE

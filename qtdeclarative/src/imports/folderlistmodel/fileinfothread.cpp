@@ -55,9 +55,11 @@ FileInfoThread::FileInfoThread(QObject *parent)
       needUpdate(true),
       folderUpdate(false),
       sortUpdate(false),
+      showFiles(true),
       showDirs(true),
       showDirsFirst(false),
-      showDotDot(false),
+      showDotAndDotDot(false),
+      showHidden(false),
       showOnlyReadable(false)
 {
 #ifndef QT_NO_FILESYSTEMWATCHER
@@ -142,6 +144,14 @@ void FileInfoThread::setNameFilters(const QStringList & filters)
     condition.wakeAll();
 }
 
+void FileInfoThread::setShowFiles(bool show)
+{
+    QMutexLocker locker(&mutex);
+    showFiles = show;
+    folderUpdate = true;
+    condition.wakeAll();
+}
+
 void FileInfoThread::setShowDirs(bool showFolders)
 {
     QMutexLocker locker(&mutex);
@@ -158,11 +168,21 @@ void FileInfoThread::setShowDirsFirst(bool show)
     condition.wakeAll();
 }
 
-void FileInfoThread::setShowDotDot(bool on)
+void FileInfoThread::setShowDotAndDotDot(bool on)
 {
     QMutexLocker locker(&mutex);
-    showDotDot = on;
+    showDotAndDotDot = on;
     folderUpdate = true;
+    needUpdate = true;
+    condition.wakeAll();
+}
+
+void FileInfoThread::setShowHidden(bool on)
+{
+    QMutexLocker locker(&mutex);
+    showHidden = on;
+    folderUpdate = true;
+    needUpdate = true;
     condition.wakeAll();
 }
 
@@ -212,11 +232,17 @@ void FileInfoThread::run()
 void FileInfoThread::getFileInfos(const QString &path)
 {
     QDir::Filters filter;
-    filter = QDir::Files | QDir::NoDot | QDir::CaseSensitive;
+    filter = QDir::CaseSensitive;
+    if (showFiles)
+        filter = filter | QDir::Files;
     if (showDirs)
         filter = filter | QDir::AllDirs | QDir::Drives;
-    if ((path == rootPath) || !showDotDot)
+    if (!showDotAndDotDot)
+        filter = filter | QDir::NoDot | QDir::NoDotDot;
+    else if (path == rootPath)
         filter = filter | QDir::NoDotDot;
+    if (showHidden)
+        filter = filter | QDir::Hidden;
     if (showOnlyReadable)
         filter = filter | QDir::Readable;
     if (showDirsFirst)

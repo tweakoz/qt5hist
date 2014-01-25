@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -73,7 +73,7 @@ public:
     {
         if (role != m_role) {
             m_role = role;
-            emit roleChanged();
+            Q_EMIT roleChanged();
             // There is no way to signify role changes at the moment.
             // QAccessible::updateAccessibility(parent(), 0, QAccessible::);
         }
@@ -82,7 +82,7 @@ public:
     void setName(const QString &name) {
         if (name != m_name) {
             m_name = name;
-            emit nameChanged();
+            Q_EMIT nameChanged();
             QAccessibleEvent ev(parent(), QAccessible::NameChanged);
             QAccessible::updateAccessibility(&ev);
         }
@@ -93,7 +93,7 @@ public:
     {
         if (m_description != description) {
             m_description = description;
-            emit descriptionChanged();
+            Q_EMIT descriptionChanged();
             QAccessibleEvent ev(parent(), QAccessible::DescriptionChanged);
             QAccessible::updateAccessibility(&ev);
         }

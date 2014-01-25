@@ -82,12 +82,15 @@ static NSButton *macCreateButton(const char *text, NSView *superview)
     BOOL mDialogIsExecuting;
     BOOL mResultSet;
 };
+- (void)restoreOriginalContentView;
 - (void)relayout;
 - (void)updateQtColor;
 - (void)finishOffWithCode:(NSInteger)code;
 @end
 
-@implementation QT_MANGLE_NAMESPACE(QNSColorPanelDelegate)
+QT_NAMESPACE_ALIAS_OBJC_CLASS(QNSColorPanelDelegate);
+
+@implementation QNSColorPanelDelegate
 
 - (id)init
 {
@@ -308,12 +311,13 @@ static NSButton *macCreateButton(const char *text, NSView *superview)
     // close down during the cleanup.
     qApp->processEvents(QEventLoop::ExcludeUserInputEvents | QEventLoop::ExcludeSocketNotifiers);
     [NSApp runModalForWindow:mColorPanel];
+    mDialogIsExecuting = false;
     return (mResultCode == NSOKButton);
 }
 
-- (QT_PREPEND_NAMESPACE(QPlatformDialogHelper::DialogCode))dialogResultCode
+- (QPlatformDialogHelper::DialogCode)dialogResultCode
 {
-    return (mResultCode == NSOKButton) ? QT_PREPEND_NAMESPACE(QPlatformDialogHelper::Accepted) : QT_PREPEND_NAMESPACE(QPlatformDialogHelper::Rejected);
+    return (mResultCode == NSOKButton) ? QPlatformDialogHelper::Accepted : QPlatformDialogHelper::Rejected;
 }
 
 - (BOOL)windowShouldClose:(id)window

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -101,7 +101,7 @@ void QQuickTextUtil::setCursorDelegate(Private *d, QQmlComponent *delegate)
     if (parent->isCursorVisible() && parent->isComponentComplete())
         createCursor(d);
 
-    emit parent->cursorDelegateChanged();
+    Q_EMIT parent->cursorDelegateChanged();
 }
 
 template <typename Private>

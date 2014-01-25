@@ -63,19 +63,21 @@ class AbstractOverlappedEventNotifier;
 
 class QSerialPortPrivate : public QSerialPortPrivateData
 {
+    Q_DECLARE_PUBLIC(QSerialPort)
+
 public:
     QSerialPortPrivate(QSerialPort *q);
 
     bool open(QIODevice::OpenMode mode);
     void close();
 
-    QSerialPort::PinoutSignals pinoutSignals() const;
+    QSerialPort::PinoutSignals pinoutSignals();
 
     bool setDataTerminalReady(bool set);
     bool setRequestToSend(bool set);
 
     bool flush();
-    bool clear(QSerialPort::Directions dir);
+    bool clear(QSerialPort::Directions directions);
 
     bool sendBreak(int duration);
     bool setBreakEnabled(bool set);
@@ -91,19 +93,19 @@ public:
     bool waitForReadyRead(int msec);
     bool waitForBytesWritten(int msec);
 
-    bool setBaudRate(qint32 baudRate, QSerialPort::Directions dir);
+    bool setBaudRate(qint32 baudRate, QSerialPort::Directions directions);
     bool setDataBits(QSerialPort::DataBits dataBits);
     bool setParity(QSerialPort::Parity parity);
     bool setStopBits(QSerialPort::StopBits stopBits);
     bool setFlowControl(QSerialPort::FlowControl flowControl);
     bool setDataErrorPolicy(QSerialPort::DataErrorPolicy policy);
 
-    bool processIoErrors(bool error);
+    void processIoErrors(bool error);
 #ifndef Q_OS_WINCE
     bool startAsyncRead();
     bool startAsyncWrite(int maxSize = INT_MAX);
-    bool completeAsyncRead(DWORD numberOfBytes);
-    bool completeAsyncWrite(DWORD numberOfBytes);
+    void completeAsyncRead(DWORD numberOfBytes);
+    void completeAsyncWrite(DWORD numberOfBytes);
     AbstractOverlappedEventNotifier *lookupFreeWriteCompletionNotifier();
     AbstractOverlappedEventNotifier *lookupCommEventNotifier();
     AbstractOverlappedEventNotifier *lookupReadCompletionNotifier();

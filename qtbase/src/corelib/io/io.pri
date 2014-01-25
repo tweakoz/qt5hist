@@ -47,7 +47,12 @@ HEADERS +=  \
         io/qfilesystementry_p.h \
         io/qfilesystemengine_p.h \
         io/qfilesystemmetadata_p.h \
-        io/qfilesystemiterator_p.h
+        io/qfilesystemiterator_p.h \
+        io/qfileselector.h \
+        io/qfileselector_p.h \
+        io/qloggingcategory.h \
+        io/qloggingcategory_p.h \
+        io/qloggingregistry_p.h
 
 SOURCES += \
         io/qabstractfileengine.cpp \
@@ -83,7 +88,10 @@ SOURCES += \
         io/qfilesystemwatcher.cpp \
         io/qfilesystemwatcher_polling.cpp \
         io/qfilesystementry.cpp \
-        io/qfilesystemengine.cpp
+        io/qfilesystemengine.cpp \
+        io/qfileselector.cpp \
+        io/qloggingcategory.cpp \
+        io/qloggingregistry.cpp
 
 win32 {
         SOURCES += io/qsettings_win.cpp
@@ -92,22 +100,25 @@ win32 {
 
         SOURCES += io/qfilesystemwatcher_win.cpp
         HEADERS += io/qfilesystemwatcher_win_p.h
-        HEADERS += io/qwindowspipewriter_p.h
-        SOURCES += io/qwindowspipewriter.cpp
         SOURCES += io/qfilesystemengine_win.cpp
         SOURCES += io/qfilesystemiterator_win.cpp
         SOURCES += io/qstandardpaths_win.cpp
 
-    wince* {
-        SOURCES += io/qprocess_wince.cpp
-    } else {
-        HEADERS += \
-            io/qwinoverlappedionotifier_p.h \
-            io/qwindowspipereader_p.h
-        SOURCES += \
-            io/qprocess_win.cpp \
-            io/qwinoverlappedionotifier.cpp \
-            io/qwindowspipereader.cpp
+    !winrt {
+        HEADERS += io/qwindowspipewriter_p.h
+        SOURCES += io/qwindowspipewriter.cpp
+
+        wince* {
+            SOURCES += io/qprocess_wince.cpp
+        } else {
+            HEADERS += \
+                io/qwinoverlappedionotifier_p.h \
+                io/qwindowspipereader_p.h
+            SOURCES += \
+                io/qprocess_win.cpp \
+                io/qwinoverlappedionotifier.cpp \
+                io/qwindowspipereader.cpp
+        }
     }
 } else:unix|integrity {
         SOURCES += \
@@ -119,10 +130,13 @@ win32 {
 
         !nacl:mac: {
             SOURCES += io/qsettings_mac.cpp
+            OBJECTIVE_SOURCES += io/qurl_mac.mm
         }
         mac {
             macx {
                 SOURCES += io/qstandardpaths_mac.cpp
+            } else:ios {
+                OBJECTIVE_SOURCES += io/qstandardpaths_ios.mm
             } else {
                 SOURCES += io/qstandardpaths_unix.cpp
             }

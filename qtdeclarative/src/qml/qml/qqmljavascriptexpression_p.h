@@ -53,7 +53,6 @@
 // We mean it.
 //
 
-#include <private/qv8_p.h>
 #include <QtCore/qglobal.h>
 #include <QtQml/qqmlerror.h>
 #include <private/qqmlengine_p.h>
@@ -61,11 +60,15 @@
 
 QT_BEGIN_NAMESPACE
 
+namespace QV4 {
+struct ExecutionContext;
+}
+
 class QQmlDelayedError
 {
 public:
     inline QQmlDelayedError() : nextError(0), prevError(0) {}
-    inline ~QQmlDelayedError() { qPersistentDispose(m_message); removeError(); }
+    inline ~QQmlDelayedError() { removeError(); }
 
     bool addError(QQmlEnginePrivate *);
 
@@ -77,19 +80,20 @@ public:
         prevError = 0;
     }
 
-    inline bool isValid() const { return !m_message.IsEmpty() || m_error.isValid(); }
-    inline const QQmlError &error(QQmlEngine *engine) const { convertMessageToError(engine); return m_error; }
-    inline void clearError() { qPersistentDispose(m_message); m_error = QQmlError(); }
+    inline bool isValid() const { return m_error.isValid(); }
+    inline const QQmlError &error() const { return m_error; }
+    inline void clearError() { m_error = QQmlError(); }
 
-    void setMessage(v8::Handle<v8::Message> message);
     void setErrorLocation(const QUrl &url, quint16 line, quint16 column);
     void setErrorDescription(const QString &description);
+    void setErrorObject(QObject *object);
+
+    // Call only from catch(...) -- will re-throw if no JS exception
+    void catchJavaScriptException(QV4::ExecutionContext *context);
 
 private:
-    void convertMessageToError(QQmlEngine *engine) const;
 
     mutable QQmlError m_error;
-    mutable v8::Persistent<v8::Message> m_message;
 
     QQmlDelayedError  *nextError;
     QQmlDelayedError **prevError;
@@ -110,16 +114,9 @@ public:
 
     QQmlJavaScriptExpression(VTable *vtable);
 
-    v8::Local<v8::Value> evaluate(QQmlContextData *, v8::Handle<v8::Function>,
-                                  bool *isUndefined);
-    v8::Local<v8::Value> evaluate(QQmlContextData *, v8::Handle<v8::Function>,
-                                  int argc, v8::Handle<v8::Value> args[],
-                                  bool *isUndefined);
+    QV4::ReturnedValue evaluate(QQmlContextData *, const QV4::ValueRef function, bool *isUndefined);
+    QV4::ReturnedValue evaluate(QQmlContextData *, const QV4::ValueRef function, QV4::CallData *callData, bool *isUndefined);
 
-    inline bool requiresThisObject() const;
-    inline void setRequiresThisObject(bool v);
-    inline bool useSharedContext() const;
-    inline void setUseSharedContext(bool v);
     inline bool notifyOnValueChanged() const;
 
     void setNotifyOnValueChanged(bool v);
@@ -147,15 +144,15 @@ public:
     void clearGuards();
     QQmlDelayedError *delayedError();
 
-    static void exceptionToError(v8::Handle<v8::Message>, QQmlError &);
-    static v8::Persistent<v8::Function> evalFunction(QQmlContextData *ctxt, QObject *scope,
+    static QV4::ReturnedValue evalFunction(QQmlContextData *ctxt, QObject *scope,
                                                      const QString &code, const QString &filename,
                                                      quint16 line,
-                                                     v8::Persistent<v8::Object> *qmlscope = 0);
-    static v8::Persistent<v8::Function> evalFunction(QQmlContextData *ctxt, QObject *scope,
-                                                     const char *code, int codeLength,
-                                                     const QString &filename, quint16 line,
-                                                     v8::Persistent<v8::Object> *qmlscope = 0);
+                                                     QV4::PersistentValue *qmlscope = 0);
+    // doesn't require rewriting the expression
+    static QV4::ReturnedValue qmlBinding(QQmlContextData *ctxt, QObject *scope,
+                                        const QString &code,
+                                        const QString &filename, quint16 line,
+                                        QV4::PersistentValue *qmlscope = 0);
 protected:
     ~QQmlJavaScriptExpression();
 
@@ -184,7 +181,6 @@ private:
     QPointerValuePair<VTable, QQmlDelayedError> m_vtable;
 
     // We store some flag bits in the following flag pointers.
-    //    m_scopeObject:flag1 - requiresThisObject
     //    activeGuards:flag1  - notifyOnValueChanged
     //    activeGuards:flag2  - useSharedContext
     QBiPointer<QObject, DeleteWatcher> m_scopeObject;
@@ -214,26 +210,6 @@ QQmlJavaScriptExpression::DeleteWatcher::~DeleteWatcher()
 bool QQmlJavaScriptExpression::DeleteWatcher::wasDeleted() const
 {
     return *_w == 0;
-}
-
-bool QQmlJavaScriptExpression::requiresThisObject() const
-{
-    return m_scopeObject.flag();
-}
-
-void QQmlJavaScriptExpression::setRequiresThisObject(bool v)
-{
-    m_scopeObject.setFlagValue(v);
-}
-
-bool QQmlJavaScriptExpression::useSharedContext() const
-{
-    return activeGuards.flag2();
-}
-
-void QQmlJavaScriptExpression::setUseSharedContext(bool v)
-{
-    activeGuards.setFlag2Value(v);
 }
 
 bool QQmlJavaScriptExpression::notifyOnValueChanged() const

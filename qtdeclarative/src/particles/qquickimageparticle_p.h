@@ -263,7 +263,7 @@ public:
     void resetRotation();
     void resetDeformation();
 
-signals:
+Q_SIGNALS:
 
     void imageChanged();
     void colortableChanged();
@@ -305,7 +305,7 @@ signals:
 
     void statusChanged(Status arg);
 
-public slots:
+public Q_SLOTS:
     void reloadColor(const Color4ub &c, QQuickParticleData* d);
     void setAlphaVariation(qreal arg);
 
@@ -343,17 +343,18 @@ protected:
     virtual void commit(int gIdx, int pIdx);
 
     QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
-    void prepareNextFrame();
-    void buildParticleNodes();
+    void prepareNextFrame(QSGNode**);
+    void buildParticleNodes(QSGNode**);
 
     void sceneGraphInvalidated();
 
-private slots:
+private Q_SLOTS:
     void createEngine(); //### method invoked by sprite list changing (in engine.h) - pretty nasty
 
     void spriteAdvance(int spriteIndex);
     void spritesUpdate(qreal time = 0 );
-    void finishBuildParticleNodes();
+    void mainThreadFetchImageData();
+    void finishBuildParticleNodes(QSGNode **n);
 private:
     struct ImageData {
         QUrl source;
@@ -436,7 +437,7 @@ private:
     }
     EntryEffect m_entryEffect;
     Status m_status;
-    bool m_buildingNodes;
+    int m_startedImageLoading;
 };
 
 QT_END_NAMESPACE

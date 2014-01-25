@@ -72,6 +72,8 @@
 #include <qvarlengtharray.h>
 #include <qdebug.h>
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 // Runtime resolved theme engine function calls
@@ -167,7 +169,7 @@ static inline HDC hdcForWidgetBackingStore(const QWidget *widget)
 
 // Theme data helper ------------------------------------------------------------------------------
 /* \internal
-    Returns true if the themedata is valid for use.
+    Returns \c true if the themedata is valid for use.
 */
 bool XPThemeData::isValid()
 {
@@ -277,7 +279,7 @@ void QWindowsXPStylePrivate::init(bool force)
         ref.ref();
 
     useXP(true);
-    qFill(m_themes, m_themes + NThemes, HTHEME(0));
+    std::fill(m_themes, m_themes + NThemes, HTHEME(0));
 }
 
 /* \internal
@@ -397,7 +399,7 @@ const QPixmap *QWindowsXPStylePrivate::tabBody(QWidget *)
 }
 
 /*! \internal
-    Returns true if all the necessary theme engine symbols were
+    Returns \c true if all the necessary theme engine symbols were
     resolved.
 */
 bool QWindowsXPStylePrivate::resolveSymbols()
@@ -499,7 +501,7 @@ HBITMAP QWindowsXPStylePrivate::buffer(int w, int h)
 }
 
 /*! \internal
-    Returns true if the part contains any transparency at all. This does
+    Returns \c true if the part contains any transparency at all. This does
     not indicate what kind of transparency we're dealing with. It can be
         - Alpha transparency
         - Masked transparency
@@ -570,7 +572,7 @@ void QWindowsXPStylePrivate::setTransparency(QWidget *widget, XPThemeData &theme
 }
 
 /*! \internal
-    Returns true if the native doublebuffer contains pixels with
+    Returns \c true if the native doublebuffer contains pixels with
     varying alpha value.
 */
 bool QWindowsXPStylePrivate::hasAlphaChannel(const QRect &rect)
@@ -4306,7 +4308,7 @@ void QWindowsXPStylePrivate::showProperties(XPThemeData &themeData)
                 }
             }
         }
-        qSort(all_props);
+        std::sort(all_props.begin(), all_props.end());
 
         {// List all properties
             printf("part properties count = %d:\n", all_props.count());

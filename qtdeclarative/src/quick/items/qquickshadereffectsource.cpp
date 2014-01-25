@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -45,6 +45,7 @@
 #include "qquickwindow_p.h"
 #include <private/qsgadaptationlayer_p.h>
 #include <QtQuick/private/qsgrenderer_p.h>
+#include <qsgsimplerectnode.h>
 
 #include "qopenglframebufferobject.h"
 #include "qmath.h"
@@ -96,6 +97,10 @@ class QQuickShaderEffectSourceTextureProvider : public QSGTextureProvider
 public:
     QQuickShaderEffectSourceTextureProvider()
         : sourceTexture(0)
+        , mipmapFiltering(QSGTexture::None)
+        , filtering(QSGTexture::Nearest)
+        , horizontalWrap(QSGTexture::ClampToEdge)
+        , verticalWrap(QSGTexture::ClampToEdge)
     {
     }
 
@@ -136,10 +141,11 @@ QQuickShaderEffectTexture::QQuickShaderEffectTexture(QQuickItem *shaderSource)
     , m_renderer(0)
     , m_fbo(0)
     , m_secondaryFbo(0)
+    , m_transparentTexture(0)
 #ifdef QSG_DEBUG_FBO_OVERLAY
     , m_debugOverlay(0)
 #endif
-    , m_context(QQuickItemPrivate::get(shaderSource)->sceneGraphContext())
+    , m_context(QQuickItemPrivate::get(shaderSource)->sceneGraphRenderContext())
     , m_mipmap(false)
     , m_live(true)
     , m_recursive(false)
@@ -152,14 +158,24 @@ QQuickShaderEffectTexture::QQuickShaderEffectTexture(QQuickItem *shaderSource)
 
 QQuickShaderEffectTexture::~QQuickShaderEffectTexture()
 {
-    if (m_renderer)
-        disconnect(m_renderer, SIGNAL(sceneGraphChanged()), this, SLOT(markDirtyTexture()));
+    invalidated();
+}
+
+void QQuickShaderEffectTexture::invalidated()
+{
     delete m_renderer;
+    m_renderer = 0;
     delete m_fbo;
     delete m_secondaryFbo;
+    m_fbo = m_secondaryFbo = 0;
 #ifdef QSG_DEBUG_FBO_OVERLAY
     delete m_debugOverlay;
+    m_debugOverlay = 0;
 #endif
+    if (m_transparentTexture) {
+        glDeleteTextures(1, &m_transparentTexture);
+        m_transparentTexture = 0;
+    }
 }
 
 int QQuickShaderEffectTexture::textureId() const
@@ -184,8 +200,20 @@ void QQuickShaderEffectTexture::bind()
     if (!m_recursive && m_fbo && ((m_multisampling && m_secondaryFbo->isBound()) || m_fbo->isBound()))
         qWarning("ShaderEffectSource: \'recursive\' must be set to true when rendering recursively.");
 #endif
-    glBindTexture(GL_TEXTURE_2D, m_fbo ? m_fbo->texture() : 0);
-    updateBindOptions();
+
+    if (!m_fbo && m_format == GL_RGBA) {
+        if (m_transparentTexture == 0) {
+            glGenTextures(1, &m_transparentTexture);
+            glBindTexture(GL_TEXTURE_2D, m_transparentTexture);
+            const uint zero = 0;
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, &zero);
+        } else {
+            glBindTexture(GL_TEXTURE_2D, m_transparentTexture);
+        }
+    } else {
+        glBindTexture(GL_TEXTURE_2D, m_fbo ? m_fbo->texture() : 0);
+        updateBindOptions();
+    }
 }
 
 bool QQuickShaderEffectTexture::updateTexture()
@@ -322,7 +350,7 @@ void QQuickShaderEffectTexture::grab()
         || (!m_fbo->format().mipmap() && m_mipmap))
     {
         if (!m_multisamplingChecked) {
-            if (m_context->glContext()->format().samples() <= 1) {
+            if (m_context->openglContext()->format().samples() <= 1) {
                 m_multisampling = false;
             } else {
                 QList<QByteArray> extensions = QByteArray((const char *)glGetString(GL_EXTENSIONS)).split(' ');
@@ -338,7 +366,7 @@ void QQuickShaderEffectTexture::grab()
             QOpenGLFramebufferObjectFormat format;
 
             format.setInternalTextureFormat(m_format);
-            format.setSamples(m_context->glContext()->format().samples());
+            format.setSamples(m_context->openglContext()->format().samples());
             m_secondaryFbo = new QOpenGLFramebufferObject(m_size, format);
             m_depthStencilBuffer = m_context->depthStencilBufferForFbo(m_secondaryFbo);
         } else {
@@ -381,20 +409,16 @@ void QQuickShaderEffectTexture::grab()
 #ifdef QSG_DEBUG_FBO_OVERLAY
     if (qmlFboOverlay()) {
         if (!m_debugOverlay)
-            m_debugOverlay = m_context->createRectangleNode();
+            m_debugOverlay = new QSGSimpleRectNode();
         m_debugOverlay->setRect(QRectF(0, 0, m_size.width(), m_size.height()));
         m_debugOverlay->setColor(QColor(0xff, 0x00, 0x80, 0x40));
-        m_debugOverlay->setPenColor(QColor());
-        m_debugOverlay->setPenWidth(0);
-        m_debugOverlay->setRadius(0);
-        m_debugOverlay->update();
         root->appendChildNode(m_debugOverlay);
     }
 #endif
 
     m_dirtyTexture = false;
 
-    QOpenGLContext *ctx = m_context->glContext();
+    QOpenGLContext *ctx = m_context->openglContext();
     m_renderer->setDeviceRect(m_size);
     m_renderer->setViewportRect(m_size);
     QRectF mirrored(m_rect.left(), m_rect.bottom(), m_rect.width(), -m_rect.height());
@@ -464,8 +488,8 @@ QImage QQuickShaderEffectTexture::toImage() const
 /*!
     \qmltype ShaderEffectSource
     \instantiates QQuickShaderEffectSource
-    \inqmlmodule QtQuick 2
-    \since QtQuick 2.0
+    \inqmlmodule QtQuick
+    \since 5.0
     \inherits Item
     \ingroup qtquick-effects
     \brief Renders a \l {Qt Quick} item into a texture and displays it
@@ -587,25 +611,26 @@ void QQuickShaderEffectSource::ensureTexture()
         return;
 
     Q_ASSERT_X(QQuickItemPrivate::get(this)->window
-               && QQuickItemPrivate::get(this)->sceneGraphContext()
-               && QThread::currentThread() == QQuickItemPrivate::get(this)->sceneGraphContext()->thread(),
+               && QQuickItemPrivate::get(this)->sceneGraphRenderContext()
+               && QThread::currentThread() == QQuickItemPrivate::get(this)->sceneGraphRenderContext()->thread(),
                "QQuickShaderEffectSource::ensureTexture",
                "Cannot be used outside the rendering thread");
 
     m_texture = new QQuickShaderEffectTexture(this);
+    connect(QQuickItemPrivate::get(this)->window, SIGNAL(sceneGraphInvalidated()), m_texture, SLOT(invalidated()), Qt::DirectConnection);
     connect(m_texture, SIGNAL(updateRequested()), this, SLOT(update()));
     connect(m_texture, SIGNAL(scheduledUpdateCompleted()), this, SIGNAL(scheduledUpdateCompleted()));
 }
 
 QSGTextureProvider *QQuickShaderEffectSource::textureProvider() const
 {
+    const QQuickItemPrivate *d = QQuickItemPrivate::get(this);
+    if (!d->window || !d->sceneGraphRenderContext() || QThread::currentThread() != d->sceneGraphRenderContext()->thread()) {
+        qWarning("QQuickShaderEffectSource::textureProvider: can only be queried on the rendering thread of an exposed window");
+        return 0;
+    }
+
     if (!m_provider) {
-        // Make sure it gets thread affinity on the rendering thread so deletion works properly..
-        Q_ASSERT_X(QQuickItemPrivate::get(this)->window
-                   && QQuickItemPrivate::get(this)->sceneGraphContext()
-                   && QThread::currentThread() == QQuickItemPrivate::get(this)->sceneGraphContext()->thread(),
-                   "QQuickShaderEffectSource::textureProvider",
-                   "Cannot be used outside the rendering thread");
         const_cast<QQuickShaderEffectSource *>(this)->m_provider = new QQuickShaderEffectSourceTextureProvider();
         const_cast<QQuickShaderEffectSource *>(this)->ensureTexture();
         connect(m_texture, SIGNAL(updateRequested()), m_provider, SIGNAL(textureChanged()));
@@ -615,7 +640,7 @@ QSGTextureProvider *QQuickShaderEffectSource::textureProvider() const
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ShaderEffectSource::wrapMode
+    \qmlproperty enumeration QtQuick::ShaderEffectSource::wrapMode
 
     This property defines the OpenGL wrap modes associated with the texture.
     Modifying this property makes most sense when the item is used as a
@@ -647,7 +672,7 @@ void QQuickShaderEffectSource::setWrapMode(WrapMode mode)
 }
 
 /*!
-    \qmlproperty Item QtQuick2::ShaderEffectSource::sourceItem
+    \qmlproperty Item QtQuick::ShaderEffectSource::sourceItem
 
     This property holds the item to be rendered into the texture.
     Setting this to null while \l live is true, will release the texture
@@ -708,7 +733,7 @@ void QQuickShaderEffectSource::sourceItemDestroyed(QObject *item)
 
 
 /*!
-    \qmlproperty rect QtQuick2::ShaderEffectSource::sourceRect
+    \qmlproperty rect QtQuick::ShaderEffectSource::sourceRect
 
     This property defines which rectangular area of the \l sourceItem to
     render into the texture. The source rectangle can be larger than
@@ -731,7 +756,7 @@ void QQuickShaderEffectSource::setSourceRect(const QRectF &rect)
 }
 
 /*!
-    \qmlproperty size QtQuick2::ShaderEffectSource::textureSize
+    \qmlproperty size QtQuick::ShaderEffectSource::textureSize
 
     This property holds the requested size of the texture. If it is empty,
     which is the default, the size of the source rectangle is used.
@@ -756,7 +781,7 @@ void QQuickShaderEffectSource::setTextureSize(const QSize &size)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ShaderEffectSource::format
+    \qmlproperty enumeration QtQuick::ShaderEffectSource::format
 
     This property defines the internal OpenGL format of the texture.
     Modifying this property makes most sense when the item is used as a
@@ -787,7 +812,7 @@ void QQuickShaderEffectSource::setFormat(QQuickShaderEffectSource::Format format
 }
 
 /*!
-    \qmlproperty bool QtQuick2::ShaderEffectSource::live
+    \qmlproperty bool QtQuick::ShaderEffectSource::live
 
     If this property is true, the texture is updated whenever the
     \l sourceItem updates. Otherwise, it will be a frozen image, even if
@@ -809,7 +834,7 @@ void QQuickShaderEffectSource::setLive(bool live)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::ShaderEffectSource::hideSource
+    \qmlproperty bool QtQuick::ShaderEffectSource::hideSource
 
     If this property is true, the \l sourceItem is hidden, though it will still
     be rendered into the texture. As opposed to hiding the \l sourceItem by
@@ -838,7 +863,7 @@ void QQuickShaderEffectSource::setHideSource(bool hide)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::ShaderEffectSource::mipmap
+    \qmlproperty bool QtQuick::ShaderEffectSource::mipmap
 
     If this property is true, mipmaps are generated for the texture.
 
@@ -861,7 +886,7 @@ void QQuickShaderEffectSource::setMipmap(bool enabled)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::ShaderEffectSource::recursive
+    \qmlproperty bool QtQuick::ShaderEffectSource::recursive
 
     Set this property to true if the ShaderEffectSource has a dependency on
     itself. ShaderEffectSources form a dependency chain, where one
@@ -892,7 +917,7 @@ void QQuickShaderEffectSource::setRecursive(bool enabled)
 }
 
 /*!
-    \qmlmethod QtQuick2::ShaderEffectSource::scheduleUpdate()
+    \qmlmethod QtQuick::ShaderEffectSource::scheduleUpdate()
 
     Schedules a re-rendering of the texture for the next frame.
     Use this to update the texture when \l live is false.

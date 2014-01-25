@@ -125,7 +125,7 @@ class QString;
 
 /* qmake ignore Q_OBJECT */
 #define Q_OBJECT_CHECK \
-    template <typename T> inline void qt_check_for_QOBJECT_macro(const T &_q_argument) const \
+    template <typename ThisObject> inline void qt_check_for_QOBJECT_macro(const ThisObject &_q_argument) const \
     { int i = qYouForgotTheQ_OBJECT_Macro(this, &_q_argument); i = i + 1; }
 
 template <typename T>
@@ -456,6 +456,7 @@ class Q_CORE_EXPORT QMetaObject::Connection {
     void *d_ptr; //QObjectPrivate::Connection*
     explicit Connection(void *data) : d_ptr(data) {  }
     friend class QObject;
+    friend class QObjectPrivate;
     friend struct QMetaObject;
 public:
     ~Connection();
@@ -478,6 +479,16 @@ public:
 
 inline const QMetaObject *QMetaObject::superClass() const
 { return d.superdata; }
+
+namespace QtPrivate {
+    /* Trait that tells is a the Object has a Q_OBJECT macro */
+    template <typename Object> struct HasQ_OBJECT_Macro {
+        template <typename T>
+        static char test(int (T::*)(QMetaObject::Call, int, void **));
+        static int test(int (Object::*)(QMetaObject::Call, int, void **));
+        enum { Value =  sizeof(test(&Object::qt_metacall)) == sizeof(int) };
+    };
+}
 
 QT_END_NAMESPACE
 

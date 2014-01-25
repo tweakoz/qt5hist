@@ -54,6 +54,7 @@ QT_BEGIN_NAMESPACE
 EvalHandler Option::evalHandler;
 QMakeGlobals *Option::globals;
 ProFileCache *Option::proFileCache;
+QMakeVfs *Option::vfs;
 QMakeParser *Option::parser;
 
 //convenience
@@ -81,7 +82,6 @@ char Option::field_sep;
 Option::QMAKE_MODE Option::qmake_mode = Option::QMAKE_GENERATE_NOTHING;
 
 //all modes
-QStringList Option::qmake_args;
 int Option::warn_level = WarnLogic | WarnDeprecated;
 int Option::debug_level = 0;
 QFile Option::output;
@@ -347,7 +347,8 @@ Option::init(int argc, char **argv)
                     continue;
                 QString candidate = currentDir.absoluteFilePath(*p + QLatin1Char('/') + argv0);
 #ifdef Q_OS_WIN
-                candidate += ".exe";
+                if (!candidate.endsWith(QLatin1String(".exe")))
+                    candidate += QLatin1String(".exe");
 #endif
                 if (QFile::exists(candidate)) {
                     globals->qmake_abslocation = candidate;
@@ -434,7 +435,7 @@ Option::init(int argc, char **argv)
             return ret;
             //return ret == QMAKE_CMDLINE_SHOW_USAGE ? usage(argv[0]) : false;
         }
-        Option::qmake_args = args;
+        globals->qmake_args = args;
     }
     globals->commitCommandLineArguments(cmdstate);
     globals->debugLevel = Option::debug_level;
@@ -530,12 +531,11 @@ Option::fixString(QString string, uchar flags)
         string = QDir::cleanPath(string);
     }
 
-    bool localSep = (flags & Option::FixPathToLocalSeparators) != 0;
-    bool targetSep = (flags & Option::FixPathToTargetSeparators) != 0;
-    bool normalSep = (flags & Option::FixPathToNormalSeparators) != 0;
-
     // either none or only one active flag
-    Q_ASSERT(localSep + targetSep + normalSep <= 1);
+    Q_ASSERT(((flags & Option::FixPathToLocalSeparators) != 0) +
+             ((flags & Option::FixPathToTargetSeparators) != 0) +
+             ((flags & Option::FixPathToNormalSeparators) != 0) <= 1);
+
     //fix separators
     if (flags & Option::FixPathToNormalSeparators) {
         string = string.replace('\\', '/');

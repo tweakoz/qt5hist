@@ -40,6 +40,7 @@
 ****************************************************************************/
 
 #include "qquickmenu_p.h"
+#include "qquickmenubar_p.h"
 #include "qquickmenuitemcontainer_p.h"
 #include "qquickmenupopupwindow_p.h"
 
@@ -62,7 +63,7 @@ QT_BEGIN_NAMESPACE
   \qmltype MenuPrivate
   \instantiates QQuickMenu
   \internal
-  \inqmlmodule QtQuick.Controls 1.0
+  \inqmlmodule QtQuick.Controls
  */
 
 /*!
@@ -110,7 +111,7 @@ QT_BEGIN_NAMESPACE
     \qmlproperty bool Menu::visible
 
     Whether the menu should be visible. This is only enabled when the menu is used as
-    a submenu. Its value defaults to \c true.
+    a submenu or in the menubar. Its value defaults to \c true.
 */
 
 /*!
@@ -271,6 +272,17 @@ QQuickMenu::~QQuickMenu()
     m_platformMenu = 0;
 }
 
+void QQuickMenu::setVisible(bool v)
+{
+    QQuickMenuBase::setVisible(v);
+    if (m_platformMenu) {
+        m_platformMenu->setVisible(v);
+        QQuickMenuBar *menubar = qobject_cast<QQuickMenuBar *>(parent());
+        if (menubar && menubar->platformMenuBar())
+            menubar->platformMenuBar()->syncMenu(m_platformMenu);
+    }
+}
+
 void QQuickMenu::updateText()
 {
     if (m_platformMenu)
@@ -286,6 +298,8 @@ void QQuickMenu::setMinimumWidth(int w)
     m_minimumWidth = w;
     if (m_platformMenu)
         m_platformMenu->setMinimumWidth(w);
+
+    emit minimumWidthChanged();
 }
 
 void QQuickMenu::setFont(const QFont &arg)
@@ -368,8 +382,11 @@ void QQuickMenu::__popup(qreal x, qreal y, int atItemIndex)
 
     if (m_platformMenu) {
         QPointF screenPosition(x + m_xOffset, y + m_yOffset);
-        if (visualItem())
+        if (visualItem()) {
+            if (qGuiApp->isRightToLeft())
+                screenPosition.rx() -= qMax(static_cast<qreal>(m_minimumWidth), m_menuContentItem->width());
             screenPosition = visualItem()->mapToScene(screenPosition);
+        }
         m_platformMenu->showPopup(parentWindow, screenPosition.toPoint(), atItem ? atItem->platformItem() : 0);
     } else {
         m_popupWindow = new QQuickMenuPopupWindow();
@@ -377,7 +394,7 @@ void QQuickMenu::__popup(qreal x, qreal y, int atItemIndex)
             m_popupWindow->setParentItem(visualItem());
         else
             m_popupWindow->setParentWindow(parentWindow);
-        m_popupWindow->setMenuContentItem(m_menuContentItem);
+        m_popupWindow->setPopupContentItem(m_menuContentItem);
         m_popupWindow->setItemAt(atItem ? atItem->visualItem() : 0);
 
         connect(m_popupWindow, SIGNAL(visibleChanged(bool)), this, SLOT(windowVisibleChanged(bool)));
@@ -389,8 +406,10 @@ void QQuickMenu::__popup(qreal x, qreal y, int atItemIndex)
 
 void QQuickMenu::setMenuContentItem(QQuickItem *item)
 {
-    if (m_menuContentItem != item)
+    if (m_menuContentItem != item) {
         m_menuContentItem = item;
+        emit menuContentItemChanged();
+    }
 }
 
 void QQuickMenu::setPopupVisible(bool v)
@@ -416,7 +435,7 @@ void QQuickMenu::__dismissMenu()
     while (topMenuWindow) {
         QQuickMenuPopupWindow *pw = qobject_cast<QQuickMenuPopupWindow *>(topMenuWindow->transientParent());
         if (!pw)
-            topMenuWindow->dismissMenu();
+            topMenuWindow->dismissPopup();
         topMenuWindow = pw;
     }
 }

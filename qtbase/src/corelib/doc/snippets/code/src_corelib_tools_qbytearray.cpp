@@ -352,6 +352,14 @@ QByteArray text("Qt is great!");
 text.toBase64();        // returns "UXQgaXMgZ3JlYXQh"
 //! [39]
 
+//! [39bis]
+QByteArray text("<p>Hello?</p>");
+text.toBase64(QByteArray::Base64 | QByteArray::OmitTrailingEquals);      // returns "PHA+SGVsbG8/PC9wPg"
+text.toBase64(QByteArray::Base64);                                       // returns "PHA+SGVsbG8/PC9wPg=="
+text.toBase64(QByteArray::Base64Url);                                    // returns "PHA-SGVsbG8_PC9wPg=="
+text.toBase64(QByteArray::Base64Url | QByteArray::OmitTrailingEquals);   // returns "PHA-SGVsbG8_PC9wPg"
+//! [39bis]
+
 
 //! [40]
 QByteArray ba;
@@ -394,6 +402,11 @@ QByteArray text = QByteArray::fromBase64("UXQgaXMgZ3JlYXQh");
 text.data();            // returns "Qt is great!"
 //! [44]
 
+//! [44bis]
+QByteArray::fromBase64("PHA+SGVsbG8/PC9wPg==", QByteArray::Base64Encoding); // returns "<p>Hello?</p>"
+QByteArray::fromBase64("PHA-SGVsbG8_PC9wPg==", QByteArray::Base64UrlEncoding); // returns "<p>Hello?</p>"
+//! [44bis]
+
 
 //! [45]
 QByteArray text = QByteArray::fromHex("517420697320677265617421");
@@ -403,7 +416,7 @@ text.data();            // returns "Qt is great!"
 //! [46]
 QString tmp = "test";
 QByteArray text = tmp.toLocal8Bit();
-char *data = new char[text.size()]
+char *data = new char[text.size()];
 strcpy(data, text.data());
 delete [] data;
 //! [46]
@@ -411,7 +424,7 @@ delete [] data;
 //! [47]
 QString tmp = "test";
 QByteArray text = tmp.toLocal8Bit();
-char *data = new char[text.size() + 1]
+char *data = new char[text.size() + 1];
 strcpy(data, text.data());
 delete [] data;
 //! [47]
@@ -427,7 +440,7 @@ ba2.constData();                // Returns "ca\0" with terminating \0.
 
 QByteArray ba3("ca\0r\0t", 4);
 ba3.size();                     // Returns 4.
-ba2.constData();                // Returns "ca\0r" with terminating \0.
+ba3.constData();                // Returns "ca\0r" with terminating \0.
 
 const char cart[] = {'c', 'a', '\0', 'r', '\0', 't'};
 QByteArray ba4(QByteArray::fromRawData(cart, 6));

@@ -43,7 +43,11 @@
 #include <qt_windows.h>
 
 typedef ULONGLONG (WINAPI *PtrGetTickCount64)(void);
-static PtrGetTickCount64 ptrGetTickCount64 = 0;
+#if defined(Q_OS_WINRT)
+    static const PtrGetTickCount64 ptrGetTickCount64 = &GetTickCount64;
+#else
+    static PtrGetTickCount64 ptrGetTickCount64 = 0;
+#endif
 
 QT_BEGIN_NAMESPACE
 
@@ -56,6 +60,7 @@ static void resolveLibs()
     if (done)
         return;
 
+#ifndef Q_OS_WINRT
     // try to get GetTickCount64 from the system
     HMODULE kernel32 = GetModuleHandleW(L"kernel32");
     if (!kernel32)
@@ -67,6 +72,7 @@ static void resolveLibs()
 #else
     ptrGetTickCount64 = (PtrGetTickCount64)GetProcAddress(kernel32, "GetTickCount64");
 #endif
+#endif // !Q_OS_WINRT
 
     // Retrieve the number of high-resolution performance counter ticks per second
     LARGE_INTEGER frequency;
@@ -108,6 +114,7 @@ static quint64 getTickCount()
         }
     }
 
+#ifndef Q_OS_WINRT
     if (ptrGetTickCount64)
         return ptrGetTickCount64();
 
@@ -118,6 +125,10 @@ static quint64 getTickCount()
         ++highdword;
     lastval = val;
     return val | (quint64(highdword) << 32);
+#else // !Q_OS_WINRT
+    // ptrGetTickCount64 is always set on WinRT but GetTickCount is not available
+    return ptrGetTickCount64();
+#endif // Q_OS_WINRT
 }
 
 int qt_msectime()

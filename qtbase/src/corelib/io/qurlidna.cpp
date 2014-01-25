@@ -42,6 +42,7 @@
 #include "qurl_p.h"
 
 #include <QtCore/qstringlist.h>
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -59,6 +60,11 @@ struct NameprepCaseFoldingEntry {
     uint uc;
     ushort mapping[4];
 };
+
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+inline bool operator<(const NameprepCaseFoldingEntry &one, const NameprepCaseFoldingEntry &other)
+{ return one.uc < other.uc; }
+#endif
 
 inline bool operator<(uint one, const NameprepCaseFoldingEntry &other)
 { return one < other.uc; }
@@ -1461,10 +1467,10 @@ static void mapToLowerCase(QString *str, int from)
                     ++i;
                 }
             }
-            const NameprepCaseFoldingEntry *entry = qBinaryFind(NameprepCaseFolding,
-                                                                NameprepCaseFolding + N,
-                                                                uc);
-            if ((entry - NameprepCaseFolding) != N) {
+            const NameprepCaseFoldingEntry *entry = std::lower_bound(NameprepCaseFolding,
+                                                                     NameprepCaseFolding + N,
+                                                                     uc);
+            if ((entry != NameprepCaseFolding + N) && !(uc < *entry)) {
                 int l = 1;
                 while (l < 4 && entry->mapping[l])
                     ++l;
@@ -2461,7 +2467,7 @@ static int nextDotDelimiter(const QString &domain, int from = 0)
     return ch - b;
 }
 
-QString qt_ACE_do(const QString &domain, AceOperation op)
+QString qt_ACE_do(const QString &domain, AceOperation op, AceLeadingDot dot)
 {
     if (domain.isEmpty())
         return domain;
@@ -2479,7 +2485,8 @@ QString qt_ACE_do(const QString &domain, AceOperation op)
         if (labelLength == 0) {
             if (idx == domain.length())
                 break;
-            return QString(); // two delimiters in a row -- empty label not allowed
+            if (dot == ForbidLeadingDot || idx > 0)
+                return QString(); // two delimiters in a row -- empty label not allowed
         }
 
         // RFC 3490 says, about the ToASCII operation:

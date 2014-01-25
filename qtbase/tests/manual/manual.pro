@@ -20,6 +20,7 @@ qlayout \
 qlocale \
 qnetworkaccessmanager/qget \
 qnetworkconfigurationmanager \
+qnetworkconfiguration \
 qnetworkreply \
 qpainfo \
 qscreen \
@@ -39,6 +40,7 @@ windowmodality \
 widgetgrab \
 xembed-raster \
 xembed-widgets \
+shortcuts \
 dialogs \
 windowtransparency \
 unc

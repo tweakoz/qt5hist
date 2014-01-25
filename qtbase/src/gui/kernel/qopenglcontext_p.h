@@ -186,6 +186,7 @@ private:
 
 class QPaintEngineEx;
 class QOpenGLFunctions;
+class QOpenGLTextureHelper;
 
 class Q_GUI_EXPORT QOpenGLContextPrivate : public QObjectPrivate
 {
@@ -199,10 +200,12 @@ public:
         , screen(0)
         , surface(0)
         , functions(0)
+        , textureFunctions(0)
         , current_fbo(0)
         , max_texture_size(-1)
         , workaround_brokenFBOReadBack(false)
         , workaround_brokenTexSubImage(false)
+        , workaround_missingPrecisionQualifiers(false)
         , active_engine(0)
     {
     }
@@ -227,18 +230,25 @@ public:
     QSurface *surface;
     QOpenGLFunctions *functions;
     mutable QSet<QByteArray> extensionNames;
+    QOpenGLTextureHelper* textureFunctions;
 
     GLuint current_fbo;
     GLint max_texture_size;
 
     bool workaround_brokenFBOReadBack;
     bool workaround_brokenTexSubImage;
+    bool workaround_missingPrecisionQualifiers;
 
     QPaintEngineEx *active_engine;
 
     static QOpenGLContext *setCurrentContext(QOpenGLContext *context);
 
     int maxTextureSize();
+
+    static QOpenGLContextPrivate *get(QOpenGLContext *context)
+    {
+        return context->d_func();
+    }
 
 #if !defined(QT_NO_DEBUG)
     static bool toggleMakeCurrentTracker(QOpenGLContext *context, bool value)

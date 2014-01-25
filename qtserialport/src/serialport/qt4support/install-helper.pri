@@ -8,15 +8,17 @@ for(header_file, PUBLIC_HEADERS) {
    system("$$QMAKE_COPY \"$${header_file}\" \"$$QTSERIALPORT_PROJECT_INCLUDEDIR\"")
 }
 
+unix:!symbian {
+    SOURCES += \
+        $$PWD/src/qlockfile.cpp \
+        $$PWD/src/qlockfile_unix.cpp
+}
+
 # This is a quick workaround for generating forward header with Qt4.
 
-unix {
-    system("echo \'$${LITERAL_HASH}include \"qserialport.h\"\' > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPort\"")
-    system("echo \'$${LITERAL_HASH}include \"qserialportinfo.h\"\' > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPortInfo\"")
-} win32 {
-    system("echo $${LITERAL_HASH}include \"qserialport.h\" > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPort\"")
-    system("echo $${LITERAL_HASH}include \"qserialportinfo.h\" > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPortInfo\"")
-}
+!equals(QMAKE_HOST.os, Windows): maybe_quote = "\'"
+system("echo $${maybe_quote}$${LITERAL_HASH}include \"qserialport.h\"$${maybe_quote} > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPort\"")
+system("echo $${maybe_quote}$${LITERAL_HASH}include \"qserialportinfo.h\"$${maybe_quote} > \"$$QTSERIALPORT_PROJECT_INCLUDEDIR/QSerialPortInfo\"")
 
 PUBLIC_HEADERS += \
      $$PUBLIC_HEADERS \
@@ -40,4 +42,11 @@ target.path = $$[QT_INSTALL_LIBS]
 INSTALLS += target
 
 INCLUDEPATH += $$QTSERIALPORT_BUILD_ROOT/include $$QTSERIALPORT_BUILD_ROOT/include/QtSerialPort
+lessThan(QT_MAJOR_VERSION, 5) {
+    QTSERIALPORT_PROJECT_QT4SUPPORT_INCLUDEDIR = $$QTSERIALPORT_PROJECT_ROOT/src/serialport/qt4support/include
+    INCLUDEPATH += \
+                   $$QTSERIALPORT_PROJECT_QT4SUPPORT_INCLUDEDIR \
+                   $$QTSERIALPORT_PROJECT_QT4SUPPORT_INCLUDEDIR/QtCore \
+                   $$QTSERIALPORT_PROJECT_QT4SUPPORT_INCLUDEDIR/private
+}
 DEFINES += QT_BUILD_SERIALPORT_LIB

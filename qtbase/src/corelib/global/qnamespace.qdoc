@@ -67,6 +67,7 @@
     \value AlignTop Aligns with the top.
     \value AlignBottom Aligns with the bottom.
     \value AlignVCenter Centers vertically in the available space.
+    \value AlignBaseline Aligns with the baseline.
 
     You can use only one of the horizontal flags at a time. There is
     one two-dimensional flag:
@@ -585,6 +586,10 @@
     \value LocalDate \e{This enum value is deprecated.} Use Qt::SystemLocaleShortDate
     instead (or Qt::SystemLocaleLongDate if you want long dates).
 
+    \value RFC2822Date \l{RFC 2822}, \l{RFC 850} and \l{RFC 1036} format: either
+    \c{[ddd,] dd MMM yyyy hh:mm[:ss] +/-TZ} or \c{ddd MMM dd yyyy hh:mm[:ss] +/-TZ}
+    for combined dates and times.
+
     \note For \c ISODate formats, each \c Y, \c M and \c D represents a single digit
     of the year, month and day used to specify the date. Each \c H, \c M and \c S
     represents a single digit of the hour, minute and second used to specify the time.
@@ -599,6 +604,7 @@
     \value LocalTime Locale dependent time (Timezones and Daylight Savings Time).
     \value UTC Coordinated Universal Time, replaces Greenwich Mean Time.
     \value OffsetFromUTC An offset in seconds from Coordinated Universal Time.
+    \value TimeZone A named time zone using a specific set of Daylight Savings rules.
 */
 
 /*!
@@ -1618,6 +1624,12 @@
     \value Key_TouchpadOn
     \value Key_TouchpadOff
     \value Key_MicMute
+    \value Key_Red
+    \value Key_Green
+    \value Key_Yellow
+    \value Key_Blue
+    \value Key_ChannelUp
+    \value Key_ChannelDown
     \value Key_MediaLast
     \value Key_unknown
 
@@ -1723,6 +1735,8 @@
     \value LeftEdge   The left edge of the rectangle.
     \value RightEdge  The right edge of the rectangle.
     \value BottomEdge The bottom edge of the rectangle.
+
+    \since 5.1
 */
 
 /*!
@@ -1986,6 +2000,10 @@
                          representing a native platform window created by
                          another process or by manually using native code.
 
+    \value CoverWindow Indicates that the window represents a cover window,
+                       which is shown when the application is minimized
+                       on the BlackBerry platform for instance.
+
     There are also a number of flags which you can use to customize
     the appearance of top-level windows. These have no effect on other
     windows:
@@ -2218,7 +2236,7 @@
         of rich text.
 
     \value AutoText The text string is interpreted as for
-        Qt::RichText if Qt::mightBeRichText() returns true, otherwise
+        Qt::RichText if Qt::mightBeRichText() returns \c true, otherwise
         as Qt::PlainText.
 */
 
@@ -2863,4 +2881,19 @@
     On all platforms, the interval for Qt::VeryCoarseTimer is rounded to the
     nearest full second (e.g. an interval of 23500ms will be rounded to
     24000ms, and 20300ms to 20000ms).
+*/
+
+/*!
+    \enum Qt::ScrollPhase
+    \since 5.2
+
+    This enum describes the phase of scrolling.
+
+    \value ScrollBegin Scrolling is about to begin, but the scrolling
+    distance did not yet change.
+
+    \value ScrollUpdate The scrolling distance has changed (default).
+
+    \value ScrollEnd Scrolling has ended, but the scrolling distance
+    did not change anymore.
 */

@@ -108,7 +108,6 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
 #endif
 
     m_current_fontengine = fontEngine;
-    const int margin = m_current_fontengine->glyphMargin(m_type);
     const int padding = glyphPadding();
     const int paddingDoubled = padding * 2;
 
@@ -153,6 +152,18 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
             continue;
         if (listItemCoordinates.contains(GlyphAndSubPixelPosition(glyph, subPixelPosition)))
             continue;
+
+        // This is a rather crude hack, but it works.
+        // The FreeType font engine is not capable of getting precise metrics for the alphamap
+        // without first rasterizing the glyph. If we force the glyph to be rasterized before
+        // we ask for the alphaMapBoundingBox(), the glyph will be loaded, rasterized and its
+        // proper metrics will be cached and used later.
+        if (fontEngine->hasInternalCaching()) {
+            QImage *locked = fontEngine->lockedAlphaMapForGlyph(glyph, subPixelPosition, format);
+            if (locked)
+                fontEngine->unlockAlphaMapForGlyph();
+        }
+
         glyph_metrics_t metrics = fontEngine->alphaMapBoundingBox(glyph, subPixelPosition, m_transform, format);
 
 #ifdef CACHE_DEBUG
@@ -174,8 +185,6 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
             coords.insert(key, c);
             continue;
         }
-        glyph_width += margin * 2 + 4;
-        glyph_height += margin * 2 + 4;
         // align to 8-bit boundary
         if (m_type == QFontEngineGlyphCache::Raster_Mono)
             glyph_width = (glyph_width+7)&~7;
@@ -192,7 +201,7 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
     if (listItemCoordinates.isEmpty())
         return true;
 
-    rowHeight += margin * 2 + paddingDoubled;
+    rowHeight += paddingDoubled;
 
     if (m_w == 0) {
         if (fontEngine->maxCharWidth() <= QT_DEFAULT_TEXTURE_GLYPH_CACHE_WIDTH)
@@ -207,7 +216,7 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
     while (iter != listItemCoordinates.end()) {
         Coord c = iter.value();
 
-        m_currentRowHeight = qMax(m_currentRowHeight, c.h + margin * 2);
+        m_currentRowHeight = qMax(m_currentRowHeight, c.h);
 
         if (m_cx + c.w + padding > requiredWidth) {
             int new_width = requiredWidth*2;
@@ -219,7 +228,7 @@ bool QTextureGlyphCache::populate(QFontEngine *fontEngine, int numGlyphs, const 
                 // no room on the current line, start new glyph strip
                 m_cx = padding;
                 m_cy += m_currentRowHeight + paddingDoubled;
-                m_currentRowHeight = c.h + margin * 2; // New row
+                m_currentRowHeight = c.h; // New row
             }
         }
 

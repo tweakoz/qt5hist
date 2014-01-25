@@ -83,8 +83,8 @@ public:
     ~QGuiApplicationPrivate();
 
     void createPlatformIntegration();
-    void createEventDispatcher();
-    void setEventDispatcher(QAbstractEventDispatcher *eventDispatcher);
+    void createEventDispatcher() Q_DECL_OVERRIDE;
+    void eventDispatcherReady() Q_DECL_OVERRIDE;
 
     virtual void notifyLayoutDirectionChange();
     virtual void notifyActiveWindowChange(QWindow *previous);
@@ -130,8 +130,6 @@ public:
     static void processWindowStateChangedEvent(QWindowSystemInterfacePrivate::WindowStateChangedEvent *e);
     static void processWindowScreenChangedEvent(QWindowSystemInterfacePrivate::WindowScreenChangedEvent *e);
 
-    static void processApplicationStateChangedEvent(QWindowSystemInterfacePrivate::ApplicationStateChangedEvent *e);
-
     static void processWindowSystemEvent(QWindowSystemInterfacePrivate::WindowSystemEvent *e);
 
     static void updateFilteredScreenOrientation(QScreen *screen);
@@ -150,6 +148,7 @@ public:
     static void processTabletEvent(QWindowSystemInterfacePrivate::TabletEvent *e);
     static void processTabletEnterProximityEvent(QWindowSystemInterfacePrivate::TabletEnterProximityEvent *e);
     static void processTabletLeaveProximityEvent(QWindowSystemInterfacePrivate::TabletLeaveProximityEvent *e);
+    static void processGestureEvent(QWindowSystemInterfacePrivate::GestureEvent *e);
 
     static void processPlatformPanelEvent(QWindowSystemInterfacePrivate::PlatformPanelEvent *e);
 #ifndef QT_NO_CONTEXTMENU
@@ -236,12 +235,10 @@ public:
 
 #ifndef QT_NO_SESSIONMANAGER
     QSessionManager *session_manager;
-    QString session_id;
-    QString session_key;
     bool is_session_restored;
     bool is_saving_session;
-    void commitData(QSessionManager& sm);
-    void saveState(QSessionManager& sm);
+    void commitData();
+    void saveState();
 #endif
 
     struct ActiveTouchPointsKey {
@@ -274,6 +271,10 @@ public:
 
     // hook reimplemented in QApplication to apply the QStyle function on the QIcon
     virtual QPixmap applyQIconStyleHelper(QIcon::Mode, const QPixmap &basePixmap) const { return basePixmap; }
+
+    static QRect applyWindowGeometrySpecification(const QRect &windowGeometry, const QWindow *window);
+
+    static void setApplicationState(Qt::ApplicationState state);
 
 protected:
     virtual void notifyThemeChanged();

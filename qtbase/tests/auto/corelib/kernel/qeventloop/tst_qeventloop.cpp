@@ -46,6 +46,12 @@
 #include <qcoreevent.h>
 #include <qeventloop.h>
 #include <private/qeventloop_p.h>
+#if defined(Q_OS_UNIX)
+  #include <private/qeventdispatcher_unix_p.h>
+  #if defined(HAVE_GLIB)
+    #include <private/qeventdispatcher_glib_p.h>
+  #endif
+#endif
 #include <qmutex.h>
 #include <qthread.h>
 #include <qtimer.h>
@@ -159,6 +165,10 @@ public slots:
     }
 };
 
+#ifdef QT_GUI_LIB
+  #define tst_QEventLoop tst_QGuiEventLoop
+#endif
+
 class tst_QEventLoop : public QObject
 {
     Q_OBJECT
@@ -185,11 +195,11 @@ protected:
 
 void tst_QEventLoop::processEvents()
 {
-    QSignalSpy spy1(QAbstractEventDispatcher::instance(), SIGNAL(aboutToBlock()));
-    QSignalSpy spy2(QAbstractEventDispatcher::instance(), SIGNAL(awake()));
+    QSignalSpy aboutToBlockSpy(QAbstractEventDispatcher::instance(), SIGNAL(aboutToBlock()));
+    QSignalSpy awakeSpy(QAbstractEventDispatcher::instance(), SIGNAL(awake()));
 
-    QVERIFY(spy1.isValid());
-    QVERIFY(spy2.isValid());
+    QVERIFY(aboutToBlockSpy.isValid());
+    QVERIFY(awakeSpy.isValid());
 
     QEventLoop eventLoop;
 
@@ -198,8 +208,8 @@ void tst_QEventLoop::processEvents()
     // process posted events, QEventLoop::processEvents() should return
     // true
     QVERIFY(eventLoop.processEvents());
-    QCOMPARE(spy1.count(), 0);
-    QCOMPARE(spy2.count(), 1);
+    QCOMPARE(aboutToBlockSpy.count(), 0);
+    QCOMPARE(awakeSpy.count(), 1);
 
     // allow any session manager to complete its handshake, so that
     // there are no pending events left.
@@ -212,28 +222,28 @@ void tst_QEventLoop::processEvents()
 
     // no events to process, QEventLoop::processEvents() should return
     // false
-    spy1.clear();
-    spy2.clear();
+    aboutToBlockSpy.clear();
+    awakeSpy.clear();
     QVERIFY(!eventLoop.processEvents());
-    QCOMPARE(spy1.count(), 0);
-    QCOMPARE(spy2.count(), 1);
+    QCOMPARE(aboutToBlockSpy.count(), 0);
+    QCOMPARE(awakeSpy.count(), 1);
 
     // make sure the test doesn't block forever
     int timerId = startTimer(100);
 
     // wait for more events to process, QEventLoop::processEvents()
     // should return true
-    spy1.clear();
-    spy2.clear();
+    aboutToBlockSpy.clear();
+    awakeSpy.clear();
     QVERIFY(eventLoop.processEvents(QEventLoop::WaitForMoreEvents));
 
     // Verify that the eventloop has blocked and woken up. Some eventloops
     // may block and wake up multiple times.
-    QVERIFY(spy1.count() > 0);
-    QVERIFY(spy2.count() > 0);
+    QVERIFY(aboutToBlockSpy.count() > 0);
+    QVERIFY(awakeSpy.count() > 0);
     // We should get one awake for each aboutToBlock, plus one awake when
     // processEvents is entered.
-    QVERIFY(spy2.count() >= spy1.count());
+    QVERIFY(awakeSpy.count() >= aboutToBlockSpy.count());
 
     killTimer(timerId);
 }
@@ -491,11 +501,19 @@ void tst_QEventLoop::processEventsExcludeTimers()
     QCOMPARE(timerReceiver.gotTimerEvent, timerId);
     timerReceiver.gotTimerEvent = -1;
 
-    // normal process events will send timers
+    // but not if we exclude timers
     eventLoop.processEvents(QEventLoop::X11ExcludeTimers);
-#if !defined(Q_OS_UNIX)
-    QEXPECT_FAIL("", "X11ExcludeTimers only works on UN*X", Continue);
+
+    QAbstractEventDispatcher *eventDispatcher = QCoreApplication::eventDispatcher();
+#if defined(Q_OS_UNIX)
+    if (!qobject_cast<QEventDispatcherUNIX *>(eventDispatcher)
+  #if defined(HAVE_GLIB)
+        && !qobject_cast<QEventDispatcherGlib *>(eventDispatcher)
+  #endif
+        )
 #endif
+        QEXPECT_FAIL("", "X11ExcludeTimers only supported in the UNIX/Glib dispatchers", Continue);
+
     QCOMPARE(timerReceiver.gotTimerEvent, -1);
     timerReceiver.gotTimerEvent = -1;
 
@@ -580,7 +598,7 @@ class JobObject : public QObject
 public:
 
     explicit JobObject(QEventLoop *loop, QObject *parent = 0)
-        : QObject(parent), loop(loop), locker(loop)
+        : QObject(parent), locker(loop)
     {
     }
 
@@ -606,7 +624,6 @@ signals:
     void done();
 
 private:
-    QEventLoop *loop;
     QEventLoopLocker locker;
 };
 

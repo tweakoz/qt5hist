@@ -49,34 +49,30 @@
 
 QT_BEGIN_NAMESPACE
 
-class QOpenGLContext;
 class QOpenGLPaintDevice;
-class QOpenGLShaderProgram;
+class QEglFSWindow;
 
 class QEglFSBackingStore : public QPlatformBackingStore
 {
 public:
     QEglFSBackingStore(QWindow *window);
-    ~QEglFSBackingStore();
 
     QPaintDevice *paintDevice();
 
     void beginPaint(const QRegion &);
-    void endPaint();
 
     void flush(QWindow *window, const QRegion &region, const QPoint &offset);
     void resize(const QSize &size, const QRegion &staticContents);
 
-private:
-    void makeCurrent();
+    uint texture() const { return m_texture; }
 
-    QOpenGLContext *m_context;
+private:
+    void updateTexture();
+
+    QEglFSWindow *m_window;
     QImage m_image;
     uint m_texture;
     QRegion m_dirty;
-    QOpenGLShaderProgram *m_program;
-    int m_vertexCoordEntry;
-    int m_textureCoordEntry;
 };
 
 QT_END_NAMESPACE

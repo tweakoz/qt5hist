@@ -195,6 +195,15 @@
     \sa resize()
 */
 
+/*!
+    \fn QVector::QVector(QVector<T> &&other)
+
+    Move-constructs a QVector instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
+*/
+
 /*! \fn QVector::QVector(int size)
 
     Constructs a vector with an initial size of \a size elements.
@@ -246,6 +255,14 @@
     vector.
 */
 
+/*!
+    \fn QVector<T> &QVector::operator=(QVector<T> &&other)
+
+    Move-assigns \a other to this QVector instance.
+
+    \since 5.2
+*/
+
 /*! \fn void QVector::swap(QVector<T> &other)
     \since 4.8
 
@@ -255,8 +272,8 @@
 
 /*! \fn bool QVector::operator==(const QVector<T> &other) const
 
-    Returns true if \a other is equal to this vector; otherwise
-    returns false.
+    Returns \c true if \a other is equal to this vector; otherwise
+    returns \c false.
 
     Two vectors are considered equal if they contain the same values
     in the same order.
@@ -269,8 +286,8 @@
 
 /*! \fn bool QVector::operator!=(const QVector<T> &other) const
 
-    Returns true if \a other is not equal to this vector; otherwise
-    returns false.
+    Returns \c true if \a other is not equal to this vector; otherwise
+    returns \c false.
 
     Two vectors are considered equal if they contain the same values
     in the same order.
@@ -290,7 +307,7 @@
 
 /*! \fn bool QVector::isEmpty() const
 
-    Returns true if the vector has size 0; otherwise returns false.
+    Returns \c true if the vector has size 0; otherwise returns \c false.
 
     \sa size(), resize()
 */
@@ -545,6 +562,44 @@
     \sa insert(), replace(), fill()
 */
 
+/*! \fn void QVector::removeAt(int i)
+    \since 5.2
+
+    Equivalent to
+    \code
+    remove(i);
+    \endcode
+
+    Provided for compatibility with QList.
+
+    \sa remove(), QList::removeAt()
+*/
+
+/*! \fn int QVector::length() const
+    \since 5.2
+
+    Same as size() and count().
+
+    Provided for compatibility with QList.
+
+    \sa size(), count(), QList::length()
+*/
+
+/*! \fn T QVector::takeAt(int i)
+    \since 5.2
+
+    Equivalent to
+    \code
+    T t = at(i);
+    remove(i);
+    return t;
+    \endcode
+
+    Provided for compatibility with QList.
+
+    \sa takeFirst(), takeLast(), QList::takeAt()
+*/
+
 /*! \fn void QVector::removeFirst()
     \since 5.1
     Removes the first item in the vector. Calling this function is
@@ -566,6 +621,7 @@
 */
 
 /*! \fn T QVector::takeFirst()
+    \since 5.1
 
     Removes the first item in the vector and returns it. This function
     assumes the vector is not empty. To avoid failure, call isEmpty()
@@ -575,6 +631,7 @@
 */
 
 /*! \fn T QVector::takeLast()
+    \since 5.1
 
     Removes the last item in the list and returns it. This function
     assumes the vector is not empty. To avoid failure, call isEmpty()
@@ -632,8 +689,8 @@
 
 /*! \fn bool QVector::contains(const T &value) const
 
-    Returns true if the vector contains an occurrence of \a value;
-    otherwise returns false.
+    Returns \c true if the vector contains an occurrence of \a value;
+    otherwise returns \c false.
 
     This function requires the value type to have an implementation of
     \c operator==().
@@ -644,8 +701,8 @@
 /*! \fn bool QVector::startsWith(const T &value) const
     \since 4.5
 
-    Returns true if this vector is not empty and its first
-    item is equal to \a value; otherwise returns false.
+    Returns \c true if this vector is not empty and its first
+    item is equal to \a value; otherwise returns \c false.
 
     \sa isEmpty(), first()
 */
@@ -653,8 +710,8 @@
 /*! \fn bool QVector::endsWith(const T &value) const
     \since 4.5
 
-    Returns true if this vector is not empty and its last
-    item is equal to \a value; otherwise returns false.
+    Returns \c true if this vector is not empty and its last
+    item is equal to \a value; otherwise returns \c false.
 
     \sa isEmpty(), last()
 */
@@ -851,7 +908,7 @@
 
     This function is provided for STL compatibility. It is equivalent
     to isEmpty(), returning true if the vector is empty; otherwise
-    returns false.
+    returns \c false.
 */
 
 /*! \fn QVector<T> &QVector::operator+=(const QVector<T> &other)
@@ -902,6 +959,11 @@
     iterators}. The STL-style non-const iterator is simply a typedef
     for "T *" (pointer to T).
 
+    \warning Iterators on implicitly shared containers do not work
+    exactly like STL-iterators. You should avoid copying a container
+    while iterators are active on that container. For more information,
+    read \l{Implicit sharing iterator problem}.
+
     \sa QVector::begin(), QVector::end(), QVector::const_iterator, QMutableVectorIterator
 */
 
@@ -913,6 +975,11 @@
     QVector provides both \l{STL-style iterators} and \l{Java-style
     iterators}. The STL-style const iterator is simply a typedef for
     "const T *" (pointer to const T).
+
+    \warning Iterators on implicitly shared containers do not work
+    exactly like STL-iterators. You should avoid copying a container
+    while iterators are active on that container. For more information,
+    read \l{Implicit sharing iterator problem}.
 
     \sa QVector::constBegin(), QVector::constEnd(), QVector::iterator, QVectorIterator
 */

@@ -43,6 +43,7 @@
 #ifndef QSERIALPORTGLOBAL_H
 #define QSERIALPORTGLOBAL_H
 
+#include <QtCore/qstring.h>
 #include <QtCore/qglobal.h>
 
 QT_BEGIN_NAMESPACE
@@ -57,9 +58,17 @@ QT_BEGIN_NAMESPACE
 #  define Q_SERIALPORT_EXPORT
 #endif
 
-// The macro has been available only since Qt 5.0
+// These macros have been available only since Qt 5.0
+#ifndef QT_DEPRECATED_SINCE
+#define QT_DEPRECATED_SINCE(major, minor) 1
+#endif
+
 #ifndef Q_DECL_OVERRIDE
 #define Q_DECL_OVERRIDE
+#endif
+
+#ifndef QStringLiteral
+#define QStringLiteral(str) QString::fromUtf8(str)
 #endif
 
 QT_END_NAMESPACE

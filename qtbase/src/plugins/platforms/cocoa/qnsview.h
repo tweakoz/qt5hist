@@ -93,6 +93,8 @@ QT_END_NAMESPACE
 - (BOOL)hasMask;
 - (BOOL)isOpaque;
 
+- (void)convertFromScreen:(NSPoint)mouseLocation toWindowPoint:(QPointF *)qtWindowPoint andScreenPoint:(QPointF *)qtScreenPoint;
+
 - (void)resetMouseButtons;
 
 - (void)handleMouseEvent:(NSEvent *)theEvent;
@@ -109,6 +111,10 @@ QT_END_NAMESPACE
 - (void)otherMouseDragged:(NSEvent *)theEvent;
 - (void)otherMouseUp:(NSEvent *)theEvent;
 - (void)handleFrameStrutMouseEvent:(NSEvent *)theEvent;
+
+- (void)handleTabletEvent: (NSEvent *)theEvent;
+- (void)tabletPoint: (NSEvent *)theEvent;
+- (void)tabletProximity: (NSEvent *)theEvent;
 
 - (int) convertKeyCode : (QChar)keyCode;
 + (Qt::KeyboardModifiers) convertKeyModifiers : (ulong)modifierFlags;

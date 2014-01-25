@@ -1649,7 +1649,7 @@ QAction *QMenu::defaultAction() const
     This "torn-off" copy lives in a separate window. It contains the same menu
     items as the original menu, with the exception of the tear-off handle.
 
-    By default, this property is false.
+    By default, this property is \c false.
 */
 void QMenu::setTearOffEnabled(bool b)
 {
@@ -1673,7 +1673,7 @@ bool QMenu::isTearOffEnabled() const
 /*!
   When a menu is torn off a second menu is shown to display the menu
   contents in a new window. When the menu is in this mode and the menu
-  is visible returns true; otherwise false.
+  is visible returns \c true; otherwise false.
 
   \sa hideTearOffMenu(), isTearOffEnabled()
 */
@@ -1721,7 +1721,7 @@ QAction *QMenu::activeAction() const
 /*!
     \since 4.2
 
-    Returns true if there are no visible actions inserted into the menu, false
+    Returns \c true if there are no visible actions inserted into the menu, false
     otherwise.
 
     \sa QWidget::actions()
@@ -2864,8 +2864,15 @@ void QMenu::mouseMoveEvent(QMouseEvent *e)
         d->mouseDown = this;
     }
     if (d->sloppyRegion.contains(e->pos())) {
-        d->sloppyAction = action;
-        QMenuPrivate::sloppyDelayTimer = startTimer(style()->styleHint(QStyle::SH_Menu_SubMenuPopupDelay, 0, this)*6);
+        // If the timer is already running then don't start a new one unless the action is the same
+        if (d->sloppyAction != action && QMenuPrivate::sloppyDelayTimer != 0) {
+            killTimer(QMenuPrivate::sloppyDelayTimer);
+            QMenuPrivate::sloppyDelayTimer = 0;
+        }
+        if (QMenuPrivate::sloppyDelayTimer == 0) {
+            d->sloppyAction = action;
+            QMenuPrivate::sloppyDelayTimer = startTimer(style()->styleHint(QStyle::SH_Menu_SubMenuPopupDelay, 0, this) * 6);
+        }
     } else if (action != d->currentAction) {
         d->setCurrentAction(action, style()->styleHint(QStyle::SH_Menu_SubMenuPopupDelay, 0, this));
     }
@@ -3157,7 +3164,7 @@ QPlatformMenu *QMenu::platformMenu()
   should be visually collapsed to a single one. Separators at the
   beginning or the end of the menu are also hidden.
 
-  By default, this property is true.
+  By default, this property is \c true.
 */
 bool QMenu::separatorsCollapsible() const
 {
@@ -3190,7 +3197,7 @@ void QMenu::setSeparatorsCollapsible(bool collapse)
   This property specifies whether action menu entries show
   their tooltip.
 
-  By default, this property is false.
+  By default, this property is \c false.
 */
 bool QMenu::toolTipsVisible() const
 {

@@ -50,6 +50,10 @@
 #include "qxcbclipboard.h"
 #include "qxcbdrag.h"
 
+#ifndef QT_NO_SESSIONMANAGER
+#include "qxcbsessionmanager.h"
+#endif
+
 #include <xcb/xcb.h>
 
 #include <QtPlatformSupport/private/qgenericunixeventdispatcher_p.h>
@@ -119,12 +123,10 @@ static bool runningUnderDebugger()
 }
 #endif
 
-QXcbIntegration::QXcbIntegration(const QStringList &parameters)
-    : m_eventDispatcher(createUnixEventDispatcher())
-    ,  m_services(new QGenericUnixServices)
+QXcbIntegration::QXcbIntegration(const QStringList &parameters, int &argc, char **argv)
+    : m_services(new QGenericUnixServices)
+    , m_instanceName(0)
 {
-    QGuiApplicationPrivate::instance()->setEventDispatcher(m_eventDispatcher);
-
 #ifdef XCB_USE_XLIB
     XInitThreads();
 #endif
@@ -138,7 +140,28 @@ QXcbIntegration::QXcbIntegration(const QStringList &parameters)
     if (canNotGrabEnv)
         canGrab = false;
 
-    m_connections << new QXcbConnection(m_nativeInterface.data(), canGrab);
+    // Parse arguments
+    const char *displayName = 0;
+    if (argc) {
+        int j = 1;
+        for (int i = 1; i < argc; i++) {
+            char *arg = argv[i];
+            if (arg) {
+                if (!strcmp(arg, "-display") && i < argc - 1) {
+                    displayName = argv[++i];
+                    arg = 0;
+                } else if (!strcmp(arg, "-name") && i < argc - 1) {
+                    m_instanceName = argv[++i];
+                    arg = 0;
+                }
+            }
+            if (arg)
+                argv[j++] = arg;
+        }
+        argc = j;
+    } // argc
+
+    m_connections << new QXcbConnection(m_nativeInterface.data(), canGrab, displayName);
 
     for (int i = 0; i < parameters.size() - 1; i += 2) {
 #ifdef Q_XCB_DEBUG
@@ -149,10 +172,6 @@ QXcbIntegration::QXcbIntegration(const QStringList &parameters)
     }
 
     m_fontDatabase.reset(new QGenericUnixFontDatabase());
-    m_inputContext.reset(QPlatformInputContextFactory::create());
-#if !defined(QT_NO_ACCESSIBILITY) && !defined(QT_NO_ACCESSIBILITY_ATSPI_BRIDGE)
-    m_accessibility.reset(new QSpiAccessibleBridge());
-#endif
 }
 
 QXcbIntegration::~QXcbIntegration()
@@ -259,17 +278,29 @@ bool QXcbIntegration::hasCapability(QPlatformIntegration::Capability cap) const
 #else
     case OpenGL: return false;
 #endif
+#if defined(XCB_USE_GLX)
+    case ThreadedOpenGL: return m_connections.at(0)->supportsThreadedRendering() && QGLXContext::supportsThreading();
+#else
     case ThreadedOpenGL: return m_connections.at(0)->supportsThreadedRendering();
+#endif
     case WindowMasks: return true;
     case MultipleWindows: return true;
     case ForeignWindows: return true;
+    case SyncState: return true;
     default: return QPlatformIntegration::hasCapability(cap);
     }
 }
 
-QAbstractEventDispatcher *QXcbIntegration::guiThreadEventDispatcher() const
+QAbstractEventDispatcher *QXcbIntegration::createEventDispatcher() const
 {
-    return m_eventDispatcher;
+    return createUnixEventDispatcher();
+}
+
+void QXcbIntegration::initialize()
+{
+    // Perform everything that may potentially need the event dispatcher (timers, socket
+    // notifiers) here instead of the constructor.
+    m_inputContext.reset(QPlatformInputContextFactory::create());
 }
 
 void QXcbIntegration::moveToScreen(QWindow *window, int screen)
@@ -310,6 +341,14 @@ QPlatformInputContext *QXcbIntegration::inputContext() const
 #ifndef QT_NO_ACCESSIBILITY
 QPlatformAccessibility *QXcbIntegration::accessibility() const
 {
+#if !defined(QT_NO_ACCESSIBILITY_ATSPI_BRIDGE)
+    if (!m_accessibility) {
+        Q_ASSERT_X(QCoreApplication::eventDispatcher(), "QXcbIntegration",
+            "Initializing accessibility without event-dispatcher!");
+        m_accessibility.reset(new QSpiAccessibleBridge());
+    }
+#endif
+
     return m_accessibility.data();
 }
 #endif
@@ -365,6 +404,8 @@ QVariant QXcbIntegration::styleHint(QPlatformIntegration::StyleHint hint) const
     case QPlatformIntegration::SynthesizeMouseFromTouchEvents:
         // We do not want Qt to synthesize mouse events if X11 already does it.
         return m_connections.at(0)->hasTouchWithoutMouseEmulation();
+    default:
+        break;
     }
     return QPlatformIntegration::styleHint(hint);
 }
@@ -389,6 +430,8 @@ QByteArray QXcbIntegration::wmClass() const
     if (m_wmClass.isEmpty()) {
         // Instance name according to ICCCM 4.1.2.5
         QString name;
+        if (m_instanceName)
+            name = QString::fromLocal8Bit(m_instanceName);
         if (name.isEmpty() && qEnvironmentVariableIsSet(resourceNameVar))
             name = QString::fromLocal8Bit(qgetenv(resourceNameVar));
         if (name.isEmpty())
@@ -411,6 +454,20 @@ QByteArray QXcbIntegration::wmClass() const
         }
     }
     return m_wmClass;
+}
+
+#if !defined(QT_NO_SESSIONMANAGER) && defined(XCB_USE_SM)
+QPlatformSessionManager *QXcbIntegration::createPlatformSessionManager(const QString &id, const QString &key) const
+{
+    return new QXcbSessionManager(id, key);
+}
+#endif
+
+void QXcbIntegration::sync()
+{
+    for (int i = 0; i < m_connections.size(); i++) {
+        m_connections.at(i)->sync();
+    }
 }
 
 QT_END_NAMESPACE

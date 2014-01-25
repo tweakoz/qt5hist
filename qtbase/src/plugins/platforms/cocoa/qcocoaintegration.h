@@ -108,7 +108,7 @@ public:
     QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const;
     QPlatformBackingStore *createPlatformBackingStore(QWindow *widget) const;
 
-    QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+    QAbstractEventDispatcher *createEventDispatcher() const;
     QPlatformFontDatabase *fontDatabase() const;
 
     QPlatformNativeInterface *nativeInterface() const;
@@ -125,12 +125,11 @@ public:
     QList<int> possibleKeys(const QKeyEvent *event) const;
 
     void updateScreens();
-    QCocoaScreen *screenAtIndex(int index) const { return mScreens.at(index); }
+    QCocoaScreen *screenAtIndex(int index);
 
 private:
 
     QScopedPointer<QPlatformFontDatabase> mFontDb;
-    QAbstractEventDispatcher *mEventDispatcher;
 
     QScopedPointer<QPlatformInputContext> mInputContext;
 #ifndef QT_NO_ACCESSIBILITY

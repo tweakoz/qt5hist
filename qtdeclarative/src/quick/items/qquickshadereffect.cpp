@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -43,6 +43,7 @@
 #include <private/qquickshadereffectnode_p.h>
 
 #include <QtQuick/qsgmaterial.h>
+#include <QtQuick/private/qsgshadersourcebuilder_p.h>
 #include "qquickitem_p.h"
 
 #include <QtQuick/private/qsgcontext_p.h>
@@ -56,24 +57,6 @@
 #include <QtGui/qopenglframebufferobject.h>
 
 QT_BEGIN_NAMESPACE
-
-static const char qt_default_vertex_code[] =
-    "uniform highp mat4 qt_Matrix;                                  \n"
-    "attribute highp vec4 qt_Vertex;                                \n"
-    "attribute highp vec2 qt_MultiTexCoord0;                        \n"
-    "varying highp vec2 qt_TexCoord0;                               \n"
-    "void main() {                                                  \n"
-    "    qt_TexCoord0 = qt_MultiTexCoord0;                          \n"
-    "    gl_Position = qt_Matrix * qt_Vertex;                       \n"
-    "}";
-
-static const char qt_default_fragment_code[] =
-    "varying highp vec2 qt_TexCoord0;                                   \n"
-    "uniform sampler2D source;                                          \n"
-    "uniform lowp float qt_Opacity;                                     \n"
-    "void main() {                                                      \n"
-    "    gl_FragColor = texture2D(source, qt_TexCoord0) * qt_Opacity;   \n"
-    "}";
 
 static const char qt_position_attribute_name[] = "qt_Vertex";
 static const char qt_texcoord_attribute_name[] = "qt_MultiTexCoord0";
@@ -535,7 +518,7 @@ void QQuickShaderEffectCommon::propertyChanged(QQuickItem *item, int mappedId,
 /*!
     \qmltype ShaderEffect
     \instantiates QQuickShaderEffect
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \inherits Item
     \ingroup qtquick-effects
     \brief Applies custom shaders to a rectangle
@@ -573,7 +556,9 @@ void QQuickShaderEffectCommon::propertyChanged(QQuickItem *item, int mappedId,
        the shader.
     \li QPoint, QPointF, QSize, QSizeF -> vec2
     \li QVector3D -> vec3
-    \li QTransform -> mat4
+    \li QVector4D -> vec4
+    \li QTransform -> mat3
+    \li QMatrix4x4 -> mat4
     \li \l Image, \l ShaderEffectSource -> sampler2D - Origin is in the top-left
        corner, and the color values are premultiplied.
     \endlist
@@ -665,7 +650,7 @@ QQuickShaderEffect::~QQuickShaderEffect()
 }
 
 /*!
-    \qmlproperty string QtQuick2::ShaderEffect::fragmentShader
+    \qmlproperty string QtQuick::ShaderEffect::fragmentShader
 
     This property holds the fragment shader's GLSL source code.
     The default shader passes the texture coordinate along to the fragment
@@ -692,7 +677,7 @@ void QQuickShaderEffect::setFragmentShader(const QByteArray &code)
 }
 
 /*!
-    \qmlproperty string QtQuick2::ShaderEffect::vertexShader
+    \qmlproperty string QtQuick::ShaderEffect::vertexShader
 
     This property holds the vertex shader's GLSL source code.
     The default shader expects the texture coordinate to be passed from the
@@ -720,7 +705,7 @@ void QQuickShaderEffect::setVertexShader(const QByteArray &code)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::ShaderEffect::blending
+    \qmlproperty bool QtQuick::ShaderEffect::blending
 
     If this property is true, the output from the \l fragmentShader is blended
     with the background using source-over blend mode. If false, the background
@@ -740,7 +725,7 @@ void QQuickShaderEffect::setBlending(bool enable)
 }
 
 /*!
-    \qmlproperty variant QtQuick2::ShaderEffect::mesh
+    \qmlproperty variant QtQuick::ShaderEffect::mesh
 
     This property defines the mesh used to draw the ShaderEffect. It can hold
     any \l GridMesh object.
@@ -795,7 +780,7 @@ void QQuickShaderEffect::setMesh(const QVariant &mesh)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ShaderEffect::cullMode
+    \qmlproperty enumeration QtQuick::ShaderEffect::cullMode
 
     This property defines which sides of the item should be visible.
 
@@ -846,7 +831,7 @@ bool QQuickShaderEffect::event(QEvent *event)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::ShaderEffect::status
+    \qmlproperty enumeration QtQuick::ShaderEffect::status
 
     This property tells the current status of the OpenGL shader program.
 
@@ -864,7 +849,7 @@ bool QQuickShaderEffect::event(QEvent *event)
 */
 
 /*!
-    \qmlproperty string QtQuick2::ShaderEffect::log
+    \qmlproperty string QtQuick::ShaderEffect::log
 
     This property holds a log of warnings and errors from the latest attempt at compiling and
     linking the OpenGL shader program. It is updated at the same time \l status is set to Compiled
@@ -977,10 +962,16 @@ QSGNode *QQuickShaderEffect::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeDa
 
     if (m_dirtyProgram) {
         Key s = m_common.source;
-        if (s.sourceCode[Key::FragmentShader].isEmpty())
-            s.sourceCode[Key::FragmentShader] = qt_default_fragment_code;
-        if (s.sourceCode[Key::VertexShader].isEmpty())
-            s.sourceCode[Key::VertexShader] = qt_default_vertex_code;
+        QSGShaderSourceBuilder builder;
+        if (s.sourceCode[Key::FragmentShader].isEmpty()) {
+            builder.appendSourceFile(QStringLiteral(":/items/shaders/shadereffect.frag"));
+            s.sourceCode[Key::FragmentShader] = builder.source();
+            builder.clear();
+        }
+        if (s.sourceCode[Key::VertexShader].isEmpty()) {
+            builder.appendSourceFile(QStringLiteral(":/items/shaders/shadereffect.vert"));
+            s.sourceCode[Key::VertexShader] = builder.source();
+        }
         s.className = metaObject()->className();
 
         material->setProgramSource(s);

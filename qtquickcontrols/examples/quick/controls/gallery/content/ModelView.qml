@@ -43,7 +43,7 @@
 
 
 import QtQuick 2.1
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
 //import QtQuick.XmlListModel 2.1
 
 Item {
@@ -67,7 +67,7 @@ Item {
         id: dummyModel
         Component.onCompleted: {
             for (var i = 0 ; i < 100 ; ++i) {
-                append({"title": "A title " + i, "imagesource" :"http://someurl.com", "credit" : "N/A"})
+                append({"index": i, "title": "A title " + i, "imagesource" :"http://someurl.com", "credit" : "N/A"})
             }
         }
     }
@@ -76,6 +76,13 @@ Item {
         model: dummyModel
         anchors.fill: parent
 
+        TableViewColumn {
+            role: "index"
+            title: "#"
+            width: 36
+            resizable: false
+            movable: false
+        }
         TableViewColumn {
             role: "title"
             title: "Title"

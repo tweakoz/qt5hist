@@ -155,7 +155,7 @@ void QPrintDialog::setOption(PrintDialogOption option, bool on)
 }
 
 /*!
-    Returns true if the given \a option is enabled; otherwise, returns
+    Returns \c true if the given \a option is enabled; otherwise, returns
     false.
 
     \sa options, setOption()
@@ -459,6 +459,10 @@ void QAbstractPrintDialog::setOptionTabs(const QList<QWidget*> &tabs)
   Closes the dialog and sets its result code to \a result. If this dialog
   is shown with exec(), done() causes the local event loop to finish,
   and exec() to return \a result.
+
+  \note This function does not apply to the Native Print Dialog on the Mac
+  OS X and Windows platforms, because the dialog is required to be modal
+  and only the user can close it.
 
   \sa QDialog::done()
 */

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -87,16 +87,44 @@
 
 static QQmlPrivate::AutoParentResult qquickitem_autoParent(QObject *obj, QObject *parent)
 {
-    QQuickItem *item = qmlobject_cast<QQuickItem *>(obj);
-    if (!item)
-        return QQmlPrivate::IncompatibleObject;
-
+    // When setting a parent (especially during dynamic object creation) in QML,
+    // also try to set up the analogous item/window relationship.
     QQuickItem *parentItem = qmlobject_cast<QQuickItem *>(parent);
-    if (!parentItem)
-        return QQmlPrivate::IncompatibleParent;
-
-    item->setParentItem(parentItem);
-    return QQmlPrivate::Parented;
+    if (parentItem) {
+        QQuickItem *item = qmlobject_cast<QQuickItem *>(obj);
+        if (item) {
+            // An Item has another Item
+            item->setParentItem(parentItem);
+            return QQmlPrivate::Parented;
+        } else if (parentItem->window()) {
+            QQuickWindow *win = qmlobject_cast<QQuickWindow *>(obj);
+            if (win) {
+                // A Window inside an Item should be transient for that item's window
+                win->setTransientParent(parentItem->window());
+                return QQmlPrivate::Parented;
+            }
+        }
+        return QQmlPrivate::IncompatibleObject;
+    } else {
+        QQuickWindow *parentWindow = qmlobject_cast<QQuickWindow *>(parent);
+        if (parentWindow) {
+            QQuickWindow *win = qmlobject_cast<QQuickWindow *>(obj);
+            if (win) {
+                // A Window inside a Window should be transient for it
+                win->setTransientParent(parentWindow);
+                return QQmlPrivate::Parented;
+            } else {
+                QQuickItem *item = qmlobject_cast<QQuickItem *>(obj);
+                if (item) {
+                    // The parent of an Item inside a Window is actually the implicit content Item
+                    item->setParentItem(parentWindow->contentItem());
+                    return QQmlPrivate::Parented;
+                }
+            }
+            return QQmlPrivate::IncompatibleObject;
+        }
+    }
+    return QQmlPrivate::IncompatibleParent;
 }
 
 static bool compareQQuickAnchorLines(const void *p1, const void *p2)
@@ -160,6 +188,7 @@ static void qt_quickitems_defineModule(const char *uri, int major, int minor)
     qmlRegisterType<QQuickTextEdit>(uri,major,minor,"TextEdit");
     qmlRegisterType<QQuickTextEdit,1>(uri,2,1,"TextEdit");
     qmlRegisterType<QQuickTextInput>(uri,major,minor,"TextInput");
+    qmlRegisterType<QQuickTextInput,2>(uri,2,2,"TextInput");
     qmlRegisterType<QQuickViewSection>(uri,major,minor,"ViewSection");
 
     qmlRegisterType<QQuickItemLayer>();
@@ -235,14 +264,21 @@ static void qt_quickitems_defineModule(const char *uri, int major, int minor)
     qmlRegisterType<QQuickListView, 1>(uri, 2, 1, "ListView");
     qmlRegisterType<QQuickGridView, 1>(uri, 2, 1, "GridView");
     qmlRegisterType<QQuickTextEdit, 1>(uri, 2, 1, "TextEdit");
+
+    qmlRegisterType<QQuickText, 2>(uri, 2, 2, "Text");
+    qmlRegisterType<QQuickTextEdit, 2>(uri, 2, 2, "TextEdit");
 }
+
+static void initResources()
+{
+    Q_INIT_RESOURCE(items);
+}
+
+QT_BEGIN_NAMESPACE
 
 void QQuickItemsModule::defineModule()
 {
-    static bool initialized = false;
-    if (initialized)
-        return;
-    initialized = true;
+    initResources();
 
     QByteArray name = "QtQuick";
     int majorVersion = 2;
@@ -251,3 +287,4 @@ void QQuickItemsModule::defineModule()
     qt_quickitems_defineModule(name, majorVersion, minorVersion);
 }
 
+QT_END_NAMESPACE

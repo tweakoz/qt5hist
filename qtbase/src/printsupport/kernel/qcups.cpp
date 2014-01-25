@@ -50,6 +50,8 @@
 #endif
 #include <qtextcodec.h>
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 extern double qt_multiplierForUnit(QPrinter::Unit unit, int resolution);
@@ -142,10 +144,12 @@ QCUPSSupport::QCUPSSupport()
     for (int i = 0; i <  prnCount; ++i) {
         if (printers[i].is_default) {
             currPrinterIndex = i;
-            setCurrentPrinter(i);
             break;
         }
     }
+
+    if (prnCount > 0)
+        setCurrentPrinter(currPrinterIndex);
 
 #ifndef QT_NO_TEXTCODEC
     cups_lang_t *cupsLang = _cupsLangGet(0);
@@ -209,6 +213,17 @@ const ppd_file_t* QCUPSSupport::setCurrentPrinter(int index)
     page_sizes = ppdOption("PageSize");
 
     return currPPD;
+}
+
+const ppd_file_t* QCUPSSupport::setCurrentPrinter(const QString &printerName)
+{
+    Q_FOREACH (const QCUPSSupport::Printer &printer, QCUPSSupport::availableUnixPrinters()) {
+        if (printer.name == printerName) {
+            return setCurrentPrinter(printer.cupsPrinterIndex);
+        }
+    }
+
+    return 0;
 }
 
 int QCUPSSupport::currentPrinterIndex() const
@@ -342,6 +357,193 @@ QStringList QCUPSSupport::options() const
     return list;
 }
 
+QStringList QCUPSSupport::cupsOptionsList(QPrinter *printer)
+{
+    return printer->printEngine()->property(PPK_CupsOptions).toStringList();
+}
+
+void QCUPSSupport::setCupsOptions(QPrinter *printer, const QStringList &cupsOptions)
+{
+    printer->printEngine()->setProperty(PPK_CupsOptions, QVariant(cupsOptions));
+}
+
+void QCUPSSupport::setCupsOption(QStringList &cupsOptions, const QString &option, const QString &value)
+{
+    if (cupsOptions.contains(option)) {
+        cupsOptions.replace(cupsOptions.indexOf(option) + 1, value);
+    } else {
+        cupsOptions.append(option);
+        cupsOptions.append(value);
+    }
+}
+
+void QCUPSSupport::setJobHold(QPrinter *printer, const JobHoldUntil jobHold, const QTime &holdUntilTime)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+
+    switch (jobHold) {
+    case NoHold: //default
+        break;
+    case Indefinite:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("indefinite"));
+        break;
+    case DayTime:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("day-time"));
+        break;
+    case Night:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("night"));
+        break;
+    case SecondShift:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("second-shift"));
+        break;
+    case ThirdShift:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("third-shift"));
+        break;
+    case Weekend:
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      QStringLiteral("weekend"));
+        break;
+    case SpecificTime:
+        if (holdUntilTime.isNull()) {
+            setJobHold(printer, NoHold);
+            return;
+        }
+        // CUPS expects the time in UTC, user has entered in local time, so get the UTS equivalent
+        QDateTime localDateTime = QDateTime::currentDateTime();
+        // Check if time is for tomorrow in case of DST change overnight
+        if (holdUntilTime < localDateTime.time())
+            localDateTime.addDays(1);
+        localDateTime.setTime(holdUntilTime);
+        setCupsOption(cupsOptions,
+                      QStringLiteral("job-hold-until"),
+                      localDateTime.toUTC().time().toString(QStringLiteral("HH:mm")));
+        break;
+    }
+
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setJobBilling(QPrinter *printer, const QString &jobBilling)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    setCupsOption(cupsOptions, QStringLiteral("job-billing"), jobBilling);
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setJobPriority(QPrinter *printer, int priority)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    setCupsOption(cupsOptions, QStringLiteral("job-priority"), QString::number(priority));
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setBannerPages(QPrinter *printer, const BannerPage startBannerPage, const BannerPage endBannerPage)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    QString startBanner, endBanner;
+
+    switch (startBannerPage) {
+    case NoBanner:
+        startBanner = QStringLiteral("none");
+        break;
+    case Standard:
+        startBanner = QStringLiteral("standard");
+        break;
+    case Unclassified:
+        startBanner = QStringLiteral("unclassified");
+        break;
+    case Confidential:
+        startBanner = QStringLiteral("confidential");
+        break;
+    case Classified:
+        startBanner = QStringLiteral("classified");
+        break;
+    case Secret:
+        startBanner = QStringLiteral("secret");
+        break;
+    case TopSecret:
+        startBanner = QStringLiteral("topsecret");
+        break;
+    }
+
+    switch (endBannerPage) {
+    case NoBanner:
+        endBanner = QStringLiteral("none");
+        break;
+    case Standard:
+        endBanner = QStringLiteral("standard");
+        break;
+    case Unclassified:
+        endBanner = QStringLiteral("unclassified");
+        break;
+    case Confidential:
+        endBanner = QStringLiteral("confidential");
+        break;
+    case Classified:
+        endBanner = QStringLiteral("classified");
+        break;
+    case Secret:
+        endBanner = QStringLiteral("secret");
+        break;
+    case TopSecret:
+        endBanner = QStringLiteral("topsecret");
+        break;
+    }
+
+    setCupsOption(cupsOptions, QStringLiteral("job-sheets"), startBanner + QLatin1Char(',') + endBanner);
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setPageSet(QPrinter *printer, const PageSet pageSet)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    QString pageSetString;
+
+    switch (pageSet) {
+    case OddPages:
+        pageSetString = QStringLiteral("odd");
+        break;
+    case EvenPages:
+        pageSetString = QStringLiteral("even");
+        break;
+    case AllPages:
+        pageSetString = QStringLiteral("all");
+        break;
+    }
+
+    setCupsOption(cupsOptions, QStringLiteral("page-set"), pageSetString);
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setPagesPerSheetLayout(QPrinter *printer,  const PagesPerSheet pagesPerSheet,
+                                          const PagesPerSheetLayout pagesPerSheetLayout)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    static const char *pagesPerSheetData[] = { "1", "2", "4", "6", "9", "16", 0 };
+    static const char *pageLayoutData[] = {"lrtb", "lrbt", "rlbt", "rltb", "btlr", "btrl", "tblr", "tbrl", 0};
+    setCupsOption(cupsOptions, QStringLiteral("number-up"), QLatin1String(pagesPerSheetData[pagesPerSheet]));
+    setCupsOption(cupsOptions, QStringLiteral("number-up-layout"), QLatin1String(pageLayoutData[pagesPerSheetLayout]));
+    setCupsOptions(printer, cupsOptions);
+}
+
+void QCUPSSupport::setPageRange(QPrinter *printer, int pageFrom, int pageTo)
+{
+    QStringList cupsOptions = cupsOptionsList(printer);
+    setCupsOption(cupsOptions, QStringLiteral("page-ranges"), QStringLiteral("%1-%2").arg(pageFrom).arg(pageTo));
+    setCupsOptions(printer, cupsOptions);
+}
+
 bool QCUPSSupport::printerHasPPD(const char *printerName)
 {
     if (!isAvailable())
@@ -472,8 +674,8 @@ inline bool operator<(const NamedPaperSize &data, const char *name)
 
 static inline QPrinter::PaperSize string2PaperSize(const char *name)
 {
-    const NamedPaperSize *r = qBinaryFind(named_sizes_map, named_sizes_map + QPrinter::NPageSize, name);
-    if (r - named_sizes_map != QPrinter::NPageSize)
+    const NamedPaperSize *r = std::lower_bound(named_sizes_map, named_sizes_map + QPrinter::NPageSize, name);
+    if ((r != named_sizes_map + QPrinter::NPageSize) && !(name < *r))
         return r->size;
     return QPrinter::Custom;
 }
@@ -510,7 +712,6 @@ QList<QPair<QString, QSizeF> > QCUPSSupport::getCupsPrinterPaperSizesWithNames(i
     }
     return result;
 }
-
 
 QT_END_NAMESPACE
 

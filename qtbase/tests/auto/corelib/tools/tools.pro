@@ -8,6 +8,8 @@ SUBDIRS=\
     qbytedatabuffer \
     qcache \
     qchar \
+    qcollator \
+    qcommandlineparser \
     qcontiguouscache \
     qcryptographichash \
     qdate \
@@ -18,6 +20,7 @@ SUBDIRS=\
     qfreelist \
     qhash \
     qline \
+    qlinkedlist \
     qlist \
     qlocale \
     qmap \
@@ -46,6 +49,7 @@ SUBDIRS=\
     qstringref \
     qtextboundaryfinder \
     qtime \
+    qtimezone \
     qtimeline \
     qvarlengtharray \
     qvector

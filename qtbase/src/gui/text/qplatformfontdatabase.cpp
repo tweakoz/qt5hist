@@ -47,11 +47,13 @@
 
 QT_BEGIN_NAMESPACE
 
-extern void qt_registerFont(const QString &familyname, const QString &stylename,
-                            const QString &foundryname, int weight,
-                            QFont::Style style, int stretch, bool antialiased,
-                            bool scalable, int pixelSize, bool fixedPitch,
-                            const QSupportedWritingSystems &writingSystems, void *hanlde);
+void qt_registerFont(const QString &familyname, const QString &stylename,
+                     const QString &foundryname, int weight,
+                     QFont::Style style, int stretch, bool antialiased,
+                     bool scalable, int pixelSize, bool fixedPitch,
+                     const QSupportedWritingSystems &writingSystems, void *hanlde);
+
+void qt_registerAliasToFontFamily(const QString &familyName, const QString &alias);
 
 /*!
     \fn void QPlatformFontDatabase::registerQPF2Font(const QByteArray &dataArray, void *handle)
@@ -215,8 +217,8 @@ void QSupportedWritingSystems::setSupported(QFontDatabase::WritingSystem writing
 }
 
 /*!
-    Returns true if the writing system specified by \a writingSystem is
-    supported; otherwise returns false.
+    Returns \c true if the writing system specified by \a writingSystem is
+    supported; otherwise returns \c false.
 */
 bool QSupportedWritingSystems::supported(QFontDatabase::WritingSystem writingSystem) const
 {
@@ -514,6 +516,17 @@ QSupportedWritingSystems QPlatformFontDatabase::writingSystemsFromTrueTypeBits(q
         writingSystems.setSupported(QFontDatabase::Symbol);
 
     return writingSystems;
+}
+
+/*!
+    Helper function that register the \a alias for the \a familyName.
+
+    \since 5.2
+*/
+
+void QPlatformFontDatabase::registerAliasToFontFamily(const QString &familyName, const QString &alias)
+{
+    qt_registerAliasToFontFamily(familyName, alias);
 }
 
 /*!

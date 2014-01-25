@@ -55,7 +55,6 @@
 
 #include "qqmlcomponent.h"
 
-#include <private/qv8_p.h>
 #include "qqmlengine_p.h"
 #include "qqmltypeloader_p.h"
 #include <private/qbitfield_p.h>
@@ -63,6 +62,7 @@
 #include "qqmlerror.h"
 #include "qqml.h"
 #include <private/qqmlprofilerservice_p.h>
+#include <private/qqmlobjectcreator_p.h>
 
 #include <QtCore/QString>
 #include <QtCore/QStringList>
@@ -91,7 +91,7 @@ public:
 
     QObject *beginCreate(QQmlContextData *);
     void completeCreate();
-    void initializeObjectWithInitialProperties(v8::Handle<v8::Object> qmlGlobal, v8::Handle<v8::Object> valuemap, QObject *toCreate);
+    void initializeObjectWithInitialProperties(const QV4::ValueRef qmlGlobal, const QV4::ValueRef valuemap, QObject *toCreate);
 
     QQmlTypeData *typeData;
     virtual void typeDataReady(QQmlTypeData *);
@@ -106,9 +106,20 @@ public:
     QQmlCompiledData *cc;
 
     struct ConstructionState {
-        ConstructionState() : completePending(false) {}
+        ConstructionState()
+            : creator(0)
+            , completePending(false)
+        {}
+        ~ConstructionState()
+        {
+            delete creator;
+        }
 
+        // --- new compiler
+        QmlObjectCreator *creator;
+        // --- old compiler
         QQmlVME vme;
+        // ---
         QList<QQmlError> errors;
         bool completePending;
     };

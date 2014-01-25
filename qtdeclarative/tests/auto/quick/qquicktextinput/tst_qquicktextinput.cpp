@@ -55,6 +55,7 @@
 #include <QDebug>
 #include <QDir>
 #include <math.h>
+#include <qmath.h>
 
 #ifdef Q_OS_MAC
 #include <Carbon/Carbon.h>
@@ -144,6 +145,8 @@ private slots:
     void masks();
     void validators();
     void inputMethods();
+
+    void signal_editingfinished();
 
     void passwordCharacter();
     void cursorDelegate_data();
@@ -1573,7 +1576,7 @@ void tst_qquicktextinput::verticalAlignment()
     QQuickView window(testFileUrl("horizontalAlignment.qml"));
     QQuickTextInput *textInput = window.rootObject()->findChild<QQuickTextInput*>("text");
     QVERIFY(textInput != 0);
-    window.show();
+    window.showNormal();
 
     QCOMPARE(textInput->vAlign(), QQuickTextInput::AlignTop);
     QVERIFY(textInput->boundingRect().bottom() < window.height() / 2);
@@ -2302,6 +2305,49 @@ void tst_qquicktextinput::inputMethods()
     QCOMPARE(enabledQueryEvent.value(Qt::ImEnabled).toBool(), false);
 }
 
+void tst_qquicktextinput::signal_editingfinished()
+{
+    QQuickView window(testFileUrl("signal_editingfinished.qml"));
+    window.show();
+    window.requestActivate();
+    QTest::qWaitForWindowActive(&window);
+
+    QVERIFY(window.rootObject() != 0);
+
+    QQuickTextInput *input1 = qobject_cast<QQuickTextInput *>(qvariant_cast<QObject *>(window.rootObject()->property("input1")));
+    QVERIFY(input1);
+    QQuickTextInput *input2 = qobject_cast<QQuickTextInput *>(qvariant_cast<QObject *>(window.rootObject()->property("input2")));
+    QVERIFY(input2);
+    QSignalSpy input1Spy(input1, SIGNAL(editingFinished()));
+
+    input1->setFocus(true);
+    QTRY_VERIFY(input1->hasActiveFocus());
+    QTRY_VERIFY(!input2->hasActiveFocus());
+
+    QTest::keyPress(&window, Qt::Key_A);
+    QTest::keyRelease(&window, Qt::Key_A, Qt::NoModifier);
+    QTRY_COMPARE(input1->text(), QLatin1String("a"));
+
+    QTest::keyPress(&window, Qt::Key_Enter);
+    QTest::keyRelease(&window, Qt::Key_Enter, Qt::NoModifier);
+    QTRY_COMPARE(input1Spy.count(), 1);
+
+    QSignalSpy input2Spy(input2, SIGNAL(editingFinished()));
+
+    input2->setFocus(true);
+    QTRY_VERIFY(!input1->hasActiveFocus());
+    QTRY_VERIFY(input2->hasActiveFocus());
+
+    QTest::keyPress(&window, Qt::Key_A);
+    QTest::keyRelease(&window, Qt::Key_A, Qt::NoModifier);
+    QTRY_COMPARE(input2->text(), QLatin1String("a"));
+
+    input1->setFocus(true);
+    QTRY_VERIFY(input1->hasActiveFocus());
+    QTRY_VERIFY(!input2->hasActiveFocus());
+    QTRY_COMPARE(input2Spy.count(), 1);
+}
+
 /*
 TextInput element should only handle left/right keys until the cursor reaches
 the extent of the text, then they should ignore the keys.
@@ -2775,7 +2821,6 @@ void tst_qquicktextinput::cursorDelegate()
 
 void tst_qquicktextinput::remoteCursorDelegate()
 {
-    QSKIP("This test is unstable");
     TestHTTPServer server(SERVER_PORT);
     server.serveDirectory(dataDirectory(), TestHTTPServer::Delay);
 
@@ -2798,10 +2843,6 @@ void tst_qquicktextinput::remoteCursorDelegate()
 
     textInputObject->setFocus(true);
     QVERIFY(textInputObject->isCursorVisible());
-
-    QCOMPARE(component.status(), QQmlComponent::Loading);
-    QVERIFY(!textInputObject->findChild<QQuickItem*>("cursorInstance"));
-    server.sendDelayedItem();
 
     // Wait for component to load.
     QTRY_COMPARE(component.status(), QQmlComponent::Ready);
@@ -3314,7 +3355,7 @@ void tst_qquicktextinput::focusOnPress()
     QQuickWindow window;
     window.resize(100, 50);
     textInputObject->setParentItem(window.contentItem());
-    window.show();
+    window.showNormal();
     window.requestActivate();
     QTest::qWaitForWindowActive(&window);
 
@@ -3377,7 +3418,7 @@ void tst_qquicktextinput::openInputPanel()
     inputMethodPrivate->testContext = &platformInputContext;
 
     QQuickView view(testFileUrl("openInputPanel.qml"));
-    view.show();
+    view.showNormal();
     view.requestActivate();
     QTest::qWaitForWindowActive(&view);
 
@@ -3769,7 +3810,7 @@ void tst_qquicktextinput::inputContextMouseHandler()
     input->setFocus(true);
     input->setText("");
 
-    view.show();
+    view.showNormal();
     view.requestActivate();
     QTest::qWaitForWindowActive(&view);
 
@@ -5695,7 +5736,7 @@ void tst_qquicktextinput::QTBUG_19956_regexp()
 {
     QUrl url = testFileUrl("qtbug-19956regexp.qml");
 
-    QString warning = url.toString() + ":11: Unable to assign [undefined] to QRegExp";
+    QString warning = url.toString() + ":11:17: Unable to assign [undefined] to QRegExp";
     QTest::ignoreMessage(QtWarningMsg, qPrintable(warning));
 
     QQuickView window(url);

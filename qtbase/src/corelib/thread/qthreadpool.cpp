@@ -52,14 +52,14 @@ QT_BEGIN_NAMESPACE
 Q_GLOBAL_STATIC(QThreadPool, theInstance)
 
 /*
-    QThread wrapper, provides synchronizitaion against a ThreadPool
+    QThread wrapper, provides synchronization against a ThreadPool
 */
 class QThreadPoolThread : public QThread
 {
 public:
     QThreadPoolThread(QThreadPoolPrivate *manager);
     void run();
-    void registerTheadInactive();
+    void registerThreadInactive();
 
     QThreadPoolPrivate *manager;
     QRunnable *runnable;
@@ -103,7 +103,7 @@ void QThreadPoolThread::run()
                     qWarning("Qt Concurrent has caught an exception thrown from a worker thread.\n"
                              "This is not supported, exceptions thrown in worker threads must be\n"
                              "caught before control returns to Qt Concurrent.");
-                    registerTheadInactive();
+                    registerThreadInactive();
                     throw;
                 }
 #endif
@@ -121,7 +121,7 @@ void QThreadPoolThread::run()
         } while (r != 0);
 
         if (manager->isExiting) {
-            registerTheadInactive();
+            registerThreadInactive();
             break;
         }
 
@@ -129,7 +129,7 @@ void QThreadPoolThread::run()
         bool expired = manager->tooManyThreadsActive();
         if (!expired) {
             ++manager->waitingThreads;
-            registerTheadInactive();
+            registerThreadInactive();
             // wait for work, exiting after the expiry timeout is reached
             expired = !manager->runnableReady.wait(locker.mutex(), manager->expiryTimeout);
             ++manager->activeThreads;
@@ -139,13 +139,13 @@ void QThreadPoolThread::run()
         }
         if (expired) {
             manager->expiredThreads.enqueue(this);
-            registerTheadInactive();
+            registerThreadInactive();
             break;
         }
     }
 }
 
-void QThreadPoolThread::registerTheadInactive()
+void QThreadPoolThread::registerThreadInactive()
 {
     if (--manager->activeThreads == 0)
         manager->noActiveThreads.wakeAll();
@@ -180,6 +180,7 @@ bool QThreadPoolPrivate::tryStart(QRunnable *task)
         // recycle an available thread
         --waitingThreads;
         enqueueTask(task);
+        runnableReady.wakeOne();
         return true;
     }
 
@@ -218,13 +219,10 @@ void QThreadPoolPrivate::enqueueTask(QRunnable *runnable, int priority)
     if (it != begin && priority > (*(it - 1)).second)
         it = std::upper_bound(begin, --it, priority);
     queue.insert(it - begin, qMakePair(runnable, priority));
-    runnableReady.wakeOne();
 }
 
 int QThreadPoolPrivate::activeThreadCount() const
 {
-    // To improve scalability this function is called without holding
-    // the mutex lock -- keep it thread-safe.
     return (allThreads.count()
             - expiredThreads.count()
             - waitingThreads
@@ -262,7 +260,7 @@ void QThreadPoolPrivate::startThread(QRunnable *runnable)
 
 /*!
     \internal
-    Makes all threads exit, waits for each tread to exit and deletes it.
+    Makes all threads exit, waits for each thread to exit and deletes it.
 */
 void QThreadPoolPrivate::reset()
 {
@@ -308,10 +306,22 @@ bool QThreadPoolPrivate::waitForDone(int msecs)
     return queue.isEmpty() && activeThreads == 0;
 }
 
+void QThreadPoolPrivate::clear()
+{
+    QMutexLocker locker(&mutex);
+    for (QList<QPair<QRunnable *, int> >::const_iterator it = queue.constBegin();
+         it != queue.constEnd(); ++it) {
+        QRunnable* r = it->first;
+        if (r->autoDelete() && !--r->ref)
+            delete r;
+    }
+    queue.clear();
+}
+
 /*!
     \internal
-    Seaches for \a runnable in the queue, removes it from the queue and
-    runs it if found. This functon does not return until the runnable
+    Searches for \a runnable in the queue, removes it from the queue and
+    runs it if found. This function does not return until the runnable
     has completed.
 */
 void QThreadPoolPrivate::stealRunnable(QRunnable *runnable)
@@ -431,10 +441,10 @@ QThreadPool *QThreadPool::globalInstance()
     be used to control the run queue's order of execution.
 
     Note that the thread pool takes ownership of the \a runnable if
-    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns true,
+    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns \c true,
     and the \a runnable will be deleted automatically by the thread
     pool after the \l{QRunnable::run()}{runnable->run()} returns. If
-    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns false,
+    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns \c false,
     ownership of \a runnable remains with the caller. Note that
     changing the auto-deletion on \a runnable after calling this
     functions results in undefined behavior.
@@ -446,22 +456,28 @@ void QThreadPool::start(QRunnable *runnable, int priority)
 
     Q_D(QThreadPool);
     QMutexLocker locker(&d->mutex);
-    if (!d->tryStart(runnable))
+    if (!d->tryStart(runnable)) {
         d->enqueueTask(runnable, priority);
+
+        if (d->waitingThreads > 0) {
+            --d->waitingThreads;
+            d->runnableReady.wakeOne();
+        }
+    }
 }
 
 /*!
     Attempts to reserve a thread to run \a runnable.
 
     If no threads are available at the time of calling, then this function
-    does nothing and returns false.  Otherwise, \a runnable is run immediately
-    using one available thread and this function returns true.
+    does nothing and returns \c false.  Otherwise, \a runnable is run immediately
+    using one available thread and this function returns \c true.
 
     Note that the thread pool takes ownership of the \a runnable if
-    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns true,
+    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns \c true,
     and the \a runnable will be deleted automatically by the thread
     pool after the \l{QRunnable::run()}{runnable->run()} returns. If
-    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns false,
+    \l{QRunnable::autoDelete()}{runnable->autoDelete()} returns \c false,
     ownership of \a runnable remains with the caller. Note that
     changing the auto-deletion on \a runnable after calling this
     function results in undefined behavior.
@@ -473,12 +489,11 @@ bool QThreadPool::tryStart(QRunnable *runnable)
 
     Q_D(QThreadPool);
 
-    // To improve scalability perform a check on the thread count
-    // before locking the mutex.
+    QMutexLocker locker(&d->mutex);
+
     if (d->allThreads.isEmpty() == false && d->activeThreadCount() >= d->maxThreadCount)
         return false;
 
-    QMutexLocker locker(&d->mutex);
     return d->tryStart(runnable);
 }
 
@@ -552,6 +567,7 @@ void QThreadPool::setMaxThreadCount(int maxThreadCount)
 int QThreadPool::activeThreadCount() const
 {
     Q_D(const QThreadPool);
+    QMutexLocker locker(&d->mutex);
     return d->activeThreadCount();
 }
 
@@ -596,8 +612,8 @@ void QThreadPool::releaseThread()
 
 /*!
     Waits up to \a msecs milliseconds for all threads to exit and removes all
-    threads from the thread pool. Returns true if all threads were removed;
-    otherwise it returns false. If \a msecs is -1 (the default), the timeout
+    threads from the thread pool. Returns \c true if all threads were removed;
+    otherwise it returns \c false. If \a msecs is -1 (the default), the timeout
     is ignored (waits for the last thread to exit).
 */
 bool QThreadPool::waitForDone(int msecs)
@@ -607,6 +623,21 @@ bool QThreadPool::waitForDone(int msecs)
     if (rc)
       d->reset();
     return rc;
+}
+
+/*!
+    \since 5.2
+
+    Removes the runnables that are not yet started from the queue.
+    The runnables for which \l{QRunnable::autoDelete()}{runnable->autoDelete()}
+    returns \c true are deleted.
+
+    \sa start()
+*/
+void QThreadPool::clear()
+{
+    Q_D(QThreadPool);
+    d->clear();
 }
 
 QT_END_NAMESPACE

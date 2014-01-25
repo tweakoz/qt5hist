@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -66,9 +66,6 @@ QT_BEGIN_NAMESPACE
     Call update() to trigger a repaint.
 
     To enable QPainter to do anti-aliased rendering, use setAntialiasing().
-
-    QQuickPaintedItem is meant to make it easier to port old code that is using the
-    QPainter API to the QML Scene Graph API and it should be used only for that purpose.
 
     To write your own painted item, you first create a subclass of QQuickPaintedItem, and then
     start by implementing its only pure virtual public function: paint(), which implements
@@ -279,7 +276,7 @@ void QQuickPaintedItem::setMipmap(bool enable)
 /*!
     Returns the performance hints.
 
-    By default, no performance hint is enabled/
+    By default, no performance hint is enabled.
 
     \sa setPerformanceHint(), setPerformanceHints()
 */

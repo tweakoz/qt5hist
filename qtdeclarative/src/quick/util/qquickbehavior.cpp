@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -45,10 +45,11 @@
 #include <qqmlcontext.h>
 #include <qqmlinfo.h>
 #include <private/qqmlproperty_p.h>
-#include <private/qqmlguard_p.h>
 #include <private/qqmlengine_p.h>
 #include <private/qabstractanimationjob_p.h>
 #include <private/qquicktransition_p.h>
+
+#include <private/qquickanimatorjob_p.h>
 
 #include <private/qobject_p.h>
 
@@ -65,7 +66,7 @@ public:
 
     QQmlProperty property;
     QVariant targetValue;
-    QQmlGuard<QQuickAbstractAnimation> animation;
+    QPointer<QQuickAbstractAnimation> animation;
     QAbstractAnimationJob *animationInstance;
     bool enabled;
     bool finalized;
@@ -75,7 +76,7 @@ public:
 /*!
     \qmltype Behavior
     \instantiates QQuickBehavior
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-transitions-animations
     \ingroup qtquick-interceptors
     \brief Defines a default animation for a property change
@@ -114,7 +115,7 @@ QQuickBehavior::~QQuickBehavior()
 }
 
 /*!
-    \qmlproperty Animation QtQuick2::Behavior::animation
+    \qmlproperty Animation QtQuick::Behavior::animation
     \default
 
     This property holds the animation to run when the behavior is triggered.
@@ -149,7 +150,7 @@ void QQuickBehaviorPrivate::animationStateChanged(QAbstractAnimationJob *, QAbst
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Behavior::enabled
+    \qmlproperty bool QtQuick::Behavior::enabled
 
     This property holds whether the behavior will be triggered when the tracked
     property changes value.
@@ -187,17 +188,21 @@ void QQuickBehavior::write(const QVariant &value)
     if (d->animation->isRunning() && value == d->targetValue)
         return;
 
-    const QVariant &currentValue = d->property.read();
     d->targetValue = value;
 
-    if (d->animationInstance && d->animationInstance->duration() != -1
+    if (d->animationInstance
+            && (d->animationInstance->duration() != -1
+                || d->animationInstance->isRenderThreadProxy())
             && !d->animationInstance->isStopped()) {
         d->blockRunningChanged = true;
         d->animationInstance->stop();
     }
+    // Render thread animations use "stop" to synchronize the property back
+    // to the item, so we need to read the value after.
+    const QVariant &currentValue = d->property.read();
 
     QQuickStateOperation::ActionList actions;
-    QQuickAction action;
+    QQuickStateAction action;
     action.property = d->property;
     action.fromValue = currentValue;
     action.toValue = value;
@@ -206,6 +211,10 @@ void QQuickBehavior::write(const QVariant &value)
     QList<QQmlProperty> after;
     QAbstractAnimationJob *prev = d->animationInstance;
     d->animationInstance = d->animation->transition(actions, after, QQuickAbstractAnimation::Forward);
+
+    if (d->animationInstance && d->animation->threadingModel() == QQuickAbstractAnimation::RenderThread)
+        d->animationInstance = new QQuickAnimatorProxyJob(d->animationInstance, d->animation);
+
     if (prev && prev != d->animationInstance)
         delete prev;
 

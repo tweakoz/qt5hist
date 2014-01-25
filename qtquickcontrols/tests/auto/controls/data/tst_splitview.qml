@@ -40,7 +40,8 @@
 
 import QtQuick 2.1
 import QtTest 1.0
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
+import QtQuick.Layouts 1.0
 import QtQuickControlsTests 1.0
 
 TestCase {
@@ -76,10 +77,33 @@ TestCase {
         }
     }
 
+    Component {
+        id: splitView_hide_item_after_fillWidth
+        SplitView {
+            anchors.fill: parent
+            property alias item3: item3
+            handleDelegate: Rectangle { width: handleWidth; height: handleHeight; color: "black" }
+            Rectangle {
+                color: "yellow"
+                Layout.fillWidth: true
+            }
+            Rectangle {
+                color: "green"
+                Layout.minimumWidth: 100
+                visible: false
+            }
+            Rectangle {
+                id: item3
+                color: "blue"
+                Layout.minimumWidth: 100
+            }
+        }
+    }
+
     function test_01_splitView() {
-        var component = splitView
-        var view = component.createObject(testCase);
+        var view = splitView.createObject(testCase);
         verify (view !== null, "splitview created is null")
+        waitForRendering(view)
         verify (view.orientation === Qt.Horizontal)
         compare (view.__items.length, 2)
         compare (view.item1.x, 0)
@@ -94,9 +118,9 @@ TestCase {
     }
 
     function test_02_splitView_initial_orientation_vertical() {
-        var component = splitView
-        var view = component.createObject(testCase, {orientation:Qt.Vertical});
+        var view = splitView.createObject(testCase, {orientation:Qt.Vertical});
         verify (view !== null, "splitview created is null")
+        waitForRendering(view)
         compare (view.orientation, Qt.Vertical)
         compare (view.__items.length, 2)
         compare (view.item1.x, 0)
@@ -110,10 +134,10 @@ TestCase {
         view.destroy()
     }
 
-    function test_03_orientation_change()
-    {
-        var component = splitView
-        var view = component.createObject(testCase);
+    function test_03_orientation_change() {
+        var view = splitView.createObject(testCase);
+        verify (view !== null, "splitview created is null")
+        waitForRendering(view)
         verify (view.orientation === Qt.Horizontal)
 
         view.orientation = Qt.Vertical
@@ -141,10 +165,10 @@ TestCase {
         view.destroy()
     }
 
-    function test_04_hide_item()
-    {
-        var component = splitView
-        var view = component.createObject(testCase);
+    function test_04_hide_item() {
+        var view = splitView.createObject(testCase);
+        verify (view !== null, "splitview created is null")
+        waitForRendering(view)
         verify (view.item1.visible)
         verify (view.item2.visible)
         view.item1.visible = false
@@ -158,12 +182,13 @@ TestCase {
         compare (view.item2.y, 0)
         compare (view.item2.width, testCase.width)
         compare (view.item2.height, 500)
+        view.destroy()
     }
 
-    function test_05_hide_fillWidth_item()
-    {
-        var component = splitView
-        var view = component.createObject(testCase);
+    function test_05_hide_fillWidth_item() {
+        var view = splitView.createObject(testCase);
+        verify (view !== null, "splitview created is null")
+        waitForRendering(view)
         verify (view.item1.visible)
         verify (view.item2.visible)
         view.item2.visible = false
@@ -177,5 +202,15 @@ TestCase {
         compare (view.item2.y, 0)
         compare (view.item2.width, testCase.width - view.item1.width - handleWidth)
         compare (view.item2.height, 500)
+        view.destroy()
+    }
+
+    function test_hide_item_after_fillWidth() {
+        // QTBUG-33448
+        var view = splitView_hide_item_after_fillWidth.createObject(testCase);
+        verify (view !== null, "splitview created is null")
+        waitForRendering(view)
+        compare (view.item3.x, view.width - view.item3.width)
+        view.destroy()
     }
 }

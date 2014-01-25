@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QtX11Extras
 description             = Qt X11 Extras Reference Documentation
-url                     = http://qt-project.org/doc/qt-$QT_VER/qtx11extras
+url                     = http://qt-project.org/doc/qt-$QT_VER
 version                 = $QT_VERSION
 
 qhp.projects            = QtX11Extras
@@ -23,7 +23,7 @@ qhp.QtX11Extras.subprojects.classes.indexTitle = Qt X11 Extras C++ Classes
 qhp.QtX11Extras.subprojects.classes.selectors = class fake:headerfile
 qhp.QtX11Extras.subprojects.classes.sortPages = true
 
-depends += qtcore qtwidgets
+depends += qtcore qtwidgets qtdoc
 
 headerdirs  += ..
 
@@ -33,3 +33,6 @@ exampledirs += ../../../examples \
                snippets
 
 imagedirs   += images
+
+navigation.landingpage = "Qt X11 Extras"
+navigation.cppclassespage = "Qt X11 Extras C++ Classes"

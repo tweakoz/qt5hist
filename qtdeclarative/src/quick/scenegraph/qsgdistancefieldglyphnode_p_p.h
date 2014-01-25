@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -117,6 +117,7 @@ public:
 
     virtual QSGMaterialType *type() const;
     virtual QSGMaterialShader *createShader() const;
+    virtual int compare(const QSGMaterial *other) const;
 
     void setShift(const QPointF &shift) { m_shift = shift; }
     const QPointF &shift() const { return m_shift; }

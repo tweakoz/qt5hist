@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -94,7 +94,7 @@ QQuickImagePrivate::QQuickImagePrivate()
 /*!
     \qmltype Image
     \instantiates QQuickImage
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual
     \inherits Item
     \brief Displays an image
@@ -176,7 +176,7 @@ void QQuickImagePrivate::setImage(const QImage &image)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Image::fillMode
+    \qmlproperty enumeration QtQuick::Image::fillMode
 
     Set this property to define what happens when the source image has a different size
     than the item.
@@ -289,8 +289,8 @@ void QQuickImage::setFillMode(FillMode mode)
 
 /*!
 
-    \qmlproperty real QtQuick2::Image::paintedWidth
-    \qmlproperty real QtQuick2::Image::paintedHeight
+    \qmlproperty real QtQuick::Image::paintedWidth
+    \qmlproperty real QtQuick::Image::paintedHeight
 
     These properties hold the size of the image that is actually painted.
     In most cases it is the same as \c width and \c height, but when using a
@@ -311,7 +311,7 @@ qreal QQuickImage::paintedHeight() const
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Image::status
+    \qmlproperty enumeration QtQuick::Image::status
 
     This property holds the status of image loading.  It can be one of:
     \list
@@ -348,7 +348,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty real QtQuick2::Image::progress
+    \qmlproperty real QtQuick::Image::progress
 
     This property holds the progress of image loading, from 0.0 (nothing loaded)
     to 1.0 (finished).
@@ -357,7 +357,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Image::smooth
+    \qmlproperty bool QtQuick::Image::smooth
 
     This property holds whether the image is smoothly filtered when scaled or
     transformed.  Smooth filtering gives better visual quality, but it may be slower
@@ -368,7 +368,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty QSize QtQuick2::Image::sourceSize
+    \qmlproperty QSize QtQuick::Image::sourceSize
 
     This property holds the actual width and height of the loaded image.
 
@@ -419,7 +419,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty url QtQuick2::Image::source
+    \qmlproperty url QtQuick::Image::source
 
     Image can handle any image format supported by Qt, loaded from any URL scheme supported by Qt.
 
@@ -429,7 +429,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Image::asynchronous
+    \qmlproperty bool QtQuick::Image::asynchronous
 
     Specifies that images on the local filesystem should be loaded
     asynchronously in a separate thread.  The default value is
@@ -444,7 +444,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Image::cache
+    \qmlproperty bool QtQuick::Image::cache
 
     Specifies whether the image should be cached. The default value is
     true. Setting \a cache to false is useful when dealing with large images,
@@ -452,7 +452,7 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Image::mirror
+    \qmlproperty bool QtQuick::Image::mirror
 
     This property holds whether the image should be horizontally inverted
     (effectively displaying a mirrored image).
@@ -461,8 +461,8 @@ qreal QQuickImage::paintedHeight() const
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::Image::horizontalAlignment
-    \qmlproperty enumeration QtQuick2::Image::verticalAlignment
+    \qmlproperty enumeration QtQuick::Image::horizontalAlignment
+    \qmlproperty enumeration QtQuick::Image::verticalAlignment
 
     Sets the horizontal and vertical alignment of the image. By default, the image is center aligned.
 
@@ -532,17 +532,17 @@ QRectF QQuickImage::boundingRect() const
 QSGTextureProvider *QQuickImage::textureProvider() const
 {
     Q_D(const QQuickImage);
+
+    if (!d->window || !d->sceneGraphRenderContext() || QThread::currentThread() != d->sceneGraphRenderContext()->thread()) {
+        qWarning("QQuickImage::textureProvider: can only be queried on the rendering thread of an exposed window");
+        return 0;
+    }
+
     if (!d->provider) {
-        // Make sure it gets thread affinity on the rendering thread so deletion works properly..
-        Q_ASSERT_X(d->window
-                   && d->sceneGraphContext()
-                   && QThread::currentThread() == d->sceneGraphContext()->thread(),
-                   "QQuickImage::textureProvider",
-                   "Cannot be used outside the GUI thread");
         QQuickImagePrivate *dd = const_cast<QQuickImagePrivate *>(d);
         dd->provider = new QQuickImageTextureProvider;
         dd->provider->m_smooth = d->smooth;
-        dd->provider->m_texture = d->sceneGraphContext()->textureForFactory(d->pix.textureFactory(), window());
+        dd->provider->m_texture = d->sceneGraphRenderContext()->textureForFactory(d->pix.textureFactory(), window());
     }
 
     return d->provider;
@@ -552,7 +552,7 @@ QSGNode *QQuickImage::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
     Q_D(QQuickImage);
 
-    QSGTexture *texture = d->sceneGraphContext()->textureForFactory(d->pix.textureFactory(), window());
+    QSGTexture *texture = d->sceneGraphRenderContext()->textureForFactory(d->pix.textureFactory(), window());
 
     // Copy over the current texture state into the texture provider...
     if (d->provider) {
@@ -569,14 +569,6 @@ QSGNode *QQuickImage::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
     if (!node) {
         d->pixmapChanged = true;
         node = d->sceneGraphContext()->createImageNode();
-    }
-
-    if (d->pixmapChanged) {
-        // force update the texture in the node to trigger reconstruction of
-        // geometry and the likes when a atlas segment has changed.
-        node->setTexture(0);
-        node->setTexture(texture);
-        d->pixmapChanged = false;
     }
 
     QRectF targetRect;
@@ -670,6 +662,16 @@ QSGNode *QQuickImage::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
                   sourceRect.y() / d->pix.height(),
                   sourceRect.width() / d->pix.width(),
                   sourceRect.height() / d->pix.height());
+
+    if (d->pixmapChanged) {
+        // force update the texture in the node to trigger reconstruction of
+        // geometry and the likes when a atlas segment has changed.
+        if (texture->isAtlasTexture() && (hWrap == QSGTexture::Repeat || vWrap == QSGTexture::Repeat))
+            node->setTexture(texture->removedFromAtlas());
+        else
+            node->setTexture(texture);
+        d->pixmapChanged = false;
+    }
 
     node->setHorizontalWrapMode(hWrap);
     node->setVerticalWrapMode(vWrap);

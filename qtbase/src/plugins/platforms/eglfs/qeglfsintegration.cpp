@@ -43,12 +43,14 @@
 
 #include "qeglfswindow.h"
 #include "qeglfsbackingstore.h"
+#include "qeglfscompositor.h"
 #include "qeglfshooks.h"
 
 #include <QtGui/private/qguiapplication_p.h>
 
 #include <QtPlatformSupport/private/qgenericunixfontdatabase_p.h>
 #include <QtPlatformSupport/private/qgenericunixeventdispatcher_p.h>
+#include <QtPlatformSupport/private/qgenericunixservices_p.h>
 #include <QtPlatformSupport/private/qeglconvenience_p.h>
 #include <QtPlatformSupport/private/qeglplatformcontext_p.h>
 #include <QtPlatformSupport/private/qeglpbuffer_p.h>
@@ -72,59 +74,26 @@
 
 #include <EGL/egl.h>
 
+static void initResources()
+{
+    Q_INIT_RESOURCE(cursor);
+}
+
 QT_BEGIN_NAMESPACE
 
 QEglFSIntegration::QEglFSIntegration()
-    : mEventDispatcher(createUnixEventDispatcher()), mFontDb(new QGenericUnixFontDatabase())
+    : mFontDb(new QGenericUnixFontDatabase)
+    , mServices(new QGenericUnixServices)
+    , mScreen(0)
+    , mInputContext(0)
 {
-    QGuiApplicationPrivate::instance()->setEventDispatcher(mEventDispatcher);
-
-#if !defined(QT_NO_EVDEV) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK))
-    new QEvdevKeyboardManager(QLatin1String("EvdevKeyboard"), QString() /* spec */, this);
-    new QEvdevMouseManager(QLatin1String("EvdevMouse"), QString() /* spec */, this);
-    new QEvdevTouchScreenHandlerThread(QString() /* spec */, this);
-#endif
-
-    QEglFSHooks::hooks()->platformInit();
-
-    EGLint major, minor;
-
-    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
-        qWarning("Could not bind GL_ES API\n");
-        qFatal("EGL error");
-    }
-
-    mDisplay = eglGetDisplay(QEglFSHooks::hooks() ? QEglFSHooks::hooks()->platformDisplay() : EGL_DEFAULT_DISPLAY);
-    if (mDisplay == EGL_NO_DISPLAY) {
-        qWarning("Could not open egl display\n");
-        qFatal("EGL error");
-    }
-
-    if (!eglInitialize(mDisplay, &major, &minor)) {
-        qWarning("Could not initialize egl display\n");
-        qFatal("EGL error");
-    }
-
-    int swapInterval = 1;
-    QByteArray swapIntervalString = qgetenv("QT_QPA_EGLFS_SWAPINTERVAL");
-    if (!swapIntervalString.isEmpty()) {
-        bool ok;
-        swapInterval = swapIntervalString.toInt(&ok);
-        if (!ok)
-            swapInterval = 1;
-    }
-    eglSwapInterval(mDisplay, swapInterval);
-
-    mScreen = new QEglFSScreen(mDisplay);
-    screenAdded(mScreen);
-
-    mInputContext = QPlatformInputContextFactory::create();
+    initResources();
 }
 
 QEglFSIntegration::~QEglFSIntegration()
 {
+    QEglFSCompositor::destroy();
     delete mScreen;
-
     eglTerminate(mDisplay);
     QEglFSHooks::hooks()->platformDestroy();
 }
@@ -139,15 +108,18 @@ bool QEglFSIntegration::hasCapability(QPlatformIntegration::Capability cap) cons
     case ThreadedPixmaps: return true;
     case OpenGL: return true;
     case ThreadedOpenGL: return true;
+    case WindowManagement: return false;
     default: return QPlatformIntegration::hasCapability(cap);
     }
 }
 
 QPlatformWindow *QEglFSIntegration::createPlatformWindow(QWindow *window) const
 {
+    QWindowSystemInterface::flushWindowSystemEvents();
     QEglFSWindow *w = new QEglFSWindow(window);
     w->create();
-    w->requestActivateWindow();
+    if (window->type() != Qt::ToolTip)
+        w->requestActivateWindow();
     return w;
 }
 
@@ -169,20 +141,63 @@ QPlatformOffscreenSurface *QEglFSIntegration::createPlatformOffscreenSurface(QOf
 
 QPlatformFontDatabase *QEglFSIntegration::fontDatabase() const
 {
-    return mFontDb;
+    return mFontDb.data();
 }
 
-QAbstractEventDispatcher *QEglFSIntegration::guiThreadEventDispatcher() const
+QAbstractEventDispatcher *QEglFSIntegration::createEventDispatcher() const
 {
-    return mEventDispatcher;
+    return createUnixEventDispatcher();
+}
+
+void QEglFSIntegration::initialize()
+{
+    QEglFSHooks::hooks()->platformInit();
+
+    EGLint major, minor;
+
+    if (!eglBindAPI(EGL_OPENGL_ES_API)) {
+        qWarning("Could not bind GL_ES API\n");
+        qFatal("EGL error");
+    }
+
+    mDisplay = eglGetDisplay(QEglFSHooks::hooks() ? QEglFSHooks::hooks()->platformDisplay() : EGL_DEFAULT_DISPLAY);
+    if (mDisplay == EGL_NO_DISPLAY) {
+        qWarning("Could not open egl display\n");
+        qFatal("EGL error");
+    }
+
+    if (!eglInitialize(mDisplay, &major, &minor)) {
+        qWarning("Could not initialize egl display\n");
+        qFatal("EGL error");
+    }
+
+    mScreen = createScreen();
+    screenAdded(mScreen);
+
+    mInputContext = QPlatformInputContextFactory::create();
+
+    createInputHandlers();
+}
+
+QEglFSScreen *QEglFSIntegration::createScreen() const
+{
+    return new QEglFSScreen(mDisplay);
 }
 
 QVariant QEglFSIntegration::styleHint(QPlatformIntegration::StyleHint hint) const
 {
-    if (hint == QPlatformIntegration::ShowIsFullScreen)
-        return true;
+    switch (hint)
+    {
+    case QPlatformIntegration::ShowIsFullScreen:
+        return mScreen->rootWindow() == 0;
+    default:
+        return QPlatformIntegration::styleHint(hint);
+    }
+}
 
-    return QPlatformIntegration::styleHint(hint);
+QPlatformServices *QEglFSIntegration::services() const
+{
+    return mServices.data();
 }
 
 QPlatformNativeInterface *QEglFSIntegration::nativeInterface() const
@@ -190,27 +205,95 @@ QPlatformNativeInterface *QEglFSIntegration::nativeInterface() const
     return const_cast<QEglFSIntegration *>(this);
 }
 
+enum ResourceType {
+    EglDisplay,
+    EglWindow,
+    EglContext
+};
+
+static int resourceType(const QByteArray &key)
+{
+    static const QByteArray names[] = { // match ResourceType
+        QByteArrayLiteral("egldisplay"),
+        QByteArrayLiteral("eglwindow"),
+        QByteArrayLiteral("eglcontext")
+    };
+    const QByteArray *end = names + sizeof(names) / sizeof(names[0]);
+    const QByteArray *result = std::find(names, end, key);
+    if (result == end)
+        result = std::find(names, end, key.toLower());
+    return int(result - names);
+}
+
 void *QEglFSIntegration::nativeResourceForIntegration(const QByteArray &resource)
 {
-    QByteArray lowerCaseResource = resource.toLower();
+    void *result = 0;
 
-    if (lowerCaseResource == "egldisplay")
-        return static_cast<QEglFSScreen *>(mScreen)->display();
+    switch (resourceType(resource)) {
+    case EglDisplay:
+        result = mScreen->display();
+        break;
+    default:
+        break;
+    }
 
-    return 0;
+    return result;
+}
+
+void *QEglFSIntegration::nativeResourceForWindow(const QByteArray &resource, QWindow *window)
+{
+    void *result = 0;
+
+    switch (resourceType(resource)) {
+    case EglDisplay:
+        if (window && window->handle())
+            result = static_cast<QEglFSScreen *>(window->handle()->screen())->display();
+        else
+            result = mScreen->display();
+        break;
+    case EglWindow:
+        if (window && window->handle())
+            result = reinterpret_cast<void*>(static_cast<QEglFSWindow *>(window->handle())->eglWindow());
+        break;
+    default:
+        break;
+    }
+
+    return result;
 }
 
 void *QEglFSIntegration::nativeResourceForContext(const QByteArray &resource, QOpenGLContext *context)
 {
-    QByteArray lowerCaseResource = resource.toLower();
+    void *result = 0;
+
+    switch (resourceType(resource)) {
+    case EglContext:
+        if (context->handle())
+            result = static_cast<QEGLPlatformContext *>(context->handle())->eglContext();
+        break;
+    default:
+        break;
+    }
+
+    return result;
+}
+
+static void *eglContextForContext(QOpenGLContext *context)
+{
+    Q_ASSERT(context);
 
     QEGLPlatformContext *handle = static_cast<QEGLPlatformContext *>(context->handle());
-
     if (!handle)
         return 0;
 
-    if (lowerCaseResource == "eglcontext")
-        return handle->eglContext();
+    return handle->eglContext();
+}
+
+QPlatformNativeInterface::NativeResourceForContextFunction QEglFSIntegration::nativeResourceFunctionForContext(const QByteArray &resource)
+{
+    QByteArray lowerCaseResource = resource.toLower();
+    if (lowerCaseResource == "get_egl_context")
+        return NativeResourceForContextFunction(eglContextForContext);
 
     return 0;
 }
@@ -238,6 +321,15 @@ EGLConfig QEglFSIntegration::chooseConfig(EGLDisplay display, const QSurfaceForm
     Chooser chooser(display, QEglFSHooks::hooks());
     chooser.setSurfaceFormat(format);
     return chooser.chooseConfig();
+}
+
+void QEglFSIntegration::createInputHandlers()
+{
+#if !defined(QT_NO_EVDEV) && (!defined(Q_OS_ANDROID) || defined(Q_OS_ANDROID_NO_SDK))
+    new QEvdevKeyboardManager(QLatin1String("EvdevKeyboard"), QString() /* spec */, this);
+    new QEvdevMouseManager(QLatin1String("EvdevMouse"), QString() /* spec */, this);
+    new QEvdevTouchScreenHandlerThread(QString() /* spec */, this);
+#endif
 }
 
 QT_END_NAMESPACE

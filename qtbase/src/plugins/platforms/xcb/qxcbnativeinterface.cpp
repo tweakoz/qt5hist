@@ -42,7 +42,9 @@
 #include "qxcbnativeinterface.h"
 
 #include "qxcbscreen.h"
+#include "qxcbwindow.h"
 #include "qxcbintegration.h"
+#include "qxcbsystemtraytracker.h"
 
 #include <private/qguiapplication_p.h>
 #include <QtCore/QMap>
@@ -64,28 +66,28 @@
 #  include <stdio.h>
 #endif
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
-class QXcbResourceMap : public QMap<QByteArray, QXcbNativeInterface::ResourceType>
+// return QXcbNativeInterface::ResourceType for the key.
+static int resourceType(const QByteArray &key)
 {
-public:
-    QXcbResourceMap()
-        :QMap<QByteArray, QXcbNativeInterface::ResourceType>()
-    {
-        insert("display",QXcbNativeInterface::Display);
-        insert("egldisplay",QXcbNativeInterface::EglDisplay);
-        insert("connection",QXcbNativeInterface::Connection);
-        insert("screen",QXcbNativeInterface::Screen);
-        insert("eglcontext",QXcbNativeInterface::EglContext);
-        insert("glxcontext",QXcbNativeInterface::GLXContext);
-        insert("apptime",QXcbNativeInterface::AppTime);
-        insert("appusertime",QXcbNativeInterface::AppUserTime);
-        insert("hintstyle", QXcbNativeInterface::ScreenHintStyle);
-        insert("startupid", QXcbNativeInterface::StartupId);
-    }
-};
-
-Q_GLOBAL_STATIC(QXcbResourceMap, qXcbResourceMap)
+    static const QByteArray names[] = { // match QXcbNativeInterface::ResourceType
+        QByteArrayLiteral("display"),  QByteArrayLiteral("egldisplay"),
+        QByteArrayLiteral("connection"), QByteArrayLiteral("screen"),
+        QByteArrayLiteral("graphicsdevice"), QByteArrayLiteral("eglcontext"),
+        QByteArrayLiteral("glxcontext"), QByteArrayLiteral("apptime"),
+        QByteArrayLiteral("appusertime"), QByteArrayLiteral("hintstyle"),
+        QByteArrayLiteral("startupid"), QByteArrayLiteral("traywindow"),
+        QByteArrayLiteral("gettimestamp"), QByteArrayLiteral("x11screen")
+    };
+    const QByteArray *end = names + sizeof(names) / sizeof(names[0]);
+    const QByteArray *result = std::find(names, end, key);
+    if (result == end)
+        result = std::find(names, end, key.toLower());
+    return int(result - names);
+}
 
 QXcbNativeInterface::QXcbNativeInterface() :
     m_genericEventFilterType(QByteArrayLiteral("xcb_generic_event_t"))
@@ -100,17 +102,45 @@ void QXcbNativeInterface::beep() // For QApplication::beep()
     xcb_bell(connection, 0);
 }
 
+static inline QXcbSystemTrayTracker *systemTrayTracker(const QScreen *s)
+{
+    return static_cast<const QXcbScreen *>(s->handle())->connection()->systemTrayTracker();
+}
+
+bool QXcbNativeInterface::systemTrayAvailable(const QScreen *screen) const
+{
+    return systemTrayTracker(screen);
+}
+
+bool QXcbNativeInterface::requestSystemTrayWindowDock(const QWindow *window)
+{
+    const QPlatformWindow *platformWindow = window->handle();
+    if (!platformWindow)
+        return false;
+    QXcbSystemTrayTracker *trayTracker = systemTrayTracker(window->screen());
+    if (!trayTracker)
+        return false;
+    trayTracker->requestSystemTrayWindowDock(static_cast<const QXcbWindow *>(platformWindow)->xcb_window());
+    return true;
+}
+
+QRect QXcbNativeInterface::systemTrayWindowGlobalGeometry(const QWindow *window)
+{
+    if (const QPlatformWindow *platformWindow = window->handle())
+        if (const QXcbSystemTrayTracker *trayTracker = systemTrayTracker(window->screen()))
+            return trayTracker->systemTrayWindowGlobalGeometry(static_cast<const QXcbWindow *>(platformWindow)->xcb_window());
+    return QRect();
+}
+
 void *QXcbNativeInterface::nativeResourceForIntegration(const QByteArray &resourceString)
 {
-    QByteArray lowerCaseResource = resourceString.toLower();
-    if (!qXcbResourceMap()->contains(lowerCaseResource))
-        return 0;
-
-    ResourceType resource = qXcbResourceMap()->value(lowerCaseResource);
     void *result = 0;
-    switch (resource) {
+    switch (resourceType(resourceString)) {
     case StartupId:
         result = startupId();
+        break;
+    case X11Screen:
+        result = x11Screen();
         break;
     default:
         break;
@@ -121,13 +151,8 @@ void *QXcbNativeInterface::nativeResourceForIntegration(const QByteArray &resour
 
 void *QXcbNativeInterface::nativeResourceForContext(const QByteArray &resourceString, QOpenGLContext *context)
 {
-    QByteArray lowerCaseResource = resourceString.toLower();
-    if (!qXcbResourceMap()->contains(lowerCaseResource))
-        return 0;
-
-    ResourceType resource = qXcbResourceMap()->value(lowerCaseResource);
     void *result = 0;
-    switch(resource) {
+    switch (resourceType(resourceString)) {
     case EglContext:
         result = eglContextForContext(context);
         break;
@@ -143,12 +168,9 @@ void *QXcbNativeInterface::nativeResourceForContext(const QByteArray &resourceSt
 
 void *QXcbNativeInterface::nativeResourceForScreen(const QByteArray &resource, QScreen *screen)
 {
-    const QXcbResourceMap::const_iterator it = qXcbResourceMap()->constFind(resource.toLower());
-    if (it == qXcbResourceMap()->constEnd() || !screen->handle())
-        return  0;
     void *result = 0;
     const QXcbScreen *xcbScreen = static_cast<QXcbScreen *>(screen->handle());
-    switch (it.value()) {
+    switch (resourceType(resource)) {
     case Display:
 #ifdef XCB_USE_XLIB
         result = xcbScreen->connection()->xlib_display();
@@ -162,6 +184,14 @@ void *QXcbNativeInterface::nativeResourceForScreen(const QByteArray &resource, Q
         break;
     case ScreenHintStyle:
         result = reinterpret_cast<void *>(xcbScreen->hintStyle() + 1);
+        break;
+    case TrayWindow:
+        if (QXcbSystemTrayTracker *s = systemTrayTracker(screen))
+            result = (void *)quintptr(s->trayWindow());
+        break;
+    case GetTimestamp:
+        result = getTimestamp(xcbScreen);
+        break;
     default:
         break;
     }
@@ -170,13 +200,8 @@ void *QXcbNativeInterface::nativeResourceForScreen(const QByteArray &resource, Q
 
 void *QXcbNativeInterface::nativeResourceForWindow(const QByteArray &resourceString, QWindow *window)
 {
-    QByteArray lowerCaseResource = resourceString.toLower();
-    if (!qXcbResourceMap()->contains(lowerCaseResource))
-        return 0;
-
-    ResourceType resource = qXcbResourceMap()->value(lowerCaseResource);
     void *result = 0;
-    switch(resource) {
+    switch (resourceType(resourceString)) {
     case Display:
         result = displayForWindow(window);
         break;
@@ -216,12 +241,26 @@ void *QXcbNativeInterface::appUserTime(const QXcbScreen *screen)
     return reinterpret_cast<void *>(quintptr(screen->connection()->netWmUserTime()));
 }
 
+void *QXcbNativeInterface::getTimestamp(const QXcbScreen *screen)
+{
+    return reinterpret_cast<void *>(quintptr(screen->connection()->getTimestamp()));
+}
+
 void *QXcbNativeInterface::startupId()
 {
     QXcbIntegration* integration = static_cast<QXcbIntegration *>(QGuiApplicationPrivate::platformIntegration());
     QXcbConnection *defaultConnection = integration->defaultConnection();
     if (defaultConnection)
         return reinterpret_cast<void *>(const_cast<char *>(defaultConnection->startupId().constData()));
+    return 0;
+}
+
+void *QXcbNativeInterface::x11Screen()
+{
+    QXcbIntegration *integration = static_cast<QXcbIntegration *>(QGuiApplicationPrivate::platformIntegration());
+    QXcbConnection *defaultConnection = integration->defaultConnection();
+    if (defaultConnection)
+        return reinterpret_cast<void *>(defaultConnection->primaryScreen());
     return 0;
 }
 

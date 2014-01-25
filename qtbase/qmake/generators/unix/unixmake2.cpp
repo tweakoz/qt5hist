@@ -80,19 +80,8 @@ UnixMakefileGenerator::writeMakefile(QTextStream &t)
 {
 
     writeHeader(t);
-    if(!project->values("QMAKE_FAILED_REQUIREMENTS").isEmpty()) {
-        t << "QMAKE    = " << var("QMAKE_QMAKE") << endl;
-        const ProStringList &qut = project->values("QMAKE_EXTRA_TARGETS");
-        for (ProStringList::ConstIterator it = qut.begin(); it != qut.end(); ++it)
-            t << *it << " ";
-        t << "first all clean install distclean uninstall qmake_all:\n\t"
-          << "@echo \"Some of the required modules ("
-          << var("QMAKE_FAILED_REQUIREMENTS") << ") are not available.\"\n\t"
-          << "@echo \"Skipped.\"\n\n";
-        writeMakeQmake(t);
-        t << "FORCE:\n\n";
+    if (writeDummyMakefile(t))
         return true;
-    }
 
     if (project->values("TEMPLATE").first() == "app" ||
         project->values("TEMPLATE").first() == "lib" ||
@@ -296,13 +285,13 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
             t << odir << ".deps/%.d: " << pwd << "/%.cpp\n\t";
             if(project->isActiveConfig("echo_depend_creation"))
                 t << "@echo Creating depend for $<\n\t";
-            t << mkdir_p_asstring("$(@D)") << "\n\t"
+            t << mkdir_p_asstring("$(@D)", false) << "\n\t"
               << "@$(CXX) " << cmd << " $< | sed \"s,^\\($(*F).o\\):," << odir << "\\1:,g\" >$@\n\n";
 
             t << odir << ".deps/%.d: " << pwd << "/%.c\n\t";
             if(project->isActiveConfig("echo_depend_creation"))
                 t << "@echo Creating depend for $<\n\t";
-            t << mkdir_p_asstring("$(@D)") << "\n\t"
+            t << mkdir_p_asstring("$(@D)", false) << "\n\t"
               << "@$(CC) " << cmd << " $< | sed \"s,^\\($(*F).o\\):," << odir << "\\1:,g\" >$@\n\n";
 
             static const char * const src[] = { "SOURCES", "GENERATED_SOURCES", 0 };
@@ -513,7 +502,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
                     incr_lflags += var("QMAKE_LFLAGS_RELEASE");
                 t << incr_target_dir << ": $(INCREMENTAL_OBJECTS)\n\t";
                 if(!destdir.isEmpty())
-                    t << mkdir_p_asstring(destdir) << "\n\t";
+                    t << mkdir_p_asstring(destdir, false) << "\n\t";
                 t << "$(LINK) " << incr_lflags << " " << var("QMAKE_LINK_O_FLAG") << incr_target_dir <<
                     " $(INCREMENTAL_OBJECTS)\n";
                 //communicated below
@@ -539,7 +528,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
               << " " << var("POST_TARGETDEPS");
         }
         if(!destdir.isEmpty())
-            t << "\n\t" << mkdir_p_asstring(destdir);
+            t << "\n\t" << mkdir_p_asstring(destdir, false);
         if(!project->isEmpty("QMAKE_PRE_LINK"))
             t << "\n\t" << var("QMAKE_PRE_LINK");
 
@@ -696,7 +685,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
 
     if(!project->first("QMAKE_PKGINFO").isEmpty()) {
         ProString pkginfo = escapeFilePath(project->first("QMAKE_PKGINFO"));
-        QString destdir = escapeFilePath(project->first("DESTDIR") + project->first("QMAKE_BUNDLE") + "/Contents");
+        QString destdir = project->first("DESTDIR") + project->first("QMAKE_BUNDLE") + "/Contents";
         t << pkginfo << ": \n\t";
         if(!destdir.isEmpty())
             t << mkdir_p_asstring(destdir) << "\n\t";
@@ -708,7 +697,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
     if(!project->first("QMAKE_BUNDLE_RESOURCE_FILE").isEmpty()) {
         ProString resources = escapeFilePath(project->first("QMAKE_BUNDLE_RESOURCE_FILE"));
         bundledFiles << resources;
-        QString destdir = escapeFilePath(project->first("DESTDIR") + project->first("QMAKE_BUNDLE") + "/Contents/Resources");
+        QString destdir = project->first("DESTDIR") + project->first("QMAKE_BUNDLE") + "/Contents/Resources";
         t << resources << ": \n\t";
         t << mkdir_p_asstring(destdir) << "\n\t";
         t << "@touch " << resources << "\n\t\n";
@@ -721,7 +710,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
         QString destdir = info_plist_out.section(Option::dir_sep, 0, -2);
         t << info_plist_out << ": \n\t";
         if(!destdir.isEmpty())
-            t << mkdir_p_asstring(destdir) << "\n\t";
+            t << mkdir_p_asstring(destdir, false) << "\n\t";
         ProStringList commonSedArgs;
         if (!project->values("VERSION").isEmpty())
             commonSedArgs << "-e \"s,@SHORT_VERSION@," << project->first("VER_MAJ") << "." << project->first("VER_MIN") << ",g\" ";
@@ -815,7 +804,7 @@ UnixMakefileGenerator::writeMakeParts(QTextStream &t)
                                                 project->first("OBJECTS_DIR")) + ddir,
                                                Option::output_dir, Option::output_dir));
     t << "dist: \n\t"
-      << mkdir_p_asstring(ddir_c) << "\n\t"
+      << mkdir_p_asstring(ddir_c, false) << "\n\t"
       << "$(COPY_FILE) --parents $(SOURCES) $(DIST) " << ddir_c << Option::dir_sep << " && ";
     if(!project->isEmpty("QMAKE_EXTRA_COMPILERS")) {
         const ProStringList &quc = project->values("QMAKE_EXTRA_COMPILERS");
@@ -1178,6 +1167,9 @@ void UnixMakefileGenerator::init2()
                     soname += project->first("TARGET");
             } else if(!project->isEmpty("QMAKE_BUNDLE")) {
                 soname += project->first("TARGET_x.y");
+            } else if(project->isActiveConfig("unversioned_soname")) {
+                soname = "lib" + project->first("QMAKE_ORIG_TARGET")
+                    + "." + project->first("QMAKE_EXTENSION_SHLIB");
             } else if(!project->values("TARGET_x").isEmpty()) {
                 soname += project->first("TARGET_x");
             }
@@ -1274,6 +1266,8 @@ void UnixMakefileGenerator::init2()
                         alldeps += path + Option::dir_sep + fileInfo(files[file].toQString()).fileName();
                 }
             }
+        } else {
+            warn_msg(WarnLogic, "Could not resolve Info.plist: '%s'. Check if QMAKE_INFO_PLIST points to a valid file.", plist.toLatin1().constData());
         }
     }
 }

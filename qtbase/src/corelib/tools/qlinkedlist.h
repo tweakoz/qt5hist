@@ -48,6 +48,12 @@
 #include <iterator>
 #include <list>
 
+#include <algorithm>
+
+#if defined(Q_COMPILER_INITIALIZER_LISTS)
+# include <initializer_list>
+#endif
+
 QT_BEGIN_NAMESPACE
 
 
@@ -78,6 +84,13 @@ class QLinkedList
 public:
     inline QLinkedList() : d(const_cast<QLinkedListData *>(&QLinkedListData::shared_null)) { }
     inline QLinkedList(const QLinkedList<T> &l) : d(l.d) { d->ref.ref(); if (!d->sharable) detach(); }
+#if defined(Q_COMPILER_INITIALIZER_LISTS)
+    inline QLinkedList(std::initializer_list<T> list)
+        : d(const_cast<QLinkedListData *>(&QLinkedListData::shared_null))
+    {
+        std::copy(list.begin(), list.end(), std::back_inserter(*this));
+    }
+#endif
     ~QLinkedList();
     QLinkedList<T> &operator=(const QLinkedList<T> &);
 #ifdef Q_COMPILER_RVALUE_REFS
@@ -91,7 +104,7 @@ public:
 
     inline int size() const { return d->size; }
     inline void detach()
-    { if (d->ref.isShared()) detach_helper(); }
+    { if (d->ref.isShared()) detach_helper2(this->e); }
     inline bool isDetached() const { return !d->ref.isShared(); }
     inline void setSharable(bool sharable) { if (!sharable) detach(); if (d != &QLinkedListData::shared_null) d->sharable = sharable; }
     inline bool isSharedWith(const QLinkedList<T> &other) const { return d == other.d; }
@@ -219,9 +232,9 @@ public:
     typedef qptrdiff difference_type;
 
     static inline QLinkedList<T> fromStdList(const std::list<T> &list)
-    { QLinkedList<T> tmp; qCopy(list.begin(), list.end(), std::back_inserter(tmp)); return tmp; }
+    { QLinkedList<T> tmp; std::copy(list.begin(), list.end(), std::back_inserter(tmp)); return tmp; }
     inline std::list<T> toStdList() const
-    { std::list<T> tmp; qCopy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
+    { std::list<T> tmp; std::copy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
 
     // comfort
     QLinkedList<T> &operator+=(const QLinkedList<T> &l);
@@ -232,6 +245,7 @@ public:
 
 private:
     void detach_helper();
+    iterator detach_helper2(iterator);
     void freeData(QLinkedListData*);
 };
 
@@ -245,6 +259,14 @@ inline QLinkedList<T>::~QLinkedList()
 template <typename T>
 void QLinkedList<T>::detach_helper()
 {
+    detach_helper2(this->e);
+}
+
+template <typename T>
+typename QLinkedList<T>::iterator QLinkedList<T>::detach_helper2(iterator orgite)
+{
+    // detach and convert orgite to an iterator in the detached instance
+    bool isEndIterator = (orgite.i == this->e);
     union { QLinkedListData *d; Node *e; } x;
     x.d = new QLinkedListData;
     x.d->ref.initializeOwned();
@@ -252,6 +274,22 @@ void QLinkedList<T>::detach_helper()
     x.d->sharable = true;
     Node *original = e->n;
     Node *copy = x.e;
+    Node *org = orgite.i;
+
+    while (original != org) {
+        QT_TRY {
+            copy->n = new Node(original->t);
+            copy->n->p = copy;
+            original = original->n;
+            copy = copy->n;
+        } QT_CATCH(...) {
+            copy->n = x.e;
+            Q_ASSERT(!x.d->ref.deref()); // Don't trigger assert in free
+            freeData(x.d);
+            QT_RETHROW;
+        }
+    }
+    iterator r(copy);
     while (original != e) {
         QT_TRY {
             copy->n = new Node(original->t);
@@ -270,6 +308,9 @@ void QLinkedList<T>::detach_helper()
     if (!d->ref.deref())
         freeData(d);
     d = x.d;
+    if (!isEndIterator)
+        ++r; // since we stored the element right before the original node.
+    return r;
 }
 
 template <typename T>
@@ -376,7 +417,7 @@ template <typename T>
 bool QLinkedList<T>::removeOne(const T &_t)
 {
     detach();
-    iterator it = qFind(begin(), end(), _t);
+    iterator it = std::find(begin(), end(), _t);
     if (it != end()) {
         erase(it);
         return true;
@@ -425,6 +466,9 @@ int QLinkedList<T>::count(const T &t) const
 template <typename T>
 typename QLinkedList<T>::iterator QLinkedList<T>::insert(iterator before, const T &t)
 {
+    if (d->ref.isShared())
+        before = detach_helper2(before);
+
     Node *i = before.i;
     Node *m = new Node(t);
     m->n = i;
@@ -448,7 +492,9 @@ typename QLinkedList<T>::iterator QLinkedList<T>::erase(typename QLinkedList<T>:
 template <typename T>
 typename QLinkedList<T>::iterator QLinkedList<T>::erase(iterator pos)
 {
-    detach();
+    if (d->ref.isShared())
+        pos = detach_helper2(pos);
+
     Node *i = pos.i;
     if (i != e) {
         Node *n = i;

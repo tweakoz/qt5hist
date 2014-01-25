@@ -169,6 +169,7 @@ const QFontEngineQPA::Glyph *QFontEngineQPA::findGlyph(glyph_t g) const
 
 bool QFontEngineQPA::verifyHeader(const uchar *data, int size)
 {
+    VERIFY(quintptr(data) % Q_ALIGNOF(Header) == 0);
     VERIFY(size >= int(sizeof(Header)));
     const Header *header = reinterpret_cast<const Header *>(data);
     if (header->magic[0] != 'Q'
@@ -687,7 +688,6 @@ void QFontEngineMultiQPA::init(QFontEngine *fe)
     engines[0] = fe;
     fe->ref.ref();
     fontDef = engines[0]->fontDef;
-    setObjectName(QStringLiteral("QFontEngineMultiQPA"));
     cache_cost = fe->cache_cost;
 }
 
@@ -754,7 +754,9 @@ QFontEngine* QFontEngineMultiQPA::createMultiFontEngine(QFontEngine *fe, int scr
     QFontCache::EngineCache::Iterator it = fc->engineCache.find(key),
             end = fc->engineCache.end();
     while (it != end && it.key() == key) {
-        QFontEngineMulti *cachedEngine = qobject_cast<QFontEngineMulti *>(it.value().data);
+        QFontEngineMulti *cachedEngine = 0;
+        if (it.value().data->type() == QFontEngine::Multi)
+            cachedEngine = static_cast<QFontEngineMulti *>(it.value().data);
         if (faceIsLocal || (cachedEngine && fe == cachedEngine->engine(0))) {
             engine = cachedEngine;
             fc->updateHitCountAndTimeStamp(it.value());

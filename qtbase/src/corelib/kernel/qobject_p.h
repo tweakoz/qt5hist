@@ -90,10 +90,19 @@ class Q_CORE_EXPORT QAbstractDeclarativeData
 {
 public:
     static void (*destroyed)(QAbstractDeclarativeData *, QObject *);
+    static void (*destroyed_qml1)(QAbstractDeclarativeData *, QObject *);
     static void (*parentChanged)(QAbstractDeclarativeData *, QObject *, QObject *);
     static void (*signalEmitted)(QAbstractDeclarativeData *, QObject *, int, void **);
     static int  (*receivers)(QAbstractDeclarativeData *, const QObject *, int);
     static bool (*isSignalConnected)(QAbstractDeclarativeData *, const QObject *, int);
+};
+
+// This is an implementation of QAbstractDeclarativeData that is identical with
+// the implementation in QtDeclarative and QtQml for the first bit
+struct QAbstractDeclarativeDataImpl : public QAbstractDeclarativeData
+{
+    quint32 ownedByQml1:1;
+    quint32 unused: 31;
 };
 
 class Q_CORE_EXPORT QObjectPrivate : public QObjectData
@@ -207,6 +216,13 @@ public:
     template <typename Func1, typename Func2>
     static inline bool disconnect(const typename QtPrivate::FunctionPointer<Func1>::Object *sender, Func1 signal,
                                   const typename QtPrivate::FunctionPointer<Func2>::Object *receiverPrivate, Func2 slot);
+
+    static QMetaObject::Connection connectImpl(const QObject *sender, int signal_index,
+                                               const QObject *receiver, void **slot,
+                                               QtPrivate::QSlotObjectBase *slotObj, Qt::ConnectionType type,
+                                               const int *types, const QMetaObject *senderMetaObject);
+    static QMetaObject::Connection connect(const QObject *sender, int signal_index, QtPrivate::QSlotObjectBase *slotObj, Qt::ConnectionType type);
+    static bool disconnect(const QObject *sender, int signal_index, void **slot);
 public:
     ExtraData *extraData;    // extra data set by the user
     QThreadData *threadData; // id of the thread that owns the object
@@ -230,7 +246,7 @@ public:
 
 /*! \internal
 
-  Returns true if the signal with index \a signal_index from object \a sender is connected.
+  Returns \c true if the signal with index \a signal_index from object \a sender is connected.
   Signals with indices above a certain range are always considered connected (see connectedSignals
   in QObjectPrivate). If a signal spy is installed, all signals are considered connected.
 
@@ -309,7 +325,8 @@ inline QMetaObject::Connection QObjectPrivate::connect(const typename QtPrivate:
 {
     typedef QtPrivate::FunctionPointer<Func1> SignalType;
     typedef QtPrivate::FunctionPointer<Func2> SlotType;
-    reinterpret_cast<typename SignalType::Object *>(0)->qt_check_for_QOBJECT_macro(*reinterpret_cast<typename SignalType::Object *>(0));
+    Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                      "No Q_OBJECT in the class with the signal");
 
     //compilation error if the arguments does not match.
     Q_STATIC_ASSERT_X(int(SignalType::ArgumentCount) >= int(SlotType::ArgumentCount),
@@ -336,7 +353,8 @@ bool QObjectPrivate::disconnect(const typename QtPrivate::FunctionPointer< Func1
 {
     typedef QtPrivate::FunctionPointer<Func1> SignalType;
     typedef QtPrivate::FunctionPointer<Func2> SlotType;
-    reinterpret_cast<typename SignalType::Object *>(0)->qt_check_for_QOBJECT_macro(*reinterpret_cast<typename SignalType::Object *>(0));
+    Q_STATIC_ASSERT_X(QtPrivate::HasQ_OBJECT_Macro<typename SignalType::Object>::Value,
+                      "No Q_OBJECT in the class with the signal");
     //compilation error if the arguments does not match.
     Q_STATIC_ASSERT_X((QtPrivate::CheckCompatibleArguments<typename SignalType::Arguments, typename SlotType::Arguments>::value),
                       "Signal and slot arguments are not compatible.");

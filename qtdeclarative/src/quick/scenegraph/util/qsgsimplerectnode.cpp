@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -61,6 +61,7 @@ QT_BEGIN_NAMESPACE
 QSGSimpleRectNode::QSGSimpleRectNode(const QRectF &rect, const QColor &color)
     : m_geometry(QSGGeometry::defaultAttributes_Point2D(), 4)
 {
+    Q_UNUSED(reserved);
     QSGGeometry::updateRectGeometry(&m_geometry, rect);
     m_material.setColor(color);
     setMaterial(&m_material);

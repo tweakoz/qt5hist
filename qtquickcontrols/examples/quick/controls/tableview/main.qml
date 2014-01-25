@@ -44,7 +44,7 @@
 
 import QtQuick 2.1
 import QtQuick.Window 2.1
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
 import QtQuick.XmlListModel 2.0
 
 Window {
@@ -63,16 +63,9 @@ Window {
             ListElement { text: "Editable items" }
         }
 
-        MouseArea {
-            anchors.fill:  parent
-            acceptedButtons: Qt.RightButton
-            onPressed: editmenu.show(mouseX, mouseY)
-        }
-
         ComboBox {
             id: delegateChooser
-            opacity: frame.currentIndex === 3 ? 1 : 0
-            Behavior on opacity{ NumberAnimation{} }
+            enabled: frame.currentIndex === 3 ? 1 : 0
             model: delegatemenu
             width: 150
             anchors.left: parent.left
@@ -392,7 +385,7 @@ Window {
             CheckBox{
                 id: sortableCheckbox
                 checked: false
-                text: "Sortindicator"
+                text: "Sort indicator"
                 anchors.verticalCenter: parent.verticalCenter
             }
             CheckBox{

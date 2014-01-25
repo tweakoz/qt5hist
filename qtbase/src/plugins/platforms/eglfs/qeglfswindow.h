@@ -49,6 +49,8 @@
 
 QT_BEGIN_NAMESPACE
 
+class QEglFSBackingStore;
+
 class QEglFSWindow : public QPlatformWindow
 {
 public:
@@ -56,14 +58,29 @@ public:
     ~QEglFSWindow();
 
     void setGeometry(const QRect &);
-    void setWindowState(Qt::WindowState state);
+    QRect geometry() const;
     WId winId() const;
+    void setVisible(bool visible);
+    void requestActivateWindow();
+    void raise();
+    void lower();
 
-    EGLSurface surface() const { return m_surface; }
+    EGLSurface surface() const;
     QSurfaceFormat format() const;
+    EGLNativeWindowType eglWindow() const;
+
+    QEglFSScreen *screen() const;
 
     void create();
     void destroy();
+
+    bool hasNativeWindow() const { return m_flags.testFlag(HasNativeWindow); }
+    bool isRaster() const { return m_flags.testFlag(IsRaster); }
+
+    QEglFSBackingStore *backingStore() { return m_backingStore; }
+    void setBackingStore(QEglFSBackingStore *backingStore) { m_backingStore = backingStore; }
+
+    uint texture() const;
 
     virtual void invalidateSurface();
     virtual void resetSurface();
@@ -73,9 +90,20 @@ protected:
     EGLNativeWindowType m_window;
 
 private:
-    WId m_winid;
     EGLConfig m_config;
     QSurfaceFormat m_format;
+    WId m_wid;
+    QEglFSBackingStore *m_backingStore;
+
+    enum Flag {
+        Created = 0x01,
+        IsRaster = 0x02,
+        HasNativeWindow = 0x04
+    };
+    Q_DECLARE_FLAGS(Flags, Flag);
+    Flags m_flags;
 };
+
 QT_END_NAMESPACE
+
 #endif // QEGLFSWINDOW_H

@@ -80,7 +80,6 @@ enum {
     CMD_ANNOTATEDLIST,
     CMD_B,
     CMD_BADCODE,
-    CMD_BASENAME,
     CMD_BOLD,
     CMD_BR,
     CMD_BRIEF,
@@ -126,6 +125,7 @@ enum {
     CMD_INCLUDE,
     CMD_INLINEIMAGE,
     CMD_INDEX,
+    CMD_INPUT,
     CMD_KEYWORD,
     CMD_L,
     CMD_LEGALESE,
@@ -198,7 +198,6 @@ static struct {
     { "annotatedlist", CMD_ANNOTATEDLIST, 0 },
     { "b", CMD_B, 0 },
     { "badcode", CMD_BADCODE, 0 },
-    { "basename", CMD_BASENAME, 0 }, // ### don't document for now
     { "bold", CMD_BOLD, 0 },
     { "br", CMD_BR, 0 },
     { "brief", CMD_BRIEF, 0 },
@@ -244,6 +243,7 @@ static struct {
     { "include", CMD_INCLUDE, 0 },
     { "inlineimage", CMD_INLINEIMAGE, 0 },
     { "index", CMD_INDEX, 0 }, // ### don't document for now
+    { "input", CMD_INPUT, 0 },
     { "keyword", CMD_KEYWORD, 0 },
     { "l", CMD_L, 0 },
     { "legalese", CMD_LEGALESE, 0 },
@@ -316,7 +316,6 @@ Q_GLOBAL_STATIC(QHash_QString_Macro, macroHash)
 class DocPrivateExtra
 {
 public:
-    QString             baseName;
     Doc::Sections       granularity;
     Doc::Sections       section; // ###
     QList<Atom*>        tableOfContents;
@@ -326,7 +325,9 @@ public:
     QStringMultiMap     metaMap;
 
     DocPrivateExtra()
-        : granularity(Doc::Part) { }
+        : granularity(Doc::Part)
+        , section(Doc::NoSection)
+    { }
 };
 
 struct Shared // ### get rid of
@@ -376,7 +377,7 @@ public:
     bool hasLegalese : 1;
     bool hasSectioningUnits : 1;
     DocPrivateExtra *extra;
-    TopicList topics;
+    TopicList topics_;
     DitaRefList ditamap_;
 };
 
@@ -466,7 +467,6 @@ private:
     Location& location();
     QString detailsUnknownCommand(const QSet<QString>& metaCommandSet,
                                   const QString& str);
-    void insertBaseName(const QString &baseName);
     void insertTarget(const QString& target, bool keyword);
     void include(const QString& fileName, const QString& identifier);
     void startFormat(const QString& format, int cmd);
@@ -571,7 +571,7 @@ void DocParser::parse(const QString& source,
     cachedPos = 0;
     priv = docPrivate;
     priv->text << Atom::Nop;
-    priv->topics.clear();
+    priv->topics_.clear();
 
     paraState = OutsideParagraph;
     inTableHeader = false;
@@ -643,10 +643,6 @@ void DocParser::parse(const QString& source,
                 case CMD_BADCODE:
                     leavePara();
                     append(Atom::CodeBad,getCode(CMD_BADCODE, marker));
-                    break;
-                case CMD_BASENAME:
-                    leavePara();
-                    insertBaseName(getArgument());
                     break;
                 case CMD_BR:
                     leavePara();
@@ -931,6 +927,7 @@ void DocParser::parse(const QString& source,
                     enterPara(Atom::ImportantLeft, Atom::ImportantRight);
                     break;
                 case CMD_INCLUDE:
+                case CMD_INPUT:
                 {
                     QString fileName = getArgument();
                     QString identifier = getRestOfLine();
@@ -1404,7 +1401,7 @@ void DocParser::parse(const QString& source,
                         QString arg = getMetaCommandArgument(cmdStr);
                         priv->metaCommandMap[cmdStr].append(ArgLocPair(arg,location()));
                         if (possibleTopics.contains(cmdStr)) {
-                            priv->topics.append(Topic(cmdStr,arg));
+                            priv->topics_.append(Topic(cmdStr,arg));
                         }
                     }
                     else if (macroHash()->contains(cmdStr)) {
@@ -1669,29 +1666,6 @@ QString DocParser::detailsUnknownCommand(const QSet<QString> &metaCommandSet,
     return tr("Maybe you meant '\\%1'?").arg(best);
 }
 
-void DocParser::insertBaseName(const QString &baseName)
-{
-    priv->constructExtra();
-    if (currentSection == priv->extra->section) {
-        priv->extra->baseName = baseName;
-    }
-    else {
-        Atom *atom = priv->text.firstAtom();
-        Atom *sectionLeft = 0;
-
-        int delta = currentSection - priv->extra->section;
-
-        while (atom != 0) {
-            if (atom->type() == Atom::SectionLeft &&
-                    atom->string().toInt() == delta)
-                sectionLeft = atom;
-            atom = atom->next();
-        }
-        if (sectionLeft != 0)
-            (void) new Atom(sectionLeft, Atom::BaseName, baseName);
-    }
-}
-
 void DocParser::insertTarget(const QString &target, bool keyword)
 {
     if (targetMap.contains(target)) {
@@ -1712,16 +1686,17 @@ void DocParser::insertTarget(const QString &target, bool keyword)
 void DocParser::include(const QString& fileName, const QString& identifier)
 {
     if (location().depth() > 16)
-        location().fatal(tr("Too many nested '\\%1's")
-                         .arg(cmdName(CMD_INCLUDE)));
+        location().fatal(tr("Too many nested '\\%1's").arg(cmdName(CMD_INCLUDE)));
 
     QString userFriendlyFilePath;
-    // ### use current directory?
+    QString filePath = Doc::config()->getIncludeFilePath(fileName);
+#if 0
     QString filePath = Config::findFile(location(),
                                         sourceFiles,
                                         sourceDirs,
                                         fileName,
                                         userFriendlyFilePath);
+#endif
     if (filePath.isEmpty()) {
         location().warning(tr("Cannot find qdoc include file '%1'").arg(fileName));
     }
@@ -2751,6 +2726,7 @@ QString DocParser::slashed(const QString& str)
 #define COMMAND_BRIEF                   Doc::alias("brief")
 #define COMMAND_QMLBRIEF                Doc::alias("qmlbrief")
 
+#if 0
 Doc::Doc(const Location& start_loc,
          const Location& end_loc,
          const QString& source,
@@ -2760,6 +2736,7 @@ Doc::Doc(const Location& start_loc,
     DocParser parser;
     parser.parse(source,priv,metaCommandSet,QSet<QString>());
 }
+#endif
 
 /*!
   Parse the qdoc comment \a source. Build up a list of all the topic
@@ -2978,17 +2955,6 @@ Text Doc::legaleseText() const
         return body().subText(Atom::LegaleseLeft, Atom::LegaleseRight);
 }
 
-const QString& Doc::baseName() const
-{
-    static QString null;
-    if (priv == 0 || priv->extra == 0) {
-        return null;
-    }
-    else {
-        return priv->extra->baseName;
-    }
-}
-
 Doc::Sections Doc::granularity() const
 {
     if (priv == 0 || priv->extra == 0) {
@@ -3026,7 +2992,7 @@ const QSet<QString> &Doc::metaCommandsUsed() const
  */
 const TopicList& Doc::topicsUsed() const
 {
-    return priv == 0 ? *nullTopicList() : priv->topics;
+    return priv == 0 ? *nullTopicList() : priv->topics_;
 }
 
 ArgList Doc::metaCommandArgs(const QString& metacommand) const
@@ -3083,6 +3049,8 @@ const QStringMultiMap &Doc::metaTagMap() const
     return priv && priv->extra ? priv->extra->metaMap : *null_QStringMultiMap();
 }
 
+const Config* Doc::config_ = 0;
+
 void Doc::initialize(const Config& config)
 {
     DocParser::tabSize = config.getInt(CONFIG_TABSIZE);
@@ -3093,8 +3061,8 @@ void Doc::initialize(const Config& config)
     DocParser::quoting = config.getBool(CONFIG_QUOTINGINFORMATION);
 
     QmlClassNode::qmlOnly = config.getBool(CONFIG_QMLONLY);
-
     QStringMap reverseAliasMap;
+    config_ = &config;
 
     QSet<QString> commands = config.subVars(CONFIG_ALIAS);
     QSet<QString>::ConstIterator c = commands.constBegin();

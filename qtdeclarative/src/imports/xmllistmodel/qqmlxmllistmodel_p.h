@@ -107,7 +107,7 @@ public:
     QString namespaceDeclarations() const;
     void setNamespaceDeclarations(const QString&);
 
-    Q_INVOKABLE QQmlV8Handle get(int index) const;
+    Q_INVOKABLE QQmlV4Handle get(int index) const;
 
     enum Status { Null, Ready, Loading, Error };
     Status status() const;
@@ -161,7 +161,7 @@ public:
         if (name == m_name)
             return;
         m_name = name;
-        emit nameChanged();
+        Q_EMIT nameChanged();
     }
 
     QString query() const { return m_query; }
@@ -174,7 +174,7 @@ public:
         if (m_query == query)
             return;
         m_query = query;
-        emit queryChanged();
+        Q_EMIT queryChanged();
     }
 
     bool isKey() const { return m_isKey; }
@@ -182,7 +182,7 @@ public:
         if (m_isKey == b)
             return;
         m_isKey = b;
-        emit isKeyChanged();
+        Q_EMIT isKeyChanged();
     }
 
     bool isValid() {

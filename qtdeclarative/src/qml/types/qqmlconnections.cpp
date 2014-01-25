@@ -73,7 +73,7 @@ public:
 /*!
     \qmltype Connections
     \instantiates QQmlConnections
-    \inqmlmodule QtQml 2
+    \inqmlmodule QtQml
     \ingroup qtquick-interceptors
     \brief Describes generalized connections to signals
 
@@ -138,7 +138,7 @@ QQmlConnections::~QQmlConnections()
 }
 
 /*!
-    \qmlproperty Object QtQml2::Connections::target
+    \qmlproperty Object QtQml::Connections::target
     This property holds the object that sends the signal.
 
     If this property is not set, the \c target defaults to the parent of the Connection.
@@ -183,7 +183,7 @@ void QQmlConnections::setTarget(QObject *obj)
 }
 
 /*!
-    \qmlproperty bool QtQml2::Connections::ignoreUnknownSignals
+    \qmlproperty bool QtQml::Connections::ignoreUnknownSignals
 
     Normally, a connection to a non-existent signal produces runtime errors.
 
@@ -237,7 +237,7 @@ QQmlConnectionsParser::compile(const QList<QQmlCustomParserProperty> &props)
                 QQmlScript::Variant v = qvariant_cast<QQmlScript::Variant>(value);
                 if (v.isScript()) {
                     ds << propName;
-                    ds << rewriteSignalHandler(v, propName).toUtf8();
+                    ds << v.asScript();
                     ds << propLine;
                     ds << propColumn;
                 } else {
@@ -270,7 +270,7 @@ void QQmlConnections::connectSignals()
     while (!ds.atEnd()) {
         QString propName;
         ds >> propName;
-        QByteArray script;
+        QString script;
         ds >> script;
         int line;
         ds >> line;
@@ -295,7 +295,7 @@ void QQmlConnections::connectSignals()
             QQmlBoundSignalExpression *expression = ctxtdata ?
                 new QQmlBoundSignalExpression(target(), signalIndex,
                                               ctxtdata, this, script,
-                                              true, location, line, column) : 0;
+                                              location, line, column) : 0;
             signal->takeExpression(expression);
             d->boundsignals += signal;
         } else {

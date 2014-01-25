@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -42,7 +42,6 @@
 #include "qquickflipable_p.h"
 #include "qquickitem_p.h"
 
-#include <private/qqmlguard_p.h>
 
 #include <QtQml/qqmlinfo.h>
 
@@ -78,9 +77,9 @@ public:
     void setBackTransform();
 
     QQuickFlipable::Side current;
-    QQmlGuard<QQuickLocalTransform> backTransform;
-    QQmlGuard<QQuickItem> front;
-    QQmlGuard<QQuickItem> back;
+    QPointer<QQuickLocalTransform> backTransform;
+    QPointer<QQuickItem> front;
+    QPointer<QQuickItem> back;
 
     bool sideDirty;
     bool wantBackXFlipped;
@@ -90,7 +89,7 @@ public:
 /*!
     \qmltype Flipable
     \instantiates QQuickFlipable
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \inherits Item
     \ingroup qtquick-input
     \ingroup qtquick-containers
@@ -140,8 +139,8 @@ QQuickFlipable::~QQuickFlipable()
 }
 
 /*!
-  \qmlproperty Item QtQuick2::Flipable::front
-  \qmlproperty Item QtQuick2::Flipable::back
+  \qmlproperty Item QtQuick::Flipable::front
+  \qmlproperty Item QtQuick::Flipable::back
 
   The front and back sides of the flipable.
 */
@@ -204,7 +203,7 @@ void QQuickFlipable::retransformBack()
 }
 
 /*!
-  \qmlproperty enumeration QtQuick2::Flipable::side
+  \qmlproperty enumeration QtQuick::Flipable::side
 
   The side of the Flipable currently visible. Possible values are \c
   Flipable.Front and \c Flipable.Back.

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -51,11 +51,14 @@
 
 QT_BEGIN_NAMESPACE
 
+class QSGRenderContext;
+
 class QSGWindowsRenderLoop : public QSGRenderLoop
 {
     Q_OBJECT
 public:
     explicit QSGWindowsRenderLoop();
+    ~QSGWindowsRenderLoop();
 
     void show(QQuickWindow *window);
     void hide(QQuickWindow *window);
@@ -71,20 +74,19 @@ public:
     QAnimationDriver *animationDriver() const { return m_animationDriver; }
 
     QSGContext *sceneGraphContext() const { return m_sg; }
+    QSGRenderContext *createRenderContext(QSGContext *) const { return m_rc; }
 
     void releaseResources(QQuickWindow *) { }
 
     void render();
     void renderWindow(QQuickWindow *window);
 
-    void resize(QQuickWindow *, const QSize &) { }
-
     bool event(QEvent *event);
     bool anyoneShowing() const;
 
     bool interleaveIncubation() const;
 
-public slots:
+public Q_SLOTS:
     void started();
     void stopped();
 
@@ -102,6 +104,7 @@ private:
 
     QOpenGLContext *m_gl;
     QSGContext *m_sg;
+    QSGRenderContext *m_rc;
 
     QAnimationDriver *m_animationDriver;
 

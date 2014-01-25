@@ -21,7 +21,8 @@ SOURCES = \
         qxcbnativeinterface.cpp \
         qxcbcursor.cpp \
         qxcbimage.cpp \
-        qxcbxsettings.cpp
+        qxcbxsettings.cpp \
+        qxcbsystemtraytracker.cpp
 
 HEADERS = \
         qxcbclipboard.h \
@@ -38,7 +39,8 @@ HEADERS = \
         qxcbnativeinterface.h \
         qxcbcursor.h \
         qxcbimage.h \
-        qxcbxsettings.h
+        qxcbxsettings.h \
+        qxcbsystemtraytracker.h
 
 LIBS += -ldl
 
@@ -70,10 +72,18 @@ contains(QT_CONFIG, xcb-render) {
     LIBS += -lxcb-render -lxcb-render-util -lXrender
 }
 
+# build with session management support
+contains(QT_CONFIG, xcb-sm) {
+    DEFINES += XCB_USE_SM
+    LIBS += -lSM -lICE
+    SOURCES += qxcbsessionmanager.cpp
+    HEADERS += qxcbsessionmanager.h
+}
+
 contains(QT_CONFIG, opengl) {
     contains(QT_CONFIG, opengles2) {
         DEFINES += XCB_USE_EGL
-        LIBS += -lEGL
+        CONFIG += egl
         HEADERS += qxcbeglsurface.h
 
         # EGL on MeeGo 1.2 Harmattan needs this macro to map EGLNativeDisplayType

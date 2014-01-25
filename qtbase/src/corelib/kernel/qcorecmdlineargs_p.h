@@ -58,7 +58,7 @@
 
 QT_BEGIN_NAMESPACE
 
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) && !defined(Q_OS_WINRT)
 
 QT_BEGIN_INCLUDE_NAMESPACE
 #  include "QtCore/qvector.h"
@@ -83,7 +83,7 @@ static QVector<Char*> qWinCmdLine(Char *cmdParam, int length, int &argc)
         if (*p && p < p_end) {                                // arg starts
             int quote;
             Char *start, *r;
-            if (*p == Char('\"') || *p == Char('\'')) {        // " or ' quote
+            if (*p == Char('\"')) {
                 quote = *p;
                 start = ++p;
             } else {
@@ -101,10 +101,11 @@ static QVector<Char*> qWinCmdLine(Char *cmdParam, int length, int &argc)
                     }
                 }
                 if (*p == '\\') {                // escape char?
-                    if (*(p+1) == quote)
+                    // testing by looking at argc, argv shows that it only escapes quotes
+                    if (p < p_end && (*(p+1) == Char('\"')))
                         p++;
                 } else {
-                    if (!quote && (*p == Char('\"') || *p == Char('\''))) {        // " or ' quote
+                    if (!quote && (*p == Char('\"'))) {
                         quote = *p++;
                         continue;
                     } else if (QChar((short)(*p)).isSpace() && !quote)
@@ -148,7 +149,7 @@ static inline QStringList qCmdLineArgs(int argc, char *argv[])
     return qWinCmdArgs(cmdLine);
 }
 
-#else  // !Q_OS_WIN
+#else  // Q_OS_WIN && !Q_OS_WINRT
 
 static inline QStringList qCmdLineArgs(int argc, char *argv[])
 {
@@ -158,7 +159,7 @@ static inline QStringList qCmdLineArgs(int argc, char *argv[])
     return args;
 }
 
-#endif // Q_OS_WIN
+#endif // !Q_OS_WIN || Q_OS_WINRT
 
 QT_END_NAMESPACE
 

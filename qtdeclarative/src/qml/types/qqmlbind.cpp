@@ -44,7 +44,6 @@
 #include <private/qqmlnullablevalue_p_p.h>
 #include <private/qqmlproperty_p.h>
 #include <private/qqmlbinding_p.h>
-#include <private/qqmlguard_p.h>
 
 #include <qqmlengine.h>
 #include <qqmlcontext.h>
@@ -66,7 +65,7 @@ public:
 
     QQmlNullableValue<bool> when;
     bool componentComplete;
-    QQmlGuard<QObject> obj;
+    QPointer<QObject> obj;
     QString propName;
     QQmlNullableValue<QVariant> value;
     QQmlProperty prop;
@@ -77,7 +76,7 @@ public:
 /*!
     \qmltype Binding
     \instantiates QQmlBind
-    \inqmlmodule QtQml 2
+    \inqmlmodule QtQml
     \ingroup qtquick-interceptors
     \brief Enables the arbitrary creation of property bindings
 
@@ -151,7 +150,7 @@ QQmlBind::~QQmlBind()
 }
 
 /*!
-    \qmlproperty bool QtQml2::Binding::when
+    \qmlproperty bool QtQml::Binding::when
 
     This property holds when the binding is active.
     This should be set to an expression that evaluates to true when you want the binding to be active.
@@ -183,7 +182,7 @@ void QQmlBind::setWhen(bool v)
 }
 
 /*!
-    \qmlproperty Object QtQml2::Binding::target
+    \qmlproperty Object QtQml::Binding::target
 
     The object to be updated.
 */
@@ -210,7 +209,7 @@ void QQmlBind::setObject(QObject *obj)
 }
 
 /*!
-    \qmlproperty string QtQml2::Binding::property
+    \qmlproperty string QtQml::Binding::property
 
     The property to be updated.
 */
@@ -237,7 +236,7 @@ void QQmlBind::setProperty(const QString &p)
 }
 
 /*!
-    \qmlproperty any QtQml2::Binding::value
+    \qmlproperty any QtQml::Binding::value
 
     The value to be set on the target object and property.  This can be a
     constant (which isn't very useful), or a bound expression.

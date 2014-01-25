@@ -44,20 +44,20 @@
 
 #include <QtWidgets/QWidget>
 
+Q_FORWARD_DECLARE_OBJC_CLASS(NSView);
+
 QT_BEGIN_NAMESPACE
 
-
 class QMacCocoaViewContainerPrivate;
-
 class Q_WIDGETS_EXPORT QMacCocoaViewContainer : public QWidget
 {
     Q_OBJECT
 public:
-    QMacCocoaViewContainer(void *cocoaViewToWrap, QWidget *parent = 0);
+    QMacCocoaViewContainer(NSView *cocoaViewToWrap, QWidget *parent = 0);
     virtual ~QMacCocoaViewContainer();
 
-    void setCocoaView(void *cocoaViewToWrap);
-    void *cocoaView() const;
+    void setCocoaView(NSView *view);
+    NSView *cocoaView() const;
 
 private:
     Q_DECLARE_PRIVATE(QMacCocoaViewContainer)

@@ -9,10 +9,9 @@ TESTDATA = data/*
 include(../../shared/util.pri)
 
 CONFIG += parallel_test
-QT += core-private gui-private v8-private qml-private quick-private testlib
+QT += core-private gui-private  qml-private quick-private testlib
 
 OTHER_FILES += \
     data/RenderOrder.qml \
     data/MessUpState.qml \
 DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0
-CONFIG+=insignificant_test

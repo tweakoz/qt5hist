@@ -46,6 +46,9 @@
 #include "qstringlist.h"
 #include "qstyle.h"
 #include "qvalidator.h"
+#include "qwidgetaction.h"
+#include "qimage.h"
+#include "qicon.h"
 #include "qcompleter.h"
 #include "qstandarditemmodel.h"
 #include <qpa/qplatformtheme.h>
@@ -61,8 +64,12 @@
 #include <private/qlineedit_p.h>
 #include <private/qwidgetlinecontrol_p.h>
 #include <qmenu.h>
+#include <qlabel.h>
 #include <qlayout.h>
 #include <qspinbox.h>
+#include <qlistview.h>
+#include <qstringlistmodel.h>
+#include <qsortfilterproxymodel.h>
 #include <qdebug.h>
 
 #include "qcommonstyle.h"
@@ -289,6 +296,9 @@ private slots:
 
     void undoRedoAndEchoModes_data();
     void undoRedoAndEchoModes();
+
+    void clearButton();
+    void sideWidgets();
 
 protected slots:
     void editingFinished();
@@ -866,12 +876,18 @@ public:
 
 void tst_QLineEdit::hasAcceptableInputValidator()
 {
+    QSignalSpy spyChanged(testWidget, SIGNAL(textChanged(QString)));
+    QSignalSpy spyEdited(testWidget, SIGNAL(textEdited(QString)));
+
     QFocusEvent lostFocus(QEvent::FocusOut);
     ValidatorWithFixup val;
     testWidget->setValidator(&val);
     testWidget->setText("foobar");
     qApp->sendEvent(testWidget, &lostFocus);
     QVERIFY(testWidget->hasAcceptableInput());
+
+    QCOMPARE(spyChanged.count(), 2);
+    QCOMPARE(spyEdited.count(), 0);
 }
 
 
@@ -4040,6 +4056,84 @@ void tst_QLineEdit::undoRedoAndEchoModes()
     QVERIFY(!testWidget->isRedoAvailable());
     testWidget->redo();
     QCOMPARE(testWidget->text(), expected.at(2));
+}
+
+void tst_QLineEdit::clearButton()
+{
+    // Construct a listview with a stringlist model and filter model.
+    QWidget testWidget;
+    QVBoxLayout *l = new QVBoxLayout(&testWidget);
+    QLineEdit *filterLineEdit = new QLineEdit(&testWidget);
+    l->addWidget(filterLineEdit);
+    QListView *listView = new QListView(&testWidget);
+    QStringListModel *model = new QStringListModel(QStringList() << QStringLiteral("aa") << QStringLiteral("ab") << QStringLiteral("cc"), listView);
+    QSortFilterProxyModel *filterModel = new QSortFilterProxyModel(listView);
+    filterModel->setSourceModel(model);
+    connect(filterLineEdit, SIGNAL(textChanged(QString)), filterModel, SLOT(setFilterFixedString(QString)));
+    listView->setModel(filterModel);
+    l->addWidget(listView);
+    testWidget.move(300, 300);
+    testWidget.show();
+    qApp->setActiveWindow(&testWidget);
+    QVERIFY(QTest::qWaitForWindowActive(&testWidget));
+    // Flip the clear button on,off, trying to detect crashes.
+    filterLineEdit->setClearButtonEnabled(true);
+    QVERIFY(filterLineEdit->isClearButtonEnabled());
+    filterLineEdit->setClearButtonEnabled(true);
+    QVERIFY(filterLineEdit->isClearButtonEnabled());
+    filterLineEdit->setClearButtonEnabled(false);
+    QVERIFY(!filterLineEdit->isClearButtonEnabled());
+    filterLineEdit->setClearButtonEnabled(false);
+    QVERIFY(!filterLineEdit->isClearButtonEnabled());
+    filterLineEdit->setClearButtonEnabled(true);
+    QVERIFY(filterLineEdit->isClearButtonEnabled());
+    // Emulate filtering
+    QToolButton *clearButton = filterLineEdit->findChild<QToolButton *>();
+    QVERIFY(clearButton);
+    QCOMPARE(filterModel->rowCount(), 3);
+    QTest::keyClick(filterLineEdit, 'a');
+    QTRY_COMPARE(filterModel->rowCount(), 2); // matches 'aa', 'ab'
+    QTest::keyClick(filterLineEdit, 'b');
+    QTRY_COMPARE(filterModel->rowCount(), 1); // matches 'ab'
+    QTest::mouseClick(clearButton, Qt::LeftButton, 0, QRect(QPoint(0, 0), clearButton->size()).center());
+    QTRY_COMPARE(filterModel->rowCount(), 3);
+
+    filterLineEdit->setReadOnly(true); // QTBUG-34315
+    QVERIFY(!clearButton->isEnabled());
+}
+
+void tst_QLineEdit::sideWidgets()
+{
+    QWidget testWidget;
+    QVBoxLayout *l = new QVBoxLayout(&testWidget);
+    QLineEdit *lineEdit = new QLineEdit(&testWidget);
+    l->addWidget(lineEdit);
+    l->addSpacerItem(new QSpacerItem(0, 50, QSizePolicy::Ignored, QSizePolicy::Fixed));
+    QImage image(QSize(20, 20), QImage::Format_ARGB32);
+    image.fill(Qt::yellow);
+    QAction *iconAction = new QAction(QIcon(QPixmap::fromImage(image)), QString(), lineEdit);
+    QWidgetAction *label1Action = new QWidgetAction(lineEdit);
+    label1Action->setDefaultWidget(new QLabel(QStringLiteral("l1")));
+    QWidgetAction *label2Action = new QWidgetAction(lineEdit);
+    label2Action->setDefaultWidget(new QLabel(QStringLiteral("l2")));
+    QWidgetAction *label3Action = new QWidgetAction(lineEdit);
+    label3Action->setDefaultWidget(new QLabel(QStringLiteral("l3")));
+    lineEdit->addAction(iconAction, QLineEdit::LeadingPosition);
+    lineEdit->addAction(label2Action, QLineEdit::LeadingPosition);
+    lineEdit->addAction(label1Action, QLineEdit::TrailingPosition);
+    lineEdit->addAction(label3Action, QLineEdit::TrailingPosition);
+    testWidget.move(300, 300);
+    testWidget.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&testWidget));
+    // Arbitrarily add/remove actions, trying to detect crashes. Add QTRY_VERIFY(false) to view the result.
+    delete label3Action;
+    lineEdit->removeAction(label2Action);
+    lineEdit->removeAction(iconAction);
+    lineEdit->removeAction(label1Action);
+    lineEdit->removeAction(iconAction);
+    lineEdit->removeAction(label1Action);
+    lineEdit->addAction(iconAction);
+    lineEdit->addAction(iconAction);
 }
 
 QTEST_MAIN(tst_QLineEdit)

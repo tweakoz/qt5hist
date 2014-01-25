@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -69,10 +69,14 @@
 #include <private/qqmlaccessors_p.h>
 #include <QtQuick/private/qquickaccessibleattached_p.h>
 
+#include <private/qv4engine_p.h>
+#include <private/qv4object_p.h>
+
 #ifndef QT_NO_CURSOR
 # include <QtGui/qcursor.h>
 #endif
 
+#include <algorithm>
 #include <float.h>
 
 // XXX todo Check that elements that create items handle memory correctly after visual ownership change
@@ -103,7 +107,7 @@ void printFocusTree(QQuickItem *item, QQuickItem *scope, int depth)
 }
 #endif
 
-static void QQuickItem_parentNotifier(QObject *o, intptr_t, QQmlNotifier **n)
+static void QQuickItem_parentNotifier(QObject *o, qintptr, QQmlNotifier **n)
 {
     QQuickItemPrivate *d = QQuickItemPrivate::get(static_cast<QQuickItem *>(o));
     *n = &d->parentNotifier;
@@ -137,7 +141,7 @@ void QQuickItemPrivate::registerAccessorProperties()
 /*!
     \qmltype Transform
     \instantiates QQuickTransform
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual-transforms
     \brief For specifying advanced transformations on Items
 
@@ -373,7 +377,7 @@ void QQuickItemKeyFilter::componentComplete()
 /*!
     \qmltype KeyNavigation
     \instantiates QQuickKeyNavigationAttached
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-input
     \brief Supports key navigation by arrow keys
 
@@ -415,10 +419,10 @@ void QQuickItemKeyFilter::componentComplete()
 */
 
 /*!
-    \qmlproperty Item QtQuick2::KeyNavigation::left
-    \qmlproperty Item QtQuick2::KeyNavigation::right
-    \qmlproperty Item QtQuick2::KeyNavigation::up
-    \qmlproperty Item QtQuick2::KeyNavigation::down
+    \qmlproperty Item QtQuick::KeyNavigation::left
+    \qmlproperty Item QtQuick::KeyNavigation::right
+    \qmlproperty Item QtQuick::KeyNavigation::up
+    \qmlproperty Item QtQuick::KeyNavigation::down
 
     These properties hold the item to assign focus to
     when the left, right, up or down cursor keys
@@ -426,8 +430,8 @@ void QQuickItemKeyFilter::componentComplete()
 */
 
 /*!
-    \qmlproperty Item QtQuick2::KeyNavigation::tab
-    \qmlproperty Item QtQuick2::KeyNavigation::backtab
+    \qmlproperty Item QtQuick::KeyNavigation::tab
+    \qmlproperty Item QtQuick::KeyNavigation::backtab
 
     These properties hold the item to assign focus to
     when the Tab key or Shift+Tab key combination (Backtab) are pressed.
@@ -579,7 +583,7 @@ void QQuickKeyNavigationAttached::setBacktab(QQuickItem *i)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::KeyNavigation::priority
+    \qmlproperty enumeration QtQuick::KeyNavigation::priority
 
     This property determines whether the keys are processed before
     or after the attached item's own key handling.
@@ -728,7 +732,7 @@ void QQuickKeyNavigationAttached::setFocusNavigation(QQuickItem *currentItem, co
     do {
         isNextItem = false;
         if (currentItem->isVisible() && currentItem->isEnabled()) {
-            currentItem->setFocus(true);
+            currentItem->forceActiveFocus(Qt::OtherFocusReason);
         } else {
             QObject *attached =
                 qmlAttachedPropertiesObject<QQuickKeyNavigationAttached>(currentItem, false);
@@ -806,7 +810,7 @@ bool QQuickKeysAttached::isConnected(const char *signalName)
 /*!
     \qmltype Keys
     \instantiates QQuickKeysAttached
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-input
     \brief Provides key handling to Items
 
@@ -869,14 +873,14 @@ bool QQuickKeysAttached::isConnected(const char *signalName)
 */
 
 /*!
-    \qmlproperty bool QtQuick2::Keys::enabled
+    \qmlproperty bool QtQuick::Keys::enabled
 
     This flags enables key handling if true (default); otherwise
     no key handlers will be called.
 */
 
 /*!
-    \qmlproperty enumeration QtQuick2::Keys::priority
+    \qmlproperty enumeration QtQuick::Keys::priority
 
     This property determines whether the keys are processed before
     or after the attached item's own key handling.
@@ -892,7 +896,7 @@ bool QQuickKeysAttached::isConnected(const char *signalName)
 */
 
 /*!
-    \qmlproperty list<Object> QtQuick2::Keys::forwardTo
+    \qmlproperty list<Object> QtQuick::Keys::forwardTo
 
     This property provides a way to forward key presses, key releases, and keyboard input
     coming from input methods to other items. This can be useful when you want
@@ -919,273 +923,273 @@ bool QQuickKeysAttached::isConnected(const char *signalName)
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onPressed(KeyEvent event)
 
     This handler is called when a key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onReleased(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onReleased(KeyEvent event)
 
     This handler is called when a key has been released. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit0Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit0Pressed(KeyEvent event)
 
     This handler is called when the digit '0' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit1Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit1Pressed(KeyEvent event)
 
     This handler is called when the digit '1' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit2Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit2Pressed(KeyEvent event)
 
     This handler is called when the digit '2' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit3Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit3Pressed(KeyEvent event)
 
     This handler is called when the digit '3' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit4Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit4Pressed(KeyEvent event)
 
     This handler is called when the digit '4' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit5Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit5Pressed(KeyEvent event)
 
     This handler is called when the digit '5' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit6Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit6Pressed(KeyEvent event)
 
     This handler is called when the digit '6' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit7Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit7Pressed(KeyEvent event)
 
     This handler is called when the digit '7' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit8Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit8Pressed(KeyEvent event)
 
     This handler is called when the digit '8' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDigit9Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDigit9Pressed(KeyEvent event)
 
     This handler is called when the digit '9' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onLeftPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onLeftPressed(KeyEvent event)
 
     This handler is called when the Left arrow has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onRightPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onRightPressed(KeyEvent event)
 
     This handler is called when the Right arrow has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onUpPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onUpPressed(KeyEvent event)
 
     This handler is called when the Up arrow has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDownPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDownPressed(KeyEvent event)
 
     This handler is called when the Down arrow has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onTabPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onTabPressed(KeyEvent event)
 
     This handler is called when the Tab key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onBacktabPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onBacktabPressed(KeyEvent event)
 
     This handler is called when the Shift+Tab key combination (Backtab) has
     been pressed. The \a event parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onAsteriskPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onAsteriskPressed(KeyEvent event)
 
     This handler is called when the Asterisk '*' has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onEscapePressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onEscapePressed(KeyEvent event)
 
     This handler is called when the Escape key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onReturnPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onReturnPressed(KeyEvent event)
 
     This handler is called when the Return key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onEnterPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onEnterPressed(KeyEvent event)
 
     This handler is called when the Enter key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onDeletePressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onDeletePressed(KeyEvent event)
 
     This handler is called when the Delete key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onSpacePressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onSpacePressed(KeyEvent event)
 
     This handler is called when the Space key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onBackPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onBackPressed(KeyEvent event)
 
     This handler is called when the Back key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onCancelPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onCancelPressed(KeyEvent event)
 
     This handler is called when the Cancel key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onSelectPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onSelectPressed(KeyEvent event)
 
     This handler is called when the Select key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onYesPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onYesPressed(KeyEvent event)
 
     This handler is called when the Yes key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onNoPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onNoPressed(KeyEvent event)
 
     This handler is called when the No key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onContext1Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onContext1Pressed(KeyEvent event)
 
     This handler is called when the Context1 key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onContext2Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onContext2Pressed(KeyEvent event)
 
     This handler is called when the Context2 key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onContext3Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onContext3Pressed(KeyEvent event)
 
     This handler is called when the Context3 key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onContext4Pressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onContext4Pressed(KeyEvent event)
 
     This handler is called when the Context4 key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onCallPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onCallPressed(KeyEvent event)
 
     This handler is called when the Call key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onHangupPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onHangupPressed(KeyEvent event)
 
     This handler is called when the Hangup key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onFlipPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onFlipPressed(KeyEvent event)
 
     This handler is called when the Flip key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onMenuPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onMenuPressed(KeyEvent event)
 
     This handler is called when the Menu key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onVolumeUpPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onVolumeUpPressed(KeyEvent event)
 
     This handler is called when the VolumeUp key has been pressed. The \a event
     parameter provides information about the event.
 */
 
 /*!
-    \qmlsignal QtQuick2::Keys::onVolumeDownPressed(KeyEvent event)
+    \qmlsignal QtQuick::Keys::onVolumeDownPressed(KeyEvent event)
 
     This handler is called when the VolumeDown key has been pressed. The \a event
     parameter provides information about the event.
@@ -1357,7 +1361,7 @@ QQuickKeysAttached *QQuickKeysAttached::qmlAttachedProperties(QObject *obj)
 /*!
     \qmltype LayoutMirroring
     \instantiates QQuickLayoutMirroringAttached
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-positioners
     \ingroup qml-utility-elements
     \brief Property used to mirror layout behavior
@@ -1399,7 +1403,7 @@ QQuickKeysAttached *QQuickKeysAttached::qmlAttachedProperties(QObject *obj)
 */
 
 /*!
-    \qmlproperty bool QtQuick2::LayoutMirroring::enabled
+    \qmlproperty bool QtQuick::LayoutMirroring::enabled
 
     This property holds whether the item's layout is mirrored horizontally. Setting this to true
     horizontally reverses \l {anchor-layout}{anchor} settings such that left anchors become right,
@@ -1411,7 +1415,7 @@ QQuickKeysAttached *QQuickKeysAttached::qmlAttachedProperties(QObject *obj)
 */
 
 /*!
-    \qmlproperty bool QtQuick2::LayoutMirroring::childrenInherit
+    \qmlproperty bool QtQuick::LayoutMirroring::childrenInherit
 
     This property holds whether the \l {enabled}{LayoutMirroring.enabled} value for this item
     is inherited by its children.
@@ -1619,7 +1623,7 @@ void QQuickItemPrivate::updateSubFocusItem(QQuickItem *scope, bool focus)
     \qmltype Item
     \instantiates QQuickItem
     \inherits QtObject
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-visual
     \brief A basic visual QML type
 
@@ -2097,6 +2101,12 @@ QQuickItem* QQuickItemPrivate::nextPrevItemInTabFocusChain(QQuickItem *item, boo
 {
     Q_ASSERT(item);
 
+    if (!item->window())
+        return item;
+    const QQuickItem * const contentItem = item->window()->contentItem();
+    if (!contentItem)
+        return item;
+
     bool all = QQuickItemPrivate::qt_tab_all_widgets();
 
     QQuickItem *from = 0;
@@ -2109,7 +2119,6 @@ QQuickItem* QQuickItemPrivate::nextPrevItemInTabFocusChain(QQuickItem *item, boo
             from = item->parentItem();
     }
     bool skip = false;
-    const QQuickItem * const contentItem = item->window()->contentItem();
     const QQuickItem * const originalItem = item;
     QQuickItem * startItem = item;
     QQuickItem * firstFromItem = from;
@@ -2189,7 +2198,7 @@ QQuickItem* QQuickItemPrivate::nextPrevItemInTabFocusChain(QQuickItem *item, boo
 }
 
 /*!
-    \qmlproperty Item QtQuick2::Item::parent
+    \qmlproperty Item QtQuick::Item::parent
     This property holds the visual parent of the item.
 
     \note The concept of the \e {visual parent} differs from that of the
@@ -2446,7 +2455,7 @@ QList<QQuickItem *> QQuickItemPrivate::paintOrderChildItems() const
     }
     if (haveZ) {
         sortedChildItems = new QList<QQuickItem*>(childItems);
-        qStableSort(sortedChildItems->begin(), sortedChildItems->end(), itemZOrder_sort);
+        std::stable_sort(sortedChildItems->begin(), sortedChildItems->end(), itemZOrder_sort);
         return *sortedChildItems;
     }
 
@@ -2565,8 +2574,10 @@ void QQuickItemPrivate::derefWindow()
     if (c->mouseGrabberItem == q)
         c->mouseGrabberItem = 0;
 #ifndef QT_NO_CURSOR
-    if (c->cursorItem == q)
+    if (c->cursorItem == q) {
         c->cursorItem = 0;
+        window->unsetCursor();
+    }
 #endif
     c->hoverItems.removeAll(q);
     if (itemNodeInstance)
@@ -2781,7 +2792,7 @@ void QQuickItemPrivate::data_append(QQmlListProperty<QObject> *prop, QObject *o)
 }
 
 /*!
-    \qmlproperty list<Object> QtQuick2::Item::data
+    \qmlproperty list<Object> QtQuick::Item::data
     \default
 
     The data property allows you to freely mix visual children and resources
@@ -3039,27 +3050,27 @@ void QQuickItemPrivate::_q_resourceObjectDeleted(QObject *object)
 }
 
 /*!
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.top
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.bottom
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.left
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.right
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.horizontalCenter
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.verticalCenter
-  \qmlproperty AnchorLine QtQuick2::Item::anchors.baseline
+  \qmlproperty AnchorLine QtQuick::Item::anchors.top
+  \qmlproperty AnchorLine QtQuick::Item::anchors.bottom
+  \qmlproperty AnchorLine QtQuick::Item::anchors.left
+  \qmlproperty AnchorLine QtQuick::Item::anchors.right
+  \qmlproperty AnchorLine QtQuick::Item::anchors.horizontalCenter
+  \qmlproperty AnchorLine QtQuick::Item::anchors.verticalCenter
+  \qmlproperty AnchorLine QtQuick::Item::anchors.baseline
 
-  \qmlproperty Item QtQuick2::Item::anchors.fill
-  \qmlproperty Item QtQuick2::Item::anchors.centerIn
+  \qmlproperty Item QtQuick::Item::anchors.fill
+  \qmlproperty Item QtQuick::Item::anchors.centerIn
 
-  \qmlproperty real QtQuick2::Item::anchors.margins
-  \qmlproperty real QtQuick2::Item::anchors.topMargin
-  \qmlproperty real QtQuick2::Item::anchors.bottomMargin
-  \qmlproperty real QtQuick2::Item::anchors.leftMargin
-  \qmlproperty real QtQuick2::Item::anchors.rightMargin
-  \qmlproperty real QtQuick2::Item::anchors.horizontalCenterOffset
-  \qmlproperty real QtQuick2::Item::anchors.verticalCenterOffset
-  \qmlproperty real QtQuick2::Item::anchors.baselineOffset
+  \qmlproperty real QtQuick::Item::anchors.margins
+  \qmlproperty real QtQuick::Item::anchors.topMargin
+  \qmlproperty real QtQuick::Item::anchors.bottomMargin
+  \qmlproperty real QtQuick::Item::anchors.leftMargin
+  \qmlproperty real QtQuick::Item::anchors.rightMargin
+  \qmlproperty real QtQuick::Item::anchors.horizontalCenterOffset
+  \qmlproperty real QtQuick::Item::anchors.verticalCenterOffset
+  \qmlproperty real QtQuick::Item::anchors.baselineOffset
 
-  \qmlproperty bool QtQuick2::Item::anchors.alignWhenCentered
+  \qmlproperty bool QtQuick::Item::anchors.alignWhenCentered
 
   Anchors provide a way to position an item by specifying its
   relationship with other items.
@@ -3162,10 +3173,10 @@ QQmlListProperty<QObject> QQuickItemPrivate::data()
 }
 
 /*!
-    \qmlproperty real QtQuick2::Item::childrenRect.x
-    \qmlproperty real QtQuick2::Item::childrenRect.y
-    \qmlproperty real QtQuick2::Item::childrenRect.width
-    \qmlproperty real QtQuick2::Item::childrenRect.height
+    \qmlproperty real QtQuick::Item::childrenRect.x
+    \qmlproperty real QtQuick::Item::childrenRect.y
+    \qmlproperty real QtQuick::Item::childrenRect.width
+    \qmlproperty real QtQuick::Item::childrenRect.height
 
     This property holds the collective position and size of the item's
     children.
@@ -3203,7 +3214,7 @@ QList<QQuickItem *> QQuickItem::childItems() const
 }
 
 /*!
-  \qmlproperty bool QtQuick2::Item::clip
+  \qmlproperty bool QtQuick::Item::clip
   This property holds whether clipping is enabled. The default clip value is \c false.
 
   If clipping is enabled, an item will clip its own painting, as well
@@ -3748,7 +3759,7 @@ QQuickAnchorLine QQuickItemPrivate::baseline() const
 }
 
 /*!
-  \qmlproperty int QtQuick2::Item::baselineOffset
+  \qmlproperty int QtQuick::Item::baselineOffset
 
   Specifies the position of the item's baseline in local coordinates.
 
@@ -3816,7 +3827,12 @@ void QQuickItem::setBaselineOffset(qreal offset)
 void QQuickItem::update()
 {
     Q_D(QQuickItem);
-    Q_ASSERT(flags() & ItemHasContents);
+    if (!(flags() & ItemHasContents)) {
+#ifndef QT_NO_DEBUG
+        qWarning() << metaObject()->className() << ": Update called for a item without content";
+#endif
+        return;
+    }
     d->dirty(QQuickItemPrivate::Content);
 }
 
@@ -3841,8 +3857,8 @@ void QQuickItem::polish()
 }
 
 /*!
-    \qmlmethod object QtQuick2::Item::mapFromItem(Item item, real x, real y)
-    \qmlmethod object QtQuick2::Item::mapFromItem(Item item, real x, real y, real width, real height)
+    \qmlmethod object QtQuick::Item::mapFromItem(Item item, real x, real y)
+    \qmlmethod object QtQuick::Item::mapFromItem(Item item, real x, real y, real width, real height)
 
     Maps the point (\a x, \a y) or rect (\a x, \a y, \a width, \a height), which is in \a
     item's coordinate system, to this item's coordinate system, and returns an object with \c x and
@@ -3854,43 +3870,50 @@ void QQuickItem::polish()
 /*!
     \internal
   */
-void QQuickItem::mapFromItem(QQmlV8Function *args) const
+void QQuickItem::mapFromItem(QQmlV4Function *args) const
 {
-    if (args->Length() != 0) {
-        v8::Local<v8::Value> item = (*args)[0];
-        QV8Engine *engine = args->engine();
+    if (args->length() != 0) {
+        QV4::ExecutionEngine *v4 = args->v4engine();
+        QV4::Scope scope(v4);
+        QV4::ScopedValue item(scope, (*args)[0]);
 
         QQuickItem *itemObj = 0;
-        if (!item->IsNull())
-            itemObj = qobject_cast<QQuickItem*>(engine->toQObject(item));
+        if (!item->isNull()) {
+            QV4::Scoped<QV4::QObjectWrapper> qobjectWrapper(scope, item->as<QV4::QObjectWrapper>());
+            if (qobjectWrapper)
+                itemObj = qobject_cast<QQuickItem*>(qobjectWrapper->object());
+        }
 
-        if (!itemObj && !item->IsNull()) {
-            qmlInfo(this) << "mapFromItem() given argument \"" << engine->toString(item->ToString())
+        if (!itemObj && !item->isNull()) {
+            qmlInfo(this) << "mapFromItem() given argument \"" << item->toQStringNoThrow()
                           << "\" which is neither null nor an Item";
             return;
         }
 
-        v8::Local<v8::Object> rv = v8::Object::New();
-        args->returnValue(rv);
+        QV4::Scoped<QV4::Object> rv(scope, v4->newObject());
+        args->setReturnValue(rv.asReturnedValue());
 
-        qreal x = (args->Length() > 1)?(*args)[1]->NumberValue():0;
-        qreal y = (args->Length() > 2)?(*args)[2]->NumberValue():0;
+        QV4::ScopedString s(scope);
+        QV4::ScopedValue v(scope);
 
-        if (args->Length() > 3) {
-            qreal w = (*args)[3]->NumberValue();
-            qreal h = (args->Length() > 4)?(*args)[4]->NumberValue():0;
+        qreal x = (args->length() > 1) ? (v = (*args)[1])->asDouble() : 0;
+        qreal y = (args->length() > 2) ? (v = (*args)[2])->asDouble() : 0;
+
+        if (args->length() > 3) {
+            qreal w = (v = (*args)[3])->asDouble();
+            qreal h = (args->length() > 4) ? (v = (*args)[4])->asDouble() : 0;
 
             QRectF r = mapRectFromItem(itemObj, QRectF(x, y, w, h));
 
-            rv->Set(v8::String::New("x"), v8::Number::New(r.x()));
-            rv->Set(v8::String::New("y"), v8::Number::New(r.y()));
-            rv->Set(v8::String::New("width"), v8::Number::New(r.width()));
-            rv->Set(v8::String::New("height"), v8::Number::New(r.height()));
+            rv->put((s = v4->newString(QStringLiteral("x"))), (v = QV4::Primitive::fromDouble(r.x())));
+            rv->put((s = v4->newString(QStringLiteral("y"))), (v = QV4::Primitive::fromDouble(r.y())));
+            rv->put((s = v4->newString(QStringLiteral("width"))), (v = QV4::Primitive::fromDouble(r.width())));
+            rv->put((s = v4->newString(QStringLiteral("height"))), (v = QV4::Primitive::fromDouble(r.height())));
         } else {
             QPointF p = mapFromItem(itemObj, QPointF(x, y));
 
-            rv->Set(v8::String::New("x"), v8::Number::New(p.x()));
-            rv->Set(v8::String::New("y"), v8::Number::New(p.y()));
+            rv->put((s = v4->newString(QStringLiteral("x"))), (v = QV4::Primitive::fromDouble(p.x())));
+            rv->put((s = v4->newString(QStringLiteral("y"))), (v = QV4::Primitive::fromDouble(p.y())));
         }
     }
 }
@@ -3913,8 +3936,8 @@ QTransform QQuickItem::itemTransform(QQuickItem *other, bool *ok) const
 }
 
 /*!
-    \qmlmethod object QtQuick2::Item::mapToItem(Item item, real x, real y)
-    \qmlmethod object QtQuick2::Item::mapToItem(Item item, real x, real y, real width, real height)
+    \qmlmethod object QtQuick::Item::mapToItem(Item item, real x, real y)
+    \qmlmethod object QtQuick::Item::mapToItem(Item item, real x, real y, real width, real height)
 
     Maps the point (\a x, \a y) or rect (\a x, \a y, \a width, \a height), which is in this
     item's coordinate system, to \a item's coordinate system, and returns an object with \c x and
@@ -3926,49 +3949,57 @@ QTransform QQuickItem::itemTransform(QQuickItem *other, bool *ok) const
 /*!
     \internal
   */
-void QQuickItem::mapToItem(QQmlV8Function *args) const
+void QQuickItem::mapToItem(QQmlV4Function *args) const
 {
-    if (args->Length() != 0) {
-        v8::Local<v8::Value> item = (*args)[0];
-        QV8Engine *engine = args->engine();
+    if (args->length() != 0) {
+        QV4::ExecutionEngine *v4 = args->v4engine();
+        QV4::Scope scope(v4);
+        QV4::ScopedValue item(scope, (*args)[0]);
 
         QQuickItem *itemObj = 0;
-        if (!item->IsNull())
-            itemObj = qobject_cast<QQuickItem*>(engine->toQObject(item));
+        if (!item->isNull()) {
+            QV4::Scoped<QV4::QObjectWrapper> qobjectWrapper(scope, item->as<QV4::QObjectWrapper>());
+            if (qobjectWrapper)
+                itemObj = qobject_cast<QQuickItem*>(qobjectWrapper->object());
+        }
 
-        if (!itemObj && !item->IsNull()) {
-            qmlInfo(this) << "mapToItem() given argument \"" << engine->toString(item->ToString())
+        if (!itemObj && !item->isNull()) {
+            qmlInfo(this) << "mapToItem() given argument \"" << item->toQStringNoThrow()
                           << "\" which is neither null nor an Item";
             return;
         }
 
-        v8::Local<v8::Object> rv = v8::Object::New();
-        args->returnValue(rv);
+        QV4::Scoped<QV4::Object> rv(scope, v4->newObject());
+        args->setReturnValue(rv.asReturnedValue());
 
-        qreal x = (args->Length() > 1)?(*args)[1]->NumberValue():0;
-        qreal y = (args->Length() > 2)?(*args)[2]->NumberValue():0;
+        QV4::ScopedValue v(scope);
 
-        if (args->Length() > 3) {
-            qreal w = (*args)[3]->NumberValue();
-            qreal h = (args->Length() > 4)?(*args)[4]->NumberValue():0;
+        qreal x = (args->length() > 1) ? (v = (*args)[1])->asDouble() : 0;
+        qreal y = (args->length() > 2) ? (v = (*args)[2])->asDouble() : 0;
+
+        QV4::ScopedString s(scope);
+
+        if (args->length() > 3) {
+            qreal w = (v = (*args)[3])->asDouble();
+            qreal h = (args->length() > 4) ? (v = (*args)[4])->asDouble() : 0;
 
             QRectF r = mapRectToItem(itemObj, QRectF(x, y, w, h));
 
-            rv->Set(v8::String::New("x"), v8::Number::New(r.x()));
-            rv->Set(v8::String::New("y"), v8::Number::New(r.y()));
-            rv->Set(v8::String::New("width"), v8::Number::New(r.width()));
-            rv->Set(v8::String::New("height"), v8::Number::New(r.height()));
+            rv->put((s = v4->newString(QStringLiteral("x"))), (v = QV4::Primitive::fromDouble(r.x())));
+            rv->put((s = v4->newString(QStringLiteral("y"))), (v = QV4::Primitive::fromDouble(r.y())));
+            rv->put((s = v4->newString(QStringLiteral("width"))), (v = QV4::Primitive::fromDouble(r.width())));
+            rv->put((s = v4->newString(QStringLiteral("height"))), (v = QV4::Primitive::fromDouble(r.height())));
         } else {
             QPointF p = mapToItem(itemObj, QPointF(x, y));
 
-            rv->Set(v8::String::New("x"), v8::Number::New(p.x()));
-            rv->Set(v8::String::New("y"), v8::Number::New(p.y()));
+            rv->put((s = v4->newString(QStringLiteral("x"))), (v = QV4::Primitive::fromDouble(p.x())));
+            rv->put((s = v4->newString(QStringLiteral("y"))), (v = QV4::Primitive::fromDouble(p.y())));
         }
     }
 }
 
 /*!
-    \qmlmethod QtQuick2::Item::forceActiveFocus()
+    \qmlmethod QtQuick::Item::forceActiveFocus()
     \overload
 
     Forces active focus on the item.
@@ -3988,14 +4019,14 @@ void QQuickItem::forceActiveFocus()
 }
 
 /*!
-    \qmlmethod QtQuick2::Item::forceActiveFocus(Qt::FocusReason reason)
+    \qmlmethod QtQuick::Item::forceActiveFocus(Qt::FocusReason reason)
 
     Forces active focus on the item with the given \a reason.
 
     This method sets focus on the item and ensures that all ancestor
     FocusScope objects in the object hierarchy are also given \l focus.
 
-    \since QtQuick 2.1
+    \since 5.1
 
     \sa activeFocus, Qt::FocusReason
 */
@@ -4013,9 +4044,9 @@ void QQuickItem::forceActiveFocus(Qt::FocusReason reason)
 }
 
 /*!
-    \qmlmethod QtQuick2::Item::nextItemInFocusChain(bool forward)
+    \qmlmethod QtQuick::Item::nextItemInFocusChain(bool forward)
 
-    \since QtQuick 2.1
+    \since 5.1
 
     Returns the item in the focus chain which is next to this item.
     If \a forward is \c true, or not supplied, it is the next item in
@@ -4035,7 +4066,7 @@ QQuickItem *QQuickItem::nextItemInFocusChain(bool forward)
 }
 
 /*!
-    \qmlmethod QtQuick2::Item::childAt(real x, real y)
+    \qmlmethod QtQuick::Item::childAt(real x, real y)
 
     Returns the first visible child item found at point (\a x, \a y) within
     the coordinate system of this item.
@@ -4073,8 +4104,8 @@ QQmlListProperty<QObject> QQuickItemPrivate::resources()
 }
 
 /*!
-    \qmlproperty list<Item> QtQuick2::Item::children
-    \qmlproperty list<Object> QtQuick2::Item::resources
+    \qmlproperty list<Item> QtQuick::Item::children
+    \qmlproperty list<Object> QtQuick::Item::resources
 
     The children property contains the list of visual children of this item.
     The resources property contains non-visual resources that you want to
@@ -4099,7 +4130,7 @@ QQmlListProperty<QQuickItem> QQuickItemPrivate::children()
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::visibleChildren
+  \qmlproperty list<Item> QtQuick::Item::visibleChildren
   This read-only property lists all of the item's children that are currently visible.
   Note that a child's visibility may have changed explicitly, or because the visibility
   of this (it's parent) item or another grandparent changed.
@@ -4118,7 +4149,7 @@ QQmlListProperty<QQuickItem> QQuickItemPrivate::visibleChildren()
 }
 
 /*!
-    \qmlproperty list<State> QtQuick2::Item::states
+    \qmlproperty list<State> QtQuick::Item::states
 
     This property holds the list of possible states for this item. To change
     the state of this item, set the \l state property to one of these states,
@@ -4163,7 +4194,7 @@ QQmlListProperty<QQuickState> QQuickItemPrivate::states()
 }
 
 /*!
-    \qmlproperty list<Transition> QtQuick2::Item::transitions
+    \qmlproperty list<Transition> QtQuick::Item::transitions
 
     This property holds the list of transitions for this item. These define the
     transitions to be applied to the item whenever it changes its \l state.
@@ -4213,7 +4244,7 @@ void QQuickItemPrivate::setState(const QString &state)
 }
 
 /*!
-    \qmlproperty string QtQuick2::Item::state
+    \qmlproperty string QtQuick::Item::state
 
     This property holds the name of the current state of the item.
 
@@ -4247,7 +4278,7 @@ void QQuickItem::setState(const QString &state)
 }
 
 /*!
-  \qmlproperty list<Transform> QtQuick2::Item::transform
+  \qmlproperty list<Transform> QtQuick::Item::transform
   This property holds the list of transformations to apply.
 
   For more information see \l Transform.
@@ -4394,12 +4425,12 @@ void QQuickItemPrivate::deliverKeyEvent(QKeyEvent *e)
             extra->keyHandler->keyReleased(e, true);
     }
 
-    if (e->isAccepted())
+    if (e->isAccepted() || !q->window())
         return;
 
     //only care about KeyPress now
-    if ((q == q->window()->contentItem() || q->activeFocusOnTab())
-            && e->type() == QEvent::KeyPress) {
+    if (e->type() == QEvent::KeyPress &&
+            (q == q->window()->contentItem() || q->activeFocusOnTab())) {
         bool res = false;
         if (!(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {  //### Add MetaModifier?
             if (e->key() == Qt::Key_Backtab
@@ -4578,7 +4609,7 @@ QRectF QQuickItem::clipRect() const
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Item::transformOrigin
+    \qmlproperty enumeration QtQuick::Item::transformOrigin
     This property holds the origin point around which scale and rotation transform.
 
     Nine transform origins are available, as shown in the image below.
@@ -4654,7 +4685,7 @@ void QQuickItem::setTransformOriginPoint(const QPointF &point)
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::z
+  \qmlproperty real QtQuick::Item::z
 
   Sets the stacking order of sibling items.  By default the stacking order is 0.
 
@@ -4834,7 +4865,7 @@ void QQuickItem::setZ(qreal v)
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::rotation
+  \qmlproperty real QtQuick::Item::rotation
   This property holds the rotation of the item in degrees clockwise around
   its transformOrigin.
 
@@ -4907,7 +4938,7 @@ void QQuickItem::setRotation(qreal r)
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::scale
+  \qmlproperty real QtQuick::Item::scale
   This property holds the scale factor for this item.
 
   A scale of less than 1.0 causes the item to be rendered at a smaller
@@ -5004,7 +5035,7 @@ void QQuickItem::setScale(qreal s)
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::opacity
+  \qmlproperty real QtQuick::Item::opacity
 
   This property holds the opacity of the item.  Opacity is specified as a
   number between 0.0 (fully transparent) and 1.0 (fully opaque). The default
@@ -5133,7 +5164,7 @@ void QQuickItem::setOpacity(qreal o)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::visible
+    \qmlproperty bool QtQuick::Item::visible
 
     This property holds whether the item is visible. By default this is true.
 
@@ -5208,7 +5239,7 @@ void QQuickItem::setVisible(bool v)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::enabled
+    \qmlproperty bool QtQuick::Item::enabled
 
     This property holds whether the item receives mouse and keyboard events.
     By default this is true.
@@ -5540,7 +5571,7 @@ void QQuickItemPrivate::itemChange(QQuickItem::ItemChange change, const QQuickIt
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::smooth
+    \qmlproperty bool QtQuick::Item::smooth
 
     Primarily used in image based items to decide if the item should use smooth
     sampling or not. Smooth sampling is performed using linear interpolation, while
@@ -5580,7 +5611,7 @@ void QQuickItem::setSmooth(bool smooth)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::activeFocusOnTab
+    \qmlproperty bool QtQuick::Item::activeFocusOnTab
 
     This property holds whether the item wants to be in tab focus
     chain. By default this is set to false.
@@ -5627,7 +5658,7 @@ void QQuickItem::setActiveFocusOnTab(bool activeFocusOnTab)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::antialiasing
+    \qmlproperty bool QtQuick::Item::antialiasing
 
     Primarily used in Rectangle and image based elements to decide if the item should
     use antialiasing or not. Items with antialiasing enabled require more memory and
@@ -5716,10 +5747,10 @@ void QQuickItem::setFlags(Flags flags)
 }
 
 /*!
-  \qmlproperty real QtQuick2::Item::x
-  \qmlproperty real QtQuick2::Item::y
-  \qmlproperty real QtQuick2::Item::width
-  \qmlproperty real QtQuick2::Item::height
+  \qmlproperty real QtQuick::Item::x
+  \qmlproperty real QtQuick::Item::y
+  \qmlproperty real QtQuick::Item::width
+  \qmlproperty real QtQuick::Item::height
 
   Defines the item's position and size.
 
@@ -5878,8 +5909,8 @@ qreal QQuickItem::implicitWidth() const
 }
 
 /*!
-    \qmlproperty real QtQuick2::Item::implicitWidth
-    \qmlproperty real QtQuick2::Item::implicitHeight
+    \qmlproperty real QtQuick::Item::implicitWidth
+    \qmlproperty real QtQuick::Item::implicitHeight
 
     Defines the natural width or height of the Item if no \l width or \l height is specified.
 
@@ -6144,7 +6175,7 @@ void QQuickItem::setSize(const QSizeF &size)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::activeFocus
+    \qmlproperty bool QtQuick::Item::activeFocus
 
     This read-only property indicates whether the item has active focus.
 
@@ -6217,7 +6248,7 @@ bool QQuickItem::hasActiveFocus() const
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::focus
+    \qmlproperty bool QtQuick::Item::focus
 
     This property holds whether the item has focus within the enclosing
     FocusScope. If true, this item will gain active focus when the
@@ -6751,7 +6782,7 @@ void QQuickItem::setKeepTouchGrab(bool keep)
 }
 
 /*!
-  \qmlmethod object QtQuick2::Item::contains(point point)
+  \qmlmethod object QtQuick::Item::contains(point point)
 
   Returns true if this item contains \a point, which is in local coordinates;
   returns false otherwise.
@@ -6981,7 +7012,10 @@ bool QQuickItem::event(QEvent *ev)
     } else
 #endif // QT_NO_IM
     if (ev->type() == QEvent::StyleAnimationUpdate) {
-        update();
+        if (isVisible()) {
+            ev->accept();
+            update();
+        }
         return true;
     }
     return QObject::event(ev);
@@ -7003,58 +7037,6 @@ QDebug operator<<(QDebug debug, QQuickItem *item)
     return debug;
 }
 #endif
-
-qint64 QQuickItemPrivate::consistentTime = -1;
-void QQuickItemPrivate::setConsistentTime(qint64 t)
-{
-    consistentTime = t;
-}
-
-class QElapsedTimerConsistentTimeHack
-{
-public:
-    void start() {
-        t1 = QQuickItemPrivate::consistentTime;
-        t2 = 0;
-    }
-    qint64 elapsed() {
-        return QQuickItemPrivate::consistentTime - t1;
-    }
-    qint64 restart() {
-        qint64 val = QQuickItemPrivate::consistentTime - t1;
-        t1 = QQuickItemPrivate::consistentTime;
-        t2 = 0;
-        return val;
-    }
-
-private:
-    qint64 t1;
-    qint64 t2;
-};
-
-void QQuickItemPrivate::start(QElapsedTimer &t)
-{
-    if (QQuickItemPrivate::consistentTime == -1)
-        t.start();
-    else
-        ((QElapsedTimerConsistentTimeHack*)&t)->start();
-}
-
-qint64 QQuickItemPrivate::elapsed(QElapsedTimer &t)
-{
-    if (QQuickItemPrivate::consistentTime == -1)
-        return t.elapsed();
-    else
-        return ((QElapsedTimerConsistentTimeHack*)&t)->elapsed();
-}
-
-qint64 QQuickItemPrivate::restart(QElapsedTimer &t)
-{
-    if (QQuickItemPrivate::consistentTime == -1)
-        return t.restart();
-    else
-        return ((QElapsedTimerConsistentTimeHack*)&t)->restart();
-}
 
 /*!
     \fn bool QQuickItem::isTextureProvider() const
@@ -7124,7 +7106,7 @@ QQuickItemLayer::~QQuickItemLayer()
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::layer.enabled
+    \qmlproperty bool QtQuick::Item::layer.enabled
 
     Holds whether the item is layered or not. Layering is disabled by default.
 
@@ -7248,7 +7230,7 @@ void QQuickItemLayer::deactivateEffect()
 
 
 /*!
-    \qmlproperty Component QtQuick2::Item::layer.effect
+    \qmlproperty Component QtQuick::Item::layer.effect
 
     Holds the effect that is applied to this layer.
 
@@ -7289,7 +7271,7 @@ void QQuickItemLayer::setEffect(QQmlComponent *component)
 
 
 /*!
-    \qmlproperty bool QtQuick2::Item::layer.mipmap
+    \qmlproperty bool QtQuick::Item::layer.mipmap
 
     If this property is true, mipmaps are generated for the texture.
 
@@ -7311,7 +7293,7 @@ void QQuickItemLayer::setMipmap(bool mipmap)
 
 
 /*!
-    \qmlproperty enumeration QtQuick2::Item::layer.format
+    \qmlproperty enumeration QtQuick::Item::layer.format
 
     This property defines the internal OpenGL format of the texture.
     Modifying this property makes most sense when the \a layer.effect is also
@@ -7341,7 +7323,7 @@ void QQuickItemLayer::setFormat(QQuickShaderEffectSource::Format f)
 
 
 /*!
-    \qmlproperty enumeration QtQuick2::Item::layer.sourceRect
+    \qmlproperty rect QtQuick::Item::layer.sourceRect
 
     This property defines the rectangular area of the item that should be
     rendered into the texture. The source rectangle can be larger than
@@ -7362,7 +7344,7 @@ void QQuickItemLayer::setSourceRect(const QRectF &sourceRect)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Item::layer.smooth
+    \qmlproperty bool QtQuick::Item::layer.smooth
 
     Holds whether the layer is smoothly transformed.
  */
@@ -7380,7 +7362,7 @@ void QQuickItemLayer::setSmooth(bool s)
 }
 
 /*!
-    \qmlproperty size QtQuick2::Item::layer.textureSize
+    \qmlproperty size QtQuick::Item::layer.textureSize
 
     This property holds the requested pixel size of the layers texture. If it is empty,
     which is the default, the size of the item is used.
@@ -7403,7 +7385,7 @@ void QQuickItemLayer::setSize(const QSize &size)
 }
 
 /*!
-    \qmlproperty enumeration QtQuick2::Item::layer.wrapMode
+    \qmlproperty enumeration QtQuick::Item::layer.wrapMode
 
     This property defines the OpenGL wrap modes associated with the texture.
     Modifying this property makes most sense when the \a layer.effect is
@@ -7433,7 +7415,7 @@ void QQuickItemLayer::setWrapMode(QQuickShaderEffectSource::WrapMode mode)
 }
 
 /*!
-    \qmlproperty string QtQuick2::Item::layer.samplerName
+    \qmlproperty string QtQuick::Item::layer.samplerName
 
     Holds the name of the effect's source texture property.
 

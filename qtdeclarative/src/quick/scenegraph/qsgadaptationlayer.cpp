@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -61,8 +61,7 @@ static QElapsedTimer qsg_render_timer;
 QSGDistanceFieldGlyphCache::Texture QSGDistanceFieldGlyphCache::s_emptyTexture;
 
 QSGDistanceFieldGlyphCache::QSGDistanceFieldGlyphCache(QSGDistanceFieldGlyphCacheManager *man, QOpenGLContext *c, const QRawFont &font)
-    : ctx(c)
-    , m_manager(man)
+    : m_manager(man)
     , m_pendingGlyphs(64)
 {
     Q_ASSERT(font.isValid());
@@ -75,6 +74,8 @@ QSGDistanceFieldGlyphCache::QSGDistanceFieldGlyphCache(QSGDistanceFieldGlyphCach
     m_referenceFont = font;
     m_referenceFont.setPixelSize(QT_DISTANCEFIELD_BASEFONTSIZE(m_doubleGlyphResolution));
     Q_ASSERT(m_referenceFont.isValid());
+
+    m_coreProfile = (c->format().profile() == QSurfaceFormat::CoreProfile);
 }
 
 QSGDistanceFieldGlyphCache::~QSGDistanceFieldGlyphCache()
@@ -168,13 +169,11 @@ void QSGDistanceFieldGlyphCache::update()
         qsg_render_timer.start();
 #endif
 
-    QHash<glyph_t, QImage> distanceFields;
-
+    QList<QDistanceField> distanceFields;
     for (int i = 0; i < m_pendingGlyphs.size(); ++i) {
-        glyph_t glyphIndex = m_pendingGlyphs.at(i);
-
-        QImage distanceField = qt_renderDistanceFieldGlyph(m_referenceFont, glyphIndex, m_doubleGlyphResolution);
-        distanceFields.insert(glyphIndex, distanceField);
+        distanceFields.append(QDistanceField(m_referenceFont,
+                                             m_pendingGlyphs.at(i),
+                                             m_doubleGlyphResolution));
     }
 
 #ifndef QSG_NO_RENDER_TIMING

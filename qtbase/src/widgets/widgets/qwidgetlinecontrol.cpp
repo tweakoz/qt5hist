@@ -416,7 +416,7 @@ QRect QWidgetLineControl::cursorRect() const
 
     Fixes the current text so that it is valid given any set validators.
 
-    Returns true if the text was changed.  Otherwise returns false.
+    Returns \c true if the text was changed.  Otherwise returns \c false.
 */
 bool QWidgetLineControl::fixup() // this function assumes that validate currently returns != Acceptable
 {
@@ -427,7 +427,7 @@ bool QWidgetLineControl::fixup() // this function assumes that validate currentl
         m_validator->fixup(textCopy);
         if (m_validator->validate(textCopy, cursorCopy) == QValidator::Acceptable) {
             if (textCopy != m_text || cursorCopy != m_cursor)
-                internalSetText(textCopy, cursorCopy);
+                internalSetText(textCopy, cursorCopy, false);
             return true;
         }
     }
@@ -672,7 +672,7 @@ bool QWidgetLineControl::finishChange(int validateFromState, bool update, bool e
             m_validInput = (m_validator->validate(textCopy, cursorCopy) != QValidator::Invalid);
             if (m_validInput) {
                 if (m_text != textCopy) {
-                    internalSetText(textCopy, cursorCopy);
+                    internalSetText(textCopy, cursorCopy, false);
                     return true;
                 }
                 m_cursor = cursorCopy;
@@ -1090,10 +1090,10 @@ bool QWidgetLineControl::isValidInput(QChar key, QChar mask) const
 /*!
     \internal
 
-    Returns true if the given text \a str is valid for any
+    Returns \c true if the given text \a str is valid for any
     validator or input mask set for the line control.
 
-    Otherwise returns false
+    Otherwise returns \c false
 */
 bool QWidgetLineControl::hasAcceptableInput(const QString &str) const
 {
@@ -1525,6 +1525,7 @@ void QWidgetLineControl::processShortcutOverrideEvent(QKeyEvent *ke)
         || ke == QKeySequence::Undo
         || ke == QKeySequence::MoveToNextWord
         || ke == QKeySequence::MoveToPreviousWord
+        || ke == QKeySequence::MoveToEndOfLine
         || ke == QKeySequence::MoveToStartOfDocument
         || ke == QKeySequence::MoveToEndOfDocument
         || ke == QKeySequence::SelectNextWord
@@ -1535,7 +1536,8 @@ void QWidgetLineControl::processShortcutOverrideEvent(QKeyEvent *ke)
         || ke == QKeySequence::SelectEndOfBlock
         || ke == QKeySequence::SelectStartOfDocument
         || ke == QKeySequence::SelectAll
-        || ke == QKeySequence::SelectEndOfDocument) {
+        || ke == QKeySequence::SelectEndOfDocument
+        || ke == QKeySequence::DeleteCompleteLine) {
         ke->accept();
     } else if (ke->modifiers() == Qt::NoModifier || ke->modifiers() == Qt::ShiftModifier
                || ke->modifiers() == Qt::KeypadModifier) {
@@ -1773,6 +1775,14 @@ void QWidgetLineControl::processKeyEvent(QKeyEvent* event)
             cursorWordBackward(true);
             del();
         }
+    } else if (event == QKeySequence::DeleteCompleteLine) {
+        if (!isReadOnly()) {
+            setSelection(0, text().size());
+#ifndef QT_NO_CLIPBOARD
+            copy();
+#endif
+            del();
+        }
     }
 #endif // QT_NO_SHORTCUT
     else {
@@ -1810,20 +1820,6 @@ void QWidgetLineControl::processKeyEvent(QKeyEvent* event)
                 complete(event->key());
                 break;
 #endif
-            case Qt::Key_E:
-                if (m_keyboardScheme == QPlatformTheme::X11KeyboardScheme)
-                    end(0);
-                break;
-
-            case Qt::Key_U:
-                if (m_keyboardScheme == QPlatformTheme::X11KeyboardScheme && !isReadOnly()) {
-                    setSelection(0, text().size());
-#ifndef QT_NO_CLIPBOARD
-                    copy();
-#endif
-                    del();
-                }
-            break;
             default:
                 if (!handled)
                     unknown = true;

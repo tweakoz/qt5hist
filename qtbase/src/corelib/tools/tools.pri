@@ -11,11 +11,15 @@ HEADERS +=  \
         tools/qbytedata_p.h \
         tools/qcache.h \
         tools/qchar.h \
+        tools/qcommandlineoption.h \
+        tools/qcommandlineparser.h \
+        tools/qcollator.h \
         tools/qcollator_p.h \
         tools/qcontainerfwd.h \
         tools/qcryptographichash.h \
         tools/qdatetime.h \
         tools/qdatetime_p.h \
+        tools/qdatetimeparser_p.h \
         tools/qeasingcurve.h \
         tools/qfreelist_p.h \
         tools/qhash.h \
@@ -56,6 +60,9 @@ HEADERS +=  \
         tools/qstringmatcher.h \
         tools/qtextboundaryfinder.h \
         tools/qtimeline.h \
+        tools/qtimezone.h \
+        tools/qtimezoneprivate_p.h \
+        tools/qtimezoneprivate_data_p.h \
         tools/qelapsedtimer.h \
         tools/qunicodetables_p.h \
         tools/qunicodetools_p.h \
@@ -69,8 +76,11 @@ SOURCES += \
         tools/qbytearray.cpp \
         tools/qbytearraymatcher.cpp \
         tools/qcollator.cpp \
+        tools/qcommandlineoption.cpp \
+        tools/qcommandlineparser.cpp \
         tools/qcryptographichash.cpp \
         tools/qdatetime.cpp \
+        tools/qdatetimeparser.cpp \
         tools/qeasingcurve.cpp \
         tools/qelapsedtimer.cpp \
         tools/qfreelist.cpp \
@@ -98,20 +108,24 @@ SOURCES += \
         tools/qstringlist.cpp \
         tools/qtextboundaryfinder.cpp \
         tools/qtimeline.cpp \
+        tools/qtimezone.cpp \
+        tools/qtimezoneprivate.cpp \
         tools/qunicodetools.cpp \
         tools/qvector.cpp \
         tools/qvsnprintf.cpp
 
 !nacl:mac: {
     SOURCES += tools/qelapsedtimer_mac.cpp
-    OBJECTIVE_SOURCES += tools/qlocale_mac.mm
+    OBJECTIVE_SOURCES += tools/qlocale_mac.mm \
+                         tools/qtimezoneprivate_mac.mm \
+                         tools/qstring_mac.mm
 }
 else:blackberry {
-    SOURCES += tools/qelapsedtimer_unix.cpp tools/qlocale_blackberry.cpp
+    SOURCES += tools/qelapsedtimer_unix.cpp tools/qlocale_blackberry.cpp tools/qtimezoneprivate_tz.cpp
     HEADERS += tools/qlocale_blackberry.h
 }
-else:unix:SOURCES += tools/qelapsedtimer_unix.cpp tools/qlocale_unix.cpp
-else:win32:SOURCES += tools/qelapsedtimer_win.cpp tools/qlocale_win.cpp
+else:unix:SOURCES += tools/qelapsedtimer_unix.cpp tools/qlocale_unix.cpp tools/qtimezoneprivate_tz.cpp
+else:win32:SOURCES += tools/qelapsedtimer_win.cpp tools/qlocale_win.cpp tools/qtimezoneprivate_win.cpp
 else:integrity:SOURCES += tools/qelapsedtimer_unix.cpp tools/qlocale_unix.cpp
 else:SOURCES += tools/qelapsedtimer_generic.cpp
 
@@ -126,7 +140,9 @@ contains(QT_CONFIG, zlib) {
 }
 
 contains(QT_CONFIG,icu) {
-    SOURCES += tools/qlocale_icu.cpp
+    SOURCES += tools/qlocale_icu.cpp \
+               tools/qcollator_icu.cpp \
+               tools/qtimezoneprivate_icu.cpp
     DEFINES += QT_USE_ICU
     win32 {
         CONFIG(static, static|shared) {
@@ -141,6 +157,12 @@ contains(QT_CONFIG,icu) {
     } else {
         LIBS_PRIVATE += -licui18n -licuuc
     }
+} else: win32 {
+    SOURCES += tools/qcollator_win.cpp
+} else: macx {
+    SOURCES += tools/qcollator_macx.cpp
+} else {
+    SOURCES += tools/qcollator_posix.cpp
 }
 
 pcre {

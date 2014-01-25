@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -48,6 +48,8 @@
 #include "qquickanimation_p_p.h"
 #include "qquicktransitionmanager_p_p.h"
 
+#include <private/qquickanimatorjob_p.h>
+
 #include "private/qparallelanimationgroupjob_p.h"
 
 QT_BEGIN_NAMESPACE
@@ -55,7 +57,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype Transition
     \instantiates QQuickTransition
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-transitions-animations
     \brief Defines animated transitions that occur on state changes
 
@@ -260,8 +262,11 @@ QQuickTransitionInstance *QQuickTransition::prepare(QQuickStateOperation::Action
     QAbstractAnimationJob *anim = 0;
     for (int i = start; i != end;) {
         anim = d->animations.at(i)->transition(actions, after, direction, defaultTarget);
-        if (anim)
+        if (anim) {
+            if (d->animations.at(i)->threadingModel() == QQuickAbstractAnimation::RenderThread)
+                anim = new QQuickAnimatorProxyJob(anim, d->animations.at(i));
             d->reversed ? group->prependAnimation(anim) : group->appendAnimation(anim);
+        }
         d->reversed ? --i : ++i;
     }
 
@@ -273,8 +278,8 @@ QQuickTransitionInstance *QQuickTransition::prepare(QQuickStateOperation::Action
 }
 
 /*!
-    \qmlproperty string QtQuick2::Transition::from
-    \qmlproperty string QtQuick2::Transition::to
+    \qmlproperty string QtQuick::Transition::from
+    \qmlproperty string QtQuick::Transition::to
 
     These properties indicate the state changes that trigger the transition.
 
@@ -314,7 +319,7 @@ void QQuickTransition::setFromState(const QString &f)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Transition::reversible
+    \qmlproperty bool QtQuick::Transition::reversible
     This property holds whether the transition should be automatically reversed when the conditions that triggered this transition are reversed.
 
     The default value is false.
@@ -370,7 +375,7 @@ void QQuickTransition::setToState(const QString &t)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Transition::enabled
+    \qmlproperty bool QtQuick::Transition::enabled
 
     This property holds whether the Transition will be run when moving
     from the \c from state to the \c to state.
@@ -416,7 +421,7 @@ void QQuickTransition::setEnabled(bool enabled)
 }
 
 /*!
-    \qmlproperty bool QtQuick2::Transition::running
+    \qmlproperty bool QtQuick::Transition::running
 
     This property holds whether the transition is currently running.
 
@@ -430,7 +435,7 @@ bool QQuickTransition::running() const
 
 
 /*!
-    \qmlproperty list<Animation> QtQuick2::Transition::animations
+    \qmlproperty list<Animation> QtQuick::Transition::animations
     \default
 
     This property holds a list of the animations to be run for this transition.

@@ -71,6 +71,8 @@ QT_BEGIN_NAMESPACE
     it has been created from as long as it is not being modified.
 
     You can convert the array to and from text based JSON through QJsonDocument.
+
+    \sa {JSON Support in Qt}, {JSON Save Game Example}
 */
 
 /*!
@@ -1087,7 +1089,7 @@ void QJsonArray::compact()
 }
 
 
-#ifndef QT_NO_DEBUG_STREAM
+#if !defined(QT_NO_DEBUG_STREAM) && !defined(QT_JSON_READONLY)
 QDebug operator<<(QDebug dbg, const QJsonArray &a)
 {
     if (!a.a) {

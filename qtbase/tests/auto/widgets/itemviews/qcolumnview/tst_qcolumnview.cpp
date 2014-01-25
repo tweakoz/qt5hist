@@ -52,6 +52,7 @@
 #include <qitemdelegate.h>
 #include <qscrollbar.h>
 #include <private/qcolumnview_p.h>
+#include <qscreen.h>
 
 #define ANIMATION_DELAY 300
 
@@ -387,6 +388,12 @@ void tst_QColumnView::scrollTo_data()
     QTest::newRow("reverse") << true << false;
 }
 
+static inline void centerOnScreen(QWidget *w)
+{
+    const QPoint offset = QPoint(w->width() / 2, w->height() / 2);
+    w->move(QGuiApplication::primaryScreen()->availableGeometry().center() - offset);
+}
+
 void tst_QColumnView::scrollTo()
 {
     QFETCH(bool, reverse);
@@ -397,6 +404,7 @@ void tst_QColumnView::scrollTo()
     ColumnView view(&topLevel);
     view.resize(200, 200);
     topLevel.show();
+    centerOnScreen(&topLevel);
     view.scrollTo(QModelIndex(), QAbstractItemView::EnsureVisible);
     QCOMPARE(view.HorizontalOffset(), 0);
 
@@ -419,12 +427,15 @@ void tst_QColumnView::scrollTo()
     QWidget w;
     w.show();
 
+    QCOMPARE(view.HorizontalOffset(), 0);
     if (giveFocus)
         view.setFocus(Qt::OtherFocusReason);
     else
         view.clearFocus();
 
+    QCOMPARE(view.HorizontalOffset(), 0);
     qApp->processEvents();
+    QCOMPARE(view.HorizontalOffset(), 0);
     QTRY_COMPARE(view.hasFocus(), giveFocus);
     // scroll to the right
     int level = 0;
@@ -440,6 +451,8 @@ void tst_QColumnView::scrollTo()
         if (level >= 2) {
             if (!reverse) {
                 QTRY_VERIFY(view.HorizontalOffset() < 0);
+                qDebug() << "last=" << last
+                             << " ; HorizontalOffset= " << view.HorizontalOffset();
                 QTRY_VERIFY(last > view.HorizontalOffset());
             } else {
                 QTRY_VERIFY(view.HorizontalOffset() > 0);
@@ -457,10 +470,15 @@ void tst_QColumnView::scrollTo()
         view.scrollTo(index, QAbstractItemView::EnsureVisible);
         index = index.parent();
         if (start != level) {
-            if (!reverse)
+            if (!reverse) {
                 QTRY_VERIFY(last < view.HorizontalOffset());
-            else
+            } else {
+                if (last <= view.HorizontalOffset()) {
+                    qDebug() << "Test failure. last=" << last
+                             << " ; HorizontalOffset= " << view.HorizontalOffset();
+                }
                 QTRY_VERIFY(last > view.HorizontalOffset());
+            }
         }
         level--;
         last = view.HorizontalOffset();
@@ -1025,13 +1043,14 @@ void tst_QColumnView::dynamicModelChanges()
     ColumnView view;
     view.setModel(&model);
     view.setItemDelegate(&delegate);
+    centerOnScreen(&view);
     view.show();
 
     QStandardItem *item = new QStandardItem(QLatin1String("item"));
     model.appendRow(item);
 
-    QTest::qWait(200); //let the time for painting to occur
-    QCOMPARE(delegate.paintedIndexes.count(), 1);
+    QVERIFY(QTest::qWaitForWindowExposed(&view)); //let the time for painting to occur
+    QTRY_COMPARE(delegate.paintedIndexes.count(), 1);
     QCOMPARE(*delegate.paintedIndexes.begin(), model.index(0,0));
 
 

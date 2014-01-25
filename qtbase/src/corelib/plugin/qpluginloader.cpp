@@ -107,6 +107,33 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
+    \class QStaticPlugin
+    \inmodule QtCore
+    \since 5.2
+
+    \brief QStaticPlugin is a struct containing a reference to a
+    static plugin instance together with its meta data.
+
+    \sa QPluginLoader, {How to Create Qt Plugins}
+*/
+
+/*!
+    \fn QObject *QStaticPlugin::instance()
+
+    Returns the plugin instance.
+
+    \sa QPluginLoader::staticInstances()
+*/
+
+/*!
+    \fn const char *QStaticPlugin::rawMetaData()
+
+    Returns the raw meta data for the plugin.
+
+    \sa metaData(), Q_PLUGIN_METADATA()
+*/
+
+/*!
     Constructs a plugin loader with the given \a parent.
 */
 QPluginLoader::QPluginLoader(QObject *parent)
@@ -192,8 +219,8 @@ QJsonObject QPluginLoader::metaData() const
 }
 
 /*!
-    Loads the plugin and returns true if the plugin was loaded
-    successfully; otherwise returns false. Since instance() always
+    Loads the plugin and returns \c true if the plugin was loaded
+    successfully; otherwise returns \c false. Since instance() always
     calls this function before resolving any symbols it is not
     necessary to call it explicitly. In some situations you might want
     the plugin loaded in advance, in which case you would use this
@@ -215,8 +242,8 @@ bool QPluginLoader::load()
 
 
 /*!
-    Unloads the plugin and returns true if the plugin could be
-    unloaded; otherwise returns false.
+    Unloads the plugin and returns \c true if the plugin could be
+    unloaded; otherwise returns \c false.
 
     This happens automatically on application termination, so you
     shouldn't normally need to call this function.
@@ -242,7 +269,7 @@ bool QPluginLoader::unload()
 }
 
 /*!
-    Returns true if the plugin is loaded; otherwise returns false.
+    Returns \c true if the plugin is loaded; otherwise returns \c false.
 
     \sa load()
  */
@@ -251,6 +278,7 @@ bool QPluginLoader::isLoaded() const
     return d && d->pHnd && d->instance;
 }
 
+#if defined(QT_SHARED)
 static QString locatePlugin(const QString& fileName)
 {
     QStringList prefixes = QLibraryPrivate::prefixes_sys();
@@ -282,6 +310,7 @@ static QString locatePlugin(const QString& fileName)
         qDebug() << fileName << "not found";
     return QString();
 }
+#endif
 
 /*!
     \property QPluginLoader::fileName
@@ -407,6 +436,7 @@ void Q_CORE_EXPORT qRegisterStaticPluginFunction(QStaticPlugin plugin)
 /*!
     Returns a list of static plugin instances (root components) held
     by the plugin loader.
+    \sa staticPlugins()
 */
 QObjectList QPluginLoader::staticInstances()
 {
@@ -419,13 +449,29 @@ QObjectList QPluginLoader::staticInstances()
     return instances;
 }
 
-
-QVector<QStaticPlugin> QLibraryPrivate::staticPlugins()
+/*!
+    Returns a list of QStaticPlugins held by the plugin
+    loader. The function is similar to \l staticInstances()
+    with the addition that a QStaticPlugin also contains
+    meta data information.
+    \sa staticInstances()
+*/
+QVector<QStaticPlugin> QPluginLoader::staticPlugins()
 {
     StaticPluginList *plugins = staticPluginList();
     if (plugins)
         return *plugins;
     return QVector<QStaticPlugin>();
+}
+
+/*!
+    Returns a the meta data for the plugin as a QJsonObject.
+
+    \sa rawMetaData()
+*/
+QJsonObject QStaticPlugin::metaData() const
+{
+    return QLibraryPrivate::fromRawMetaData(rawMetaData()).object();
 }
 
 QT_END_NAMESPACE

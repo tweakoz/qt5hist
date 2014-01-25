@@ -304,6 +304,7 @@ private slots:
 
     void qmlCreation();
     void clearColor();
+    void defaultState();
 
     void grab_data();
     void grab();
@@ -328,6 +329,8 @@ private slots:
 
     void blockClosing();
 
+    void crashWhenHoverItemDeleted();
+
 #ifndef QT_NO_CURSOR
     void cursor();
 #endif
@@ -344,7 +347,11 @@ void tst_qquickwindow::constantUpdates()
     window.resize(250, 250);
     ConstantUpdateItem item(window.contentItem());
     window.show();
-    QTRY_VERIFY(item.iterations > 60);
+
+    QSignalSpy spy(&window, SIGNAL(beforeSynchronizing()));
+
+    QTRY_VERIFY(item.iterations > 10);
+    QTRY_VERIFY(spy.count() > 10);
 }
 
 void tst_qquickwindow::constantUpdatesOnWindow_data()
@@ -359,42 +366,56 @@ void tst_qquickwindow::constantUpdatesOnWindow_data()
     bool threaded = window.openglContext()->thread() != QGuiApplication::instance()->thread();
 
     if (threaded) {
-        QTest::newRow("blocked, beforeSync") << true << QByteArray(SIGNAL(beforeSynchronizing()));
         QTest::newRow("blocked, beforeRender") << true << QByteArray(SIGNAL(beforeRendering()));
         QTest::newRow("blocked, afterRender") << true << QByteArray(SIGNAL(afterRendering()));
         QTest::newRow("blocked, swapped") << true << QByteArray(SIGNAL(frameSwapped()));
     }
-    QTest::newRow("unblocked, beforeSync") << false << QByteArray(SIGNAL(beforeSynchronizing()));
     QTest::newRow("unblocked, beforeRender") << false << QByteArray(SIGNAL(beforeRendering()));
     QTest::newRow("unblocked, afterRender") << false << QByteArray(SIGNAL(afterRendering()));
     QTest::newRow("unblocked, swapped") << false << QByteArray(SIGNAL(frameSwapped()));
 }
 
+class FrameCounter : public QObject
+{
+    Q_OBJECT
+public slots:
+    void incr() { QMutexLocker locker(&m_mutex); ++m_counter; }
+public:
+    FrameCounter() : m_counter(0) {}
+    int count() { QMutexLocker locker(&m_mutex); int x = m_counter; return x; }
+private:
+    int m_counter;
+    QMutex m_mutex;
+};
+
 void tst_qquickwindow::constantUpdatesOnWindow()
 {
-    QSKIP("This test fails frequently on the present overworked CI mac machines");
     QFETCH(bool, blockedGui);
     QFETCH(QByteArray, signal);
 
     QQuickWindow window;
     window.setGeometry(100, 100, 300, 200);
 
-    connect(&window, signal.constData(), &window, SLOT(update()), Qt::DirectConnection);
+    bool ok = connect(&window, signal.constData(), &window, SLOT(update()), Qt::DirectConnection);
+    Q_ASSERT(ok);
     window.show();
-    QTRY_VERIFY(window.isExposed());
+    QTest::qWaitForWindowExposed(&window);
 
-    QSignalSpy catcher(&window, SIGNAL(frameSwapped()));
-    if (blockedGui)
-        QTest::qSleep(1000);
-    else {
+    FrameCounter counter;
+    connect(&window, SIGNAL(frameSwapped()), &counter, SLOT(incr()), Qt::DirectConnection);
+
+    int frameCount = 10;
+    QElapsedTimer timer;
+    timer.start();
+    if (blockedGui) {
+        while (counter.count() < frameCount)
+            QTest::qSleep(100);
+        QVERIFY(counter.count() >= frameCount);
+    } else {
         window.update();
-        QTest::qWait(1000);
+        QTRY_VERIFY(counter.count() > frameCount);
     }
     window.hide();
-
-    // We should expect 60, but under loaded conditions we could be skipping
-    // frames, so don't expect too much.
-    QVERIFY(catcher.size() > 10);
 }
 
 void tst_qquickwindow::touchEvent_basic()
@@ -909,15 +930,15 @@ void tst_qquickwindow::qmlCreation()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("window.qml"));
-    QObject* created = component.create();
+    QObject *created = component.create();
     QScopedPointer<QObject> cleanup(created);
     QVERIFY(created);
 
-    QQuickWindow* window = qobject_cast<QQuickWindow*>(created);
+    QQuickWindow *window = qobject_cast<QQuickWindow*>(created);
     QVERIFY(window);
     QCOMPARE(window->color(), QColor(Qt::green));
 
-    QQuickItem* item = window->findChild<QQuickItem*>("item");
+    QQuickItem *item = window->findChild<QQuickItem*>("item");
     QVERIFY(item);
     QCOMPARE(item->window(), window);
 }
@@ -933,6 +954,25 @@ void tst_qquickwindow::clearColor()
     window->show();
     QVERIFY(QTest::qWaitForWindowExposed(window));
     QCOMPARE(window->color(), QColor(Qt::blue));
+}
+
+void tst_qquickwindow::defaultState()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.setData("import QtQuick 2.0; import QtQuick.Window 2.1; Window { }", QUrl());
+    QObject *created = component.create();
+    QScopedPointer<QObject> cleanup(created);
+    QVERIFY(created);
+
+    QQuickWindow *qmlWindow = qobject_cast<QQuickWindow*>(created);
+    QVERIFY(qmlWindow);
+
+    QQuickWindow cppWindow;
+    cppWindow.show();
+    QTest::qWaitForWindowExposed(&cppWindow);
+
+    QCOMPARE(qmlWindow->windowState(), cppWindow.windowState());
 }
 
 void tst_qquickwindow::grab_data()
@@ -998,10 +1038,10 @@ void tst_qquickwindow::animationsWhileHidden()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("AnimationsWhileHidden.qml"));
-    QObject* created = component.create();
+    QObject *created = component.create();
     QScopedPointer<QObject> cleanup(created);
 
-    QQuickWindow* window = qobject_cast<QQuickWindow*>(created);
+    QQuickWindow *window = qobject_cast<QQuickWindow*>(created);
     QVERIFY(window);
     QVERIFY(window->isVisible());
 
@@ -1020,10 +1060,10 @@ void tst_qquickwindow::headless()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("Headless.qml"));
-    QObject* created = component.create();
+    QObject *created = component.create();
     QScopedPointer<QObject> cleanup(created);
 
-    QQuickWindow* window = qobject_cast<QQuickWindow*>(created);
+    QQuickWindow *window = qobject_cast<QQuickWindow*>(created);
     window->setPersistentOpenGLContext(false);
     window->setPersistentSceneGraph(false);
     QVERIFY(window);
@@ -1072,8 +1112,12 @@ void tst_qquickwindow::noUpdateWhenNothingChanges()
 
     QQuickRectangle rect(window.contentItem());
 
-    window.show();
-    QTRY_VERIFY(window.isExposed());
+    window.showNormal();
+    QTest::qWaitForWindowExposed(&window);
+    // Many platforms are broken in the sense that that they follow up
+    // the initial expose with a second expose or more. Let these go
+    // through before we let the test continue.
+    QTest::qWait(100);
 
     if (window.openglContext()->thread() == QGuiApplication::instance()->thread()) {
         QSKIP("Only threaded renderloop implements this feature");
@@ -1082,7 +1126,8 @@ void tst_qquickwindow::noUpdateWhenNothingChanges()
 
     QSignalSpy spy(&window, SIGNAL(frameSwapped()));
     rect.update();
-    QTest::qWait(500);
+    // Wait a while and verify that no more frameSwapped come our way.
+    QTest::qWait(100);
 
     QCOMPARE(spy.size(), 0);
 }
@@ -1118,13 +1163,13 @@ void tst_qquickwindow::focusObject()
 
 void tst_qquickwindow::ignoreUnhandledMouseEvents()
 {
-    QQuickWindow* window = new QQuickWindow;
+    QQuickWindow *window = new QQuickWindow;
     QScopedPointer<QQuickWindow> cleanup(window);
     window->resize(100, 100);
     window->show();
     QVERIFY(QTest::qWaitForWindowExposed(window));
 
-    QQuickItem* item = new QQuickItem;
+    QQuickItem *item = new QQuickItem;
     item->setSize(QSizeF(100, 100));
     item->setParentItem(window->contentItem());
 
@@ -1161,10 +1206,10 @@ void tst_qquickwindow::ownershipRootItem()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("ownershipRootItem.qml"));
-    QObject* created = component.create();
+    QObject *created = component.create();
     QScopedPointer<QObject> cleanup(created);
 
-    QQuickWindow* window = qobject_cast<QQuickWindow*>(created);
+    QQuickWindow *window = qobject_cast<QQuickWindow*>(created);
     QVERIFY(window);
     window->show();
     QVERIFY(QTest::qWaitForWindowExposed(window));
@@ -1292,23 +1337,23 @@ void tst_qquickwindow::cursor()
     QTest::mouseRelease(&window, Qt::LeftButton, 0, QPoint(100, 100));
 
     // Remove the cursor item from the scene. Theoretically this should make parentItem the
-    // cursorItem, but given the situation will correct itself after the next mouse move it's
-    // probably better left as is to avoid unnecessary work during tear down.
+    // cursorItem, but given the situation will correct itself after the next mouse move it
+    // simply unsets the window cursor for now.
     childItem.setParentItem(0);
-    QCOMPARE(window.cursor().shape(), Qt::WaitCursor);
+    QCOMPARE(window.cursor().shape(), Qt::ArrowCursor);
 
     parentItem.setCursor(Qt::SizeAllCursor);
     QCOMPARE(parentItem.cursor().shape(), Qt::SizeAllCursor);
-    QCOMPARE(window.cursor().shape(), Qt::WaitCursor);
+    QCOMPARE(window.cursor().shape(), Qt::ArrowCursor);
 
     // Changing the cursor of an un-parented item doesn't affect the window's cursor.
     childItem.setCursor(Qt::ClosedHandCursor);
     QCOMPARE(childItem.cursor().shape(), Qt::ClosedHandCursor);
-    QCOMPARE(window.cursor().shape(), Qt::WaitCursor);
+    QCOMPARE(window.cursor().shape(), Qt::ArrowCursor);
 
     childItem.unsetCursor();
     QCOMPARE(childItem.cursor().shape(), Qt::ArrowCursor);
-    QCOMPARE(window.cursor().shape(), Qt::WaitCursor);
+    QCOMPARE(window.cursor().shape(), Qt::ArrowCursor);
 
     QTest::mouseRelease(&window, Qt::LeftButton, 0, QPoint(100, 101));
     QCOMPARE(window.cursor().shape(), Qt::SizeAllCursor);
@@ -1328,11 +1373,6 @@ void tst_qquickwindow::hideThenDelete_data()
 
 void tst_qquickwindow::hideThenDelete()
 {
-    if (QGuiApplication::platformName() == QStringLiteral("xcb")) {
-        QSKIP("For some obscure reason this test fails in CI only");
-        return;
-    }
-
     QFETCH(bool, persistentSG);
     QFETCH(bool, persistentGL);
 
@@ -1424,7 +1464,7 @@ void tst_qquickwindow::requestActivate()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("active.qml"));
-    QQuickWindow* window1 = qobject_cast<QQuickWindow *>(component.create());
+    QQuickWindow *window1 = qobject_cast<QQuickWindow *>(component.create());
     QVERIFY(window1);
 
     QWindowList windows = QGuiApplication::topLevelWindows();
@@ -1473,7 +1513,7 @@ void tst_qquickwindow::blockClosing()
     QQmlEngine engine;
     QQmlComponent component(&engine);
     component.loadUrl(testFileUrl("ucantclosethis.qml"));
-    QQuickWindow* window = qobject_cast<QQuickWindow *>(component.create());
+    QQuickWindow *window = qobject_cast<QQuickWindow *>(component.create());
     QVERIFY(window);
     window->show();
     QTest::qWaitForWindowExposed(window);
@@ -1485,6 +1525,24 @@ void tst_qquickwindow::blockClosing()
     window->setProperty("canCloseThis", true);
     QWindowSystemInterface::handleCloseEvent(window);
     QTRY_VERIFY(!window->isVisible());
+}
+
+void tst_qquickwindow::crashWhenHoverItemDeleted()
+{
+    // QTBUG-32771
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.loadUrl(testFileUrl("hoverCrash.qml"));
+    QQuickWindow *window = qobject_cast<QQuickWindow *>(component.create());
+    QVERIFY(window);
+    window->show();
+    QTest::qWaitForWindowExposed(window);
+
+    // Simulate a move from the first rectangle to the second. Crash will happen in here
+    // Moving instantaneously from (0, 99) to (0, 102) does not cause the crash
+    for (int i = 99; i < 102; ++i) {
+        QTest::mouseMove(window, QPoint(0, i));
+    }
 }
 
 QTEST_MAIN(tst_qquickwindow)

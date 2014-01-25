@@ -89,12 +89,14 @@ Qt {
     Q_ENUMS(ScreenOrientation)
     Q_FLAGS(ScreenOrientations)
     Q_ENUMS(ConnectionType)
+    Q_ENUMS(ApplicationState)
 #ifndef QT_NO_GESTURES
     Q_ENUMS(GestureState)
     Q_ENUMS(GestureType)
 #endif
     Q_ENUMS(CursorMoveStyle)
     Q_ENUMS(TimerType)
+    Q_ENUMS(ScrollPhase)
 #endif // defined(Q_MOC_RUN)
 
 #if defined(Q_MOC_RUN)
@@ -221,7 +223,7 @@ public:
 
     // Text formatting flags for QPainter::drawText and QLabel.
     // The following two enums can be combined to one integer which
-    // is passed as 'flags' to drawText and qt_format_text.
+    // is passed as 'flags' to QPainter::drawText, QFontMetrics::boundingRect and qt_format_text.
 
     enum AlignmentFlag {
         AlignLeft = 0x0001,
@@ -236,7 +238,12 @@ public:
         AlignTop = 0x0020,
         AlignBottom = 0x0040,
         AlignVCenter = 0x0080,
-        AlignVertical_Mask = AlignTop | AlignBottom | AlignVCenter,
+        AlignBaseline = 0x0100,
+        // Note that 0x100 will clash with Qt::TextSingleLine = 0x100 due to what the comment above
+        // this enum declaration states. However, since Qt::AlignBaseline is only used by layouts,
+        // it doesn't make sense to pass Qt::AlignBaseline to QPainter::drawText(), so there
+        // shouldn't really be any ambiguity between the two overlapping enum values.
+        AlignVertical_Mask = AlignTop | AlignBottom | AlignVCenter | AlignBaseline,
 
         AlignCenter = AlignVCenter | AlignHCenter
     };
@@ -289,6 +296,7 @@ public:
         Desktop = 0x00000010 | Window,
         SubWindow = 0x00000012,
         ForeignWindow = 0x00000020 | Window,
+        CoverWindow = 0x00000040 | Window,
 
         WindowType_Mask = 0x000000ff,
         MSWindowsFixedSizeDialogHint = 0x00000100,
@@ -899,7 +907,7 @@ public:
         Key_BrightnessAdjust = 0x010000c2,
         Key_Finance = 0x010000c3,
         Key_Community = 0x010000c4,
-        Key_AudioRewind = 0x010000c5,
+        Key_AudioRewind = 0x010000c5, // Media rewind
         Key_BackForward = 0x010000c6,
         Key_ApplicationLeft = 0x010000c7,
         Key_ApplicationRight = 0x010000c8,
@@ -911,7 +919,7 @@ public:
         Key_Close = 0x010000ce,
         Key_Copy = 0x010000cf,
         Key_Cut = 0x010000d0,
-        Key_Display = 0x010000d1,
+        Key_Display = 0x010000d1, // Output switch key
         Key_DOS = 0x010000d2,
         Key_Documents = 0x010000d3,
         Key_Excel = 0x010000d4,
@@ -960,9 +968,9 @@ public:
         Key_Bluetooth = 0x010000ff,
         Key_WLAN = 0x01000100,
         Key_UWB = 0x01000101,
-        Key_AudioForward = 0x01000102,
-        Key_AudioRepeat = 0x01000103,
-        Key_AudioRandomPlay = 0x01000104,
+        Key_AudioForward = 0x01000102, // Media fast-forward
+        Key_AudioRepeat = 0x01000103, // Toggle repeat mode
+        Key_AudioRandomPlay = 0x01000104, // Toggle shuffle mode
         Key_Subtitle = 0x01000105,
         Key_AudioCycleTrack = 0x01000106,
         Key_Time = 0x01000107,
@@ -981,6 +989,14 @@ public:
         Key_TouchpadOff = 0x01000112,
 
         Key_MicMute = 0x01000113,
+
+        Key_Red = 0x01000114,
+        Key_Green = 0x01000115,
+        Key_Yellow = 0x01000116,
+        Key_Blue = 0x01000117,
+
+        Key_ChannelUp = 0x01000118,
+        Key_ChannelDown = 0x01000119,
 
         Key_MediaLast = 0x0100ffff,
 
@@ -1173,13 +1189,15 @@ public:
         SystemLocaleShortDate,
         SystemLocaleLongDate,
         DefaultLocaleShortDate,
-        DefaultLocaleLongDate
+        DefaultLocaleLongDate,
+        RFC2822Date        // RFC 2822 (+ 850 and 1036 during parsing)
     };
 
     enum TimeSpec {
         LocalTime,
         UTC,
-        OffsetFromUTC
+        OffsetFromUTC,
+        TimeZone
     };
 
     enum DayOfWeek {
@@ -1539,6 +1557,18 @@ public:
         IgnoredGesturesPropagateToParent = 0x04
     };
     Q_DECLARE_FLAGS(GestureFlags, GestureFlag)
+
+    enum NativeGestureType
+    {
+        BeginNativeGesture,
+        EndNativeGesture,
+        PanNativeGesture,
+        ZoomNativeGesture,
+        SmartZoomNativeGesture,
+        RotateNativeGesture,
+        SwipeNativeGesture
+    };
+
 #endif // QT_NO_GESTURES
 
     enum NavigationMode
@@ -1559,6 +1589,12 @@ public:
         PreciseTimer,
         CoarseTimer,
         VeryCoarseTimer
+    };
+
+    enum ScrollPhase {
+        ScrollBegin = 1,
+        ScrollUpdate,
+        ScrollEnd
     };
 }
 #ifdef Q_MOC_RUN

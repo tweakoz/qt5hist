@@ -48,6 +48,8 @@
 
 #include "qfontsubset_agl.cpp"
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 // This map is used for symbol fonts to get the correct glyph names for the latin range
@@ -99,8 +101,8 @@ QByteArray QFontSubset::glyphName(unsigned short unicode, bool symbol)
         // map from latin1 to symbol
         unicode = symbol_map[unicode];
 
-    const AGLEntry *r = qBinaryFind(unicode_to_agl_map, unicode_to_agl_map + unicode_to_agl_map_size, unicode);
-    if (r != unicode_to_agl_map + unicode_to_agl_map_size)
+    const AGLEntry *r = std::lower_bound(unicode_to_agl_map, unicode_to_agl_map + unicode_to_agl_map_size, unicode);
+    if ((r != unicode_to_agl_map + unicode_to_agl_map_size) && !(unicode < *r))
         return glyph_names + r->index;
 
     char buffer[8];
@@ -998,7 +1000,7 @@ static QList<QTtfTable> generateGlyphTables(qttf_font_tables &tables, const QLis
 {
     const int max_size_small = 65536*2;
     QList<QTtfGlyph> glyphs = _glyphs;
-    qSort(glyphs);
+    std::sort(glyphs.begin(), glyphs.end());
 
     Q_ASSERT(tables.maxp.numGlyphs == glyphs.at(glyphs.size()-1).index + 1);
     int nGlyphs = tables.maxp.numGlyphs;
@@ -1076,7 +1078,7 @@ static QByteArray bindFont(const QList<QTtfTable>& _tables)
 {
     QList<QTtfTable> tables = _tables;
 
-    qSort(tables);
+    std::sort(tables.begin(), tables.end());
 
     QByteArray font;
     const int header_size = sizeof(qint32) + 4*sizeof(quint16);

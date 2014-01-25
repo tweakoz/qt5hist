@@ -76,8 +76,9 @@ static QString MagicComment(QLatin1String("TRANSLATOR"));
 class FindTrCalls: protected AST::Visitor
 {
 public:
-    FindTrCalls(Engine *engine)
+    FindTrCalls(Engine *engine, ConversionData &cd)
         : engine(engine)
+        , m_cd(cd)
     {
     }
 
@@ -107,8 +108,9 @@ protected:
 
             const QString name = idExpr->name.toString();
             const int identLineNo = idExpr->identifierToken.startLine;
-            if (name == QLatin1String("qsTr") ||
-                name == QLatin1String("QT_TR_NOOP")) {
+            switch (trFunctionAliasManager.trFunctionByName(name)) {
+            case TrFunctionAliasManager::Function_qsTr:
+            case TrFunctionAliasManager::Function_QT_TR_NOOP: {
                 if (!node->arguments) {
                     yyMsg(identLineNo) << qPrintable(LU::tr("%1() requires at least one argument.\n").arg(name));
                     return;
@@ -140,10 +142,11 @@ protected:
                 msg.setExtraComment(extracomment.simplified());
                 msg.setId(msgid);
                 msg.setExtras(extra);
-                m_translator->extend(msg);
+                m_translator->extend(msg, m_cd);
                 consumeComment();
-            } else if (name == QLatin1String("qsTranslate") ||
-                       name == QLatin1String("QT_TRANSLATE_NOOP")) {
+                break; }
+            case TrFunctionAliasManager::Function_qsTranslate:
+            case TrFunctionAliasManager::Function_QT_TRANSLATE_NOOP: {
                 if (! (node->arguments && node->arguments->next)) {
                     yyMsg(identLineNo) << qPrintable(LU::tr("%1() requires at least two arguments.\n").arg(name));
                     return;
@@ -184,10 +187,11 @@ protected:
                 msg.setExtraComment(extracomment.simplified());
                 msg.setId(msgid);
                 msg.setExtras(extra);
-                m_translator->extend(msg);
+                m_translator->extend(msg, m_cd);
                 consumeComment();
-            } else if (name == QLatin1String("qsTrId") ||
-                       name == QLatin1String("QT_TRID_NOOP")) {
+                break; }
+            case TrFunctionAliasManager::Function_qsTrId:
+            case TrFunctionAliasManager::Function_QT_TRID_NOOP: {
                 if (!node->arguments) {
                     yyMsg(identLineNo) << qPrintable(LU::tr("%1() requires at least one argument.\n").arg(name));
                     return;
@@ -213,8 +217,9 @@ protected:
                 msg.setExtraComment(extracomment.simplified());
                 msg.setId(id);
                 msg.setExtras(extra);
-                m_translator->extend(msg);
+                m_translator->extend(msg, m_cd);
                 consumeComment();
+                break; }
             }
         }
     }
@@ -248,6 +253,7 @@ private:
 
     Engine *engine;
     Translator *m_translator;
+    ConversionData &m_cd;
     QString m_fileName;
     QString m_component;
 
@@ -460,7 +466,15 @@ static bool load(Translator &translator, const QString &filename, ConversionData
         return false;
     }
 
-    QString code = QTextStream(&file).readAll();
+    QString code;
+    if (!qmlMode) {
+        code = QTextStream(&file).readAll();
+    } else {
+        QTextStream ts(&file);
+        ts.setCodec("UTF-8");
+        ts.setAutoDetectUnicode(true);
+        code = ts.readAll();
+    }
 
     if (! qmlMode) {
         // fetch the optional pragma directives for Javascript files.
@@ -488,7 +502,7 @@ static bool load(Translator &translator, const QString &filename, ConversionData
     driver.setLexer(&lexer);
 
     if (qmlMode ? parser.parse() : parser.parseProgram()) {
-        FindTrCalls trCalls(&driver);
+        FindTrCalls trCalls(&driver, cd);
 
         //find all tr calls in the code
         trCalls(&translator, filename, parser.rootNode());

@@ -155,28 +155,43 @@ bool QProcessPrivate::createChannel(Channel &channel)
 
     if (channel.type == Channel::Normal) {
         // we're piping this channel to our own process
-        const bool isStdInChannel = (&channel == &stdinChannel);
-        if (isStdInChannel || processChannelMode != QProcess::ForwardedChannels)
-            qt_create_pipe(channel.pipe, isStdInChannel);
-        else
-            duplicateStdWriteChannel(channel.pipe, (&channel == &stdoutChannel) ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
-
-        if (processChannelMode != QProcess::ForwardedChannels) {
+        if (&channel == &stdinChannel) {
+            if (inputChannelMode != QProcess::ForwardedInputChannel) {
+                qt_create_pipe(channel.pipe, true);
+            } else {
+                channel.pipe[1] = INVALID_Q_PIPE;
+                HANDLE hStdReadChannel = GetStdHandle(STD_INPUT_HANDLE);
+                HANDLE hCurrentProcess = GetCurrentProcess();
+                DuplicateHandle(hCurrentProcess, hStdReadChannel, hCurrentProcess,
+                                &channel.pipe[0], 0, TRUE, DUPLICATE_SAME_ACCESS);
+            }
+        } else {
             QWindowsPipeReader *pipeReader = 0;
             if (&channel == &stdoutChannel) {
-                if (!stdoutReader) {
-                    stdoutReader = new QWindowsPipeReader(q);
-                    q->connect(stdoutReader, SIGNAL(readyRead()), SLOT(_q_canReadStandardOutput()));
+                if (processChannelMode != QProcess::ForwardedChannels
+                        && processChannelMode != QProcess::ForwardedOutputChannel) {
+                    if (!stdoutReader) {
+                        stdoutReader = new QWindowsPipeReader(q);
+                        q->connect(stdoutReader, SIGNAL(readyRead()), SLOT(_q_canReadStandardOutput()));
+                    }
+                    pipeReader = stdoutReader;
+                } else {
+                    duplicateStdWriteChannel(channel.pipe, STD_OUTPUT_HANDLE);
                 }
-                pipeReader = stdoutReader;
-            } else if (&channel == &stderrChannel) {
-                if (!stderrReader) {
-                    stderrReader = new QWindowsPipeReader(q);
-                    q->connect(stderrReader, SIGNAL(readyRead()), SLOT(_q_canReadStandardError()));
+            } else /* if (&channel == &stderrChannel) */ {
+                if (processChannelMode != QProcess::ForwardedChannels
+                        && processChannelMode != QProcess::ForwardedErrorChannel) {
+                    if (!stderrReader) {
+                        stderrReader = new QWindowsPipeReader(q);
+                        q->connect(stderrReader, SIGNAL(readyRead()), SLOT(_q_canReadStandardError()));
+                    }
+                    pipeReader = stderrReader;
+                } else {
+                    duplicateStdWriteChannel(channel.pipe, STD_ERROR_HANDLE);
                 }
-                pipeReader = stderrReader;
             }
             if (pipeReader) {
+                qt_create_pipe(channel.pipe, false);
                 pipeReader->setHandle(channel.pipe[0]);
                 pipeReader->startAsyncRead();
             }
@@ -479,9 +494,12 @@ void QProcessPrivate::startProcess()
     qDebug("   pass environment : %s", environment.isEmpty() ? "no" : "yes");
 #endif
 
-    // Forwarded channels must not set the CREATE_NO_WINDOW flag because this
-    // will render the stdout/stderr handles we're passing useless.
-    DWORD dwCreationFlags = (processChannelMode == QProcess::ForwardedChannels ? 0 : CREATE_NO_WINDOW);
+    // We cannot unconditionally set the CREATE_NO_WINDOW flag, because this
+    // will render the stdout/stderr handles connected to a console useless
+    // (this typically affects ForwardedChannels mode).
+    // However, we also do not want console tools launched from a GUI app to
+    // create new console windows (behavior consistent with UNIX).
+    DWORD dwCreationFlags = (GetConsoleWindow() ? 0 : CREATE_NO_WINDOW);
     dwCreationFlags |= CREATE_UNICODE_ENVIRONMENT;
     STARTUPINFOW startupInfo = { sizeof( STARTUPINFO ), 0, 0, 0,
                                  (ulong)CW_USEDEFAULT, (ulong)CW_USEDEFAULT,
@@ -636,11 +654,11 @@ bool QProcessPrivate::drainOutputPipes()
         bool readOperationActive = false;
         if (stdoutReader) {
             readyReadEmitted |= stdoutReader->waitForReadyRead(0);
-            readOperationActive = stdoutReader->isReadOperationActive();
+            readOperationActive = stdoutReader && stdoutReader->isReadOperationActive();
         }
         if (stderrReader) {
             readyReadEmitted |= stderrReader->waitForReadyRead(0);
-            readOperationActive |= stderrReader->isReadOperationActive();
+            readOperationActive |= stderrReader && stderrReader->isReadOperationActive();
         }
         someReadyReadEmitted |= readyReadEmitted;
         if (!readOperationActive || !readyReadEmitted)
@@ -663,9 +681,8 @@ bool QProcessPrivate::waitForReadyRead(int msecs)
         if (pipeWriter && pipeWriter->waitForWrite(0))
             timer.resetIncrements();
 
-        if (processChannelMode != QProcess::ForwardedChannels
-                && ((stdoutReader && stdoutReader->waitForReadyRead(0))
-                    || (stderrReader && stderrReader->waitForReadyRead(0))))
+        if ((stdoutReader && stdoutReader->waitForReadyRead(0))
+            || (stderrReader && stderrReader->waitForReadyRead(0)))
             return true;
 
         if (!pid)

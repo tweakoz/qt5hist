@@ -46,6 +46,7 @@
 #include <QStringListModel>
 #include <QSortFilterProxyModel>
 #include <QTableView>
+#include <QProxyStyle>
 
 #include <qabstractitemmodel.h>
 #include <qapplication.h>
@@ -58,6 +59,20 @@
 typedef QList<int> IntList;
 
 typedef QList<bool> BoolList;
+
+class TestStyle : public QProxyStyle
+{
+public:
+    void drawControl(ControlElement element, const QStyleOption *option, QPainter *painter, const QWidget *widget) const
+    {
+        if (element == CE_HeaderSection) {
+            if (const QStyleOptionHeader *header = qstyleoption_cast<const QStyleOptionHeader *>(option))
+                lastPosition = header->position;
+        }
+        QProxyStyle::drawControl(element, option, painter, widget);
+    }
+    mutable QStyleOptionHeader::SectionPosition lastPosition;
+};
 
 class protected_QHeaderView : public QHeaderView
 {
@@ -229,6 +244,7 @@ private slots:
     void mixedTests();
     void resizeToContentTest();
     void testStreamWithHide();
+    void testStylePosition();
 
 protected:
     void setupTestData(bool use_reset_model = false);
@@ -341,8 +357,8 @@ void tst_QHeaderView::getSetCheck()
     QVERIFY(obj1.defaultSectionSize() >= 0);
     obj1.setDefaultSectionSize(0);
     QCOMPARE(0, obj1.defaultSectionSize());
-    obj1.setDefaultSectionSize(INT_MAX);
-    QCOMPARE(INT_MAX, obj1.defaultSectionSize());
+    obj1.setDefaultSectionSize(99999);
+    QCOMPARE(99999, obj1.defaultSectionSize());
 
     // int QHeaderView::minimumSectionSize()
     // void QHeaderView::setMinimumSectionSize(int)
@@ -350,8 +366,8 @@ void tst_QHeaderView::getSetCheck()
     QVERIFY(obj1.minimumSectionSize() >= 0);
     obj1.setMinimumSectionSize(0);
     QCOMPARE(0, obj1.minimumSectionSize());
-    obj1.setMinimumSectionSize(INT_MAX);
-    QCOMPARE(INT_MAX, obj1.minimumSectionSize());
+    obj1.setMinimumSectionSize(99999);
+    QCOMPARE(99999, obj1.minimumSectionSize());
 
     // int QHeaderView::offset()
     // void QHeaderView::setOffset(int)
@@ -2705,6 +2721,20 @@ void tst_QHeaderView::resizeToContentTest()
     QVERIFY(view->sectionSize(1) > 1);
     QVERIFY(view->sectionSize(2) > 1);
 
+    // Check minimum section size
+    hh->setMinimumSectionSize(150);
+    model->setData(idx, QVariant("i"));
+    hh->resizeSections(QHeaderView::ResizeToContents);
+    QCOMPARE(hh->sectionSize(3), 150);
+    hh->setMinimumSectionSize(-1);
+
+    // Check maximumSection size
+    hh->setMaximumSectionSize(200);
+    model->setData(idx, QVariant("This is a even longer string that is expected to be more than 200 pixels"));
+    hh->resizeSections(QHeaderView::ResizeToContents);
+    QCOMPARE(hh->sectionSize(3), 200);
+    hh->setMaximumSectionSize(-1);
+
     view->setDefaultSectionSize(25); // To make sure our precalced data are correct. We do not know font height etc.
 
     const int precalced_results[] =  { -1523279360, -1523279360, -1347156568, 1, 1719705216, 1719705216, 12500 };
@@ -2730,6 +2760,55 @@ void tst_QHeaderView::testStreamWithHide()
 #else
     QSKIP("Datastream required for testStreamWithHide. Skipping this test.");
 #endif
+}
+
+void tst_QHeaderView::testStylePosition()
+{
+    topLevel->show();
+    QVERIFY(QTest::qWaitForWindowExposed(topLevel));
+
+    protected_QHeaderView *header = static_cast<protected_QHeaderView *>(view);
+
+    TestStyle proxy;
+    header->setStyle(&proxy);
+
+    QImage image(1, 1, QImage::Format_ARGB32);
+    QPainter p(&image);
+
+    // 0, 1, 2, 3
+    header->paintSection(&p, view->rect(), 0);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Beginning);
+    header->paintSection(&p, view->rect(), 1);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Middle);
+    header->paintSection(&p, view->rect(), 2);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Middle);
+    header->paintSection(&p, view->rect(), 3);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::End);
+
+    // (0),2,1,3
+    view->setSectionHidden(0, true);
+    view->swapSections(1, 2);
+    header->paintSection(&p, view->rect(), 1);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Middle);
+    header->paintSection(&p, view->rect(), 2);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Beginning);
+    header->paintSection(&p, view->rect(), 3);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::End);
+
+    // (1),2,0,(3)
+    view->setSectionHidden(3, true);
+    view->setSectionHidden(0, false);
+    view->setSectionHidden(1, true);
+    view->swapSections(0, 1);
+    header->paintSection(&p, view->rect(), 0);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::End);
+    header->paintSection(&p, view->rect(), 2);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::Beginning);
+
+    // (1),2,(0),(3)
+    view->setSectionHidden(0, true);
+    header->paintSection(&p, view->rect(), 2);
+    QCOMPARE(proxy.lastPosition, QStyleOptionHeader::OnlyOneSection);
 }
 
 QTEST_MAIN(tst_QHeaderView)

@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -46,7 +46,7 @@
 
 QT_BEGIN_NAMESPACE
 
-QSGDistanceFieldGlyphNode::QSGDistanceFieldGlyphNode(QSGContext *context)
+QSGDistanceFieldGlyphNode::QSGDistanceFieldGlyphNode(QSGRenderContext *context)
     : m_glyphNodeType(RootGlyphNode)
     , m_context(context)
     , m_material(0)
@@ -61,8 +61,8 @@ QSGDistanceFieldGlyphNode::QSGDistanceFieldGlyphNode(QSGContext *context)
     m_geometry.setDrawingMode(GL_TRIANGLES);
     setGeometry(&m_geometry);
     setFlag(UsePreprocess);
-#ifdef QML_RUNTIME_TESTING
-    description = QLatin1String("glyphs");
+#ifdef QSG_RUNTIME_DESCRIPTION
+    qsgnode_set_description(this, QLatin1String("glyphs"));
 #endif
 }
 
@@ -213,7 +213,7 @@ void QSGDistanceFieldGlyphNode::updateGeometry()
     QVector<ushort> ip;
     ip.reserve(indexes.size() * 6);
 
-    qreal maxTexMargin = m_glyph_cache->distanceFieldRadius() / 2;
+    qreal maxTexMargin = m_glyph_cache->distanceFieldRadius();
     qreal fontScale = m_glyph_cache->fontScale(fontPixelSize);
     qreal margin = 2;
     qreal texMargin = margin / fontScale;
@@ -235,7 +235,12 @@ void QSGDistanceFieldGlyphNode::updateGeometry()
         if (texture->textureId && !m_texture)
             m_texture = texture;
 
-        if (m_texture != texture) {
+        // As we use UNSIGNED_SHORT indexing in the geometry, we overload the
+        // "glyphsInOtherTextures" concept as overflow for if there are more than
+        // 65536 vertices to render which would otherwise exceed the maximum index
+        // size.  This will cause sub-nodes to be recursively created to handle any
+        // number of glyphs.
+        if (m_texture != texture || vp.size() >= 65536) {
             if (texture->textureId) {
                 GlyphInfo &glyphInfo = glyphsInOtherTextures[texture];
                 glyphInfo.indexes.append(glyphIndex);

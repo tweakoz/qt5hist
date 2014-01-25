@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -51,6 +51,10 @@
 QT_BEGIN_NAMESPACE
 
 class QOpenGLSharedResourceGuard;
+#if !defined(QT_OPENGL_ES_2)
+class QOpenGLFunctions_3_2_Core;
+#endif
+
 class Q_QUICK_PRIVATE_EXPORT QSGDefaultDistanceFieldGlyphCache : public QSGDistanceFieldGlyphCache
 {
 public:
@@ -58,11 +62,12 @@ public:
     virtual ~QSGDefaultDistanceFieldGlyphCache();
 
     void requestGlyphs(const QSet<glyph_t> &glyphs);
-    void storeGlyphs(const QHash<glyph_t, QImage> &glyphs);
+    void storeGlyphs(const QList<QDistanceField> &glyphs);
     void referenceGlyphs(const QSet<glyph_t> &glyphs);
     void releaseGlyphs(const QSet<glyph_t> &glyphs);
 
-    bool useWorkaround() const;
+    bool useTextureResizeWorkaround() const;
+    bool useTextureUploadWorkaround() const;
     int maxTextureSize() const;
 
     void setMaxTextureCount(int max) { m_maxTextureCount = max; }
@@ -73,7 +78,7 @@ private:
         GLuint texture;
         QSize size;
         QRect allocatedArea;
-        QImage image;
+        QDistanceField image;
 
         TextureInfo() : texture(0)
         { }
@@ -132,6 +137,9 @@ private:
     GLfloat m_blitTextureCoordinateArray[8];
 
     QOpenGLSharedResourceGuard *m_fboGuard;
+#if !defined(QT_OPENGL_ES_2)
+    QOpenGLFunctions_3_2_Core *m_funcs;
+#endif
 };
 
 QT_END_NAMESPACE

@@ -58,8 +58,8 @@ QT_BEGIN_NAMESPACE
 */
 
 QThreadData::QThreadData(int initialRefCount)
-    : _ref(initialRefCount), thread(0), threadId(0),
-      quitNow(false), loopLevel(0), eventDispatcher(0), canWait(true), isAdopted(false)
+    : _ref(initialRefCount), loopLevel(0), thread(0), threadId(0),
+      eventDispatcher(0), quitNow(false), canWait(true), isAdopted(false)
 {
     // fprintf(stderr, "QThreadData %p created\n", this);
 }
@@ -146,7 +146,8 @@ void QAdoptedThread::run()
 
 QThreadPrivate::QThreadPrivate(QThreadData *d)
     : QObjectPrivate(), running(false), finished(false),
-      isInFinish(false), exited(false), returnCode(-1),
+      isInFinish(false), interruptionRequested(false),
+      exited(false), returnCode(-1),
       stackSize(0), priority(QThread::InheritPriority), data(d)
 {
 #if defined (Q_OS_UNIX)
@@ -203,20 +204,20 @@ QThreadPrivate::~QThreadPrivate()
     There will not be any event loop running in the thread unless you call
     exec().
 
-    It is important to remember that a QThread object usually lives
-    in the thread where it was created, not in the thread that it
-    manages. This oft-overlooked detail means that a QThread's slots
-    will be executed in the context of its home thread, not in the
-    context of the thread it is managing. For this reason,
-    implementing new slots in a QThread subclass is error-prone and
-    discouraged.
+    It is important to remember that a QThread instance \l{QObject#Thread
+    Affinity}{lives in} the old thread that instantiated it, not in the
+    new thread that calls run(). This means that all of QThread's queued
+    slots will execute in the old thread. Thus, a developer who wishes to
+    invoke slots in the new thread must use the worker-object approach; new
+    slots should not be implemented directly into a subclassed QThread.
 
-    \note If you interact with an object, using any technique other
-    than queued signal/slot connections (e.g. direct function calls),
-    then the usual multithreading precautions need to be taken.
+    When subclassing QThread, keep in mind that the constructor executes in
+    the old thread while run() executes in the new thread. If a member
+    variable is accessed from both functions, then the variable is accessed
+    from two different threads. Check that it is safe to do so.
 
-    \note It is not possible to change the thread affinity of GUI
-    objects; they must remain in the main thread.
+    \note Care must be taken when interacting with objects across different
+    threads. See \l{Synchronizing Threads} for details.
 
     \section1 Managing threads
 
@@ -261,7 +262,7 @@ QThreadPrivate::~QThreadPrivate()
     \l{Mandelbrot Example}, as that is the name of the QThread subclass).
     Note that this is currently not available with release builds on Windows.
 
-    \sa {Thread Support in Qt}, QThreadStorage, QMutex, QSemaphore, QWaitCondition,
+    \sa {Thread Support in Qt}, QThreadStorage, {Synchronizing Threads}
         {Mandelbrot Example}, {Semaphores Example}, {Wait Conditions Example}
 */
 
@@ -404,7 +405,7 @@ QThread::QThread(QThreadPrivate &dd, QObject *parent)
 
     Note that deleting a QThread object will not stop the execution
     of the thread it manages. Deleting a running QThread (i.e.
-    isFinished() returns false) will probably result in a program
+    isFinished() returns \c false) will probably result in a program
     crash. Wait for the finished() signal before deleting the
     QThread.
 */
@@ -426,7 +427,7 @@ QThread::~QThread()
 }
 
 /*!
-    Returns true if the thread is finished; otherwise returns false.
+    Returns \c true if the thread is finished; otherwise returns \c false.
 
     \sa isRunning()
 */
@@ -438,7 +439,7 @@ bool QThread::isFinished() const
 }
 
 /*!
-    Returns true if the thread is running; otherwise returns false.
+    Returns \c true if the thread is running; otherwise returns \c false.
 
     \sa isFinished()
 */
@@ -488,7 +489,8 @@ uint QThread::stackSize() const
     that was passed to exit(). The value returned is 0 if exit() is called via
     quit().
 
-    It is necessary to call this function to start event handling.
+    This function is meant to be called from within run(). It is necessary to
+    call this function to start event handling.
 
     \sa quit(), exit()
 */
@@ -799,6 +801,63 @@ bool QThread::event(QEvent *event)
     } else {
         return QObject::event(event);
     }
+}
+
+/*!
+    \since 5.2
+
+    Request the interruption of the thread.
+    That request is advisory and it is up to code running on the thread to decide
+    if and how it should act upon such request.
+    This function does not stop any event loop running on the thread and
+    does not terminate it in any way.
+
+    \sa isInterruptionRequested()
+*/
+
+void QThread::requestInterruption()
+{
+    Q_D(QThread);
+    QMutexLocker locker(&d->mutex);
+    if (!d->running || d->finished || d->isInFinish)
+        return;
+    if (this == QCoreApplicationPrivate::theMainThread) {
+        qWarning("QThread::requestInterruption has no effect on the main thread");
+        return;
+    }
+    d->interruptionRequested = true;
+}
+
+/*!
+    \since 5.2
+
+    Return true if the task running on this thread should be stopped.
+    An interruption can be requested by requestInterruption().
+
+    This function can be used to make long running tasks cleanly interruptible.
+    Never checking or acting on the value returned by this function is safe,
+    however it is advisable do so regularly in long running functions.
+    Take care not to call it too often, to keep the overhead low.
+
+    \code
+    void long_task() {
+         forever {
+            if ( QThread::currentThread()->isInterruptionRequested() ) {
+                return;
+            }
+        }
+    }
+    \endcode
+
+    \sa currentThread() requestInterruption()
+*/
+bool QThread::isInterruptionRequested() const
+{
+    Q_D(const QThread);
+    QMutexLocker locker(&d->mutex);
+    if (!d->running || d->finished || d->isInFinish)
+        return false;
+    return d->interruptionRequested;
 }
 
 QT_END_NAMESPACE

@@ -204,7 +204,7 @@ void QV8ProfilerClient::messageReceived(const QByteArray &message)
 bool tst_QV8ProfilerService::connect(bool block, const QString &testFile,
                                      QString *error)
 {
-    const QString executable = QLibraryInfo::location(QLibraryInfo::BinariesPath) + "/qmlscene";
+    const QString executable = QLibraryInfo::location(QLibraryInfo::BinariesPath) + "/qml";
     QStringList arguments;
 
     if (block)

@@ -49,6 +49,7 @@
 #include <new>
 #include <string.h>
 #include <stdlib.h>
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -192,6 +193,11 @@ private:
         qint64 q_for_alignment_1;
         double q_for_alignment_2;
     };
+
+    bool isValidIterator(const const_iterator &i) const
+    {
+        return (i <= constEnd()) && (constBegin() <= i);
+    }
 };
 
 template <class T, int Prealloc>
@@ -312,7 +318,7 @@ Q_OUTOFLINE_TEMPLATE void QVarLengthArray<T, Prealloc>::realloc(int asize, int a
 template <class T, int Prealloc>
 Q_OUTOFLINE_TEMPLATE T QVarLengthArray<T, Prealloc>::value(int i) const
 {
-    if (i < 0 || i >= size()) {
+    if (uint(i) >= uint(size())) {
         return T();
     }
     return at(i);
@@ -320,7 +326,7 @@ Q_OUTOFLINE_TEMPLATE T QVarLengthArray<T, Prealloc>::value(int i) const
 template <class T, int Prealloc>
 Q_OUTOFLINE_TEMPLATE T QVarLengthArray<T, Prealloc>::value(int i, const T &defaultValue) const
 {
-    return (i < 0 || i >= size()) ? defaultValue : at(i);
+    return (uint(i) >= uint(size())) ? defaultValue : at(i);
 }
 
 template <class T, int Prealloc>
@@ -355,6 +361,8 @@ inline void QVarLengthArray<T, Prealloc>::replace(int i, const T &t)
 template <class T, int Prealloc>
 Q_OUTOFLINE_TEMPLATE typename QVarLengthArray<T, Prealloc>::iterator QVarLengthArray<T, Prealloc>::insert(const_iterator before, size_type n, const T &t)
 {
+    Q_ASSERT_X(isValidIterator(before), "QVarLengthArray::insert", "The specified const_iterator argument 'before' is invalid");
+
     int offset = int(before - ptr);
     if (n != 0) {
         resize(s + n);
@@ -382,11 +390,14 @@ Q_OUTOFLINE_TEMPLATE typename QVarLengthArray<T, Prealloc>::iterator QVarLengthA
 template <class T, int Prealloc>
 Q_OUTOFLINE_TEMPLATE typename QVarLengthArray<T, Prealloc>::iterator QVarLengthArray<T, Prealloc>::erase(const_iterator abegin, const_iterator aend)
 {
+    Q_ASSERT_X(isValidIterator(abegin), "QVarLengthArray::insert", "The specified const_iterator argument 'abegin' is invalid");
+    Q_ASSERT_X(isValidIterator(aend), "QVarLengthArray::insert", "The specified const_iterator argument 'aend' is invalid");
+
     int f = int(abegin - ptr);
     int l = int(aend - ptr);
     int n = l - f;
     if (QTypeInfo<T>::isComplex) {
-        qCopy(ptr + l, ptr + s, ptr + f);
+        std::copy(ptr + l, ptr + s, ptr + f);
         T *i = ptr + s;
         T *b = ptr + s - n;
         while (i != b) {

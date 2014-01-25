@@ -40,6 +40,7 @@
 ****************************************************************************/
 
 #include <QStringList>
+#include <QTimeZone>
 
 #include "qbuiltintypes_p.h"
 #include "qitem_p.h"
@@ -284,7 +285,7 @@ void AbstractDateTime::setUtcOffset(QDateTime &result,
     else
     {
         Q_ASSERT(zoResult == Offset);
-        result.setUtcOffset(zoOffset);
+        result.setOffsetFromUtc(zoOffset);
     }
 }
 
@@ -350,7 +351,7 @@ QString AbstractDateTime::zoneOffsetToString() const
         {
             Q_ASSERT(m_dateTime.timeSpec() == Qt::OffsetFromUTC);
 
-            const int zoneOffset = m_dateTime.utcOffset();
+            const int zoneOffset = m_dateTime.offsetFromUtc();
             Q_ASSERT(zoneOffset != 0);
             const int posZoneOffset = qAbs(zoneOffset);
 
@@ -384,8 +385,13 @@ void AbstractDateTime::copyTimeSpec(const QDateTime &from,
         }
         case Qt::OffsetFromUTC:
         {
-            to.setUtcOffset(from.utcOffset());
+            to.setOffsetFromUtc(from.offsetFromUtc());
             Q_ASSERT(to.timeSpec() == Qt::OffsetFromUTC);
+            return;
+        }
+        case Qt::TimeZone:
+        {
+            to.setTimeZone(from.timeZone());
             return;
         }
     }

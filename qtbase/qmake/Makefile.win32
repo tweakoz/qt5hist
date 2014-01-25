@@ -38,10 +38,10 @@ CFLAGS_BARE = -c -Fo./ \
               -I$(BUILD_PATH)\src\corelib\global -DHAVE_QCONFIG_CPP \
               -I$(SOURCE_PATH)\mkspecs\$(QMAKESPEC)  \
               -I$(SOURCE_PATH)\tools\shared \
-              -DQT_BUILD_QMAKE -DQT_BOOTSTRAPPED -DPROEVALUATOR_FULL -DPROEVALUATOR_DEBUG \
+              -DQT_BUILD_QMAKE -DQT_BOOTSTRAPPED -DPROEVALUATOR_FULL \
               -DQT_NO_TEXTCODEC -DQT_NO_UNICODETABLES -DQT_NO_COMPONENT -DQT_NO_COMPRESS \
               -DQT_NO_THREAD -DQT_NO_QOBJECT -DQT_NO_GEOM_VARIANT -DQT_NO_DATASTREAM \
-              -DUNICODE
+              -DUNICODE -DQT_CRYPTOGRAPHICHASH_ONLY_SHA1 -DQT_JSON_READONLY
 CFLAGS   = -Yuqmake_pch.h -FIqmake_pch.h -Fpqmake_pch.pch $(CFLAGS_BARE) $(CFLAGS) $(EXTRA_CPPFLAGS)
 
 CXXFLAGS_BARE = $(CFLAGS_BARE)
@@ -57,7 +57,7 @@ ADDCLEAN    = vc60.pdb vc70.pdb qmake.pdb qmake.ilk
 !ENDIF
 
 #qmake code
-OBJS        = project.obj main.obj ioutils.obj proitems.obj \
+OBJS        = project.obj main.obj ioutils.obj proitems.obj qmakevfs.obj \
               qmakeglobals.obj qmakeparser.obj qmakeevaluator.obj qmakebuiltins.obj \
               makefile.obj unixmake.obj unixmake2.obj mingw_make.obj \
               option.obj winmakefile.obj projectgenerator.obj property.obj meta.obj \
@@ -120,7 +120,13 @@ QTOBJS= \
 	qxmlstream.obj \
 	qxmlutils.obj \
 	qnumeric.obj \
-	qlogging.obj
+	qlogging.obj \
+	qjson.obj \
+	qjsondocument.obj \
+	qjsonparser.obj \
+	qjsonarray.obj \
+	qjsonobject.obj \
+	qjsonvalue.obj
 
 first all: qmake.exe
 
@@ -205,6 +211,9 @@ qmake_pch.obj:
 	$(CXX) $(CXXFLAGS) $<
 
 {$(SOURCE_PATH)\src\corelib\xml}.cpp{}.obj::
+	$(CXX) $(CXXFLAGS) $<
+
+{$(SOURCE_PATH)\src\corelib\json}.cpp{}.obj::
 	$(CXX) $(CXXFLAGS) $<
 
 {$(SOURCE_PATH)\tools\shared\windows}.cpp{}.obj::

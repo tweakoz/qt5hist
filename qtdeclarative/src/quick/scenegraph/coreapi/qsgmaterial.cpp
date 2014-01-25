@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -41,8 +41,20 @@
 
 #include "qsgmaterial.h"
 #include "qsgrenderer_p.h"
+#include "qsgmaterialshader_p.h"
+#include <private/qsgshadersourcebuilder_p.h>
 
 QT_BEGIN_NAMESPACE
+
+const char *QSGMaterialShaderPrivate::loadShaderSource(QOpenGLShader::ShaderType type) const
+{
+    QStringList files = m_sourceFiles[type];
+    QSGShaderSourceBuilder builder;
+    Q_FOREACH (const QString &file, files)
+        builder.appendSourceFile(file);
+    m_sources[type] = builder.source();
+    return m_sources[type].constData();
+}
 
 #ifndef QT_NO_DEBUG
 static bool qsg_leak_check = !qgetenv("QML_LEAK_CHECK").isEmpty();
@@ -165,13 +177,21 @@ static bool qsg_leak_check = !qgetenv("QML_LEAK_CHECK").isEmpty();
     Creates a new QSGMaterialShader.
  */
 QSGMaterialShader::QSGMaterialShader()
+    : d_ptr(new QSGMaterialShaderPrivate)
+{
+}
+
+QSGMaterialShader::QSGMaterialShader(QSGMaterialShaderPrivate &dd)
+    : d_ptr(&dd)
 {
 }
 
 /*!
-    \fn QSGMaterialShader::~QSGMaterialShader()
     \internal
  */
+QSGMaterialShader::~QSGMaterialShader()
+{
+}
 
 /*!
     \fn char const *const *QSGMaterialShader::attributeNames() const
@@ -193,6 +213,11 @@ QSGMaterialShader::QSGMaterialShader()
 
     The contents returned from this function should never change.
 */
+const char *QSGMaterialShader::vertexShader() const
+{
+    Q_D(const QSGMaterialShader);
+    return d->loadShaderSource(QOpenGLShader::Vertex);
+}
 
 
 /*!
@@ -203,6 +228,11 @@ QSGMaterialShader::QSGMaterialShader()
 
     The contents returned from this function should never change.
 */
+const char *QSGMaterialShader::fragmentShader() const
+{
+    Q_D(const QSGMaterialShader);
+    return d->loadShaderSource(QOpenGLShader::Fragment);
+}
 
 
 /*!
@@ -234,14 +264,6 @@ QSGMaterialShader::QSGMaterialShader()
 
 void QSGMaterialShader::activate()
 {
-    Q_ASSERT(program()->isLinked());
-
-    program()->bind();
-    char const *const *attr = attributeNames();
-    for (int i = 0; attr[i]; ++i) {
-        if (*attr[i])
-            program()->enableAttributeArray(i);
-    }
 }
 
 
@@ -256,11 +278,6 @@ void QSGMaterialShader::activate()
 
 void QSGMaterialShader::deactivate()
 {
-    char const *const *attr = attributeNames();
-    for (int i = 0; attr[i]; ++i) {
-        if (*attr[i])
-            program()->disableAttributeArray(i);
-    }
 }
 
 
@@ -286,7 +303,35 @@ void QSGMaterialShader::updateState(const RenderState & /* state */, QSGMaterial
 {
 }
 
+/*!
+    Sets the GLSL source file for the shader stage \a type to \a sourceFile. The
+    default implementation of the vertexShader() and fragmentShader() functions
+    will load the source files set by this function.
 
+    This function is useful when you have a single source file for a given shader
+    stage. If your shader consists of multiple source files then use
+    setShaderSourceFiles()
+
+    \sa setShaderSourceFiles(), vertexShader(), fragmentShader()
+ */
+void QSGMaterialShader::setShaderSourceFile(QOpenGLShader::ShaderType type, const QString &sourceFile)
+{
+    Q_D(QSGMaterialShader);
+    d->m_sourceFiles[type] = (QStringList() << sourceFile);
+}
+
+/*!
+    Sets the GLSL source files for the shader stage \a type to \a sourceFiles. The
+    default implementation of the vertexShader() and fragmentShader() functions
+    will load the source files set by this function in the order given.
+
+    \sa setShaderSourceFile(), vertexShader(), fragmentShader()
+ */
+void QSGMaterialShader::setShaderSourceFiles(QOpenGLShader::ShaderType type, const QStringList &sourceFiles)
+{
+    Q_D(QSGMaterialShader);
+    d->m_sourceFiles[type] = sourceFiles;
+}
 
 /*!
     This function is called when the shader is initialized to compile the
@@ -490,7 +535,7 @@ QRect QSGMaterialShader::RenderState::deviceRect() const
 
 QOpenGLContext *QSGMaterialShader::RenderState::context() const
 {
-    return static_cast<const QSGRenderer *>(m_data)->glContext();
+    return static_cast<const QSGRenderer *>(m_data)->context()->openglContext();
 }
 
 
@@ -557,6 +602,7 @@ static void qt_print_material_count()
 QSGMaterial::QSGMaterial()
     : m_flags(0)
 {
+    Q_UNUSED(m_reserved);
 #ifndef QT_NO_DEBUG
     if (qsg_leak_check) {
         ++qt_material_count;
@@ -601,6 +647,12 @@ QSGMaterial::~QSGMaterial()
 
     \value RequiresFullMatrix Set this flag to true if the material relies on
     the full matrix of the geometry nodes for rendering.
+
+    \value CustomCompileStep Starting with Qt 5.2, the scene graph will not always call
+
+    QSGMaterialShader::compile() when its shader program is compiled and linked.
+    Set this flag to enforce that the function is called.
+
  */
 
 /*!

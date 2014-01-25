@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -245,7 +245,7 @@ public:
     void setIsCurrentItem(bool c) {
         if (m_isCurrent != c) {
             m_isCurrent = c;
-            emit currentItemChanged();
+            Q_EMIT currentItemChanged();
         }
     }
 
@@ -256,7 +256,7 @@ public:
     void setOnPath(bool on) {
         if (on != m_onPath) {
             m_onPath = on;
-            emit pathChanged();
+            Q_EMIT pathChanged();
         }
     }
     qreal m_percent;

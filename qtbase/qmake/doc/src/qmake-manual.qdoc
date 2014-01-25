@@ -201,11 +201,11 @@
     The following snippet illustrates how lists of values are assigned to
     variables:
 
-    \snippet snippets/qmake/variables.pro 0
+    \snippet qmake/variables.pro 0
 
     The list of values in a variable is extended in the following way:
 
-    \snippet snippets/qmake/variables.pro 1
+    \snippet qmake/variables.pro 1
 
     \note The first assignment only includes values that are specified on
     the same line as the \c HEADERS variable. The second assignment splits
@@ -244,7 +244,7 @@
     The contents of a variable can be read by prepending the variable name with
     \c $$. This can be used to assign the contents of one variable to another:
 
-    \snippet snippets/qmake/dereferencing.pro 0
+    \snippet qmake/dereferencing.pro 0
 
     The \c $$ operator is used extensively with built-in functions that operate
     on strings and lists of values. For more information, see
@@ -255,21 +255,21 @@
     Usually, whitespace separates values in variable assignments. To specify
     values that contain spaces, you must enclose the values in double quotes:
 
-    \snippet snippets/qmake/quoting.pro 0
+    \snippet qmake/quoting.pro 0
 
     The quoted text is treated as a single item in the list of values held by
     the variable. A similar approach is used to deal with paths that contain
     spaces, particularly when defining the
     \l{INCLUDEPATH} and \l{LIBS} variables for the Windows platform:
 
-    \snippet snippets/qmake/spaces.pro quoting include paths with spaces
+    \snippet qmake/spaces.pro quoting include paths with spaces
 
     \section2 Comments
 
     You can add comments to project files. Comments begin with the \c
     # character and continue to the end of the same line. For example:
 
-    \snippet snippets/qmake/comments.pro 0
+    \snippet qmake/comments.pro 0
 
     To include the \c # character in variable assignments, it is necessary
     to use the contents of the built-in \l{LITERAL_HASH} variable.
@@ -285,12 +285,12 @@
     The \c include function is most commonly used to include other project
     files:
 
-    \snippet snippets/qmake/include.pro 0
+    \snippet qmake/include.pro 0
 
     Support for conditional structures is made available via
     \l{Scopes}{scopes} that behave like \c if statements in programming languages:
 
-    \snippet snippets/qmake/scopes.pro 0
+    \snippet qmake/scopes.pro 0
 
     The assignments inside the braces are only made if the condition is
     true. In this case, the \c win32 \l{CONFIG} option must be set. This
@@ -353,7 +353,7 @@
     versions of a project, the Makefile that qmake generates includes a rule
     that builds both versions. This can be invoked in the following way:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 0
+    \snippet code/doc_src_qmake-manual.pro 0
 
     Adding the \c build_all option to the \c CONFIG variable makes this rule
     the default when building the project.
@@ -365,8 +365,8 @@
     For example, the following lines show the function as the condition in a scope
     to test whether only the \c opengl option is in use:
 
-    \snippet snippets/qmake/configscopes.pro 4
-    \snippet snippets/qmake/configscopes.pro 5
+    \snippet qmake/configscopes.pro 4
+    \snippet qmake/configscopes.pro 5
 
     This enables different configurations to be defined for \c release and
     \c debug builds. For more information, see \l{Scopes}{Using Scopes}.
@@ -394,7 +394,7 @@
     For example, if your application uses the Qt library and you want to
     build it in \c debug mode, your project file will contain the following line:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 1
+    \snippet code/doc_src_qmake-manual.pro 1
 
     \note You must use "+=", not "=", or qmake
     will not be able to use Qt's configuration to determine the settings
@@ -409,21 +409,21 @@
     extension modules.
     For example, we can enable the XML and network modules in the following way:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 2
+    \snippet code/doc_src_qmake-manual.pro 2
 
     \note \c QT includes the \c core and \c gui modules by default, so the
     above declaration \e adds the network and XML modules to this default list.
     The following assignment \e omits the default modules, and will lead to
     errors when the application's source code is being compiled:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 3
+    \snippet code/doc_src_qmake-manual.pro 3
 
     If you want to build a project \e without the \c gui module, you need to
     exclude it with the "-=" operator. By default, \c QT contains both
     \c core and \c gui, so the following line will result in a minimal
     Qt project being built:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 4
+    \snippet code/doc_src_qmake-manual.pro 4
 
     For a list of Qt modules that you can add to the \c QT variable, see
     \l{Variables#QT}{QT}.
@@ -441,7 +441,7 @@
     \l{http://www.freedesktop.org/wiki/Software/pkg-config}{pkg-config},
     such as the D-Bus and ogg libraries, with the following lines:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 5
+    \snippet code/doc_src_qmake-manual.pro 5
 
     For more information about adding features, see
     \l{Adding New Configuration Features}.
@@ -458,14 +458,14 @@
 
     For example, the following lines show how a library can be specified:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 6
+    \snippet code/doc_src_qmake-manual.pro 6
 
     The paths containing header files can also be specified in a similar way
     using the \l{INCLUDEPATH} variable.
 
     For example, to add several paths to be searched for header files:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 7
+    \snippet code/doc_src_qmake-manual.pro 7
 */
 
 /*!
@@ -485,7 +485,7 @@
 
     The syntax used to run qmake takes the following simple form:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 8
+    \snippet code/doc_src_qmake-manual.pro 8
 
     \section1 Operating Modes
 
@@ -572,7 +572,7 @@
     \target MakefileMode
     \section1 Makefile Mode Options
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 9
+    \snippet code/doc_src_qmake-manual.pro 9
 
     In Makefile mode, qmake will generate a Makefile
     that is used to build the project. Additionally, the following options may
@@ -599,12 +599,12 @@
     before all of the files specified. For example, the following command
     generates a Makefile from test.pro:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 10
+    \snippet code/doc_src_qmake-manual.pro 10
 
     However, some of the specified options can be omitted as they are default
     values:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 11
+    \snippet code/doc_src_qmake-manual.pro 11
 
     If you are certain you want your variables processed after the
     files specified, then you may pass the \c -after option. When this
@@ -614,7 +614,7 @@
     \target ProjectMode
     \section1 Project Mode Options
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 12
+    \snippet code/doc_src_qmake-manual.pro 12
 
     In project mode, qmake will generate a project
     file. Additionally, you may supply the following options in this mode:
@@ -669,7 +669,7 @@
     For example, to use qmake from a binary package to create a Makefile in a
     project directory, invoke the following command:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 13
+    \snippet code/doc_src_qmake-manual.pro 13
 
     \section2 Using Frameworks
 
@@ -681,12 +681,12 @@
     to the build system, and this is achieved by appending linker options to the
     \l{QMAKE_LFLAGS} variable, as shown in the following example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 14
+    \snippet code/doc_src_qmake-manual.pro 14
 
     The framework itself is linked in by appending the \c{-framework} options and
     the name of the framework to the \l{LIBS} variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 15
+    \snippet code/doc_src_qmake-manual.pro 15
 
     \section2 Creating Frameworks
 
@@ -697,7 +697,7 @@
     \l{TEMPLATE}{\c lib template} and add the \c lib_bundle option to the
     \l{CONFIG} variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 16
+    \snippet code/doc_src_qmake-manual.pro 16
 
     The data associated with the library is specified using the
     \l{QMAKE_BUNDLE_DATA}
@@ -705,7 +705,7 @@
     bundle, and is often used to specify a collection of header files,
     as in the following example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 17
+    \snippet code/doc_src_qmake-manual.pro 17
 
     You use the \c FRAMEWORK_HEADERS variable to specify the headers required by
     a particular framework.
@@ -727,7 +727,7 @@
     by running qmake to generate an Xcode project from an existing qmake project
     file. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 19
+    \snippet code/doc_src_qmake-manual.pro 19
 
     \note If a project is later moved on the disk, qmake must be run again to
     process the project file and create a new Xcode project file.
@@ -778,12 +778,12 @@
 
     This can also be set using a command line option, for example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 20
+    \snippet code/doc_src_qmake-manual.pro 20
 
     It is possible to recursively generate \c{.vcproj} files in subdirectories
     and a \c{.sln} file in the main directory, by typing:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 21
+    \snippet code/doc_src_qmake-manual.pro 21
 
     Each time you update the project file, you need to run
     qmake to generate an updated Visual Studio
@@ -802,12 +802,12 @@
     Removing manifest embedding for application executables can be done with
     the following assignment to the \l{CONFIG} variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 22
+    \snippet code/doc_src_qmake-manual.pro 22
 
     Also, the manifest embedding for DLLs can be removed with the following
     assignment to the \c CONFIG variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 23
+    \snippet code/doc_src_qmake-manual.pro 23
 
     This is discussed in more detail in the
     \l{Deploying an Application on Windows#Manifest files}
@@ -908,6 +908,9 @@
             default is used.
     \row    \li thread \li Thread support is enabled. This is enabled when CONFIG
             includes \c qt, which is the default.
+    \row    \li c++11 \li C++11 support is enabled. This option has no effect if
+            the compiler does not support C++11.
+            By default, support is disabled.
     \endtable
 
     Since the \c debug option overrides the \c release option when both are
@@ -917,7 +920,7 @@
     qmake generates includes a rule that builds both
     versions, and this can be invoked in the following way:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 24
+    \snippet code/doc_src_qmake-manual.pro 24
 
     When linking a library, qmake relies on the
     underlying platform to know what other libraries this library links
@@ -954,7 +957,7 @@
     will be set for each of these modes, and you can test for this to perform
     build-specific tasks. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 25
+    \snippet code/doc_src_qmake-manual.pro 25
 
     As a result, it may be useful to define mode-specific variables, such as
     \l{#QMAKE_LFLAGS_RELEASE}{QMAKE_LFLAGS_RELEASE}, instead of general
@@ -1050,7 +1053,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 26
+    \snippet code/doc_src_qmake-manual.pro 26
 
     \target DEFINES
     \section1 DEFINES
@@ -1060,7 +1063,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 27
+    \snippet code/doc_src_qmake-manual.pro 27
 
     \target DEF_FILE
     \section1 DEF_FILE
@@ -1090,7 +1093,7 @@
     For example, the following definition uploads all PNG images in \c path to
     the directory where the build target is deployed:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 28
+    \snippet code/doc_src_qmake-manual.pro 28
 
     The default deployment target path for Windows CE is
     \c{%CSIDL_PROGRAM_FILES%\target}, which usually gets expanded to
@@ -1102,7 +1105,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 29
+    \snippet code/doc_src_qmake-manual.pro 29
 
     \note In Windows CE all linked Qt libraries will be deployed to the path
     specified by \c{myFiles.path}.
@@ -1123,7 +1126,7 @@
     For example, the following definition uploads the jpeg imageformat plugin to
     the plugins directory on the Windows CE device:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 142
+    \snippet code/doc_src_qmake-manual.pro 142
 
     \target DESTDIR
     \section1 DESTDIR
@@ -1132,7 +1135,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 30
+    \snippet code/doc_src_qmake-manual.pro 30
 
     \target DISTFILES
     \section1 DISTFILES
@@ -1142,7 +1145,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 31
+    \snippet code/doc_src_qmake-manual.pro 31
 
     \target DLLDESTDIR
     \section1 DLLDESTDIR
@@ -1160,7 +1163,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 32
+    \snippet code/doc_src_qmake-manual.pro 32
 
     \target GUID
     \section1 GUID
@@ -1183,7 +1186,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 34
+    \snippet code/doc_src_qmake-manual.pro 34
 
     See also \l{#SOURCES}{SOURCES}.
 
@@ -1202,12 +1205,12 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 35
+    \snippet code/doc_src_qmake-manual.pro 35
 
     To specify a path containing spaces, quote the path using the technique
     described in \l{Whitespace}.
 
-    \snippet snippets/qmake/spaces.pro quoting include paths with spaces
+    \snippet qmake/spaces.pro quoting include paths with spaces
 
     \target INSTALLS
     \section1 INSTALLS
@@ -1221,7 +1224,7 @@
     build target will be installed, and the \c INSTALLS assignment adds the
     build target to the list of existing resources to be installed:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 36
+    \snippet code/doc_src_qmake-manual.pro 36
 
     For more information, see \l{Installing Files}.
 
@@ -1248,7 +1251,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 37
+    \snippet code/doc_src_qmake-manual.pro 37
 
     \target LIBS
     \section1 LIBS
@@ -1261,18 +1264,18 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 38
+    \snippet code/doc_src_qmake-manual.pro 38
 
     To specify a path containing spaces, quote the path using the technique
     described in \l{Whitespace}.
 
-    \snippet snippets/qmake/spaces.pro quoting library paths with spaces
+    \snippet qmake/spaces.pro quoting library paths with spaces
 
     By default, the list of libraries stored in \c LIBS is reduced to a list of
     unique names before it is used. To change this behavior, add the
     \c no_lflags_merge option to the \l{CONFIG} variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 39
+    \snippet code/doc_src_qmake-manual.pro 39
 
     \target LITERAL_HASH
     \section1 LITERAL_HASH
@@ -1283,7 +1286,7 @@
 
     For example:
 
-    \snippet snippets/qmake/comments.pro 1
+    \snippet qmake/comments.pro 1
 
     By using \c LITERAL_HASH in this way, the \c # character can be used
     to construct a URL for the \c message() function to print to the console.
@@ -1311,7 +1314,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 40
+    \snippet code/doc_src_qmake-manual.pro 40
 
     \target OBJECTS
     \section1 OBJECTS
@@ -1328,7 +1331,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 41
+    \snippet code/doc_src_qmake-manual.pro 41
 
     \target POST_TARGETDEPS
     \section1 POST_TARGETDEPS
@@ -1417,7 +1420,7 @@
     and \c path/to/header_two.h to a group containing information about the
     headers supplied with the framework:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 43
+    \snippet code/doc_src_qmake-manual.pro 43
 
     The last line adds the information about the headers to the collection of
     resources that will be installed with the library bundle.
@@ -1439,7 +1442,7 @@
     For example, the following definition will result in a framework with the
     \c{.myframework} extension:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 44
+    \snippet code/doc_src_qmake-manual.pro 44
 
     \section1 QMAKE_CC
 
@@ -2027,7 +2030,7 @@
     \c{-compress} options are used with particular values each time that
     \c rcc is invoked:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 45
+    \snippet code/doc_src_qmake-manual.pro 45
 
     \section1 QMAKE_RPATHDIR
 
@@ -2120,6 +2123,7 @@
     \row    \li webkit                     \li \l{Qt WebKit}
     \row    \li webkitwidgets              \li \l{Qt WebKit Widgets}
     \row    \li widgets                    \li \l{Qt Widgets}
+    \row    \li winextras                  \li \l{Qt Windows Extras}
     \row    \li xml                        \li \l{Qt XML} (deprecated)
     \row    \li xmlpatterns                \li \l{Qt XML Patterns}
     \endtable
@@ -2131,7 +2135,7 @@
     exclude the \c gui value with the "-=" operator. The following line will
     result in a minimal Qt project being built:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 47
+    \snippet code/doc_src_qmake-manual.pro 47
 
     \section1 QTPLUGIN
 
@@ -2177,7 +2181,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 48
+    \snippet code/doc_src_qmake-manual.pro 48
 
     \target REQUIRES
     \section1 REQUIRES
@@ -2219,32 +2223,36 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 49
+    \snippet code/doc_src_qmake-manual.pro 49
 
     See also \l{#HEADERS}{HEADERS}.
 
     \target SUBDIRS
     \section1 SUBDIRS
 
-    This variable, when used with the \l{#TEMPLATE}{\c subdirs template}
-    Specifies the names of all subdirectories or project files that contain
-    parts of the project that need be built. Each subdirectory specified
+    This variable, when used with the \c subdirs \l{#TEMPLATE}{template}
+    specifies the names of all subdirectories or project files that contain
+    parts of the project that need to be built. Each subdirectory specified
     using this variable must contain its own project file.
+
+    It is recommended that the project file in each subdirectory has the same
+    base name as the subdirectory itself, because that makes it possible to omit
+    the file name. For example, if the subdirectory is called \c myapp, the
+    project file in that directory should be called \c myapp.pro.
+
+    Alternatively, you can specify a relative path to a .pro file in any
+    directory. It is strongly recommended that you specify only paths in the
+    current project's parent directory or its subdirectories.
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 50
-
-    It is essential that the project file in each subdirectory has the same
-    name as the subdirectory itself, so that qmake
-    can find it. For example, if the subdirectory is called \c myapp then the
-    project file in that directory should be called \c myapp.pro.
+    \snippet code/doc_src_qmake-manual.pro 50
 
     If you need to ensure that the subdirectories are built in the order in
     which they are specified, update the \l{#CONFIG}{CONFIG} variable to
     include the \c ordered option:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 51
+    \snippet code/doc_src_qmake-manual.pro 51
 
     It is possible to modify this default behavior of \c SUBDIRS by giving
     additional modifiers to \c SUBDIRS elements. Supported modifiers are:
@@ -2266,7 +2274,7 @@
     For example, define two subdirectories, both of which reside in a different directory
     than the \c SUBDIRS value, and one of the subdirectories must be built before the other:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 149
+    \snippet code/doc_src_qmake-manual.pro 149
 
     \target TARGET
     \section1 TARGET
@@ -2276,7 +2284,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 52
+    \snippet code/doc_src_qmake-manual.pro 52
 
     The project file above would produce an executable named \c myapp on
     unix and \c{myapp.exe} on Windows.
@@ -2324,7 +2332,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 53
+    \snippet code/doc_src_qmake-manual.pro 53
 
     The template can be overridden by specifying a new template type with the
     \c -t command line option. This overrides the template type \e after the .pro
@@ -2348,7 +2356,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 54
+    \snippet code/doc_src_qmake-manual.pro 54
 
     \target VERSION
     \section1 VERSION
@@ -2358,7 +2366,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 57
+    \snippet code/doc_src_qmake-manual.pro 57
 
     \section1 VER_MAJ
 
@@ -2392,7 +2400,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 58
+    \snippet code/doc_src_qmake-manual.pro 58
 
     \section1 _PRO_FILE_
 
@@ -2401,7 +2409,7 @@
     For example, the following line causes the location of the project
     file to be written to the console:
 
-    \snippet snippets/qmake/project_location.pro project file
+    \snippet qmake/project_location.pro project file
 
     \note Do not attempt to overwrite the value of this variable.
 
@@ -2412,7 +2420,7 @@
     For example, the following line causes the location of the directory
     containing the project file to be written to the console:
 
-    \snippet snippets/qmake/project_location.pro project file directory
+    \snippet qmake/project_location.pro project file directory
 
     \note Do not attempt to overwrite the value of this variable.
 */
@@ -2448,7 +2456,7 @@
     For example, the following call returns the string
     \c {"/home/johndoe/myproject/readme.txt"}:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 159
+    \snippet code/doc_src_qmake-manual.pro 159
 
     See also \l{clean_path(path)}{clean_path()},
     \l{relative_path(filePath[, base])}{relative_path()}.
@@ -2459,7 +2467,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 59
+    \snippet code/doc_src_qmake-manual.pro 59
 
     \section2 cat(filename[, mode])
 
@@ -2491,7 +2499,7 @@
 
     Returns the directory name part of the specified file. For example:
 
-    \snippet snippets/qmake/dirname.pro 0
+    \snippet qmake/dirname.pro 0
 
     \section2 enumerate_vars
 
@@ -2506,7 +2514,7 @@
     \note If you specify the string to expand literally, you need to escape the
     backslashes, as illustrated by the following code snippet:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 173
+    \snippet code/doc_src_qmake-manual.pro 173
 
     \target findfunction
     \section2 find(variablename, substr)
@@ -2514,7 +2522,7 @@
     Returns all the values in \c variablename that match the regular expression
     \c substr.
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 64
+    \snippet code/doc_src_qmake-manual.pro 64
 
     MY_VAR2 will contain '-Lone -Ltwo -Lthree -Lfour -Lfive', and MY_VAR3 will
     contain 'three two three'.
@@ -2525,7 +2533,7 @@
 
     For example, the following call returns \c firstname:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 161
+    \snippet code/doc_src_qmake-manual.pro 161
 
     See also \l{last(variablename)}{last()}.
 
@@ -2551,7 +2559,7 @@
     For example, the following call converts the hexadecimal number \c BAD to
     \c 002989:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 163
+    \snippet code/doc_src_qmake-manual.pro 163
 
     \section2 fromfile(filename, variablename)
 
@@ -2574,7 +2582,7 @@
 
     For example, the following call returns \c phone:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 162
+    \snippet code/doc_src_qmake-manual.pro 162
 
     See also \l{first(variablename)}{first()}.
 
@@ -2585,11 +2593,11 @@
     of that variable. You can use the variable to write a loop as illustrated by
     the following code snippet
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 170
+    \snippet code/doc_src_qmake-manual.pro 170
 
     instead of:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 171
+    \snippet code/doc_src_qmake-manual.pro 171
 
     \section2 lower(arg1 [, arg2 ..., argn])
 
@@ -2635,11 +2643,11 @@
     contents of the variable supplied as \c string. For example, the
     code
 
-    \snippet snippets/qmake/replace.pro 0
+    \snippet qmake/replace.pro 0
 
     prints the message:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 70
+    \snippet code/doc_src_qmake-manual.pro 70
 
     \section2 sprintf(string, arguments...)
 
@@ -2661,7 +2669,7 @@
 
     For example, the following call outputs \c surname:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 167
+    \snippet code/doc_src_qmake-manual.pro 167
 
     \section2 shadowed(path)
 
@@ -2699,7 +2707,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 168
+    \snippet code/doc_src_qmake-manual.pro 168
 
     \section2 system(command[, mode])
 
@@ -2708,7 +2716,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 72
+    \snippet code/doc_src_qmake-manual.pro 72
 
     See also the test variant of \l{system(command)}{system()}.
 
@@ -2734,7 +2742,7 @@
     Returns the list of values in \c variablename with duplicate entries removed.
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 73
+    \snippet code/doc_src_qmake-manual.pro 73
 
     \section2 upper(arg1 [, arg2 ..., argn])
 
@@ -2765,7 +2773,7 @@
 
     Basic test functions are implemented as built-in functions.
 
-    \section2 cache(variablename, [set|add|sub] [transient] [super], [source variablename])
+    \section2 cache(variablename, [set|add|sub] [transient] [super|stash], [source variablename])
 
     This is an internal function that you will typically not need.
 
@@ -2779,7 +2787,7 @@
     mutually exclusive values) a second parameter can be used to specify a set
     of values to consider. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 60
+    \snippet code/doc_src_qmake-manual.pro 60
 
     Because release is considered the active setting (for feature parsing)
     it will be the CONFIG used to generate the build file. In the common
@@ -2796,7 +2804,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 61
+    \snippet code/doc_src_qmake-manual.pro 61
 
     The contents of the scope are only processed if the \c drivers
     variable contains the value \c network. If this is the case, the
@@ -2813,7 +2821,7 @@
     only processed if the variable contains the correct number of values.
     For example:
 
-    \snippet snippets/qmake/functions.pro 2
+    \snippet qmake/functions.pro 2
 
     \section2 debug(level, message)
 
@@ -2838,7 +2846,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 160
+    \snippet code/doc_src_qmake-manual.pro 160
 
     \section2 error(string)
 
@@ -2848,7 +2856,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 62
+    \snippet code/doc_src_qmake-manual.pro 62
 
     \section2 eval(string)
 
@@ -2858,7 +2866,7 @@
     values of existing variables or create new definitions.
 
     For example:
-    \snippet snippets/qmake/functions.pro 4
+    \snippet qmake/functions.pro 4
 
     \note Quotation marks can be used to delimit the string, and
     the return value can be discarded if it is not needed.
@@ -2871,7 +2879,7 @@
     succeeds if any file matches the regular expression specified.
 
     For example:
-    \snippet snippets/code/doc_src_qmake-manual.pro 63
+    \snippet code/doc_src_qmake-manual.pro 63
 
     \note "/" should be used as a directory separator, regardless of the
     platform in use.
@@ -2895,7 +2903,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 65
+    \snippet code/doc_src_qmake-manual.pro 65
 
     \section2 greaterThan(variablename, value)
 
@@ -2905,7 +2913,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 164
+    \snippet code/doc_src_qmake-manual.pro 164
 
     It is impossible to compare two numbers as strings directly. As a
     workaround, construct temporary values with a non-numeric prefix and compare
@@ -2913,7 +2921,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 172
+    \snippet code/doc_src_qmake-manual.pro 172
 
     See also \l{lessThan(variablename, value)}{lessThan()}.
 
@@ -2923,7 +2931,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 166
+    \snippet code/doc_src_qmake-manual.pro 166
 
     \section2 include(filename)
 
@@ -2935,7 +2943,7 @@
     You can check whether the file was included by using this function as
     the condition for a scope. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 66
+    \snippet code/doc_src_qmake-manual.pro 66
 
     \section2 infile(filename, var, val)
 
@@ -2955,7 +2963,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 67
+    \snippet code/doc_src_qmake-manual.pro 67
 
     \section2 isEqual
 
@@ -2968,7 +2976,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 165
+    \snippet code/doc_src_qmake-manual.pro 165
 
     \section2 load(feature)
 
@@ -2987,7 +2995,7 @@
     Always succeeds, and displays \c string as a general message to the user.
     Unlike the \c error() function, this function allows processing to continue.
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 68
+    \snippet code/doc_src_qmake-manual.pro 68
 
     The above line causes "This is a message" to be written to the console.
     The use of quotation marks is optional, but recommended.
@@ -2998,7 +3006,7 @@
     \l{Scopes}{in conjunction with a scope} to filter out
     messages during builds. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 69
+    \snippet code/doc_src_qmake-manual.pro 69
 
     \section2 mkpath(dirPath)
 
@@ -3021,7 +3029,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 71
+    \snippet code/doc_src_qmake-manual.pro 71
 
     See also the replace variant of \l{system(command[, mode])}{system()}.
 
@@ -3037,7 +3045,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 169
+    \snippet code/doc_src_qmake-manual.pro 169
 
     \section2 warning(string)
 
@@ -3061,11 +3069,85 @@
 
     This can be useful to optionally enable or disable features. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 157
+    \snippet code/doc_src_qmake-manual.pro 157
 
     And then, in the code:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 158
+    \snippet code/doc_src_qmake-manual.pro 158
+
+    \section2 prepareRecursiveTarget(target)
+
+    Facilitates the creation of project-wide targets similar to the \c install
+    target by preparing a target that iterates through all subdirectories. For
+    example:
+
+    \snippet code/doc_src_qmake-manual.pro 174
+
+    Subdirs that have \c have_no_default or \c no_<target>_target specified in
+    their .CONFIG are excluded from this target:
+
+    \snippet code/doc_src_qmake-manual.pro 175
+
+    You must add the prepared target manually to \l{QMAKE_EXTRA_TARGETS}:
+
+    \snippet code/doc_src_qmake-manual.pro 176
+
+    To make the target global, the code above needs to be included into every
+    subdirs subproject. In addition, to make these targets do anything,
+    non-subdirs subprojects need to include respective code. The easiest way to
+    achieve this is creating a custom feature file. For example:
+
+    \snippet code/doc_src_qmake-manual.pro 177
+
+    The feature file needs to be injected into each subproject, for example by
+    .qmake.conf:
+
+    \snippet code/doc_src_qmake-manual.pro 178
+
+    \section2 qtCompileTest(test)
+
+    Builds a test project. If the test passes, true is returned and
+    \c {config_<test>} is added to the \l{CONFIG} variable. Otherwise, false is
+    returned.
+
+    To make this function available, you need to load the respective feature
+    file:
+
+    \snippet code/doc_src_qmake-manual.pro 179
+
+    This also sets the variable QMAKE_CONFIG_TESTS_DIR to the
+    \c config.tests subdirectory of the project's parent directory.
+    It is possible to override this value after loading the feature file.
+
+    Inside the tests directory, there has to be one subdirectory per test that
+    contains a simple qmake project. The following code snippet illustrates the
+    .pro file of the project:
+
+    \snippet code/doc_src_qmake-manual.pro 180
+
+    The following code snippet illustrates the main .cpp file of the project:
+
+    \snippet code/doc_src_qmake-manual.pro 181
+
+    The following code snippet shows the invocation of the test:
+
+    \snippet code/doc_src_qmake-manual.pro 182
+
+    If the test project is built successfully, the test passes.
+
+    The test results are automatically cached, which also makes them
+    available to all subprojects. It is therefore recommended to run
+    all configuration tests in the top-level project file.
+
+    To suppress the re-use of cached results, pass \c{CONFIG+=recheck}
+    to qmake.
+
+    See also \l{load(feature)}{load()}.
+
+    \section2 qtHaveModule(name)
+
+    Checks whether the Qt module specified by \c name is present.
+    For a list of possible values, see \l{Variables#QT}{QT}.
 */
 
 /*!
@@ -3082,14 +3164,14 @@
     property in qmake once, and query it each time qmake is invoked. You can set
     a property in qmake as follows:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 74
+    \snippet code/doc_src_qmake-manual.pro 74
 
     The appropriate property and value should be substituted for
     \c PROPERTY and \c VALUE.
 
     You can retrieve this information back from qmake as follows:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 75
+    \snippet code/doc_src_qmake-manual.pro 75
 
     \note \c{qmake -query} lists built-in properties in addition to the
     properties that you set with \c{qmake -set PROPERTY VALUE}.
@@ -3135,11 +3217,11 @@
     For example, you can query the installation of Qt for this version of qmake with the
     \c QT_INSTALL_PREFIX property:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 77
+    \snippet code/doc_src_qmake-manual.pro 77
 
     You can query the values of properties in a project file as follows:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 78
+    \snippet code/doc_src_qmake-manual.pro 78
 
     \target QMAKESPEC
     \section1 QMAKESPEC
@@ -3189,7 +3271,7 @@
     example, the extension used for \l moc files can be redefined with the
     following assignment in a project file:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 85
+    \snippet code/doc_src_qmake-manual.pro 85
 
     The following variables can be used to redefine common file extensions recognized
     by qmake:
@@ -3249,7 +3331,7 @@
 
     The \c = operator assigns a value to a variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 89
+    \snippet code/doc_src_qmake-manual.pro 89
 
     The above line sets the \l{TARGET} variable to \c myapp. This will overwrite any
     values previously set for \c TARGET with \c myapp.
@@ -3258,7 +3340,7 @@
 
     The \c += operator appends a new value to the list of values in a variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 90
+    \snippet code/doc_src_qmake-manual.pro 90
 
     The above line appends \c USE_MY_STUFF to the list of pre-processor defines to be put
     in the generated Makefile.
@@ -3267,7 +3349,7 @@
 
     The \c -= operator removes a value from the list of values in a variable:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 91
+    \snippet code/doc_src_qmake-manual.pro 91
 
     The above line removes \c USE_MY_STUFF from the list of pre-processor defines to be
     put in the generated Makefile.
@@ -3278,7 +3360,7 @@
     if it is not already present. This prevents values from being included many
     times in a variable. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 92
+    \snippet code/doc_src_qmake-manual.pro 92
 
     In the above line, \c USE_MY_STUFF will only be added to the list of pre-processor
     defines if it is not already defined. Note that the \l{unique}{unique()}
@@ -3290,7 +3372,7 @@
     The \c ~= operator replaces any values that match a regular expression with
     the specified value:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 93
+    \snippet code/doc_src_qmake-manual.pro 93
 
     In the above line, any values in the list that start with \c QT_D or \c QT_T are
     replaced with \c QT.
@@ -3300,7 +3382,7 @@
     The \c $$ operator is used to extract the contents of a variable, and can be
     used to pass values between variables or supply them to functions:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 94
+    \snippet code/doc_src_qmake-manual.pro 94
 
     Variables can be used to store the contents of environment variables.
     These can be evaluated at the time when qmake
@@ -3310,7 +3392,7 @@
     To obtain the contents of an environment value when
     qmake is run, use the \c $$(...) operator:
 
-    \snippet snippets/qmake/environment.pro 0
+    \snippet qmake/environment.pro 0
 
     In the above assignment, the value of the \c PWD environment variable
     is read when the project file is processed.
@@ -3318,7 +3400,7 @@
     To obtain the contents of an environment value at the time when the
     generated Makefile is processed, use the \c $(...) operator:
 
-    \snippet snippets/qmake/environment.pro 1
+    \snippet qmake/environment.pro 1
 
     In the above assignment, the value of \c PWD is read immediately
     when the project file is processed, but \c $(PWD) is assigned to
@@ -3330,7 +3412,7 @@
 
     The special \c $$[...] operator can be used to access qmake properties:
 
-    \snippet snippets/qmake/qtconfiguration.pro 0
+    \snippet qmake/qtconfiguration.pro 0
 
     For more information, see \l{Configuring qmake}.
 
@@ -3339,7 +3421,7 @@
     For example, a \QD plugin can be installed alongside \QD's built-in
     plugins if the following declaration is made in its project file:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 101
+    \snippet code/doc_src_qmake-manual.pro 101
 
     \target Scopes
     \section1 Scopes
@@ -3352,7 +3434,7 @@
     Scopes consist of a condition followed by an opening brace on the same line,
     a sequence of commands and definitions, and a closing brace on a new line:
 
-    \snippet snippets/qmake/scopes.pro syntax
+    \snippet qmake/scopes.pro syntax
 
     The opening brace \e{must be written on the same line as the condition}.
     Scopes may be concatenated to include more than one condition, as described
@@ -3363,7 +3445,7 @@
     A scope is written as a condition followed by a series of declarations
     contained within a pair of braces. For example:
 
-    \snippet snippets/qmake/scopes.pro 0
+    \snippet qmake/scopes.pro 0
 
     The above code will add the \c paintwidget_win.cpp file to the sources listed
     in the generated Makefile when building for a Windows platform. When
@@ -3374,24 +3456,24 @@
     original condition is false. For example, to process something when building
     for all platforms \e except Windows, negate the scope like this:
 
-    \snippet snippets/qmake/scopes.pro 1
+    \snippet qmake/scopes.pro 1
 
     Scopes can be nested to combine more than one condition. For instance, to
     include a particular file for a certain platform only if
     debugging is enabled, write the following:
 
-    \snippet snippets/qmake/scopes.pro 2
+    \snippet qmake/scopes.pro 2
 
     To save writing many nested scopes, you can nest scopes using the \c :
     operator. The nested scopes in the above example can be rewritten in
     the following way:
 
-    \snippet snippets/qmake/scopes.pro 3
+    \snippet qmake/scopes.pro 3
 
     You may also use the \c : operator to perform single line conditional
     assignments. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 95
+    \snippet code/doc_src_qmake-manual.pro 95
 
     The above line adds \c USE_MY_STUFF to the \l{DEFINES} variable only when
     building for the Windows platform.
@@ -3401,7 +3483,7 @@
     There is also the \c | operator to act like a logical OR operator, joining
     together a number of conditions, and requiring only one of them to be true.
 
-    \snippet snippets/qmake/scopes.pro 4
+    \snippet qmake/scopes.pro 4
 
     You can also provide alternative declarations to those within a scope by
     using an \c else scope. Each \c else scope is processed if the conditions
@@ -3409,7 +3491,7 @@
     This allows you to write complex tests when combined with other scopes
     (separated by the \c : operator as above). For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 96
+    \snippet code/doc_src_qmake-manual.pro 96
 
     \section2 Configuration and Scopes
 
@@ -3418,15 +3500,15 @@
     values can be used as the condition for a scope. For example, the list of
     values held by \c CONFIG can be extended with the \c opengl value:
 
-    \snippet snippets/qmake/configscopes.pro 0
+    \snippet qmake/configscopes.pro 0
 
     As a result of this operation, any scopes that test for \c opengl will
     be processed. We can use this feature to give the final executable an
     appropriate name:
 
-    \snippet snippets/qmake/configscopes.pro 1
-    \snippet snippets/qmake/configscopes.pro 2
-    \snippet snippets/qmake/configscopes.pro 3
+    \snippet qmake/configscopes.pro 1
+    \snippet qmake/configscopes.pro 2
+    \snippet qmake/configscopes.pro 3
 
     This feature makes it easy to change the configuration for a project
     without losing all the custom settings that might be needed for a specific
@@ -3449,7 +3531,7 @@
     following lines from a project file show the current specification in
     use and test for the \c linux-g++ specification:
 
-    \snippet snippets/qmake/specifications.pro 0
+    \snippet qmake/specifications.pro 0
 
     You can test for any other platform-compiler combination as long as a
     specification exists for it in the \c mkspecs directory.
@@ -3464,7 +3546,7 @@
     variables with a given name when it encounters an assignment to that name.
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 97
+    \snippet code/doc_src_qmake-manual.pro 97
 
     There are no restricitions on what you do to your own variables, as
     qmake will ignore them unless it needs to evaluate them when processing
@@ -3473,19 +3555,19 @@
     You can also assign the value of a current variable to another
     variable by prefixing $$ to the variable name. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 98
+    \snippet code/doc_src_qmake-manual.pro 98
 
     Now the MY_DEFINES variable contains what is in the DEFINES variable at
     this point in the project file.  This is also equivalent to:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 99
+    \snippet code/doc_src_qmake-manual.pro 99
 
     The second notation allows you to append the contents of the variable to
     another value without separating the two with a space. For example, the
     following will ensure that the final executable will be given a name
     that includes the project template being used:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 100
+    \snippet code/doc_src_qmake-manual.pro 100
 
     \target UsingReplaceFunctions
     \section1 Replace Functions
@@ -3497,7 +3579,7 @@
     operator with this type of function as you would to assign contents of one
     variable to another:
 
-    \snippet snippets/qmake/functions.pro 1
+    \snippet qmake/functions.pro 1
 
     This type of function should be used on the right-hand side of
     assignments (that is, as an operand).
@@ -3505,13 +3587,13 @@
     You can define your own functions for processing the contents of variables
     as follows:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 102
+    \snippet code/doc_src_qmake-manual.pro 102
 
     The following example function takes a variable name as its only
     argument, extracts a list of values from the variable with the
     \l{eval(string)}{eval()} built-in function, and compiles a list of files:
 
-    \snippet snippets/qmake/replacefunction.pro 0
+    \snippet qmake/replacefunction.pro 0
 
     \target UsingTestFunctions
     \section1 Test Functions
@@ -3520,7 +3602,7 @@
     used as conditions when writing scopes. These functions do not return a
     value, but instead indicate \e success or \e failure:
 
-    \snippet snippets/qmake/functions.pro 3
+    \snippet qmake/functions.pro 3
 
     This type of function should be used in conditional expressions
     only.
@@ -3529,7 +3611,7 @@
     for scopes. The following example tests whether each file in a list
     exists and returns true if they all exist, or false if not:
 
-    \snippet snippets/qmake/testfunction.pro 0
+    \snippet qmake/testfunction.pro 0
 */
 
 /*!
@@ -3586,7 +3668,7 @@
 
     For example, consider the following assignment in a project file:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 103
+    \snippet code/doc_src_qmake-manual.pro 103
 
     With this addition to the \c CONFIG variable,
     qmake will search the locations listed above for
@@ -3621,7 +3703,7 @@
     be installed. For example, a collection of documentation files can be
     described in the following way:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 79
+    \snippet code/doc_src_qmake-manual.pro 79
 
     The \c path member informs qmake that the files
     should be installed in \c /usr/local/program/doc (the path member), and the
@@ -3632,7 +3714,7 @@
     Once an install set has been fully described, you can append it to the
     install list with a line like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 80
+    \snippet code/doc_src_qmake-manual.pro 80
 
     qmake will ensure that the specified files are
     copied to the installation directory. If you require more control over
@@ -3641,7 +3723,7 @@
     qmake to execute a series of commands for this
     install set:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 81
+    \snippet code/doc_src_qmake-manual.pro 81
 
     The \c unix \l{Scopes and Conditions}{scope}
     ensures that these particular commands are only executed on Unix platforms.
@@ -3656,7 +3738,7 @@
     will decide what needs to be copied for you. Currently, the \c target and \c dlltarget
     install sets are supported. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 82
+    \snippet code/doc_src_qmake-manual.pro 82
 
     In the above lines, qmake knows what needs to
     be copied, and will handle the installation process automatically.
@@ -3672,7 +3754,7 @@
     API as found in other places in qmake. Objects are defined automatically by
     specifying their \e members. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 86
+    \snippet code/doc_src_qmake-manual.pro 86
 
     The definitions above define a qmake target called \c mytarget, containing a
     Makefile target called \c{.buildfile} which in turn is generated with the
@@ -3684,7 +3766,7 @@
     The final step is to use the \c QMAKE_EXTRA_TARGETS variable to instruct
     qmake that this object is a target to be built:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 87
+    \snippet code/doc_src_qmake-manual.pro 87
 
     This is all you need to do to actually build custom targets. Of course,
     you may want to tie one of these targets to the
@@ -3733,7 +3815,7 @@
     It is possible to customize qmake to support new compilers and
     preprocessors:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 88
+    \snippet code/doc_src_qmake-manual.pro 88
 
     With the above definitions, you can use a drop-in replacement for moc if one
     is available. The command is executed on all arguments given to the
@@ -3835,7 +3917,7 @@
     The first step is to enable dependency tracking in the library itself.
     To do this you must tell qmake to save information about the library:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 83
+    \snippet code/doc_src_qmake-manual.pro 83
 
     This is only relevant to the \c lib template, and will be ignored for all
     others. When this option is enabled, qmake will create a file ending in .prl
@@ -3848,7 +3930,7 @@
     The second step in this process is to enable reading of this meta
     information in the applications that use the static library:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 84
+    \snippet code/doc_src_qmake-manual.pro 84
 
     When this is enabled, qmake will process all
     libraries linked to by the application and find their meta-information.
@@ -3908,7 +3990,7 @@
     and \e static throughout your project. A typical precompiled header might
     look like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.cpp 104
+    \snippet code/doc_src_qmake-manual.cpp 104
 
     \note A precompiled header file needs to separate C includes from
     C++ includes, since the precompiled header file for C files may not
@@ -3920,20 +4002,22 @@
     To make your project use precompiled headers, you only need to define the
     \l{PRECOMPILED_HEADER} variable in your project file:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 105
+    \snippet code/doc_src_qmake-manual.pro 105
 
     qmake will handle the rest, to ensure the
     creation and use of the precompiled header file. You do not need to
     include the precompiled header file in \c HEADERS, as
     qmake will do this if the configuration supports precompiled headers.
 
-    All platforms that support precompiled headers have the configuration
-    option \c precompile_header set. Using this option, you may trigger
+    The MSVC and g++ specs targeting Windows (and Windows CE) enable
+    \c precompile_header by default.
+
+    Using this option, you may trigger
     conditional blocks in your project file to add settings when using
     precompiled headers.
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 106
+    \snippet code/doc_src_qmake-manual.pro 106
 
     \section1 Notes on Possible Issues
 
@@ -3942,7 +4026,7 @@
     declarations may cause two different object files with the same name to
     be generated:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 107
+    \snippet code/doc_src_qmake-manual.pro 107
 
     To avoid potential conflicts like these, give distinctive names to header
     files that will be precompiled.
@@ -3962,7 +4046,7 @@
 
     \section2 \c stable.h
 
-    \snippet snippets/qmake/precompile-stable.h 0
+    \snippet qmake/precompile-stable.h 0
 
     \omit
     ##Keeping the snippet in qtdoc is a workaround, because it contains code
@@ -4110,17 +4194,17 @@
     Just start a new line with \c {SOURCES +=} and put hello.cpp after it.
     You should have something like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 108
+    \snippet code/doc_src_qmake-manual.pro 108
 
     We repeat this for each source file in the project, until we end up
     with the following:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 109
+    \snippet code/doc_src_qmake-manual.pro 109
 
     If you prefer to use a Make-like syntax, with all the files listed in
     one go you can use the newline escaping like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 110
+    \snippet code/doc_src_qmake-manual.pro 110
 
     Now that the source files are listed in the project file, the header
     files must be added. These are added in exactly the same way as source
@@ -4129,7 +4213,7 @@
     Once you have done this, your project file should look something like
     this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 111
+    \snippet code/doc_src_qmake-manual.pro 111
 
     The target name is set automatically. It is the same as the project
     filename, but with the suffix appropriate for the platform. For example, if
@@ -4137,24 +4221,24 @@
     on Windows and \c hello on Unix. If you want to use a different name
     you can set it in the project file:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 112
+    \snippet code/doc_src_qmake-manual.pro 112
 
     The finished project file should look like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 113
+    \snippet code/doc_src_qmake-manual.pro 113
 
     You can now use qmake to generate a Makefile
     for your application. On the command line, in your project directory,
     type the following:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 114
+    \snippet code/doc_src_qmake-manual.pro 114
 
     Then type \c make or \c nmake depending on the compiler you use.
 
     For Visual Studio users, qmake can also generate Visual Studio project
     files. For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 115
+    \snippet code/doc_src_qmake-manual.pro 115
 
     \section1 Making an Application Debuggable
 
@@ -4166,7 +4250,7 @@
 
     For example:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 116
+    \snippet code/doc_src_qmake-manual.pro 116
 
     Use qmake as before to generate a Makefile. You will now obtain useful
     information about your application when running it in a debugging
@@ -4186,7 +4270,7 @@
     A simple scope that adds the platform-dependent file for
     Windows looks like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 117
+    \snippet code/doc_src_qmake-manual.pro 117
 
     When building for Windows, qmake adds \c hellowin.cpp to the list of source
     files. When building for any other platform, qmake simply ignores it. Now
@@ -4195,7 +4279,7 @@
     When you have done that, your project file should look
     something like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 118
+    \snippet code/doc_src_qmake-manual.pro 118
 
     Use qmake as before to generate a Makefile.
 
@@ -4208,13 +4292,13 @@
     the scope condition with the function. A check for a file called main.cpp looks
     like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 119
+    \snippet code/doc_src_qmake-manual.pro 119
 
     The \c{!} symbol is used to negate the test. That is, \c{exists( main.cpp )}
     is true if the file exists, and \c{!exists( main.cpp )} is true if the
     file does not exist.
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 120
+    \snippet code/doc_src_qmake-manual.pro 120
 
     Use qmake as before to generate a makefile.
     If you rename \c main.cpp temporarily, you will see the message and
@@ -4233,12 +4317,12 @@
     the other inside it. Put the settings to be processed inside the second
     scope, like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 121
+    \snippet code/doc_src_qmake-manual.pro 121
 
     Nested scopes can be joined together using colons, so the final
     project file looks like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 122
+    \snippet code/doc_src_qmake-manual.pro 122
 
     That's it! You have now completed the tutorial for
     qmake, and are ready to write project files for
@@ -4311,7 +4395,7 @@
     to specify any. qmake will add the necessary default values.
     An example project file might look like this:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 123
+    \snippet code/doc_src_qmake-manual.pro 123
 
     For items that are single valued, such as the template or the destination
     directory, we use "="; but for multi-valued items we use "+=" to \e
@@ -4449,8 +4533,8 @@
     To enable a project to be built in both modes, you must add the
     \c debug_and_release option to the \c CONFIG variable:
 
-    \snippet snippets/qmake/debug_and_release.pro 0
-    \snippet snippets/qmake/debug_and_release.pro 1
+    \snippet qmake/debug_and_release.pro 0
+    \snippet qmake/debug_and_release.pro 1
 
     The scope in the above snippet modifies the build target in each mode to
     ensure that the resulting targets have different names. Providing different
@@ -4460,23 +4544,23 @@
     generate a Makefile rule to allow the project to be built in both modes.
     This can be invoked in the following way:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 124
+    \snippet code/doc_src_qmake-manual.pro 124
 
     The \c build_all option can be added to the \c CONFIG variable in the
     project file to ensure that the project is built in both modes by default:
 
-    \snippet snippets/qmake/debug_and_release.pro 2
+    \snippet qmake/debug_and_release.pro 2
 
     This allows the Makefile to be processed using the default rule:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 125
+    \snippet code/doc_src_qmake-manual.pro 125
 
     \section2 Installing in Both Modes
 
     The \c build_all option also ensures that both versions of the target
     will be installed when the installation rule is invoked:
 
-    \snippet snippets/code/doc_src_qmake-manual.pro 126
+    \snippet code/doc_src_qmake-manual.pro 126
 
     It is possible to customize the names of the build targets depending on
     the target platform. For example, a library or plugin may be named using a
@@ -4486,11 +4570,10 @@
     Note: This was originally used in the customwidgetplugin.pro file, but is
     no longer needed there.
     \endomit
-    \snippet snippets/code/doc_src_qmake-manual.pro 127
+    \snippet code/doc_src_qmake-manual.pro 127
 
     The default behavior in the above snippet is to modify the name used for
     the build target when building in debug mode. An \c else clause could be
     added to the scope to do the same for release mode. Left as it is, the
     target name remains unmodified.
 */
-

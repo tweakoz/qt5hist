@@ -45,7 +45,6 @@
 #include "qpa/qplatformintegration.h"
 #include "qpa/qplatformdrag.h"
 #include "private/qevent_p.h"
-#include "private/qkeysequence_p.h"
 #include "qdebug.h"
 #include "qmimedata.h"
 #include "private/qdnd_p.h"
@@ -119,7 +118,7 @@ QInputEvent::~QInputEvent()
     Returns the keyboard modifier flags that existed immediately
     before the event occurred.
 
-    \sa QApplication::keyboardModifiers()
+    \sa QGuiApplication::keyboardModifiers()
 */
 
 /*! \fn void QInputEvent::setModifiers(Qt::KeyboardModifiers modifiers)
@@ -314,7 +313,7 @@ QMouseEvent::~QMouseEvent()
     Returns the position of the mouse cursor as a QPointF, relative to the
     screen that received the event.
 
-    \sa x(), y(), pos(), localPos(), screenPos()
+    \sa x(), y(), pos(), localPos(), windowPos()
 */
 
 /*!
@@ -654,6 +653,9 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos, int delta
     event data: \a qt4Delta specifies the rotation, and \a qt4Orientation the
     direction.
 
+    The phase() is initialized to Qt::ScrollUpdate. Use the other constructor
+    to specify the phase explicitly.
+
     \sa posF(), globalPosF(), angleDelta(), pixelDelta()
 */
 
@@ -661,9 +663,38 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos,
             QPoint pixelDelta, QPoint angleDelta, int qt4Delta, Qt::Orientation qt4Orientation,
             Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers)
     : QInputEvent(Wheel, modifiers), p(pos), g(globalPos), pixelD(pixelDelta),
-      angleD(angleDelta), qt4D(qt4Delta), qt4O(qt4Orientation), mouseState(buttons)
+      angleD(angleDelta), qt4D(qt4Delta), qt4O(qt4Orientation), mouseState(buttons), ph(Qt::ScrollUpdate)
 {}
 
+/*!
+    Constructs a wheel event object.
+
+    The \a pos provides the location of the mouse cursor
+    within the window. The position in global coordinates is specified
+    by \a globalPos.
+
+    \a pixelDelta contains the scrolling distance in pixels on screen, while
+    \a angleDelta contains the wheel rotation distance. \a pixelDelta is
+    optional and can be null.
+
+    The mouse and keyboard states at the time of the event are specified by
+    \a buttons and \a modifiers.
+
+    For backwards compatibility, the event can also hold monodirectional wheel
+    event data: \a qt4Delta specifies the rotation, and \a qt4Orientation the
+    direction.
+
+    The scrolling phase of the event is specified by \a phase.
+
+    \sa posF(), globalPosF(), angleDelta(), pixelDelta(), phase()
+*/
+
+QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos,
+            QPoint pixelDelta, QPoint angleDelta, int qt4Delta, Qt::Orientation qt4Orientation,
+            Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers, Qt::ScrollPhase phase)
+    : QInputEvent(Wheel, modifiers), p(pos), g(globalPos), pixelD(pixelDelta),
+      angleD(angleDelta), qt4D(qt4Delta), qt4O(qt4Orientation), mouseState(buttons), ph(phase)
+{}
 
 #endif // QT_NO_WHEELEVENT
 
@@ -678,6 +709,12 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos,
     Example:
 
     \snippet code/src_gui_kernel_qevent.cpp 0
+
+    \note On platforms that support scrolling \l{phase()}{phases}, the delta may be null when:
+    \list
+    \li scrolling is about to begin, but the distance did not yet change (Qt::ScrollBegin),
+    \li or scrolling has ended and the distance did not change anymore (Qt::ScrollEnd).
+    \endlist
 */
 
 /*!
@@ -700,6 +737,12 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos,
     Example:
 
     \snippet code/src_gui_kernel_qevent.cpp 0
+
+    \note On platforms that support scrolling \l{phase()}{phases}, the delta may be null when:
+    \list
+    \li scrolling is about to begin, but the distance did not yet change (Qt::ScrollBegin),
+    \li or scrolling has ended and the distance did not change anymore (Qt::ScrollEnd).
+    \endlist
 */
 
 /*!
@@ -792,6 +835,16 @@ QWheelEvent::QWheelEvent(const QPointF &pos, const QPointF& globalPos,
     cursor position returned by QCursor::pos().
 
     \sa posF()
+*/
+
+/*!
+    \fn Qt::ScrollPhase QWheelEvent::phase() const
+    \since 5.2
+
+    Returns the scrolling phase of this wheel event.
+
+    \note The Qt::ScrollBegin and Qt::ScrollEnd phases are currently
+    supported only on Mac OS X.
 */
 
 
@@ -967,7 +1020,7 @@ QKeyEvent::~QKeyEvent()
     confuse it by pressing both \uicontrol{Shift} keys simultaneously and
     releasing one of them, for example.
 
-    \sa QApplication::keyboardModifiers()
+    \sa QGuiApplication::keyboardModifiers()
 */
 
 Qt::KeyboardModifiers QKeyEvent::modifiers() const
@@ -990,57 +1043,16 @@ Qt::KeyboardModifiers QKeyEvent::modifiers() const
     \fn bool QKeyEvent::matches(QKeySequence::StandardKey key) const
     \since 4.2
 
-    Returns true if the key event matches the given standard \a key;
-    otherwise returns false.
+    Returns \c true if the key event matches the given standard \a key;
+    otherwise returns \c false.
 */
 bool QKeyEvent::matches(QKeySequence::StandardKey matchKey) const
 {
     //The keypad and group switch modifier should not make a difference
     uint searchkey = (modifiers() | key()) & ~(Qt::KeypadModifier | Qt::GroupSwitchModifier);
-    const uint platform = QKeySequencePrivate::currentKeyPlatforms();
 
-    uint N = QKeySequencePrivate::numberOfKeyBindings;
-    int first = 0;
-    int last = N - 1;
-
-    while (first <= last) {
-        int mid = (first + last) / 2;
-        QKeyBinding midVal = QKeySequencePrivate::keyBindings[mid];
-
-        if (searchkey > midVal.shortcut){
-            first = mid + 1;  // Search in top half
-        }
-        else if (searchkey < midVal.shortcut){
-            last = mid - 1; // Search in bottom half
-        }
-        else {
-            //found correct shortcut value, now we must check for platform match
-            if ((midVal.platform & platform) && (midVal.standardKey == matchKey)) {
-                return true;
-            } else { //We may have several equal values for different platforms, so we must search in both directions
-
-                //search forward
-                for ( unsigned int i = mid + 1 ; i < N - 1 ; ++i) {
-                    QKeyBinding current = QKeySequencePrivate::keyBindings[i];
-                    if (current.shortcut != searchkey)
-                        break;
-                    else if (current.platform & platform && current.standardKey == matchKey)
-                        return true;
-                }
-
-                //search back
-                for ( int i = mid - 1 ; i >= 0 ; --i) {
-                    QKeyBinding current = QKeySequencePrivate::keyBindings[i];
-                    if (current.shortcut != searchkey)
-                        break;
-                    else if (current.platform & platform && current.standardKey == matchKey)
-                        return true;
-                }
-                return false; //we could not find it among the matching keySequences
-            }
-        }
-    }
-    return false; //we could not find matching keySequences at all
+    const QList<QKeySequence> bindings = QKeySequence::keyBindings(matchKey);
+    return bindings.contains(QKeySequence(searchkey));
 }
 #endif // QT_NO_SHORTCUT
 
@@ -1048,8 +1060,8 @@ bool QKeyEvent::matches(QKeySequence::StandardKey matchKey) const
 /*!
     \fn bool QKeyEvent::isAutoRepeat() const
 
-    Returns true if this event comes from an auto-repeating key;
-    returns false if it comes from an initial key press.
+    Returns \c true if this event comes from an auto-repeating key;
+    returns \c false if it comes from an initial key press.
 
     Note that if the event is a multiple-key compressed event that is
     partly due to auto-repeat, this function could return either true
@@ -1116,14 +1128,14 @@ Qt::FocusReason QFocusEvent::reason() const
 /*!
     \fn bool QFocusEvent::gotFocus() const
 
-    Returns true if type() is QEvent::FocusIn; otherwise returns
+    Returns \c true if type() is QEvent::FocusIn; otherwise returns
     false.
 */
 
 /*!
     \fn bool QFocusEvent::lostFocus() const
 
-    Returns true if type() is QEvent::FocusOut; otherwise returns
+    Returns \c true if type() is QEvent::FocusOut; otherwise returns
     false.
 */
 
@@ -1360,16 +1372,16 @@ QResizeEvent::~QResizeEvent()
     signal when they are deleted.
 
     If the last top-level window is closed, the
-    QApplication::lastWindowClosed() signal is emitted.
+    QGuiApplication::lastWindowClosed() signal is emitted.
 
-    The isAccepted() function returns true if the event's receiver has
+    The isAccepted() function returns \c true if the event's receiver has
     agreed to close the widget; call accept() to agree to close the
     widget and call ignore() if the receiver of this event does not
     want the widget to be closed.
 
     \sa QWidget::close(), QWidget::hide(), QObject::destroyed(),
         QCoreApplication::exec(), QCoreApplication::quit(),
-        QApplication::lastWindowClosed()
+        QGuiApplication::lastWindowClosed()
 */
 
 /*!
@@ -2266,6 +2278,121 @@ QTabletEvent::~QTabletEvent()
 
 #endif // QT_NO_TABLETEVENT
 
+/*!
+    \class QNativeGestureEvent
+    \since 5.2
+    \brief The QNativeGestureEvent class contains parameters that describe a gesture event.
+    \inmodule QtGui
+    \ingroup events
+
+    Native gesture events are generated by the operating system, typically by
+    interpreting touch events. Gesture events are high-level events such
+    as zoom or rotate.
+
+    \table
+    \header
+        \li Event Type
+        \li Description
+        \li Touch equence
+    \row
+        \li Qt::ZoomNativeGesture
+        \li Magnification delta in percent.
+        \li OS X: Two-finger pinch.
+    \row
+        \li Qt::SmartZoomNativeGesture
+        \li Boolean magnification state.
+        \li OS X: Two-finger douple tap (trackpad) / One-finger douple tap (magic mouse).
+    \row
+        \li Qt::RotateNativeGesture
+        \li Rotation delta in degrees.
+        \li OS X: Two-finger rotate.
+    \endtable
+
+
+    In addition, BeginNativeGesture and EndNativeGesture are sent before and after
+    gesture event streams:
+
+        BeginNativeGesture
+        ZoomNativeGesture
+        ZoomNativeGesture
+        ZoomNativeGesture
+        EndNativeGesture
+
+    \sa Qt::NativeGestureType, QGestureEvent
+*/
+
+/*!
+    Constructs a native gesture event of type \a type.
+
+    The points \a localPos, \a windowPos and \a screenPos specify the
+    gesture position relative to the receiving widget or item,
+    window, and screen, respectively.
+
+    \a realValue is the OS X event parameter, \a sequenceId and \a intValue are the Windows event parameters.
+*/
+QNativeGestureEvent::QNativeGestureEvent(Qt::NativeGestureType type, const QPointF &localPos, const QPointF &windowPos,
+                                         const QPointF &screenPos, qreal realValue, ulong sequenceId, quint64 intValue)
+    : QInputEvent(QEvent::NativeGesture), mGestureType(type),
+      mLocalPos(localPos), mWindowPos(windowPos), mScreenPos(screenPos), mRealValue(realValue),
+      mSequenceId(sequenceId), mIntValue(intValue)
+{ }
+
+/*!
+    \fn QNativeGestureEvent::gestureType() const
+    \since 5.2
+
+    Returns the gesture type.
+*/
+
+/*!
+    \fn QNativeGestureEvent::value() const
+    \since 5.2
+
+    Returns the gesture value. The value should be interpreted based on the
+    gesture type. For example, a Zoom gesture provides a scale factor while a Rotate
+    gesture provides a rotation delta.
+
+    \sa QNativeGestureEvent, gestureType()
+*/
+
+/*!
+    \fn QPoint QNativeGestureEvent::globalPos() const
+    \since 5.2
+
+    Returns the position of the gesture as a QPointF in screen coordinates
+*/
+
+/*!
+    \fn QPoint QNativeGestureEvent::pos() const
+    \since 5.2
+
+    Returns the position of the mouse cursor, relative to the widget
+    or item that received the event.
+*/
+
+/*!
+    \fn QPointF QNativeGestureEvent::localPos() const
+    \since 5.2
+
+    Returns the position of the gesture as a QPointF, relative to the
+    widget or item that received the event.
+*/
+
+/*!
+    \fn QPointF QNativeGestureEvent::screenPos() const
+    \since 5.2
+
+    Returns the position of the gesture as a QPointF in screen coordinates.
+*/
+
+/*!
+    \fn QPointF QNativeGestureEvent::windowPos() const
+    \since 5.2
+
+    Returns the position of the gesture as a QPointF, relative to the
+    window that received the event.
+*/
+
 #ifndef QT_NO_DRAGANDDROP
 /*!
     Creates a QDragMoveEvent of the required \a type indicating
@@ -2564,9 +2691,8 @@ QDragEnterEvent::~QDragEnterEvent()
     is within its boundaries, if it accepts
     \l{QWidget::setAcceptDrops()}{drop events} and \l
     {QWidget::dragEnterEvent()}{enter events}. The widget should
-    examine the event to see what kind of data it
-    \l{QDragMoveEvent::provides()}{provides}, and call the accept()
-    function to accept the drop if appropriate.
+    examine the event to see what kind of \l{mimeData()}{data} it
+    provides, and call the accept() function to accept the drop if appropriate.
 
     The rectangle supplied by the answerRect() function can be used to restrict
     drops to certain parts of the widget. For example, we can check whether the
@@ -2878,7 +3004,7 @@ QActionEvent::~QActionEvent()
     window manager controls, either by iconifying the window or by
     switching to another virtual desktop where the window isn't
     visible. The window will become hidden but not withdrawn. If the
-    window was iconified, QWidget::isMinimized() returns true.
+    window was iconified, QWidget::isMinimized() returns \c true.
 
     \sa QShowEvent
 */
@@ -2991,7 +3117,7 @@ QFileOpenEvent::~QFileOpenEvent()
     \fn bool QFileOpenEvent::openFile(QFile &file, QIODevice::OpenMode flags) const
 
     Opens a QFile on the \a file referenced by this event in the mode specified
-    by \a flags. Returns true if successful; otherwise returns false.
+    by \a flags. Returns \c true if successful; otherwise returns \c false.
 
     This is necessary as some files cannot be opened by name, but require specific
     information stored in this event.
@@ -3431,7 +3557,7 @@ QDebug operator<<(QDebug dbg, const QEvent *e) {
 /*!
     \fn bool QShortcutEvent::isAmbiguous() const
 
-    Returns true if the key sequence that triggered the event is
+    Returns \c true if the key sequence that triggered the event is
     ambiguous.
 
     \sa QShortcut::activatedAmbiguously()

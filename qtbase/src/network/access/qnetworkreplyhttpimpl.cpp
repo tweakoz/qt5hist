@@ -629,10 +629,15 @@ void QNetworkReplyHttpImplPrivate::postRequest()
     QUrl url = request.url();
     httpRequest.setUrl(url);
 
-    bool ssl = url.scheme().toLower() == QLatin1String("https");
+    QString scheme = url.scheme().toLower();
+    bool ssl = (scheme == QLatin1String("https")
+                || scheme == QLatin1String("preconnect-https"));
     q->setAttribute(QNetworkRequest::ConnectionEncryptedAttribute, ssl);
     httpRequest.setSsl(ssl);
 
+    bool preConnect = (scheme == QLatin1String("preconnect-http")
+                       || scheme == QLatin1String("preconnect-https"));
+    httpRequest.setPreConnect(preConnect);
 
 #ifndef QT_NO_NETWORKPROXY
     QNetworkProxy transparentProxy, cacheProxy;
@@ -1516,7 +1521,7 @@ void QNetworkReplyHttpImplPrivate::setResumeOffset(quint64 offset)
 }
 
 /*!
-    Starts the backend.  Returns true if the backend is started.  Returns false if the backend
+    Starts the backend.  Returns \c true if the backend is started.  Returns \c false if the backend
     could not be started due to an unopened or roaming session.  The caller should recall this
     function once the session has been opened or the roaming process has finished.
 */
@@ -1956,7 +1961,7 @@ void QNetworkReplyHttpImplPrivate::metaDataChanged()
 
 /*
     Migrates the backend of the QNetworkReply to a new network connection if required.  Returns
-    true if the reply is migrated or it is not required; otherwise returns false.
+    true if the reply is migrated or it is not required; otherwise returns \c false.
 */
 bool QNetworkReplyHttpImplPrivate::migrateBackend()
 {

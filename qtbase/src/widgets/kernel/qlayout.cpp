@@ -234,7 +234,7 @@ void QLayout::addWidget(QWidget *w)
 /*!
     Sets the alignment for widget \a w to \a alignment and returns
     true if \a w is found in this layout (not including child
-    layouts); otherwise returns false.
+    layouts); otherwise returns \c false.
 */
 bool QLayout::setAlignment(QWidget *w, Qt::Alignment alignment)
 {
@@ -256,8 +256,8 @@ bool QLayout::setAlignment(QWidget *w, Qt::Alignment alignment)
   \overload
 
   Sets the alignment for the layout \a l to \a alignment and
-  returns true if \a l is found in this layout (not including child
-  layouts); otherwise returns false.
+  returns \c true if \a l is found in this layout (not including child
+  layouts); otherwise returns \c false.
 */
 bool QLayout::setAlignment(QLayout *l, Qt::Alignment alignment)
 {
@@ -1109,6 +1109,66 @@ bool QLayout::activate()
 }
 
 /*!
+    \since 5.2
+
+    Searches for widget \a from and replaces it with widget \a to if found.
+    Returns the layout item that contains the widget \a from on success.
+    Otherwise \c 0 is returned. If \a options contains \c Qt::FindChildrenRecursively
+    (the default), sub-layouts are searched for doing the replacement.
+    Any other flag in \a options is ignored.
+
+    Notice that the returned item therefore might not belong to this layout,
+    but to a sub-layout.
+
+    The returned layout item is no longer owned by the layout and should be
+    either deleted or inserted to another layout. The widget \a from is no
+    longer managed by the layout and may need to be deleted or hidden. The
+    parent of widget \a from is left unchanged.
+
+    This function works for the built-in Qt layouts, but might not work for
+    custom layouts.
+
+    \sa indexOf()
+*/
+
+QLayoutItem *QLayout::replaceWidget(QWidget *from, QWidget *to, Qt::FindChildOptions options)
+{
+    Q_D(QLayout);
+    if (!from || !to)
+        return 0;
+
+    int index = -1;
+    QLayoutItem *item = 0;
+    for (int u = 0; u < count(); ++u) {
+        item = itemAt(u);
+        if (!item)
+            continue;
+
+        if (item->widget() == from) {
+            index = u;
+            break;
+        }
+
+        if (item->layout() && (options & Qt::FindChildrenRecursively)) {
+            QLayoutItem *r = item->layout()->replaceWidget(from, to, options);
+            if (r)
+                return r;
+        }
+    }
+    if (index == -1)
+        return 0;
+
+    QLayoutItem *newitem = new QWidgetItem(to);
+    newitem->setAlignment(item->alignment());
+    QLayoutItem *r = d->replaceAt(index, newitem);
+    if (!r)
+        delete newitem;
+    else
+        addChildWidget(to);
+    return r;
+}
+
+/*!
     \fn QLayoutItem *QLayout::itemAt(int index) const
 
     Must be implemented in subclasses to return the layout item at \a
@@ -1338,7 +1398,7 @@ void QLayout::setEnabled(bool enable)
 }
 
 /*!
-    Returns true if the layout is enabled; otherwise returns false.
+    Returns \c true if the layout is enabled; otherwise returns \c false.
 
     \sa setEnabled()
 */
@@ -1443,7 +1503,7 @@ QDataStream &operator<<(QDataStream &stream, const QSizePolicy &policy)
                     policy.bits.hfw << 8 |          // [8]
                     policy.bits.ctype << 9 |        // [9, 13]
                     policy.bits.wfh << 14 |         // [14]
-                  //policy.bits.padding << 15 |     // [15]
+                    policy.bits.retainSizeWhenHidden << 15 |     // [15]
                     policy.bits.verStretch << 16 |  // [16, 23]
                     policy.bits.horStretch << 24);  // [24, 31]
     return stream << data;
@@ -1468,7 +1528,7 @@ QDataStream &operator>>(QDataStream &stream, QSizePolicy &policy)
     policy.bits.hfw =        VALUE_OF_BITS(data, 8, 1);
     policy.bits.ctype =      VALUE_OF_BITS(data, 9, 5);
     policy.bits.wfh =        VALUE_OF_BITS(data, 14, 1);
-    policy.bits.padding =   0;
+    policy.bits.retainSizeWhenHidden =    VALUE_OF_BITS(data, 15, 1);
     policy.bits.verStretch = VALUE_OF_BITS(data, 16, 8);
     policy.bits.horStretch = VALUE_OF_BITS(data, 24, 8);
     return stream;

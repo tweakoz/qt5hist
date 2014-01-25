@@ -106,7 +106,7 @@ int QStyleHints::mouseDoubleClickInterval() const
     and the current position (e.g. in the mouse move event) is \c currentPos,
     you can find out if a drag should be started with code like this:
 
-    \snippet code/src_gui_kernel_qapplication.cpp 7
+    \snippet code/src_gui_kernel_qguiapplication.cpp 6
 
     \sa startDragTime(), QPoint::manhattanLength(), {Drag and Drop}
 */
@@ -176,6 +176,9 @@ int QStyleHints::cursorFlashTime() const
     Returns \c true if the platform defaults to windows being fullscreen,
     otherwise \c false.
 
+    \note The platform may still choose to show certain windows non-fullscreen,
+    such as popups or dialogs. This method only returns the default behavior.
+
     \sa QWindow::show()
 */
 bool QStyleHints::showIsFullScreen() const
@@ -216,6 +219,17 @@ qreal QStyleHints::fontSmoothingGamma() const
 bool QStyleHints::useRtlExtensions() const
 {
     return hint(QPlatformIntegration::UseRtlExtensions).toBool();
+}
+
+/*!
+    Returns \c true if focus objects (line edits etc) should receive
+    input focus after a touch/mouse release. This is normal behavior on
+    touch platforms. On desktop platforms, the standard is to set
+    focus already on touch/mouse press.
+*/
+bool QStyleHints::setFocusOnTouchRelease() const
+{
+    return hint(QPlatformIntegration::SetFocusOnTouchRelease).toBool();
 }
 
 QT_END_NAMESPACE

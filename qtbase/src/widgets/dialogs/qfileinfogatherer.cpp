@@ -94,7 +94,9 @@ QFileInfoGatherer::QFileInfoGatherer(QObject *parent)
 QFileInfoGatherer::~QFileInfoGatherer()
 {
     abort.store(true);
+    QMutexLocker locker(&mutex);
     condition.wakeAll();
+    locker.unlock();
     wait();
 }
 
@@ -238,7 +240,7 @@ QExtendedInformation QFileInfoGatherer::getInfo(const QFileInfo &fileInfo) const
 #endif
 
 #ifdef Q_OS_WIN
-    if (m_resolveSymlinks && fileInfo.isSymLink()) {
+    if (m_resolveSymlinks && info.isSymLink(/* ignoreNtfsSymLinks = */ true)) {
         QFileInfo resolvedInfo(fileInfo.symLinkTarget());
         resolvedInfo = resolvedInfo.canonicalFilePath();
         if (resolvedInfo.exists()) {

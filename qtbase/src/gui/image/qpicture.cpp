@@ -59,6 +59,8 @@
 #include "qregion.h"
 #include "qdebug.h"
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 void qt_format_text(const QFont &fnt, const QRectF &_r,
@@ -105,6 +107,14 @@ void qt_format_text(const QFont &fnt, const QRectF &_r,
     boundingRect().
 
     \sa QMovie
+*/
+
+/*!
+    \fn QPicture &QPicture::operator=(QPicture &&other)
+
+    Move-assigns \a other to this QPicture instance.
+
+    \since 5.2
 */
 
 const char  *qt_mfhdr_tag = "QPIC"; // header tag
@@ -181,7 +191,7 @@ int QPicture::devType() const
 /*!
     \fn bool QPicture::isNull() const
 
-    Returns true if the picture contains no data; otherwise returns
+    Returns \c true if the picture contains no data; otherwise returns
     false.
 */
 
@@ -246,7 +256,7 @@ void QPicture::setData(const char* data, uint size)
 
 /*!
     Loads a picture from the file specified by \a fileName and returns
-    true if successful; otherwise invalidates the picture and returns false.
+    true if successful; otherwise invalidates the picture and returns \c false.
 
     Please note that the \a format parameter has been deprecated and
     will have no effect.
@@ -294,7 +304,7 @@ bool QPicture::load(QIODevice *dev, const char *format)
 
 /*!
     Saves a picture to the file specified by \a fileName and returns
-    true if successful; otherwise returns false.
+    true if successful; otherwise returns \c false.
 
     Please note that the \a format parameter has been deprecated and
     will have no effect.
@@ -396,8 +406,8 @@ void QPicture::setBoundingRect(const QRect &r)
 }
 
 /*!
-    Replays the picture using \a painter, and returns true if
-    successful; otherwise returns false.
+    Replays the picture using \a painter, and returns \c true if
+    successful; otherwise returns \c false.
 
     This function does exactly the same as QPainter::drawPicture()
     with (x, y) = (0, 0).
@@ -1740,7 +1750,7 @@ QByteArray QPictureIO::pictureFormat(const QString &fileName)
     Make sure that \a d is at the right position in the device (for
     example, at the beginning of the file).
 
-    \sa QIODevice::at()
+    \sa QIODevice::pos()
 */
 
 QByteArray QPictureIO::pictureFormat(QIODevice *d)
@@ -1798,7 +1808,7 @@ QList<QByteArray> QPictureIO::inputFormats()
                 result.append(p->format);
         }
     }
-    qSort(result);
+    std::sort(result.begin(), result.end());
 
     return result;
 }
@@ -1826,8 +1836,8 @@ QList<QByteArray> QPictureIO::outputFormats()
 
 
 /*!
-    Reads an picture into memory and returns true if the picture was
-    successfully read; otherwise returns false.
+    Reads an picture into memory and returns \c true if the picture was
+    successfully read; otherwise returns \c false.
 
     Before reading an picture you must set an IO device or a file name.
     If both an IO device and a file name have been set, the IO device
@@ -1899,8 +1909,8 @@ bool QPictureIO::read()
 
 
 /*!
-    Writes an picture to an IO device and returns true if the picture was
-    successfully written; otherwise returns false.
+    Writes an picture to an IO device and returns \c true if the picture was
+    successfully written; otherwise returns \c false.
 
     Before writing an picture you must set an IO device or a file name.
     If both an IO device and a file name have been set, the IO device

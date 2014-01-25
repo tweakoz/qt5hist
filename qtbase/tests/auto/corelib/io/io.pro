@@ -10,11 +10,13 @@ SUBDIRS=\
     qfile \
     largefile \
     qfileinfo \
+    qfileselector \
     qfilesystementry \
     qfilesystemwatcher \
     qiodevice \
     qipaddress \
     qlockfile \
+    qloggingcategory \
     qnodebug \
     qprocess \
     qprocess-noapplication \
@@ -35,6 +37,10 @@ SUBDIRS=\
     SUBDIRS -=\
         qwinoverlappedionotifier
 }
+
+!qtHaveModule(gui): SUBDIRS -= \
+    qdatastream \
+    qsettings
 
 !qtHaveModule(network): SUBDIRS -= \
     qfile \

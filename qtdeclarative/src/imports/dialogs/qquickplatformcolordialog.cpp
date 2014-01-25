@@ -55,7 +55,7 @@ QT_BEGIN_NAMESPACE
     \inqmlmodule QtQuick.Dialogs 1
     \ingroup dialogs
     \brief Dialog component for choosing a color.
-    \since Qt 5.1
+    \since 5.1
 
     ColorDialog allows the user to select a color. The dialog is initially
     invisible. You need to set the properties as desired first, then set
@@ -166,7 +166,7 @@ QPlatformColorDialogHelper *QQuickPlatformColorDialog::helper()
             return m_dlgHelper;
         connect(m_dlgHelper, SIGNAL(accept()), this, SLOT(accept()));
         connect(m_dlgHelper, SIGNAL(reject()), this, SLOT(reject()));
-        connect(m_dlgHelper, SIGNAL(currentColorChanged(QColor)), this, SLOT(setColor(QColor)));
+        connect(m_dlgHelper, SIGNAL(currentColorChanged(QColor)), this, SLOT(setCurrentColor(QColor)));
         connect(m_dlgHelper, SIGNAL(colorSelected(QColor)), this, SLOT(setColor(QColor)));
     }
 
@@ -232,6 +232,23 @@ QPlatformColorDialogHelper *QQuickPlatformColorDialog::helper()
     \qmlproperty color ColorDialog::color
 
     The color which the user selected.
+
+    \note This color is not always the same as the color held by the
+    currentColor property since the user can choose different colors before
+    finally selecting the one to use.
+
+    \sa currentColor
+*/
+
+/*!
+    \qmlproperty color ColorDialog::currentColor
+
+    The color which the user has currently selected.
+
+    For the color that is set when the dialog is accepted, use the \l color
+    property.
+
+    \sa color
 */
 
 QT_END_NAMESPACE

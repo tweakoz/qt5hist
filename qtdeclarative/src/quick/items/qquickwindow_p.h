@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -55,10 +55,8 @@
 
 #include "qquickitem.h"
 #include "qquickwindow.h"
-#include <private/qqmlguard_p.h>
 
 #include <QtQuick/private/qsgcontext_p.h>
-#include <private/qquickdrag_p.h>
 
 #include <QtCore/qthread.h>
 #include <QtCore/qmutex.h>
@@ -73,7 +71,9 @@ QT_BEGIN_NAMESPACE
 
 //Make it easy to identify and customize the root item if needed
 
+class QQuickAnimatorController;
 class QSGRenderLoop;
+class QQuickDragGrabber;
 
 class QQuickRootItem : public QQuickItem
 {
@@ -117,7 +117,7 @@ public:
     QQuickItem *cursorItem;
 #endif
 #ifndef QT_NO_DRAGANDDROP
-    QQuickDragGrabber dragGrabber;
+    QQuickDragGrabber *dragGrabber;
 #endif
     int touchMouseId;
     bool checkIfDoubleClicked(ulong newPressEventTimestamp);
@@ -166,6 +166,7 @@ public:
     void setFocusInScope(QQuickItem *scope, QQuickItem *item, Qt::FocusReason reason, FocusOptions = 0);
     void clearFocusInScope(QQuickItem *scope, QQuickItem *item, Qt::FocusReason reason, FocusOptions = 0);
     static void notifyFocusChangesRecur(QQuickItem **item, int remaining);
+    void clearFocusObject();
 
     void updateFocusItemTransform();
 
@@ -192,12 +193,13 @@ public:
     void updateEffectiveOpacityRoot(QQuickItem *, qreal);
     void updateDirtyNode(QQuickItem *);
 
-    void fireFrameSwapped() { emit q_func()->frameSwapped(); }
+    void fireFrameSwapped() { Q_EMIT q_func()->frameSwapped(); }
 
-    QSGContext *context;
+    QSGRenderContext *context;
     QSGRenderer *renderer;
 
     QSGRenderLoop *windowManager;
+    QQuickAnimatorController *animationController;
 
     QColor clearColor;
 
@@ -222,7 +224,7 @@ public:
 
     static bool defaultAlphaBuffer;
 
-    static bool dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent *event);
+    static bool dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent *event, int startDragThreshold = -1);
 
     // data property
     static void data_append(QQmlListProperty<QObject> *, QObject *);

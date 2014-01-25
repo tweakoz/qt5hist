@@ -86,6 +86,8 @@ QT_BEGIN_NAMESPACE
     \since 5.0
 
     \brief The QJsonParseError class is used to report errors during JSON parsing.
+
+    \sa {JSON Support in Qt}, {JSON Save Game Example}
 */
 
 /*!
@@ -851,7 +853,7 @@ static inline bool scanUtf8Char(const char *&json, const char *end, uint *result
         uc = (uc << 6) | (ch & 0x3f);
     }
 
-    if (uc < min_uc || QChar::isNonCharacter(uc) ||
+    if (uc < min_uc ||
         QChar::isSurrogate(uc) || uc > QChar::LastValidCodePoint) {
         return false;
     }

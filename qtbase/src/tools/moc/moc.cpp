@@ -787,6 +787,10 @@ void Moc::parse()
             if (!def.hasQObject && !def.hasQGadget)
                 error("Class declarations lacks Q_OBJECT macro.");
 
+            // Add meta tags to the plugin meta data:
+            if (!def.pluginData.iid.isEmpty())
+                def.pluginData.metaArgs = metaArgs;
+
             checkSuperClasses(&def);
             checkProperties(&def);
 
@@ -988,7 +992,7 @@ void Moc::parseSignals(ClassDef *def)
             prev();
         }
         FunctionDef funcDef;
-        funcDef.access = FunctionDef::Protected;
+        funcDef.access = FunctionDef::Public;
         parseFunction(&funcDef);
         if (funcDef.isVirtual)
             warning("Signals cannot be declared virtual");

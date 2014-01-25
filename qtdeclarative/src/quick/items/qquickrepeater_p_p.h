@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -75,7 +75,7 @@ private:
 
     QPointer<QQmlInstanceModel> model;
     QVariant dataSource;
-    QQmlGuard<QObject> dataSourceAsObject;
+    QPointer<QObject> dataSourceAsObject;
     bool ownModel : 1;
     bool inRequest : 1;
     bool dataSourceIsObject : 1;

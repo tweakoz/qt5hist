@@ -39,7 +39,7 @@
 ****************************************************************************/
 
 import QtQuick 2.1
-import QtQuick.Controls 1.0
+import QtQuick.Controls 1.1
 
 Rectangle {
     width: 300
@@ -56,7 +56,17 @@ Rectangle {
         shortcut: "a"
         onTriggered: text.text = "a pressed"
     }
+    Action { // ambiguous but disabled
+        enabled: false
+        shortcut: "a"
+        onTriggered: text.text = "a (disabled) pressed"
+    }
 
+    Action { // ambiguous but disabled
+        enabled: false
+        shortcut: "b"
+        onTriggered: text.text = "b (disabled) pressed"
+    }
     Action {
         shortcut: "b"
         onTriggered: text.text = "b pressed"

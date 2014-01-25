@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -87,6 +87,8 @@ public:
     QString elidedText(qreal lineWidth, const QTextLine &line, QTextLine *nextLine = 0) const;
     void elideFormats(int start, int length, int offset, QList<QTextLayout::FormatRange> *elidedFormats);
 
+    void processHoverEvent(QHoverEvent *event);
+
     QRectF layedOutTextRect;
 
     struct ExtraData {
@@ -95,6 +97,7 @@ public:
         qreal lineHeight;
         QQuickTextDocumentWithImageResources *doc;
         QString activeLink;
+        QString hoveredLink;
         int minimumPixelSize;
         int minimumPointSize;
         int nbActiveDownloads;
@@ -167,6 +170,7 @@ public:
     QRectF setupTextLayout(qreal * const baseline);
     void setupCustomLineGeometry(QTextLine &line, qreal &height, int lineOffset = 0);
     bool isLinkActivatedConnected();
+    bool isLinkHoveredConnected();
     static QString anchorAt(const QTextLayout *layout, const QPointF &mousePos);
     QString anchorAt(const QPointF &pos) const;
 
@@ -210,7 +214,7 @@ protected:
 
     QQuickPixmap *loadPixmap(QQmlContext *context, const QUrl &name);
 
-private slots:
+private Q_SLOTS:
     void requestFinished();
 
 private:

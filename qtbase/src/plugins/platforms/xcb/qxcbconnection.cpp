@@ -51,12 +51,14 @@
 #include "qxcbwmsupport.h"
 #include "qxcbnativeinterface.h"
 #include "qxcbintegration.h"
+#include "qxcbsystemtraytracker.h"
 
-#include <QtAlgorithms>
 #include <QSocketNotifier>
 #include <QAbstractEventDispatcher>
 #include <QTimer>
 #include <QByteArray>
+
+#include <algorithm>
 
 #include <dlfcn.h>
 #include <stdio.h>
@@ -262,6 +264,7 @@ QXcbConnection::QXcbConnection(QXcbNativeInterface *nativeInterface, bool canGra
     , has_xkb(false)
     , m_buttons(0)
     , m_focusWindow(0)
+    , m_systemTrayTracker(0)
 {
 #ifdef XCB_USE_XLIB
     Display *dpy = XOpenDisplay(m_displayName.constData());
@@ -287,16 +290,7 @@ QXcbConnection::QXcbConnection(QXcbNativeInterface *nativeInterface, bool canGra
         qFatal("QXcbConnection: Could not connect to display %s", m_displayName.constData());
 
     m_reader = new QXcbEventReader(this);
-    connect(m_reader, SIGNAL(eventPending()), this, SLOT(processXcbEvents()), Qt::QueuedConnection);
-    connect(m_reader, SIGNAL(finished()), this, SLOT(processXcbEvents()));
-    if (!m_reader->startThread()) {
-        QSocketNotifier *notifier = new QSocketNotifier(xcb_get_file_descriptor(xcb_connection()), QSocketNotifier::Read, this);
-        connect(notifier, SIGNAL(activated(int)), this, SLOT(processXcbEvents()));
-
-        QAbstractEventDispatcher *dispatcher = QGuiApplicationPrivate::eventDispatcher;
-        connect(dispatcher, SIGNAL(aboutToBlock()), this, SLOT(processXcbEvents()));
-        connect(dispatcher, SIGNAL(awake()), this, SLOT(processXcbEvents()));
-    }
+    m_reader->start();
 
     xcb_extension_t *extensions[] = {
         &xcb_shm_id, &xcb_xfixes_id, &xcb_randr_id, &xcb_shape_id, &xcb_sync_id,
@@ -330,6 +324,17 @@ QXcbConnection::QXcbConnection(QXcbNativeInterface *nativeInterface, bool canGra
                       m_connectionEventListener, m_screens.at(0)->root(),
                       0, 0, 1, 1, 0, XCB_WINDOW_CLASS_INPUT_ONLY,
                       m_screens.at(0)->screen()->root_visual, 0, 0);
+#ifndef QT_NO_DEBUG
+    QByteArray ba("Qt xcb connection listener window");
+    Q_XCB_CALL(xcb_change_property(xcb_connection(),
+                                   XCB_PROP_MODE_REPLACE,
+                                   m_connectionEventListener,
+                                   atom(QXcbAtom::_NET_WM_NAME),
+                                   atom(QXcbAtom::UTF8_STRING),
+                                   8,
+                                   ba.length(),
+                                   ba.constData()));
+#endif
 
     initializeGLX();
     initializeXFixes();
@@ -656,6 +661,11 @@ void QXcbConnection::log(const char *file, int line, int sequence)
 
 void QXcbConnection::handleXcbError(xcb_generic_error_t *error)
 {
+    long result = 0;
+    QAbstractEventDispatcher* dispatcher = QAbstractEventDispatcher::instance();
+    if (dispatcher && dispatcher->filterNativeEvent(m_nativeInterface->genericEventFilterType(), error, &result))
+        return;
+
     uint clamped_error_code = qMin<uint>(error->error_code, (sizeof(xcb_errors) / sizeof(xcb_errors[0])) - 1);
     uint clamped_major_code = qMin<uint>(error->major_code, (sizeof(xcb_protocol_request_codes) / sizeof(xcb_protocol_request_codes[0])) - 1);
 
@@ -813,6 +823,8 @@ void QXcbConnection::handleXcbEvent(xcb_generic_event_t *event)
             HANDLE_PLATFORM_WINDOW_EVENT(xcb_map_notify_event_t, event, handleMapNotifyEvent);
         case XCB_UNMAP_NOTIFY:
             HANDLE_PLATFORM_WINDOW_EVENT(xcb_unmap_notify_event_t, event, handleUnmapNotifyEvent);
+        case XCB_DESTROY_NOTIFY:
+            HANDLE_PLATFORM_WINDOW_EVENT(xcb_destroy_notify_event_t, event, handleDestroyNotifyEvent);
         case XCB_CLIENT_MESSAGE:
             handleClientMessageEvent((xcb_client_message_event_t *)event);
             break;
@@ -967,14 +979,27 @@ QXcbEventReader::QXcbEventReader(QXcbConnection *connection)
 #endif
 }
 
-bool QXcbEventReader::startThread()
+void QXcbEventReader::start()
 {
     if (m_xcb_poll_for_queued_event) {
+        connect(this, SIGNAL(eventPending()), m_connection, SLOT(processXcbEvents()), Qt::QueuedConnection);
+        connect(this, SIGNAL(finished()), m_connection, SLOT(processXcbEvents()));
         QThread::start();
-        return true;
+    } else {
+        // Must be done after we have an event-dispatcher. By posting a method invocation
+        // we are sure that by the time the method is called we have an event-dispatcher.
+        QMetaObject::invokeMethod(this, "registerForEvents", Qt::QueuedConnection);
     }
+}
 
-    return false;
+void QXcbEventReader::registerForEvents()
+{
+    QSocketNotifier *notifier = new QSocketNotifier(xcb_get_file_descriptor(m_connection->xcb_connection()), QSocketNotifier::Read, this);
+    connect(notifier, SIGNAL(activated(int)), m_connection, SLOT(processXcbEvents()));
+
+    QAbstractEventDispatcher *dispatcher = QGuiApplicationPrivate::eventDispatcher;
+    connect(dispatcher, SIGNAL(aboutToBlock()), m_connection, SLOT(processXcbEvents()));
+    connect(dispatcher, SIGNAL(awake()), m_connection, SLOT(processXcbEvents()));
 }
 
 void QXcbEventReader::run()
@@ -989,8 +1014,11 @@ void QXcbEventReader::run()
         emit eventPending();
     }
 
+    m_mutex.lock();
     for (int i = 0; i < m_events.size(); ++i)
         free(m_events.at(i));
+    m_events.clear();
+    m_mutex.unlock();
 }
 
 void QXcbEventReader::addEvent(xcb_generic_event_t *event)
@@ -1151,6 +1179,12 @@ void QXcbConnection::processXcbEvents()
                     continue;
             }
 
+            bool accepted = false;
+            if (clipboard()->processIncr())
+                clipboard()->incrTransactionPeeker(event, accepted);
+            if (accepted)
+                continue;
+
             QVector<PeekFunc>::iterator it = m_peekFuncs.begin();
             while (it != m_peekFuncs.end()) {
                 // These callbacks return true if the event is what they were
@@ -1193,6 +1227,8 @@ void QXcbConnection::handleClientMessageEvent(const xcb_client_message_event_t *
         drag()->handleFinished(event);
     }
 #endif
+    if (m_systemTrayTracker && event->type == atom(QXcbAtom::MANAGER))
+        m_systemTrayTracker->notifyManagerClientMessageEvent(event);
 
     QXcbWindow *window = platformWindowFromId(event->window);
     if (!window)
@@ -1228,6 +1264,8 @@ static const char * xcb_atomnames = {
     "_NET_WM_CONTEXT_HELP\0"
     "_NET_WM_SYNC_REQUEST\0"
     "_NET_WM_SYNC_REQUEST_COUNTER\0"
+    "MANAGER\0"
+    "_NET_SYSTEM_TRAY_OPCODE\0"
 
     // ICCCM window state
     "WM_STATE\0"
@@ -1385,6 +1423,8 @@ static const char * xcb_atomnames = {
     "Abs MT Pressure\0"
     "Abs MT Tracking ID\0"
     "Max Contacts\0"
+    "Rel X\0"
+    "Rel Y\0"
     // XInput2 tablet
     "Abs X\0"
     "Abs Y\0"
@@ -1398,12 +1438,15 @@ static const char * xcb_atomnames = {
 #if XCB_USE_MAEMO_WINDOW_PROPERTIES
     "_MEEGOTOUCH_ORIENTATION_ANGLE\0"
 #endif
-    "_XSETTINGS_SETTINGS\0" // \0\0 terminates loop.
+    "_XSETTINGS_SETTINGS\0"
+    "_COMPIZ_DECOR_PENDING\0"
+    "_COMPIZ_DECOR_REQUEST\0"
+    "_COMPIZ_DECOR_DELETE_PIXMAP\0" // \0\0 terminates loop.
 };
 
-xcb_atom_t QXcbConnection::atom(QXcbAtom::Atom atom)
+QXcbAtom::Atom QXcbConnection::qatom(xcb_atom_t xatom) const
 {
-    return m_allAtoms[atom];
+    return static_cast<QXcbAtom::Atom>(std::find(m_allAtoms, m_allAtoms + QXcbAtom::NAtoms, xatom) - m_allAtoms);
 }
 
 void QXcbConnection::initializeAllAtoms() {
@@ -1706,10 +1749,26 @@ bool QXcbConnection::xi2GetValuatorValueIfSet(void *event, int valuatorNum, doub
     return true;
 }
 
-bool QXcbConnection::xi2PrepareXIGenericDeviceEvent(xcb_ge_event_t *event, int opCode)
+// Starting from the xcb version 1.9.3 struct xcb_ge_event_t has changed:
+// - "pad0" became "extension"
+// - "pad1" and "pad" became "pad0"
+// New and old version of this struct share the following fields:
+// NOTE: API might change again in the next release of xcb in which case this comment will
+// need to be updated to reflect the reality.
+typedef struct qt_xcb_ge_event_t {
+    uint8_t  response_type;
+    uint8_t  extension;
+    uint16_t sequence;
+    uint32_t length;
+    uint16_t event_type;
+} qt_xcb_ge_event_t;
+
+bool QXcbConnection::xi2PrepareXIGenericDeviceEvent(xcb_ge_event_t *ev, int opCode)
 {
-    // xGenericEvent has "extension" on the second byte, xcb_ge_event_t has "pad0".
-    if (event->pad0 == opCode) {
+    qt_xcb_ge_event_t *event = (qt_xcb_ge_event_t *)ev;
+    // xGenericEvent has "extension" on the second byte, the same is true for xcb_ge_event_t starting from
+    // the xcb version 1.9.3, prior to that it was called "pad0".
+    if (event->extension == opCode) {
         // xcb event structs contain stuff that wasn't on the wire, the full_sequence field
         // adds an extra 4 bytes and generic events cookie data is on the wire right after the standard 32 bytes.
         // Move this data back to have the same layout in memory as it was on the wire
@@ -1720,6 +1779,17 @@ bool QXcbConnection::xi2PrepareXIGenericDeviceEvent(xcb_ge_event_t *event, int o
     return false;
 }
 #endif // defined(XCB_USE_XINPUT2) || defined(XCB_USE_XINPUT2_MAEMO)
+
+QXcbSystemTrayTracker *QXcbConnection::systemTrayTracker()
+{
+    if (!m_systemTrayTracker) {
+        if ( (m_systemTrayTracker = QXcbSystemTrayTracker::create(this)) ) {
+            connect(m_systemTrayTracker, SIGNAL(systemTrayWindowChanged(QScreen*)),
+                    QGuiApplication::platformNativeInterface(), SIGNAL(systemTrayWindowChanged(QScreen*)));
+        }
+    }
+    return m_systemTrayTracker;
+}
 
 QXcbConnectionGrabber::QXcbConnectionGrabber(QXcbConnection *connection)
     :m_connection(connection)

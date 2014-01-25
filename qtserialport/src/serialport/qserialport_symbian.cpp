@@ -102,18 +102,20 @@ QSerialPortPrivate::QSerialPortPrivate(QSerialPort *q)
 
 bool QSerialPortPrivate::open(QIODevice::OpenMode mode)
 {
+    Q_Q(QSerialPort);
+
     // FIXME: Maybe need added check an ReadWrite open mode?
     Q_UNUSED(mode)
 
     if (!loadDevices()) {
-        q_ptr->setError(QSerialPort::UnknownError);
+        q->setError(QSerialPort::UnknownError);
         return false;
     }
 
     RCommServ server;
     errnum = server.Connect();
     if (errnum != KErrNone) {
-        q_ptr->setError(decodeSystemError());
+        q->setError(decodeSystemError());
         return false;
     }
 
@@ -127,7 +129,7 @@ bool QSerialPortPrivate::open(QIODevice::OpenMode mode)
         errnum = server.LoadCommModule(KRS232ModuleName);
 
     if (errnum != KErrNone) {
-        q_ptr->setError(decodeSystemError());
+        q->setError(decodeSystemError());
         return false;
     }
 
@@ -136,14 +138,14 @@ bool QSerialPortPrivate::open(QIODevice::OpenMode mode)
     errnum = descriptor.Open(server, portName, ECommExclusive);
 
     if (errnum != KErrNone) {
-        q_ptr->setError(decodeSystemError());
+        q->setError(decodeSystemError());
         return false;
     }
 
     // Save current port settings.
     errnum = descriptor.Config(restoredSettings);
     if (errnum != KErrNone) {
-        q_ptr->setError(decodeSystemError());
+        q->setError(decodeSystemError());
         return false;
     }
 
@@ -158,7 +160,7 @@ void QSerialPortPrivate::close()
     descriptor.Close();
 }
 
-QSerialPort::PinoutSignals QSerialPortPrivate::pinoutSignals() const
+QSerialPort::PinoutSignals QSerialPortPrivate::pinoutSignals()
 {
     QSerialPort::PinoutSignals ret = QSerialPort::NoSignal;
 
@@ -211,12 +213,12 @@ bool QSerialPortPrivate::flush()
     return false;
 }
 
-bool QSerialPortPrivate::clear(QSerialPort::Directions dir)
+bool QSerialPortPrivate::clear(QSerialPort::Directions directions)
 {
     TUint flags = 0;
-    if (dir & QSerialPort::Input)
+    if (directions & QSerialPort::Input)
         flags |= KCommResetRx;
-    if (dir & QSerialPort::Output)
+    if (directions & QSerialPort::Output)
         flags |= KCommResetTx;
     TInt r = descriptor.ResetBuffers(flags);
     return r == KErrNone;
@@ -275,10 +277,12 @@ bool QSerialPortPrivate::waitForBytesWritten(int msec)
     return false;
 }
 
-bool QSerialPortPrivate::setBaudRate(qint32 baudRate, QSerialPort::Directions dir)
+bool QSerialPortPrivate::setBaudRate(qint32 baudRate, QSerialPort::Directions directions)
 {
-    if (dir != QSerialPort::AllDirections) {
-        q_ptr->setError(QSerialPort::UnsupportedOperationError);
+    Q_Q(QSerialPort);
+
+    if (directions != QSerialPort::AllDirections) {
+        q->setError(QSerialPort::UnsupportedOperationError);
         return false;
     }
 
@@ -286,7 +290,7 @@ bool QSerialPortPrivate::setBaudRate(qint32 baudRate, QSerialPort::Directions di
     if (baudRate)
         currentSettings().iRate = static_cast<TBps>(baudRate);
     else {
-        q_ptr->setError(QSerialPort::UnsupportedOperationError);
+        q->setError(QSerialPort::UnsupportedOperationError);
         return false;
     }
 
@@ -399,8 +403,10 @@ bool QSerialPortPrivate::notifyWrite()
 
 bool QSerialPortPrivate::updateCommConfig()
 {
+    Q_Q(QSerialPort);
+
     if (descriptor.SetConfig(currentSettings) != KErrNone) {
-        q_ptr->setError(QSerialPort::UnsupportedOperationError);
+        q->setError(QSerialPort::UnsupportedOperationError);
         return false;
     }
     return true;
@@ -427,7 +433,8 @@ void QSerialPortPrivate::detectDefaultSettings()
         dataBits = QSerialPort::Data8;
         break;
     default:
-        dataBits = QSerialPort::UnknownDataBits;
+        qWarning("%s: Unexpected data bits settings", Q_FUNC_INFO);
+        dataBits = QSerialPort::Data8;
         break;
     }
 
@@ -449,7 +456,8 @@ void QSerialPortPrivate::detectDefaultSettings()
         parity = QSerialPort::SpaceParity;
         break;
     default:
-        parity = QSerialPort::UnknownParity;
+        qWarning("%s: Unexpected parity settings", Q_FUNC_INFO);
+        parity = QSerialPort::NoParity;
         break;
     }
 
@@ -462,7 +470,8 @@ void QSerialPortPrivate::detectDefaultSettings()
         stopBits = QSerialPort::TwoStop;
         break;
     default:
-        stopBits = QSerialPort::UnknownStopBits;
+        qWarning("%s: Unexpected stop bits settings", Q_FUNC_INFO);
+        stopBits = QSerialPort::OneStop;
         break;
     }
 
@@ -475,8 +484,10 @@ void QSerialPortPrivate::detectDefaultSettings()
         flow = QSerialPort::HardwareControl;
     else if (currentSettings().iHandshake & KConfigFailDSR)
         flow = QSerialPort::NoFlowControl;
-    else
-        flow = QSerialPort::UnknownFlowControl;
+    else {
+        qWarning("%s: Unexpected flow control settings", Q_FUNC_INFO);
+        flow = QSerialPort::NoFlowControl;
+    }
 }
 
 QSerialPort::SerialPortError QSerialPortPrivate::decodeSystemError() const
@@ -640,6 +651,11 @@ qint32 QSerialPortPrivate::settingFromBaudRate(qint32 baudRate)
 QList<qint32> QSerialPortPrivate::standardBaudRates()
 {
     return standardBaudRateMap().keys();
+}
+
+QSerialPort::Handle QSerialPort::handle() const
+{
+    return -1;
 }
 
 QT_END_NAMESPACE

@@ -150,8 +150,6 @@ public:
     void init();
     void trimHiddenSelections(QItemSelectionRange *range) const;
 
-    QStyleOptionViewItem viewOptions() const;
-
     inline bool isHidden(int row, int col) const {
         return verticalHeader->isSectionHidden(row)
             || horizontalHeader->isSectionHidden(col);
@@ -170,8 +168,9 @@ public:
     }
 
     inline int accessibleTable2Index(const QModelIndex &index) const {
-        return (index.row() + (horizontalHeader ? 1 : 0)) * (index.model()->columnCount() + (verticalHeader ? 1 : 0))
-            + index.column() + (verticalHeader ? 1 : 0) + 1;
+        const int vHeader = verticalHeader ? 1 : 0;
+        return (index.row() + (horizontalHeader ? 1 : 0)) * (index.model()->columnCount() + vHeader)
+            + index.column() + vHeader;
     }
 
     int sectionSpanEndLogical(const QHeaderView *header, int logical, int span) const;
@@ -181,6 +180,8 @@ public:
                           const QStyleOptionViewItem &option, QBitArray *drawn,
                           int firstVisualRow, int lastVisualRow, int firstVisualColumn, int lastVisualColumn);
     void drawCell(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index);
+    int widthHintForIndex(const QModelIndex &index, int hint, const QStyleOptionViewItem &option) const;
+    int heightHintForIndex(const QModelIndex &index, int hint, QStyleOptionViewItem &option) const;
 
     bool showGrid;
     Qt::PenStyle gridStyle;

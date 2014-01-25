@@ -2,7 +2,7 @@ include($QT_INSTALL_DOCS/global/qt-module-defaults.qdocconf)
 
 project                 = QtDesigner
 description             = Qt Designer Manual
-url                     = http://qt-project.org/doc/qt-$QT_VER/qtdesigner
+url                     = http://qt-project.org/doc/qt-$QT_VER
 
 qhp.projects            = QtDesigner
 
@@ -46,3 +46,6 @@ imagedirs               = images
 outputdir               = $QT_INSTALL_DOCS/qtdesigner
 
 depends                 += qtdoc qtwidgets qtcore qtuitools
+
+navigation.landingpage = "Qt Designer Manual"
+navigation.cppclassespage = "Qt Designer C++ Classes"

@@ -90,14 +90,24 @@
 // Q_BYTE_ORDER not defined, use endianness auto-detection
 
 /*
-    ARM family, known revisions: V5, V6, and V7
+    ARM family, known revisions: V5, V6, V7, V8
 
     ARM is bi-endian, detect using __ARMEL__ or __ARMEB__, falling back to
     auto-detection implemented below.
 */
-#if defined(__arm__) || defined(__TARGET_ARCH_ARM) || defined(_M_ARM)
+#if defined(__arm__) || defined(__TARGET_ARCH_ARM) || defined(_M_ARM) || defined(__arm64__)
 #  define Q_PROCESSOR_ARM
-#  if defined(__ARM_ARCH_7__) \
+#  if defined(__arm64__)
+#    define Q_PROCESSOR_ARM_64
+#  else
+#    define Q_PROCESSOR_ARM_32
+#  endif
+#  if defined(__ARM64_ARCH_8__)
+#    define Q_PROCESSOR_ARM_V8
+#    define Q_PROCESSOR_ARM_V7
+#    define Q_PROCESSOR_ARM_V6
+#    define Q_PROCESSOR_ARM_V5
+#  elif defined(__ARM_ARCH_7__) \
       || defined(__ARM_ARCH_7A__) \
       || defined(__ARM_ARCH_7R__) \
       || defined(__ARM_ARCH_7M__) \
@@ -157,11 +167,33 @@
     X86 is little-endian.
 */
 #elif defined(__i386) || defined(__i386__) || defined(_M_IX86)
-#  define Q_PROCESSOR_X86
 #  define Q_PROCESSOR_X86_32
 #  define Q_BYTE_ORDER Q_LITTLE_ENDIAN
+
+/*
+ * We define Q_PROCESSOR_X86 == 6 for anything above a equivalent or better
+ * than a Pentium Pro (the processor whose architecture was called P6) or an
+ * Athlon.
+ *
+ * All processors since the Pentium III and the Athlon 4 have SSE support, so
+ * we use that to detect. That leaves the original Athlon, Pentium Pro and
+ * Pentium II.
+ */
+
+#  if defined(_M_IX86)
+#    define Q_PROCESSOR_X86     (_M_IX86/100)
+#  elif defined(__i686__) || defined(__athlon__) || defined(__SSE__)
+#    define Q_PROCESSOR_X86     6
+#  elif defined(__i586__) || defined(__k6__)
+#    define Q_PROCESSOR_X86     5
+#  elif defined(__i486__)
+#    define Q_PROCESSOR_X86     4
+#  else
+#    define Q_PROCESSOR_X86     3
+#  endif
+
 #elif defined(__x86_64) || defined(__x86_64__) || defined(__amd64) || defined(_M_X64)
-#  define Q_PROCESSOR_X86
+#  define Q_PROCESSOR_X86       6
 #  define Q_PROCESSOR_X86_64
 #  define Q_BYTE_ORDER Q_LITTLE_ENDIAN
 
@@ -285,7 +317,7 @@
 #  elif defined(__BIG_ENDIAN__) || defined(_big_endian__) || defined(_BIG_ENDIAN)
 #    define Q_BYTE_ORDER Q_BIG_ENDIAN
 #  elif defined(__LITTLE_ENDIAN__) || defined(_little_endian__) || defined(_LITTLE_ENDIAN) \
-        || defined(_WIN32_WCE) // Windows CE is always little-endian according to MSDN.
+        || defined(_WIN32_WCE) || defined(WINAPI_FAMILY) // Windows CE is always little-endian according to MSDN.
 #    define Q_BYTE_ORDER Q_LITTLE_ENDIAN
 #  else
 #    error "Unable to determine byte order!"

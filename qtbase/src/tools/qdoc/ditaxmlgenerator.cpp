@@ -502,7 +502,7 @@ DitaXmlGenerator::~DitaXmlGenerator()
 void DitaXmlGenerator::initializeGenerator(const Config &config)
 {
     Generator::initializeGenerator(config);
-    obsoleteLinks = config.getBool(QLatin1String(CONFIG_OBSOLETELINKS));
+    obsoleteLinks = config.getBool(CONFIG_OBSOLETELINKS);
     setImageFileExtensions(QStringList() << "png" << "jpg" << "jpeg" << "gif");
 
     style = config.getString(DitaXmlGenerator::format() +
@@ -682,7 +682,8 @@ void DitaXmlGenerator::generateTree()
         qdb_->generateIndex(outputDir() + QLatin1Char('/') + fileBase + ".index",
                             projectUrl,
                             projectDescription,
-                            this);
+                            this,
+                            true);
     }
 
     if (!runPrepareOnly()) {
@@ -1022,10 +1023,10 @@ int DitaXmlGenerator::generateAtom(const Atom *atom,
             generateAnnotatedList(relative, marker, qdb_->getCppClasses());
         }
         else if (atom->string() == "classes") {
-            generateCompactList(Generic, relative, qdb_->getCppClasses(), true);
+            generateCompactList(Generic, relative, qdb_->getCppClasses(), true, QStringLiteral("Q"));
         }
         else if (atom->string() == "qmlclasses") {
-            generateCompactList(Generic, relative, qdb_->getQmlTypes(), true);
+            generateCompactList(Generic, relative, qdb_->getQmlTypes(), true, QStringLiteral(""));
         }
         else if (atom->string().contains("classesbymodule")) {
             QString arg = atom->string().trimmed();
@@ -1044,19 +1045,21 @@ int DitaXmlGenerator::generateAtom(const Atom *atom,
             generateClassHierarchy(relative, qdb_->getCppClasses());
         }
         else if (atom->string() == "compatclasses") {
-            generateCompactList(Generic, relative, qdb_->getCompatibilityClasses(), false);
+            // "compatclasses" is no longer used. Delete this at some point.
+            // mws 03/10/2013
+            generateCompactList(Generic, relative, qdb_->getCompatibilityClasses(), false, QStringLiteral("Q"));
         }
         else if (atom->string() == "obsoleteclasses") {
-            generateCompactList(Generic, relative, qdb_->getObsoleteClasses(), false);
+            generateCompactList(Generic, relative, qdb_->getObsoleteClasses(), false, QStringLiteral("Q"));
         }
         else if (atom->string() == "obsoleteqmltypes") {
-            generateCompactList(Generic, relative, qdb_->getObsoleteQmlTypes(), false);
+            generateCompactList(Generic, relative, qdb_->getObsoleteQmlTypes(), false, QStringLiteral(""));
         }
         else if (atom->string() == "obsoletecppmembers") {
-            generateCompactList(Obsolete, relative, qdb_->getClassesWithObsoleteMembers(), false);
+            generateCompactList(Obsolete, relative, qdb_->getClassesWithObsoleteMembers(), false, QStringLiteral("Q"));
         }
         else if (atom->string() == "obsoleteqmlmembers") {
-            generateCompactList(Obsolete, relative, qdb_->getQmlTypesWithObsoleteMembers(), false);
+            generateCompactList(Obsolete, relative, qdb_->getQmlTypesWithObsoleteMembers(), false, QStringLiteral(""));
         }
         else if (atom->string() == "functionindex") {
             generateFunctionIndex(relative);
@@ -1065,10 +1068,14 @@ int DitaXmlGenerator::generateAtom(const Atom *atom,
             generateLegaleseList(relative, marker);
         }
         else if (atom->string() == "mainclasses") {
-            generateCompactList(Generic, relative, qdb_->getMainClasses(), true);
+            // "mainclasses" is no longer used. Delete this at some point.
+            // mws 03/10/2013
+            generateCompactList(Generic, relative, qdb_->getMainClasses(), true, QStringLiteral("Q"));
         }
         else if (atom->string() == "services") {
-            generateCompactList(Generic, relative, qdb_->getServiceClasses(), false);
+            // "services" is no longer used. Delete this at some point.
+            // mws 03/10/2013
+            generateCompactList(Generic, relative, qdb_->getServiceClasses(), false, QStringLiteral("Q"));
         }
         else if (atom->string() == "overviews") {
             generateOverviewList(relative);
@@ -3677,8 +3684,8 @@ QString DitaXmlGenerator::guidForNode(const Node* node)
         return fn->guid();
     }
     case Node::Document:
-        if (node->subType() != Node::QmlPropertyGroup)
-            break;
+        break;
+    case Node::QmlPropertyGroup:
     case Node::QmlProperty:
     case Node::Property:
         return node->guid();
@@ -3698,7 +3705,7 @@ QString DitaXmlGenerator::guidForNode(const Node* node)
   Constructs a file name appropriate for the \a node and returns
   it. If the \a node is not a fake node, or if it is a fake node but
   it is neither an external page node nor an image node or a ditamap,
-  call the PageGenerator::fileName() function.
+  call the Generator::fileName() function.
  */
 QString DitaXmlGenerator::fileName(const Node* node)
 {
@@ -3743,7 +3750,7 @@ QString DitaXmlGenerator::linkForNode(const Node* node, const Node* relative)
     }
     QString link = fn;
 
-    if (!node->isInnerNode() || node->subType() == Node::QmlPropertyGroup) {
+    if (!node->isInnerNode() || node->type() == Node::QmlPropertyGroup) {
         QString guid = guidForNode(node);
         if (relative && fn == fileName(relative) && guid == guidForNode(relative)) {
             return QString();
@@ -3758,7 +3765,7 @@ QString DitaXmlGenerator::linkForNode(const Node* node, const Node* relative)
       back down into the other subdirectory.
      */
     if (node && relative && (node != relative)) {
-        if (node->outputSubdirectory() != relative->outputSubdirectory())
+        if (useOutputSubdirs() && node->outputSubdirectory() != relative->outputSubdirectory())
             link.prepend(QString("../" + node->outputSubdirectory() + QLatin1Char('/')));
     }
     return link;
@@ -4079,8 +4086,8 @@ void DitaXmlGenerator::generateDetailedQmlMember(Node* node,
     QString marked;
     QmlPropertyNode* qpn = 0;
 
-    if (node->subType() == Node::QmlPropertyGroup) {
-        const QmlPropGroupNode* qpgn = static_cast<const QmlPropGroupNode*>(node);
+    if (node->type() == Node::QmlPropertyGroup) {
+        const QmlPropertyGroupNode* qpgn = static_cast<const QmlPropertyGroupNode*>(node);
         NodeList::ConstIterator p = qpgn->childNodes().constBegin();
         if (qpgn->childNodes().size() == 1) {
             qpn = static_cast<QmlPropertyNode*>(*p);
@@ -4114,50 +4121,10 @@ void DitaXmlGenerator::generateDetailedQmlMember(Node* node,
     }
     else if (node->type() == Node::QmlProperty) {
         qpn = static_cast<QmlPropertyNode*>(node);
-        if (qpn->qmlPropNodes().isEmpty()) {
-            startQmlProperty(qpn,relative,marker);
-            writeApiDesc(node, marker, node->title());
-            writeEndTag(); // </qmlPropertyDetail>
-            writeEndTag(); // </qmlProperty>
-        }
-        else if (qpn->qmlPropNodes().size() == 1) {
-            Node* n = qpn->qmlPropNodes().at(0);
-            if (n->type() == Node::QmlProperty) {
-                qpn = static_cast<QmlPropertyNode*>(n);
-                startQmlProperty(qpn,relative,marker);
-                writeApiDesc(node, marker, node->title());
-                writeEndTag(); // </qmlPropertyDetail>
-                writeEndTag(); // </qmlProperty>
-            }
-        }
-        else {
-            /*
-              The QML property node has multiple override nodes.
-              Process the whole list as we would for a QML property
-              group.
-             */
-            writeStartTag(DT_qmlPropertyGroup);
-            QString id = "id-qml-propertygroup-" + node->name();
-            id.replace('.','-');
-            xmlWriter().writeAttribute("id",id);
-            writeStartTag(DT_apiName);
-            //writeCharacters("...");
-            writeEndTag(); // </apiName>
-            writeStartTag(DT_qmlPropertyGroupDetail);
-            writeApiDesc(node, marker, node->title());
-            writeEndTag(); // </qmlPropertyGroupDetail>
-            NodeList::ConstIterator p = qpn->qmlPropNodes().constBegin();
-            while (p != qpn->qmlPropNodes().constEnd()) {
-                if ((*p)->type() == Node::QmlProperty) {
-                    QmlPropertyNode* q = static_cast<QmlPropertyNode*>(*p);
-                    startQmlProperty(q,relative,marker);
-                    writeEndTag(); // </qmlPropertyDetail>
-                    writeEndTag(); // </qmlProperty>
-                }
-                ++p;
-            }
-            writeEndTag(); // </qmlPropertyGroup
-        }
+        startQmlProperty(qpn,relative,marker);
+        writeApiDesc(node, marker, node->title());
+        writeEndTag(); // </qmlPropertyDetail>
+        writeEndTag(); // </qmlProperty>
     }
     else if (node->type() == Node::QmlSignal)
         writeQmlRef(DT_qmlSignal,node,relative,marker);
@@ -5326,13 +5293,13 @@ DitaXmlGenerator::generateInnerNode(InnerNode* node)
             return;
         if (docNode->subType() == Node::Image)
             return;
-        if (docNode->subType() == Node::QmlPropertyGroup)
-            return;
         if (docNode->subType() == Node::Page) {
             if (node->count() > 0)
                 qDebug("PAGE %s HAS CHILDREN", qPrintable(docNode->title()));
         }
     }
+    else if (node->type() == Node::QmlPropertyGroup)
+        return;
 
     /*
       Obtain a code marker for the source file.
@@ -5376,7 +5343,7 @@ DitaXmlGenerator::generateInnerNode(InnerNode* node)
 }
 
 /*!
-  Returns true if \a format is "DITAXML" or "HTML" .
+  Returns \c true if \a format is "DITAXML" or "HTML" .
  */
 bool DitaXmlGenerator::canHandleFormat(const QString& format)
 {
@@ -5487,8 +5454,6 @@ Node* DitaXmlGenerator::collectNodesByTypeAndSubtype(const InnerNode* parent)
                 if (!isDuplicate(nodeSubtypeMaps[Node::QmlClass],child->title(),child))
                     nodeSubtypeMaps[Node::QmlClass]->insert(child->title(),child);
                 break;
-            case Node::QmlPropertyGroup:
-                break;
             case Node::QmlBasicType:
                 if (!isDuplicate(nodeSubtypeMaps[Node::QmlBasicType],child->title(),child))
                     nodeSubtypeMaps[Node::QmlBasicType]->insert(child->title(),child);
@@ -5516,6 +5481,8 @@ Node* DitaXmlGenerator::collectNodesByTypeAndSubtype(const InnerNode* parent)
         case Node::Variable:
             break;
         case Node::QmlProperty:
+            break;
+        case Node::QmlPropertyGroup:
             break;
         case Node::QmlSignal:
             break;
@@ -5785,7 +5752,7 @@ void DitaXmlGenerator::writeTopicrefs(NodeMultiMap* nmm, const QString& navtitle
   found value. Otherwise if \a force is set, an empty
   element is written using the tag.
 
-  Returns true or false depending on whether it writes
+  Returns \c true or false depending on whether it writes
   an element using the tag \a t.
 
   \note If \a t is found in the metadata map, it is erased.
@@ -5813,7 +5780,7 @@ bool DitaXmlGenerator::writeMetadataElement(const InnerNode* inner,
   value sfor the tag are found, the elements are written.
   Otherwise nothing is written.
 
-  Returns true or false depending on whether it writes
+  Returns \c true or false depending on whether it writes
   at least one element using the tag \a t.
 
   \note If \a t is found in the metadata map, it is erased.
@@ -6149,8 +6116,8 @@ void DitaXmlGenerator::generateCollisionPages()
         for (int i=0; i<collisions.size(); ++i) {
             Node* n = collisions.at(i);
             QString t;
-            if (!n->qmlModuleIdentifier().isEmpty())
-                t = n->qmlModuleIdentifier() + QLatin1Char(' ');
+            if (!n->qmlModuleName().isEmpty())
+                t = n->qmlModuleName() + QLatin1Char(' ');
             t += protectEnc(fullTitle);
             nm.insertMulti(t,n);
         }
@@ -6189,8 +6156,8 @@ void DitaXmlGenerator::generateCollisionPages()
                     if (p) {
                         QString link = linkForNode(p,0);
                         QString label;
-                        if (!n->qmlModuleIdentifier().isEmpty())
-                            label = n->qmlModuleIdentifier() + "::";
+                        if (!n->qmlModuleName().isEmpty())
+                            label = n->qmlModuleName() + "::";
                         label += n->name() + "::" + p->name();
                         writeStartTag(DT_li);
                         writeStartTag(DT_xref);

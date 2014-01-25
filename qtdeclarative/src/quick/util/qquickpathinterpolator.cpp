@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -48,7 +48,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype PathInterpolator
     \instantiates QQuickPathInterpolator
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \ingroup qtquick-animation-control
     \brief Specifies how to manually animate along a path
 
@@ -66,7 +66,7 @@ QQuickPathInterpolator::QQuickPathInterpolator(QObject *parent) :
 }
 
 /*!
-    \qmlproperty Path QtQuick2::PathInterpolator::path
+    \qmlproperty Path QtQuick::PathInterpolator::path
     This property holds the path to interpolate.
 
     For more information on defining a path see the \l Path documentation.
@@ -88,7 +88,7 @@ void QQuickPathInterpolator::setPath(QQuickPath *path)
 }
 
 /*!
-    \qmlproperty real QtQuick2::PathInterpolator::progress
+    \qmlproperty real QtQuick::PathInterpolator::progress
     This property holds the current progress along the path.
 
     Typical usage of PathInterpolator is to set the progress
@@ -114,8 +114,8 @@ void QQuickPathInterpolator::setProgress(qreal progress)
 }
 
 /*!
-    \qmlproperty real QtQuick2::PathInterpolator::x
-    \qmlproperty real QtQuick2::PathInterpolator::y
+    \qmlproperty real QtQuick::PathInterpolator::x
+    \qmlproperty real QtQuick::PathInterpolator::y
 
     These properties hold the position of the path at \l progress.
 */
@@ -130,7 +130,7 @@ qreal QQuickPathInterpolator::y() const
 }
 
 /*!
-    \qmlproperty real QtQuick2::PathInterpolator::angle
+    \qmlproperty real QtQuick::PathInterpolator::angle
 
     This property holds the angle of the path tangent at \l progress.
 

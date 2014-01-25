@@ -47,7 +47,8 @@
 #ifndef QT_NO_CONCURRENT
 
 #include <QtCore/qvector.h>
-#include <QtCore/qalgorithms.h>
+
+#include <algorithm>
 
 QT_BEGIN_NAMESPACE
 
@@ -101,9 +102,19 @@ public:
     {
         if (dirty) {
             dirty = false;
+
+// This is a workaround for http://gcc.gnu.org/bugzilla/show_bug.cgi?id=58800
+// Avoid using std::nth_element for stdlibc++ <= 4.7.3 || (>= 4.8.0 && <= 4.8.2)
+#if defined(__GLIBCXX__) && (__GLIBCXX__ <= 20130411 || (__GLIBCXX__ >= 20130322 && __GLIBCXX__ <= 20131016))
             QVector<T> sorted = values;
-            qSort(sorted);
-            currentMedian = sorted.at(bufferSize / 2 + 1);
+            std::sort(sorted.begin(), sorted.end());
+            currentMedian = sorted.at(bufferSize / 2);
+#else
+            QVector<T> copy = values;
+            typename QVector<T>::iterator begin = copy.begin(), mid = copy.begin() + bufferSize/2, end = copy.end();
+            std::nth_element(begin, mid, end);
+            currentMedian = *mid;
+#endif
         }
         return currentMedian;
     }

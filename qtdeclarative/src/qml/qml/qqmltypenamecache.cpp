@@ -53,6 +53,21 @@ QQmlTypeNameCache::~QQmlTypeNameCache()
 {
 }
 
+void QQmlTypeNameCache::add(const QHashedString &name, const QUrl &url, const QHashedString &nameSpace)
+{
+    if (nameSpace.length() != 0) {
+        Import *i = m_namedImports.value(nameSpace);
+        Q_ASSERT(i != 0);
+        i->compositeSingletons.insert(name, url);
+        return;
+    }
+
+    if (m_anonymousCompositeSingletons.contains(name))
+        return;
+
+    m_anonymousCompositeSingletons.insert(name, url);
+}
+
 void QQmlTypeNameCache::add(const QHashedString &name, int importedScriptIndex, const QHashedString &nameSpace)
 {
     Import import;
@@ -78,6 +93,9 @@ QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QHashedStringRef &name)
     if (!result.isValid())
         result = typeSearch(m_anonymousImports, name);
 
+    if (!result.isValid())
+        result = query(m_anonymousCompositeSingletons, name);
+
     return result;
 }
 
@@ -88,20 +106,28 @@ QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QHashedStringRef &name,
     const Import *i = static_cast<const Import *>(importNamespace);
     Q_ASSERT(i->scriptIndex == -1);
 
-    return typeSearch(i->modules, name);
+    Result result = typeSearch(i->modules, name);
+
+    if (!result.isValid())
+        result = query(i->compositeSingletons, name);
+
+    return result;
 }
 
-QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QHashedV8String &name)
+QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QV4::String *name)
 {
     Result result = query(m_namedImports, name);
 
     if (!result.isValid())
         result = typeSearch(m_anonymousImports, name);
 
+    if (!result.isValid())
+        result = query(m_anonymousCompositeSingletons, name);
+
     return result;
 }
 
-QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QHashedV8String &name, const void *importNamespace)
+QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QV4::String *name, const void *importNamespace)
 {
     Q_ASSERT(importNamespace);
     const Import *i = static_cast<const Import *>(importNamespace);
@@ -114,7 +140,12 @@ QQmlTypeNameCache::Result QQmlTypeNameCache::query(const QHashedV8String &name, 
             return r;
     }
 
-    return typeSearch(i->modules, name);
+    Result r = typeSearch(i->modules, name);
+
+    if (!r.isValid())
+        r = query(i->compositeSingletons, name);
+
+    return r;
 }
 
 QT_END_NAMESPACE

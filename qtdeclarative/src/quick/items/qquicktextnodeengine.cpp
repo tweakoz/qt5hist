@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -58,7 +58,7 @@
 
 QT_BEGIN_NAMESPACE
 
-void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode> *binaryTree, const QGlyphRun &glyphRun, SelectionState selectionState,
+void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode, 16> *binaryTree, const QGlyphRun &glyphRun, SelectionState selectionState,
                                              QQuickTextNode::Decorations decorations, const QColor &textColor,
                                              const QColor &backgroundColor, const QPointF &position)
 {
@@ -78,7 +78,7 @@ void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode
                                       textColor, backgroundColor, position, ascent));
 }
 
-void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode> *binaryTree, const BinaryTreeNode &binaryTreeNode)
+void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode, 16> *binaryTree, const BinaryTreeNode &binaryTreeNode)
 {
     int newIndex = binaryTree->size();
     binaryTree->append(binaryTreeNode);
@@ -106,7 +106,7 @@ void QQuickTextNodeEngine::BinaryTreeNode::insert(QVarLengthArray<BinaryTreeNode
     }
 }
 
-void QQuickTextNodeEngine::BinaryTreeNode::inOrder(const QVarLengthArray<BinaryTreeNode> &binaryTree,
+void QQuickTextNodeEngine::BinaryTreeNode::inOrder(const QVarLengthArray<BinaryTreeNode, 16> &binaryTree,
                                               QVarLengthArray<int> *sortedIndexes, int currentIndex)
 {
     Q_ASSERT(currentIndex < binaryTree.size());
@@ -898,8 +898,8 @@ void QQuickTextNodeEngine::addTextBlock(QTextDocument *textDocument, const QText
             int fragmentEnd = textPos + fragment.length();
 #ifndef QT_NO_IM
             if (preeditPosition >= 0
-                    && preeditPosition >= textPos
-                    && preeditPosition <= fragmentEnd) {
+                    && (preeditPosition + block.position()) >= textPos
+                    && (preeditPosition + block.position()) <= fragmentEnd) {
                 fragmentEnd += preeditLength;
             }
 #endif

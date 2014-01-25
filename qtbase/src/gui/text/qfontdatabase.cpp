@@ -53,9 +53,11 @@
 
 #include <QtGui/private/qguiapplication_p.h>
 #include <qpa/qplatformfontdatabase.h>
+#include <qpa/qplatformtheme.h>
 
 #include <stdlib.h>
 #include <limits.h>
+#include <algorithm>
 
 
 // #define QFONTDATABASE_DEBUG
@@ -1082,6 +1084,17 @@ QFontDatabase::QFontDatabase()
 */
 
 /*!
+    \enum QFontDatabase::SystemFont
+
+    \value GeneralFont              The default system font.
+    \value FixedFont                The fixed font that the system recommends.
+    \value TitleFont                The system standard font for titles.
+    \value SmallestReadableFont     The smallest readable system font.
+
+    \since 5.2
+*/
+
+/*!
     Returns a sorted list of the available writing systems. This is
     list generated from information about all installed fonts on the
     system.
@@ -1107,7 +1120,7 @@ QList<QFontDatabase::WritingSystem> QFontDatabase::writingSystems() const
                 list.append(writingSystem);
         }
     }
-    qSort(list);
+    std::sort(list.begin(), list.end());
     return list;
 }
 
@@ -1225,8 +1238,8 @@ QStringList QFontDatabase::styles(const QString &family) const
 }
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is fixed pitch; otherwise returns false.
+    Returns \c true if the font that has family \a family and style \a
+    style is fixed pitch; otherwise returns \c false.
 */
 
 bool QFontDatabase::isFixedPitch(const QString &family,
@@ -1246,8 +1259,8 @@ bool QFontDatabase::isFixedPitch(const QString &family,
 }
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is a scalable bitmap font; otherwise returns false. Scaling
+    Returns \c true if the font that has family \a family and style \a
+    style is a scalable bitmap font; otherwise returns \c false. Scaling
     a bitmap font usually produces an unattractive hardly readable
     result, because the pixels of the font are scaled. If you need to
     scale a bitmap font it is better to scale it to one of the fixed
@@ -1290,9 +1303,9 @@ bool QFontDatabase::isBitmapScalable(const QString &family,
 
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is smoothly scalable; otherwise returns false. If this
-    function returns true, it's safe to scale this font to any size,
+    Returns \c true if the font that has family \a family and style \a
+    style is smoothly scalable; otherwise returns \c false. If this
+    function returns \c true, it's safe to scale this font to any size,
     and the result will always look attractive.
 
     \sa isScalable(), isBitmapScalable()
@@ -1329,8 +1342,8 @@ bool QFontDatabase::isSmoothlyScalable(const QString &family, const QString &sty
 }
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is scalable; otherwise returns false.
+    Returns \c true if the font that has family \a family and style \a
+    style is scalable; otherwise returns \c false.
 
     \sa isBitmapScalable(), isSmoothlyScalable()
 */
@@ -1399,7 +1412,7 @@ QList<int> QFontDatabase::pointSizes(const QString &family,
     if (smoothScalable)
         return standardSizes();
 
-    qSort(sizes);
+    std::sort(sizes.begin(), sizes.end());
     return sizes;
 }
 
@@ -1502,7 +1515,7 @@ QList<int> QFontDatabase::smoothSizes(const QString &family,
     if (smoothScalable)
         return QFontDatabase::standardSizes();
 
-    qSort(sizes);
+    std::sort(sizes.begin(), sizes.end());
     return sizes;
 }
 
@@ -1519,8 +1532,8 @@ QList<int> QFontDatabase::standardSizes()
 
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is italic; otherwise returns false.
+    Returns \c true if the font that has family \a family and style \a
+    style is italic; otherwise returns \c false.
 
     \sa weight(), bold()
 */
@@ -1552,8 +1565,8 @@ bool QFontDatabase::italic(const QString &family, const QString &style) const
 
 
 /*!
-    Returns true if the font that has family \a family and style \a
-    style is bold; otherwise returns false.
+    Returns \c true if the font that has family \a family and style \a
+    style is bold; otherwise returns \c false.
 
     \sa italic(), weight()
 */
@@ -2090,12 +2103,49 @@ QStringList QFontDatabase::applicationFontFamilies(int id)
 }
 
 /*!
+    \since 5.2
+
+    Returns the most adequate font for a given \a type case for proper integration
+    with the system's look and feel.
+
+    \sa QGuiApplication::font()
+*/
+
+QFont QFontDatabase::systemFont(QFontDatabase::SystemFont type)
+{
+    const QFont *font = 0;
+    if (const QPlatformTheme *theme = QGuiApplicationPrivate::platformTheme()) {
+        switch (type) {
+            case GeneralFont:
+                font = theme->font(QPlatformTheme::SystemFont);
+                break;
+            case FixedFont:
+                font = theme->font(QPlatformTheme::FixedFont);
+                break;
+            case TitleFont:
+                font = theme->font(QPlatformTheme::TitleBarFont);
+                break;
+            case SmallestReadableFont:
+                font = theme->font(QPlatformTheme::MiniFont);
+                break;
+        }
+    }
+
+    if (font)
+        return *font;
+    else if (QPlatformIntegration *integration = QGuiApplicationPrivate::platformIntegration())
+        return integration->fontDatabase()->defaultFont();
+    else
+        return QFont();
+}
+
+/*!
     \fn bool QFontDatabase::removeApplicationFont(int id)
     \since 4.2
 
     Removes the previously loaded application font identified by \a
-    id. Returns true if unloading of the font succeeded; otherwise
-    returns false.
+    id. Returns \c true if unloading of the font succeeded; otherwise
+    returns \c false.
 
     \sa removeAllApplicationFonts(), addApplicationFont(),
         addApplicationFontFromData()
@@ -2108,8 +2158,8 @@ QStringList QFontDatabase::applicationFontFamilies(int id)
     Removes all application-local fonts previously added using addApplicationFont()
     and addApplicationFontFromData().
 
-    Returns true if unloading of the fonts succeeded; otherwise
-    returns false.
+    Returns \c true if unloading of the fonts succeeded; otherwise
+    returns \c false.
 
     \sa removeApplicationFont(), addApplicationFont(), addApplicationFontFromData()
 */
@@ -2117,11 +2167,14 @@ QStringList QFontDatabase::applicationFontFamilies(int id)
 /*!
     \fn bool QFontDatabase::supportsThreadedFontRendering()
     \since 4.4
+    \deprecated
 
-    Returns true if font rendering is supported outside the GUI
+    Returns \c true if font rendering is supported outside the GUI
     thread, false otherwise. In other words, a return value of false
     means that all QPainter::drawText() calls outside the GUI thread
     will not produce readable output.
+
+    As of 5.0, always returns \c true.
 
     \sa {Thread-Support in Qt Modules#Painting In Threads}{Painting In Threads}
 */

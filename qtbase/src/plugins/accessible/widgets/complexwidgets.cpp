@@ -138,9 +138,12 @@ public:
         return QStringList();
     }
 
+    int index() const { return m_index; }
+
 private:
     QPointer<QTabBar> m_parent;
     int m_index;
+
 };
 
 /*!
@@ -190,12 +193,17 @@ QAccessibleInterface* QAccessibleTabBar::child(int index) const
 
 int QAccessibleTabBar::indexOfChild(const QAccessibleInterface *child) const
 {
-    // FIXME this looks broken
-
     if (child->object() && child->object() == tabBar()->d_func()->leftB)
         return tabBar()->count();
     if (child->object() && child->object() == tabBar()->d_func()->rightB)
         return tabBar()->count() + 1;
+    if (child->role() == QAccessible::PageTab) {
+        QAccessibleInterface *parent = child->parent();
+        if (parent == this) {
+            const QAccessibleTabButton *tabButton = static_cast<const QAccessibleTabButton *>(child);
+            return tabButton->index();
+        }
+    }
     return -1;
 }
 
@@ -211,41 +219,6 @@ QString QAccessibleTabBar::text(QAccessible::Text t) const
         return qt_accStripAmp(tabBar()->tabText(tabBar()->currentIndex()));
     }
     return QString();
-}
-
-/*!
-    Selects the item with index \a child if \a on is true; otherwise
-    unselects it. If \a extend is true and the selection mode is not
-    \c Single and there is an existing selection, the selection is
-    extended to include all the items from the existing selection up
-    to and including the item with index \a child. Returns true if a
-    selection was made or extended; otherwise returns false.
-
-    \sa selection(), clearSelection()
-*/
-bool QAccessibleTabBar::setSelected(int child, bool on, bool extend)
-{
-    if (!child || !on || extend || child > tabBar()->count())
-        return false;
-
-    if (!tabBar()->isTabEnabled(child - 1))
-        return false;
-    tabBar()->setCurrentIndex(child - 1);
-    return true;
-}
-
-/*!
-    Returns a (possibly empty) list of indexes of the items selected
-    in the list box.
-
-    \sa setSelected(), clearSelection()
-*/
-QVector<int> QAccessibleTabBar::selection() const
-{
-    QVector<int> array;
-    if (tabBar()->currentIndex() != -1)
-        array +=tabBar()->currentIndex() + 1;
-    return array;
 }
 
 #endif // QT_NO_TABBAR

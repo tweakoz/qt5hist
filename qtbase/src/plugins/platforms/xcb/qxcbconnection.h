@@ -87,6 +87,7 @@ class QXcbKeyboard;
 class QXcbClipboard;
 class QXcbWMSupport;
 class QXcbNativeInterface;
+class QXcbSystemTrayTracker;
 
 namespace QXcbAtom {
     enum Atom {
@@ -98,6 +99,8 @@ namespace QXcbAtom {
         _NET_WM_CONTEXT_HELP,
         _NET_WM_SYNC_REQUEST,
         _NET_WM_SYNC_REQUEST_COUNTER,
+        MANAGER, // System tray notification
+        _NET_SYSTEM_TRAY_OPCODE, // System tray operation
 
         // ICCCM window state
         WM_STATE,
@@ -256,6 +259,8 @@ namespace QXcbAtom {
         AbsMTPressure,
         AbsMTTrackingID,
         MaxContacts,
+        RelX,
+        RelY,
         // XInput2 tablet
         AbsX,
         AbsY,
@@ -271,6 +276,10 @@ namespace QXcbAtom {
         MeegoTouchOrientationAngle,
 #endif
         _XSETTINGS_SETTINGS,
+
+        _COMPIZ_DECOR_PENDING,
+        _COMPIZ_DECOR_REQUEST,
+        _COMPIZ_DECOR_DELETE_PIXMAP,
 
         NPredefinedAtoms,
 
@@ -293,10 +302,13 @@ public:
     QXcbEventArray *lock();
     void unlock();
 
-    bool startThread();
+    void start();
 
 signals:
     void eventPending();
+
+private slots:
+    void registerForEvents();
 
 private:
     void addEvent(xcb_generic_event_t *event);
@@ -319,6 +331,7 @@ public:
     virtual void handleConfigureNotifyEvent(const xcb_configure_notify_event_t *) {}
     virtual void handleMapNotifyEvent(const xcb_map_notify_event_t *) {}
     virtual void handleUnmapNotifyEvent(const xcb_unmap_notify_event_t *) {}
+    virtual void handleDestroyNotifyEvent(const xcb_destroy_notify_event_t *) {}
     virtual void handleButtonPressEvent(const xcb_button_press_event_t *) {}
     virtual void handleButtonReleaseEvent(const xcb_button_release_event_t *) {}
     virtual void handleMotionNotifyEvent(const xcb_motion_notify_event_t *) {}
@@ -346,7 +359,8 @@ public:
     const QList<QXcbScreen *> &screens() const { return m_screens; }
     int primaryScreen() const { return m_primaryScreen; }
 
-    xcb_atom_t atom(QXcbAtom::Atom atom);
+    inline xcb_atom_t atom(QXcbAtom::Atom atom) const { return m_allAtoms[atom]; }
+    QXcbAtom::Atom qatom(xcb_atom_t atom) const;
     xcb_atom_t internAtom(const char *name);
     QByteArray atomName(xcb_atom_t atom);
 
@@ -430,6 +444,9 @@ public:
     void ungrabServer();
 
     QXcbNativeInterface *nativeInterface() const { return m_nativeInterface; }
+
+    QXcbSystemTrayTracker *systemTrayTracker();
+
 private slots:
     void processXcbEvents();
 
@@ -478,8 +495,6 @@ private:
         };
         QHash<int, ValuatorClassInfo> valuatorInfo;
     };
-    void xi2QueryTabletData(void *dev, TabletData *tabletData); // use no XI stuff in headers
-    void xi2SetupTabletDevices();
     bool xi2HandleTabletEvent(void *event, TabletData *tabletData);
     void xi2ReportTabletEvent(const TabletData &tabletData, void *event);
     QVector<TabletData> m_tabletData;
@@ -565,6 +580,9 @@ private:
     QXcbWindow *m_focusWindow;
 
     QByteArray m_startupId;
+    QXcbSystemTrayTracker *m_systemTrayTracker;
+
+    friend class QXcbEventReader;
 };
 
 #define DISPLAY_FROM_XCB(object) ((Display *)(object->connection()->xlib_display()))

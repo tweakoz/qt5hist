@@ -53,6 +53,8 @@ QT_BEGIN_NAMESPACE
 class Q_X11EXTRAS_EXPORT QX11Info
 {
 public:
+    static bool isPlatformX11();
+
     static int appDpiX(int screen=-1);
     static int appDpiY(int screen=-1);
 
@@ -64,6 +66,8 @@ public:
 
     static void setAppTime(unsigned long time);
     static void setAppUserTime(unsigned long time);
+
+    static unsigned long getTimestamp();
 
     static Display *display();
     static xcb_connection_t *connection();

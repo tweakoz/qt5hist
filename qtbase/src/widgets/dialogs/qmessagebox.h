@@ -52,6 +52,7 @@ QT_BEGIN_NAMESPACE
 class QLabel;
 class QMessageBoxPrivate;
 class QAbstractButton;
+class QCheckBox;
 
 class Q_WIDGETS_EXPORT QMessageBox : public QDialog
 {
@@ -95,7 +96,7 @@ public:
     };
 
     enum StandardButton {
-        // keep this in sync with QDialogButtonBox::StandardButton
+        // keep this in sync with QDialogButtonBox::StandardButton and QMessageDialogOptions::StandardButton
         NoButton           = 0x00000000,
         Ok                 = 0x00000400,
         Save               = 0x00000800,
@@ -187,6 +188,9 @@ public:
 
     void setTextInteractionFlags(Qt::TextInteractionFlags flags);
     Qt::TextInteractionFlags textInteractionFlags() const;
+
+    void setCheckBox(QCheckBox *cb);
+    QCheckBox* checkBox() const;
 
     static StandardButton information(QWidget *parent, const QString &title,
          const QString &text, StandardButtons buttons = Ok,
@@ -305,6 +309,7 @@ protected:
 
 private:
     Q_PRIVATE_SLOT(d_func(), void _q_buttonClicked(QAbstractButton *))
+    Q_PRIVATE_SLOT(d_func(), void _q_clicked(QMessageDialogOptions::StandardButton, QMessageDialogOptions::ButtonRole))
 
     Q_DISABLE_COPY(QMessageBox)
     Q_DECLARE_PRIVATE(QMessageBox)

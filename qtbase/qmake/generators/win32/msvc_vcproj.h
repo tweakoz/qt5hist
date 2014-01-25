@@ -117,8 +117,10 @@ protected:
     void initTranslationFiles();
     void initFormFiles();
     void initResourceFiles();
+    void initDeploymentFiles();
     void initLexYaccFiles();
     void initExtraCompilerOutputs();
+    void initWMAppManifest();
 
     void writeSubDirs(QTextStream &t); // Called from VCXProj backend
     QUuid getProjectUUID(const QString &filename=QString()); // Called from VCXProj backend

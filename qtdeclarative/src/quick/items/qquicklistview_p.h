@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -43,8 +43,7 @@
 #define QQUICKLISTVIEW_P_H
 
 #include "qquickitemview_p.h"
-
-#include <private/qqmlguard_p.h>
+#include <qpointer.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -184,7 +183,7 @@ public:
     void setView(QQuickListView *view) {
         if (view != m_view) {
             m_view = view;
-            emit viewChanged();
+            Q_EMIT viewChanged();
         }
     }
 
@@ -192,7 +191,7 @@ Q_SIGNALS:
     void viewChanged();
 
 public:
-    QQmlGuard<QQuickListView> m_view;
+    QPointer<QQuickListView> m_view;
     QQuickItem *m_sectionItem;
 };
 

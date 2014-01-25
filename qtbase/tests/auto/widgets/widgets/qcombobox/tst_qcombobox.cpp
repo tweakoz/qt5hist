@@ -160,6 +160,8 @@ private slots:
     void maxVisibleItems();
     void task_QTBUG_10491_currentIndexAndModelColumn();
     void highlightedSignal();
+    void itemData();
+    void task_QTBUG_31146_popupCompletion();
 };
 
 class MyAbstractItemDelegate : public QAbstractItemDelegate
@@ -2585,6 +2587,18 @@ void tst_QComboBox::resetModel()
 
 }
 
+static inline void centerCursor(const QWidget *w)
+{
+#ifndef QT_NO_CURSOR
+    // Force cursor movement to prevent QCursor::setPos() from returning prematurely on QPA:
+    const QPoint target(w->mapToGlobal(w->rect().center()));
+    QCursor::setPos(QPoint(target.x() + 1, target.y()));
+    QCursor::setPos(target);
+#else // !QT_NO_CURSOR
+    Q_UNUSED(w)
+#endif
+}
+
 void tst_QComboBox::keyBoardNavigationWithMouse()
 {
     QComboBox combo;
@@ -2595,6 +2609,7 @@ void tst_QComboBox::keyBoardNavigationWithMouse()
         combo.addItem( QString::number(i));
 
     combo.show();
+    centerCursor(&combo); // QTBUG-33973, cursor needs to be within view from start on Mac.
     QApplication::setActiveWindow(&combo);
     QVERIFY(QTest::qWaitForWindowActive(&combo));
     QCOMPARE(QApplication::activeWindow(), static_cast<QWidget *>(&combo));
@@ -2615,10 +2630,7 @@ void tst_QComboBox::keyBoardNavigationWithMouse()
     // When calling cursor function, Windows CE responds with: This function is not supported on this system.
 #ifndef Q_OS_WINCE
     // Force cursor movement to prevent QCursor::setPos() from returning prematurely on QPA:
-    const QPoint target(combo.view()->mapToGlobal(combo.view()->rect().center()));
-    QCursor::setPos(QPoint(target.x() + 1, target.y()));
-    QCursor::setPos(target);
-
+    centerCursor(combo.view());
     QTest::qWait(200);
 
 #define GET_SELECTION(SEL) \
@@ -2630,7 +2642,7 @@ void tst_QComboBox::keyBoardNavigationWithMouse()
     GET_SELECTION(selection);
 
     //since we moved the mouse is in the middle it should even be around 5;
-    QVERIFY(selection > 3);
+    QVERIFY2(selection > 3, (QByteArrayLiteral("selection=") + QByteArray::number(selection)).constData());
 
     static const int final = 40;
     for (int i = selection + 1;  i <= final; i++)
@@ -2753,6 +2765,185 @@ void tst_QComboBox::highlightedSignal()
     QVERIFY(initialItemSelectionModel != comboBox.view()->selectionModel());
 
     QCOMPARE(spy.size(), 1);
+}
+
+void tst_QComboBox::itemData()
+{
+    QComboBox comboBox;
+    const int itemCount = 10;
+
+    // ensure that the currentText(), the DisplayRole and the EditRole
+    // stay in sync when using QComboBox's default model
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        comboBox.addItem(itemText);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        QCOMPARE(comboBox.itemText(i), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentIndex(), i);
+        QCOMPARE(comboBox.currentText(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        // now change by using setItemText
+        QString itemText = QString("setItemText %1").arg(i);
+        comboBox.setItemText(i, itemText);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("setItemText %1").arg(i);
+        QCOMPARE(comboBox.itemText(i), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentIndex(), i);
+        QCOMPARE(comboBox.currentText(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        // now change by changing the DisplayRole's data
+        QString itemText = QString("setItemData(DisplayRole) %1").arg(i);
+        comboBox.setItemData(i, QVariant(itemText), Qt::DisplayRole);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("setItemData(DisplayRole) %1").arg(i);
+        QCOMPARE(comboBox.itemText(i), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentIndex(), i);
+        QCOMPARE(comboBox.currentText(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        // now change by changing the EditRole's data
+        QString itemText = QString("setItemData(EditRole) %1").arg(i);
+        comboBox.setItemData(i, QVariant(itemText), Qt::EditRole);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("setItemData(EditRole) %1").arg(i);
+        QCOMPARE(comboBox.itemText(i), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentIndex(), i);
+        QCOMPARE(comboBox.currentText(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+    }
+
+    comboBox.clear();
+
+
+    // set additional user data in the addItem call
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        QString itemDataText = QString("item data %1").arg(i);
+        comboBox.addItem(itemText, QVariant(itemDataText));
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        QString itemDataText = QString("item data %1").arg(i);
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i).toString(), itemDataText);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentIndex(), i);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData().toString(), itemDataText);
+
+    }
+
+    comboBox.clear();
+
+
+    // additional roles, setItemData
+    // UserRole + 0 -> string
+    // UserRole + 1 -> double
+    // UserRole + 2 -> icon
+    QString qtlogoPath = QFINDTESTDATA("qtlogo.png");
+    QIcon icon = QIcon(QPixmap(qtlogoPath));
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        QString itemDataText = QString("item data %1").arg(i);
+        double d = i;
+        comboBox.addItem(itemText);
+        comboBox.setItemData(i, QVariant(itemDataText), Qt::UserRole);
+        comboBox.setItemData(i, QVariant(d), Qt::UserRole + 1);
+        comboBox.setItemData(i, QVariant::fromValue(icon), Qt::UserRole + 2);
+    }
+
+    for (int i = 0; i < itemCount; ++i) {
+        QString itemText = QString("item text %1").arg(i);
+        QString itemDataText = QString("item data %1").arg(i);
+        double d = i;
+        QCOMPARE(comboBox.itemData(i, Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::EditRole).toString(), itemText);
+        QCOMPARE(comboBox.itemData(i, Qt::UserRole).toString(), itemDataText);
+        QCOMPARE(comboBox.itemData(i, Qt::UserRole + 1).toDouble(), d);
+        QCOMPARE(comboBox.itemData(i, Qt::UserRole + 2).value<QIcon>(), icon);
+
+        comboBox.setCurrentIndex(i);
+        QCOMPARE(comboBox.currentData(Qt::DisplayRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::EditRole).toString(), itemText);
+        QCOMPARE(comboBox.currentData(Qt::UserRole).toString(), itemDataText);
+        QCOMPARE(comboBox.currentData(Qt::UserRole + 1).toDouble(), d);
+        QCOMPARE(comboBox.currentData(Qt::UserRole + 2).value<QIcon>(), icon);
+    }
+}
+
+void tst_QComboBox::task_QTBUG_31146_popupCompletion()
+{
+    QComboBox comboBox;
+    comboBox.setEditable(true);
+    comboBox.setAutoCompletion(true);
+    comboBox.setInsertPolicy(QComboBox::NoInsert);
+    comboBox.completer()->setCaseSensitivity(Qt::CaseInsensitive);
+    comboBox.completer()->setCompletionMode(QCompleter::PopupCompletion);
+
+    comboBox.addItems(QStringList() << QStringLiteral("item") << QStringLiteral("item"));
+
+    comboBox.show();
+    comboBox.activateWindow();
+    QVERIFY(QTest::qWaitForWindowActive(&comboBox));
+
+    QCOMPARE(comboBox.currentIndex(), 0);
+
+    comboBox.lineEdit()->selectAll();
+    QTest::keyClicks(comboBox.lineEdit(), "item");
+
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Down);
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Down);
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Enter);
+    QCOMPARE(comboBox.currentIndex(), 1);
+
+    comboBox.lineEdit()->selectAll();
+    QTest::keyClicks(comboBox.lineEdit(), "item");
+
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Up);
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Up);
+    QTest::keyClick(comboBox.completer()->popup(), Qt::Key_Enter);
+    QCOMPARE(comboBox.currentIndex(), 0);
 }
 
 QTEST_MAIN(tst_QComboBox)

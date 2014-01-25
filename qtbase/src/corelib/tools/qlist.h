@@ -48,6 +48,7 @@
 
 #include <iterator>
 #include <list>
+#include <algorithm>
 #ifdef Q_COMPILER_INITIALIZER_LISTS
 #include <initializer_list>
 #endif
@@ -123,7 +124,7 @@ public:
 #ifdef Q_COMPILER_INITIALIZER_LISTS
     inline QList(std::initializer_list<T> args)
         : d(const_cast<QListData::Data *>(&QListData::shared_null))
-    { qCopy(args.begin(), args.end(), std::back_inserter(*this)); }
+    { std::copy(args.begin(), args.end(), std::back_inserter(*this)); }
 #endif
     bool operator==(const QList<T> &l) const;
     inline bool operator!=(const QList<T> &l) const { return !(*this == l); }
@@ -332,9 +333,9 @@ public:
     static QList<T> fromSet(const QSet<T> &set);
 
     static inline QList<T> fromStdList(const std::list<T> &list)
-    { QList<T> tmp; qCopy(list.begin(), list.end(), std::back_inserter(tmp)); return tmp; }
+    { QList<T> tmp; std::copy(list.begin(), list.end(), std::back_inserter(tmp)); return tmp; }
     inline std::list<T> toStdList() const
-    { std::list<T> tmp; qCopy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
+    { std::list<T> tmp; std::copy(constBegin(), constEnd(), std::back_inserter(tmp)); return tmp; }
 
 private:
     Node *detach_helper_grow(int i, int n);
@@ -346,6 +347,11 @@ private:
     void node_destruct(Node *n);
     void node_copy(Node *from, Node *to, Node *src);
     void node_destruct(Node *from, Node *to);
+
+    bool isValidIterator(const iterator &i) const
+    {
+        return (constBegin().i <= i.i) && (i.i <= constEnd().i);
+    }
 };
 
 #if defined(Q_CC_BOR)
@@ -433,8 +439,14 @@ Q_INLINE_TEMPLATE QList<T> &QList<T>::operator=(const QList<T> &l)
 template <typename T>
 inline typename QList<T>::iterator QList<T>::insert(iterator before, const T &t)
 {
+    Q_ASSERT_X(isValidIterator(before), "QList::insert", "The specified iterator argument 'before' is invalid");
+
     int iBefore = int(before.i - reinterpret_cast<Node *>(p.begin()));
-    Node *n = reinterpret_cast<Node *>(p.insert(iBefore));
+    Node *n = 0;
+    if (d->ref.isShared())
+        n = detach_helper_grow(iBefore, 1);
+    else
+        n = reinterpret_cast<Node *>(p.insert(iBefore));
     QT_TRY {
         node_construct(n, t);
     } QT_CATCH(...) {
@@ -445,8 +457,16 @@ inline typename QList<T>::iterator QList<T>::insert(iterator before, const T &t)
 }
 template <typename T>
 inline typename QList<T>::iterator QList<T>::erase(iterator it)
-{ node_destruct(it.i);
- return reinterpret_cast<Node *>(p.erase(reinterpret_cast<void**>(it.i))); }
+{
+    Q_ASSERT_X(isValidIterator(it), "QList::erase", "The specified iterator argument 'it' is invalid");
+    if (d->ref.isShared()) {
+        int offset = int(it.i - reinterpret_cast<Node *>(p.begin()));
+        it = begin(); // implies detach()
+        it += offset;
+    }
+    node_destruct(it.i);
+    return reinterpret_cast<Node *>(p.erase(reinterpret_cast<void**>(it.i)));
+}
 template <typename T>
 inline const T &QList<T>::at(int i) const
 { Q_ASSERT_X(i >= 0 && i < p.size(), "QList<T>::at", "index out of range");
@@ -619,7 +639,7 @@ inline void QList<T>::move(int from, int to)
 template<typename T>
 Q_OUTOFLINE_TEMPLATE QList<T> QList<T>::mid(int pos, int alength) const
 {
-    if (alength < 0 || pos + alength > size())
+    if (alength < 0 || pos > size() - alength)
         alength = size() - pos;
     if (pos == 0 && alength == size())
         return *this;
@@ -715,18 +735,14 @@ Q_OUTOFLINE_TEMPLATE QList<T>::QList(const QList<T> &l)
     if (!d->ref.ref()) {
         p.detach(d->alloc);
 
-        struct Cleanup
-        {
-            Cleanup(QListData::Data *d) : d_(d) {}
-            ~Cleanup() { if (d_) QListData::dispose(d_); }
-
-            QListData::Data *d_;
-        } tryCatch(d);
-
-        node_copy(reinterpret_cast<Node *>(p.begin()),
-                reinterpret_cast<Node *>(p.end()),
-                reinterpret_cast<Node *>(l.p.begin()));
-        tryCatch.d_ = 0;
+        QT_TRY {
+            node_copy(reinterpret_cast<Node *>(p.begin()),
+                    reinterpret_cast<Node *>(p.end()),
+                    reinterpret_cast<Node *>(l.p.begin()));
+        } QT_CATCH(...) {
+            QListData::dispose(d);
+            QT_RETHROW;
+        }
     }
 }
 
@@ -811,6 +827,19 @@ template <typename T>
 Q_OUTOFLINE_TEMPLATE typename QList<T>::iterator QList<T>::erase(typename QList<T>::iterator afirst,
                                                                  typename QList<T>::iterator alast)
 {
+    Q_ASSERT_X(isValidIterator(afirst), "QList::erase", "The specified iterator argument 'afirst' is invalid");
+    Q_ASSERT_X(isValidIterator(alast), "QList::erase", "The specified iterator argument 'alast' is invalid");
+
+    if (d->ref.isShared()) {
+        // ### A block is erased and a detach is needed. We should shrink and only copy relevant items.
+        int offsetfirst = int(afirst.i - reinterpret_cast<Node *>(p.begin()));
+        int offsetlast = int(alast.i - reinterpret_cast<Node *>(p.begin()));
+        afirst = begin(); // implies detach()
+        alast = afirst;
+        afirst += offsetfirst;
+        alast += offsetlast;
+    }
+
     for (Node *n = afirst.i; n < alast.i; ++n)
         node_destruct(n);
     int idx = afirst - begin();

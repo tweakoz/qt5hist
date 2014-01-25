@@ -58,19 +58,30 @@ class QQuickGridLayoutBasePrivate;
 class QQuickGridLayoutBase : public QQuickLayout
 {
     Q_OBJECT
+
+    Q_PROPERTY(Qt::LayoutDirection layoutDirection READ layoutDirection WRITE setLayoutDirection NOTIFY layoutDirectionChanged REVISION 1)
+
 public:
     explicit QQuickGridLayoutBase(QQuickGridLayoutBasePrivate &dd,
                                   Qt::Orientation orientation,
                                   QQuickItem *parent = 0);
+
     ~QQuickGridLayoutBase();
     void componentComplete();
     void invalidate(QQuickItem *childItem = 0);
     Qt::Orientation orientation() const;
     void setOrientation(Qt::Orientation orientation);
     QSizeF sizeHint(Qt::SizeHint whichSizeHint) const Q_DECL_OVERRIDE;
+    Qt::LayoutDirection layoutDirection() const;
+    void setLayoutDirection(Qt::LayoutDirection dir);
+    Qt::LayoutDirection effectiveLayoutDirection() const;
+    void setAlignment(QQuickItem *item, Qt::Alignment align) Q_DECL_OVERRIDE;
 
 protected:
-    void updateLayoutItems();
+    void updateLayoutItems() Q_DECL_OVERRIDE;
+    QQuickItem *itemAt(int index) const Q_DECL_OVERRIDE;
+    int itemCount() const Q_DECL_OVERRIDE;
+
     void rearrange(const QSizeF &size);
     virtual void insertLayoutItems() = 0;
     void removeLayoutItem(QQuickItem *item);
@@ -78,10 +89,13 @@ protected:
     void geometryChanged(const QRectF &newGeometry, const QRectF &oldGeometry);
     bool shouldIgnoreItem(QQuickItem *child, QQuickLayoutAttached *&info, QSizeF *sizeHints);
 
+signals:
+    Q_REVISION(1) void layoutDirectionChanged();
+
 protected slots:
     void onItemVisibleChanged();
     void onItemDestroyed();
-    void onItemImplicitSizeChanged();
+    void invalidateSenderItem();
 
 private:
     void removeGridItem(QGridLayoutItem *gridItem);
@@ -95,11 +109,16 @@ class QQuickGridLayoutBasePrivate : public QQuickLayoutPrivate
     Q_DECLARE_PUBLIC(QQuickGridLayoutBase)
 
 public:
-    QQuickGridLayoutBasePrivate() : m_disableRearrange(true), m_isReady(false) { }
+    QQuickGridLayoutBasePrivate() : m_disableRearrange(true)
+                                    , m_isReady(false)
+                                    , m_layoutDirection(Qt::LeftToRight)
+                                    {}
     QQuickGridLayoutEngine engine;
     Qt::Orientation orientation;
-    bool m_disableRearrange;
-    bool m_isReady;
+    unsigned m_disableRearrange : 1;
+    unsigned m_isReady : 1;
+    Qt::LayoutDirection m_layoutDirection : 2;
+
     QSet<QQuickItem *> m_ignoredItems;
 };
 
@@ -112,6 +131,7 @@ class QQuickGridLayoutPrivate;
 class QQuickGridLayout : public QQuickGridLayoutBase
 {
     Q_OBJECT
+
     Q_PROPERTY(qreal columnSpacing READ columnSpacing WRITE setColumnSpacing NOTIFY columnSpacingChanged)
     Q_PROPERTY(qreal rowSpacing READ rowSpacing WRITE setRowSpacing NOTIFY rowSpacingChanged)
     Q_PROPERTY(int columns READ columns WRITE setColumns NOTIFY columnsChanged)

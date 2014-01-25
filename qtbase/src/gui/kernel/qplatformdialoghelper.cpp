@@ -48,6 +48,8 @@
 #include <QtCore/QUrl>
 #include <QtGui/QColor>
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 /*!
@@ -58,18 +60,6 @@ QT_BEGIN_NAMESPACE
 
     \brief The QPlatformDialogHelper class allows for platform-specific customization of dialogs.
 
-*/
-
-/*!
-    \enum QPlatformDialogHelper::StyleHint
-
-    This enum type specifies platform-specific style hints.
-
-    \value SnapToDefaultButton Snap the mouse to the center of the default
-                               button. There is corresponding system
-                               setting on Windows.
-
-    \sa styleHint()
 */
 
 QPlatformDialogHelper::QPlatformDialogHelper()
@@ -87,10 +77,7 @@ QVariant QPlatformDialogHelper::styleHint(StyleHint hint) const
 
 QVariant  QPlatformDialogHelper::defaultStyleHint(QPlatformDialogHelper::StyleHint hint)
 {
-    switch (hint) {
-    case QPlatformDialogHelper::SnapToDefaultButton:
-        return QVariant(false);
-    }
+    Q_UNUSED(hint);
     return QVariant();
 }
 
@@ -198,7 +185,7 @@ QColorDialogStaticData::QColorDialogStaticData() : customSet(false)
         for (int r = 0;  r < 4; ++r)
             for (int b = 0; b < 3; ++b)
                 standardRgb[i++] = qRgb(r * 255 / 3, g * 255 / 3, b * 255 / 2);
-    qFill(customRgb, customRgb + CustomColorCount, 0xffffffff);
+    std::fill(customRgb, customRgb + CustomColorCount, 0xffffffff);
     readSettings();
 }
 
@@ -374,11 +361,12 @@ public:
     QDir::Filters filters;
     QList<QUrl> sidebarUrls;
     QStringList nameFilters;
+    QStringList mimeTypeFilters;
     QString defaultSuffix;
     QStringList history;
-    QString initialDirectory;
+    QUrl initialDirectory;
     QString initiallySelectedNameFilter;
-    QStringList initiallySelectedFiles;
+    QList<QUrl> initiallySelectedFiles;
 };
 
 QFileDialogOptions::QFileDialogOptions() : d(new QFileDialogOptionsPrivate)
@@ -492,9 +480,21 @@ QStringList QFileDialogOptions::nameFilters() const
     return d->nameFilters;
 }
 
+void QFileDialogOptions::setMimeTypeFilters(const QStringList &filters)
+{
+    d->mimeTypeFilters = filters;
+}
+
+QStringList QFileDialogOptions::mimeTypeFilters() const
+{
+    return d->mimeTypeFilters;
+}
+
 void QFileDialogOptions::setDefaultSuffix(const QString &suffix)
 {
     d->defaultSuffix = suffix;
+    if (d->defaultSuffix.size() > 1 && d->defaultSuffix.startsWith(QLatin1Char('.')))
+        d->defaultSuffix.remove(0, 1); // Silently change ".txt" -> "txt".
 }
 
 QString QFileDialogOptions::defaultSuffix() const
@@ -528,12 +528,12 @@ bool QFileDialogOptions::isLabelExplicitlySet(DialogLabel label)
     return label >= 0 && label < DialogLabelCount && !d->labels[label].isEmpty();
 }
 
-QString QFileDialogOptions::initialDirectory() const
+QUrl QFileDialogOptions::initialDirectory() const
 {
     return d->initialDirectory;
 }
 
-void QFileDialogOptions::setInitialDirectory(const QString &directory)
+void QFileDialogOptions::setInitialDirectory(const QUrl &directory)
 {
     d->initialDirectory = directory;
 }
@@ -548,14 +548,19 @@ void QFileDialogOptions::setInitiallySelectedNameFilter(const QString &filter)
     d->initiallySelectedNameFilter = filter;
 }
 
-QStringList QFileDialogOptions::initiallySelectedFiles() const
+QList<QUrl> QFileDialogOptions::initiallySelectedFiles() const
 {
     return d->initiallySelectedFiles;
 }
 
-void QFileDialogOptions::setInitiallySelectedFiles(const QStringList &files)
+void QFileDialogOptions::setInitiallySelectedFiles(const QList<QUrl> &files)
 {
     d->initiallySelectedFiles = files;
+}
+
+bool QPlatformFileDialogHelper::isSupportedUrl(const QUrl &url) const
+{
+    return url.isLocalFile();
 }
 
 /*!
@@ -589,6 +594,165 @@ QStringList QPlatformFileDialogHelper::cleanFilterList(const QString &filter)
     if (i >= 0)
         f = regexp.cap(2);
     return f.split(QLatin1Char(' '), QString::SkipEmptyParts);
+}
+
+// Message dialog
+
+class QMessageDialogOptionsPrivate : public QSharedData
+{
+public:
+    QMessageDialogOptionsPrivate() :
+        icon(QMessageDialogOptions::NoIcon),
+        buttons(QMessageDialogOptions::Ok)
+    {}
+
+    QString windowTitle;
+    QMessageDialogOptions::Icon icon;
+    QString text;
+    QString informativeText;
+    QString detailedText;
+    QMessageDialogOptions::StandardButtons buttons;
+};
+
+QMessageDialogOptions::QMessageDialogOptions() : d(new QMessageDialogOptionsPrivate)
+{
+}
+
+QMessageDialogOptions::QMessageDialogOptions(const QMessageDialogOptions &rhs) : d(rhs.d)
+{
+}
+
+QMessageDialogOptions &QMessageDialogOptions::operator=(const QMessageDialogOptions &rhs)
+{
+    if (this != &rhs)
+        d = rhs.d;
+    return *this;
+}
+
+QMessageDialogOptions::~QMessageDialogOptions()
+{
+}
+
+QString QMessageDialogOptions::windowTitle() const
+{
+    return d->windowTitle;
+}
+
+void QMessageDialogOptions::setWindowTitle(const QString &title)
+{
+    d->windowTitle = title;
+}
+
+QMessageDialogOptions::Icon QMessageDialogOptions::icon() const
+{
+    return d->icon;
+}
+
+void QMessageDialogOptions::setIcon(Icon icon)
+{
+    d->icon = icon;
+}
+
+QString QMessageDialogOptions::text() const
+{
+    return d->text;
+}
+
+void QMessageDialogOptions::setText(const QString &text)
+{
+    d->text = text;
+}
+
+QString QMessageDialogOptions::informativeText() const
+{
+    return d->informativeText;
+}
+
+void QMessageDialogOptions::setInformativeText(const QString &informativeText)
+{
+    d->informativeText = informativeText;
+}
+
+QString QMessageDialogOptions::detailedText() const
+{
+    return d->detailedText;
+}
+
+void QMessageDialogOptions::setDetailedText(const QString &detailedText)
+{
+    d->detailedText = detailedText;
+}
+
+void QMessageDialogOptions::setStandardButtons(StandardButtons buttons)
+{
+    d->buttons = buttons;
+}
+
+QMessageDialogOptions::StandardButtons QMessageDialogOptions::standardButtons() const
+{
+    return d->buttons;
+}
+
+QMessageDialogOptions::ButtonRole QMessageDialogOptions::buttonRole(QMessageDialogOptions::StandardButton button)
+{
+    switch (button) {
+    case Ok:
+    case Save:
+    case Open:
+    case SaveAll:
+    case Retry:
+    case Ignore:
+        return AcceptRole;
+
+    case Cancel:
+    case Close:
+    case Abort:
+        return RejectRole;
+
+    case Discard:
+        return DestructiveRole;
+
+    case Help:
+        return HelpRole;
+
+    case Apply:
+        return ApplyRole;
+
+    case Yes:
+    case YesToAll:
+        return YesRole;
+
+    case No:
+    case NoToAll:
+        return NoRole;
+
+    case RestoreDefaults:
+    case Reset:
+        return ResetRole;
+
+    default:
+        break;
+    }
+    return InvalidRole;
+}
+
+/*!
+    \class QPlatformMessageDialogHelper
+    \since 5.0
+    \internal
+    \ingroup qpa
+
+    \brief The QPlatformMessageDialogHelper class allows for platform-specific customization of Message dialogs.
+
+*/
+const QSharedPointer<QMessageDialogOptions> &QPlatformMessageDialogHelper::options() const
+{
+    return m_options;
+}
+
+void QPlatformMessageDialogHelper::setOptions(const QSharedPointer<QMessageDialogOptions> &options)
+{
+    m_options = options;
 }
 
 QT_END_NAMESPACE

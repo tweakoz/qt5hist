@@ -87,6 +87,7 @@ private slots:
     void toLocalFile();
     void fromLocalFile_data();
     void fromLocalFile();
+    void macTypes();
     void relative();
     void compat_legacy();
     void compat_constructor_01_data();
@@ -111,6 +112,8 @@ private slots:
     void percentEncoding();
     void swap();
     void symmetry();
+    void ipvfuture_data();
+    void ipvfuture();
     void ipv6_data();
     void ipv6();
     void ipv6_2_data();
@@ -146,6 +149,8 @@ private slots:
     void stripTrailingSlash();
     void hosts_data();
     void hosts();
+    void hostFlags_data();
+    void hostFlags();
     void setPort();
     void toEncoded_data();
     void toEncoded();
@@ -160,6 +165,8 @@ private slots:
     void binaryData();
     void fromUserInput_data();
     void fromUserInput();
+    void fileName_data();
+    void fileName();
     void isEmptyForEncodedUrl();
     void toEncodedNotUsingUninitializedPath();
     void emptyAuthorityRemovesExistingAuthority();
@@ -291,12 +298,30 @@ void tst_QUrl::comparison()
     QVERIFY(url1 == url2);
     QVERIFY(!(url1 < url2));
     QVERIFY(!(url2 < url1));
+    QVERIFY(url1.matches(url2, QUrl::None));
+    QVERIFY(url1.matches(url2, QUrl::StripTrailingSlash));
 
     // 6.2.2 Syntax-based Normalization
     QUrl url3 = QUrl::fromEncoded("example://a/b/c/%7Bfoo%7D");
     QUrl url4 = QUrl::fromEncoded("eXAMPLE://a/./b/../b/%63/%7bfoo%7d");
     QEXPECT_FAIL("", "Normalization not implemented, will probably not be implemented like this", Continue);
     QCOMPARE(url3, url4);
+
+    QUrl url3bis = QUrl::fromEncoded("example://a/b/c/%7Bfoo%7D/");
+    QUrl url3bisNoSlash = QUrl::fromEncoded("example://a/b/c/%7Bfoo%7D");
+    QUrl url4bis = QUrl::fromEncoded("example://a/.//b/../b/c//%7Bfoo%7D/");
+    QCOMPARE(url4bis.adjusted(QUrl::NormalizePathSegments), url3bis);
+    QCOMPARE(url4bis.adjusted(QUrl::NormalizePathSegments | QUrl::StripTrailingSlash), url3bisNoSlash);
+    QVERIFY(url3bis.matches(url4bis, QUrl::NormalizePathSegments));
+    QVERIFY(!url3bisNoSlash.matches(url4bis, QUrl::NormalizePathSegments));
+    QVERIFY(url3bisNoSlash.matches(url4bis, QUrl::NormalizePathSegments | QUrl::StripTrailingSlash));
+
+    QUrl url4EncodedDots = QUrl("example://a/.//b/%2E%2E%2F/b/c/");
+    QCOMPARE(url4EncodedDots.path(QUrl::PrettyDecoded), QString("/.//b/..%2F/b/c/"));
+    QCOMPARE(url4EncodedDots.path(QUrl::FullyDecoded), QString("/.//b/..//b/c/"));
+    QCOMPARE(QString::fromLatin1(url4EncodedDots.toEncoded()), QString::fromLatin1("example://a/.//b/..%2F/b/c/"));
+    QCOMPARE(url4EncodedDots.toString(), QString("example://a/.//b/..%2F/b/c/"));
+    QCOMPARE(url4EncodedDots.adjusted(QUrl::NormalizePathSegments).toString(), QString("example://a/b/..%2F/b/c/"));
 
     // 6.2.2.1 Make sure hexdecimal characters in percent encoding are
     // treated case-insensitively
@@ -312,6 +337,67 @@ void tst_QUrl::comparison()
     url8.setEncodedQuery("a=c");
     QVERIFY(url7 != url8);
     QVERIFY(url7 < url8);
+
+    // Trailing slash difference
+    QUrl url9("http://qt-project.org/path/");
+    QUrl url9NoSlash("http://qt-project.org/path");
+    QVERIFY(!(url9 == url9NoSlash));
+    QVERIFY(!url9.matches(url9NoSlash, QUrl::None));
+    QVERIFY(url9.matches(url9NoSlash, QUrl::StripTrailingSlash));
+
+    // RemoveFilename
+    QUrl url10("http://qt-project.org/file");
+    QUrl url10bis("http://qt-project.org/otherfile");
+    QVERIFY(!(url10 == url10bis));
+    QVERIFY(!url10.matches(url10bis, QUrl::None));
+    QVERIFY(!url10.matches(url10bis, QUrl::StripTrailingSlash));
+    QVERIFY(url10.matches(url10bis, QUrl::RemoveFilename));
+
+    // RemoveAuthority
+    QUrl authUrl1("x://host/a/b");
+    QUrl authUrl2("x://host/a/");
+    QUrl authUrl3("x:/a/b");
+    QVERIFY(authUrl1.matches(authUrl2, QUrl::RemoveFilename));
+    QCOMPARE(authUrl1.adjusted(QUrl::RemoveAuthority), authUrl3.adjusted(QUrl::RemoveAuthority));
+    QVERIFY(authUrl1.matches(authUrl3, QUrl::RemoveAuthority));
+    QCOMPARE(authUrl2.adjusted(QUrl::RemoveAuthority | QUrl::RemoveFilename), authUrl3.adjusted(QUrl::RemoveAuthority | QUrl::RemoveFilename));
+    QVERIFY(authUrl2.matches(authUrl3, QUrl::RemoveAuthority | QUrl::RemoveFilename));
+    QVERIFY(authUrl3.matches(authUrl2, QUrl::RemoveAuthority | QUrl::RemoveFilename));
+
+    QUrl hostUrl1("file:/foo");
+    QUrl hostUrl2("file:///foo");
+    QVERIFY(hostUrl1 == hostUrl2);
+    QVERIFY(hostUrl1.matches(hostUrl2, QUrl::None));
+    QVERIFY(hostUrl1.matches(hostUrl2, QUrl::RemoveAuthority));
+
+    // RemovePassword
+    QUrl passUrl1("http://user:pass@host/");
+    QUrl passUrl2("http://user:PASS@host/");
+    QVERIFY(!(passUrl1 == passUrl2));
+    QVERIFY(passUrl1 != passUrl2);
+    QVERIFY(!passUrl1.matches(passUrl2, QUrl::None));
+    QVERIFY(passUrl1.matches(passUrl2, QUrl::RemovePassword));
+
+    // RemovePassword, null vs empty
+    QUrl emptyPassUrl1("http://user:@host/");
+    QUrl emptyPassUrl2("http://user@host/");
+    QVERIFY(!(emptyPassUrl1 == emptyPassUrl2));
+    QVERIFY(emptyPassUrl1 != emptyPassUrl2);
+    QVERIFY(!emptyPassUrl1.matches(emptyPassUrl2, QUrl::None));
+    QVERIFY(emptyPassUrl1.matches(emptyPassUrl2, QUrl::RemovePassword));
+
+    // RemoveQuery, RemoveFragment
+    QUrl queryFragUrl1("http://host/file?query#fragment");
+    QUrl queryFragUrl2("http://host/file?q2#f2");
+    QUrl queryFragUrl3("http://host/file");
+    QVERIFY(!(queryFragUrl1 == queryFragUrl2));
+    QVERIFY(queryFragUrl1 != queryFragUrl2);
+    QVERIFY(!queryFragUrl1.matches(queryFragUrl2, QUrl::None));
+    QVERIFY(!queryFragUrl1.matches(queryFragUrl2, QUrl::RemoveQuery));
+    QVERIFY(!queryFragUrl1.matches(queryFragUrl2, QUrl::RemoveFragment));
+    QVERIFY(queryFragUrl1.matches(queryFragUrl2, QUrl::RemoveQuery | QUrl::RemoveFragment));
+    QVERIFY(queryFragUrl1.matches(queryFragUrl3, QUrl::RemoveQuery | QUrl::RemoveFragment));
+    QVERIFY(queryFragUrl3.matches(queryFragUrl1, QUrl::RemoveQuery | QUrl::RemoveFragment));
 }
 
 void tst_QUrl::comparison2_data()
@@ -422,18 +508,20 @@ void tst_QUrl::setUrl()
     }
 
     {
-        QUrl url("http://user:pass@[56::56:56:56:127.0.0.1]:99");
+        QUrl url("http://user%3A:pass%40@[56::56:56:56:127.0.0.1]:99");
         QVERIFY(url.isValid());
         QCOMPARE(url.scheme(), QString::fromLatin1("http"));
         QCOMPARE(url.path(), QString());
         QVERIFY(url.encodedQuery().isEmpty());
-        QCOMPARE(url.userInfo(), QString::fromLatin1("user:pass"));
+        QCOMPARE(url.userName(), QString::fromLatin1("user:"));
+        QCOMPARE(url.password(), QString::fromLatin1("pass@"));
+        QCOMPARE(url.userInfo(), QString::fromLatin1("user%3A:pass@"));
         QVERIFY(url.fragment().isEmpty());
         QCOMPARE(url.host(), QString::fromLatin1("56::56:56:56:7f00:1"));
-        QCOMPARE(url.authority(), QString::fromLatin1("user:pass@[56::56:56:56:7f00:1]:99"));
+        QCOMPARE(url.authority(), QString::fromLatin1("user%3A:pass%40@[56::56:56:56:7f00:1]:99"));
         QCOMPARE(url.port(), 99);
-        QCOMPARE(url.url(), QString::fromLatin1("http://user:pass@[56::56:56:56:7f00:1]:99"));
-        QCOMPARE(url.toDisplayString(), QString::fromLatin1("http://user@[56::56:56:56:7f00:1]:99"));
+        QCOMPARE(url.url(), QString::fromLatin1("http://user%3A:pass%40@[56::56:56:56:7f00:1]:99"));
+        QCOMPARE(url.toDisplayString(), QString::fromLatin1("http://user%3A@[56::56:56:56:7f00:1]:99"));
     }
 
     {
@@ -611,8 +699,8 @@ void tst_QUrl::setUrl()
 
         QUrl charles;
         charles.setPath("/home/charles/foo%20moo");
-        QCOMPARE(charles.path(), QString::fromLatin1("/home/charles/foo moo"));
-        QCOMPARE(charles.path(QUrl::FullyEncoded), QString::fromLatin1("/home/charles/foo%20moo"));
+        QCOMPARE(charles.path(), QString::fromLatin1("/home/charles/foo%20moo"));
+        QCOMPARE(charles.path(QUrl::FullyEncoded), QString::fromLatin1("/home/charles/foo%2520moo"));
 
         QUrl charles2("file:/home/charles/foo%20moo");
         QCOMPARE(charles2.path(), QString::fromLatin1("/home/charles/foo moo"));
@@ -686,7 +774,7 @@ void tst_QUrl::setUrl()
         QCOMPARE(url.scheme(), QString("data"));
         QCOMPARE(url.host(), QString());
         QCOMPARE(url.path(), QString("text/javascript,d5 = 'five\\u0027s';"));
-        QCOMPARE(url.encodedPath().constData(), "text/javascript,d5%20=%20'five%5Cu0027s';");
+        QCOMPARE(url.encodedPath().constData(), "text/javascript,d5%20%3D%20'five%5Cu0027s'%3B");
     }
 
     {
@@ -946,8 +1034,12 @@ void tst_QUrl::toString()
     QFETCH(uint, options);
     QFETCH(QString, string);
 
+    QUrl::FormattingOptions opt(options);
+
     QUrl url(urlString);
-    QCOMPARE(url.toString(QUrl::FormattingOptions(options)), string);
+    QCOMPARE(url.toString(opt), string);
+
+    QCOMPARE(url.adjusted(opt).toString(), string);
 }
 
 void tst_QUrl::toAndFromStringList_data()
@@ -1135,11 +1227,11 @@ void tst_QUrl::fromLocalFile_data()
     QTest::newRow("data7") << QString::fromLatin1("/Mambo <#5>.mp3") << QString::fromLatin1("file:///Mambo <%235>.mp3")
                            << QString::fromLatin1("/Mambo <#5>.mp3");
     QTest::newRow("data8") << QString::fromLatin1("/a%.txt") << QString::fromLatin1("file:///a%25.txt")
-                           << QString::fromLatin1("/a%25.txt");
+                           << QString::fromLatin1("/a%.txt");
     QTest::newRow("data9") << QString::fromLatin1("/a%25.txt") << QString::fromLatin1("file:///a%2525.txt")
-                           << QString::fromLatin1("/a%2525.txt");
+                           << QString::fromLatin1("/a%25.txt");
     QTest::newRow("data10") << QString::fromLatin1("/%80.txt") << QString::fromLatin1("file:///%2580.txt")
-                            << QString::fromLatin1("/%2580.txt");
+                            << QString::fromLatin1("/%80.txt");
 }
 
 void tst_QUrl::fromLocalFile()
@@ -1152,6 +1244,16 @@ void tst_QUrl::fromLocalFile()
 
     QCOMPARE(url.toString(QUrl::DecodeReserved), theUrl);
     QCOMPARE(url.path(), thePath);
+}
+
+void tst_QUrl::macTypes()
+{
+#ifndef Q_OS_MAC
+    QSKIP("This is a Mac-only test");
+#else
+    extern void tst_QUrl_mactypes(); // in tst_qurl_mac.mm
+    void tst_QUrl_mactypes();
+#endif
 }
 
 void tst_QUrl::compat_legacy()
@@ -1498,17 +1600,17 @@ void tst_QUrl::relative()
 
 void tst_QUrl::percentEncoding_data()
 {
+    // This test is limited. It's superseded by componentEncodings below
     QTest::addColumn<QString>("original");
     QTest::addColumn<QByteArray>("encoded");
 
     QTest::newRow("test_01") << QString::fromLatin1("sdfsdf") << QByteArray("sdfsdf");
     QTest::newRow("test_02") << QString::fromUtf8("æss") << QByteArray("%C3%A6ss");
-    // not unreserved or reserved
-    QTest::newRow("test_03") << QString::fromLatin1("{}") << QByteArray("%7B%7D");
 }
 
 void tst_QUrl::percentEncoding()
 {
+    // This test is limited. It's superseded by componentEncodings below
     QFETCH(QString, original);
     QFETCH(QByteArray, encoded);
 
@@ -1583,21 +1685,83 @@ void tst_QUrl::symmetry()
 
     {
         QString urlString = QString::fromLatin1("http://desktop:33326/upnp/{32f525a6-6f31-426e-91ca-01c2e6c2c57e}");
+        QString encodedUrlString = QString("http://desktop:33326/upnp/%7B32f525a6-6f31-426e-91ca-01c2e6c2c57e%7D");
         QUrl urlPreviewList(urlString);
-        QCOMPARE(urlPreviewList.toString(), urlString);
+        QCOMPARE(urlPreviewList.toString(), encodedUrlString);
         QByteArray b = urlPreviewList.toEncoded();
-        QCOMPARE(b.constData(), "http://desktop:33326/upnp/%7B32f525a6-6f31-426e-91ca-01c2e6c2c57e%7D");
-        QCOMPARE(QUrl::fromEncoded(b).toString(), urlString);
-        QCOMPARE(QUrl(b).toString(), urlString);
+        QCOMPARE(b.constData(), encodedUrlString.toLatin1().constData());
+        QCOMPARE(QUrl::fromEncoded(b).toString(), encodedUrlString);
+        QCOMPARE(QUrl(b).toString(), encodedUrlString);
     }
     {
         QString urlString = QString::fromLatin1("http://desktop:53423/deviceDescription?uuid={7977c17b-00bf-4af9-894e-fed28573c3a9}");
+        QString encodedUrlString = QString("http://desktop:53423/deviceDescription?uuid=%7B7977c17b-00bf-4af9-894e-fed28573c3a9%7D");
         QUrl urlPreviewList(urlString);
-        QCOMPARE(urlPreviewList.toString(), urlString);
+        QCOMPARE(urlPreviewList.toString(), encodedUrlString);
         QByteArray b = urlPreviewList.toEncoded();
-        QCOMPARE(b.constData(), "http://desktop:53423/deviceDescription?uuid=%7B7977c17b-00bf-4af9-894e-fed28573c3a9%7D");
-        QCOMPARE(QUrl::fromEncoded(b).toString(), urlString);
-        QCOMPARE(QUrl(b).toString(), urlString);
+        QCOMPARE(b.constData(), encodedUrlString.toLatin1().constData());
+        QCOMPARE(QUrl::fromEncoded(b).toString(), encodedUrlString);
+        QCOMPARE(QUrl(b).toString(), encodedUrlString);
+    }
+}
+
+void tst_QUrl::ipvfuture_data()
+{
+    QTest::addColumn<QString>("input");
+    QTest::addColumn<bool>("isValid");
+    QTest::addColumn<QString>("output");
+
+    // No one uses IPvFuture yet, so we have no clue what it might contain
+    // We're just testing that it can hold what the RFC says it should hold:
+    //    IPvFuture     = "v" 1*HEXDIG "." 1*( unreserved / sub-delims / ":" )
+    QTest::newRow("missing-version-dot") << "x://[v]" << false;
+    QTest::newRow("missing-version") << "x://[v.]" << false;
+    QTest::newRow("missing-version-2") << "x://[v.1234]" << false;
+    QTest::newRow("missing-dot") << "x://[v7]" << false;
+    QTest::newRow("missing-dot-2") << "x://[v71234]" << false;
+    QTest::newRow("missing-data") << "x://[v7.]" << false;
+    QTest::newRow("non-hex-version") << "x://[vz.1234]" << false;
+
+    QTest::newRow("digit-ver") << "x://[v7.1]" << true << "x://[v7.1]";
+    QTest::newRow("lowercase-hex-ver") << "x://[va.1]" << true << "x://[vA.1]";
+    QTest::newRow("lowercase-hex-ver") << "x://[vA.1]" << true << "x://[vA.1]";
+
+    QTest::newRow("data-digits") << "x://[v7.1234]" << true << "x://[v7.1234]";
+    QTest::newRow("data-unreserved") << "x://[v7.hello~-WORLD_.com]" << true << "x://[v7.hello~-WORLD_.com]";
+    QTest::newRow("data-sub-delims-colon") << "x://[v7.!$&'()*+,;=:]" << true << "x://[v7.!$&'()*+,;=:]";
+
+    // we're using the tolerant parser
+    QTest::newRow("data-encoded-digits") << "x://[v7.%31%32%33%34]" << true << "x://[v7.1234]";
+    QTest::newRow("data-encoded-unreserved") << "x://[v7.%7E%2D%54%5f%2E]" << true << "x://[v7.~-T_.]";
+    QTest::newRow("data-encoded-sub-delims-colon") << "x://[v7.%21%24%26%27%28%29%2A%2B%2C%3B%3D%3A]" << true << "x://[v7.!$&'()*+,;=:]";
+
+    // should we test "[%76%37%2ex]" -> "[v7.x]" ?
+
+    QTest::newRow("data-invalid-space") << "x://[v7.%20]" << false;
+    QTest::newRow("data-invalid-control") << "x://[v7.\x7f]" << false;
+    QTest::newRow("data-invalid-other-1") << "x://[v7.{1234}]" << false;
+    QTest::newRow("data-invalid-other-2") << "x://[v7.<hello>]" << false;
+    QTest::newRow("data-invalid-unicode") << "x://[v7.æøå]" << false;
+    QTest::newRow("data-invalid-percent") << "x://[v7.%]" << false;
+    QTest::newRow("data-invalid-percent-percent") << "x://[v7.%25]" << false;
+}
+
+void tst_QUrl::ipvfuture()
+{
+    QFETCH(QString, input);
+    QFETCH(bool, isValid);
+
+    QUrl url(input);
+    if (isValid) {
+        QVERIFY2(url.isValid(), qPrintable(url.errorString()));
+
+        QFETCH(QString, output);
+        QCOMPARE(url.toString(), output);
+
+        QUrl url2(output);
+        QCOMPARE(url2, url);
+    } else {
+        QVERIFY(!url.isValid());
     }
 }
 
@@ -1641,6 +1805,9 @@ void tst_QUrl::ipv6_data()
     QTest::newRow("case :,") << QString::fromLatin1("//[:,]") << false << "";
     QTest::newRow("case ::bla") << QString::fromLatin1("//[::bla]") << false << "";
     QTest::newRow("case v4-mapped") << "//[0:0:0:0:0:ffff:7f00:1]" << true << "//[::ffff:127.0.0.1]";
+
+    QTest::newRow("encoded-digit") << "//[::%31]" << true << "//[::1]";
+    QTest::newRow("encoded-colon") << "//[%3A%3A]" << true << "//[::]";
 }
 
 void tst_QUrl::ipv6()
@@ -1932,9 +2099,14 @@ void tst_QUrl::strictParser_data()
     QTest::newRow("invalid-regname") << "http://bad<hostname>" << "Invalid hostname (contains invalid characters)";
     QTest::newRow("invalid-regname-2") << "http://b%61d" << "Invalid hostname (contains invalid characters)";
     QTest::newRow("invalid-ipv6") << "http://[:::]" << "Invalid IPv6 address";
+    QTest::newRow("invalid-ipv6-char1") << "http://[::g]" << "Invalid IPv6 address (character 'g' not permitted)";
+    QTest::newRow("invalid-ipv6-char2") << "http://[z::]" << "Invalid IPv6 address (character 'z' not permitted)";
     QTest::newRow("invalid-ipvfuture-1") << "http://[v7]" << "Invalid IPvFuture address";
     QTest::newRow("invalid-ipvfuture-2") << "http://[v7.]" << "Invalid IPvFuture address";
     QTest::newRow("invalid-ipvfuture-3") << "http://[v789]" << "Invalid IPvFuture address";
+    QTest::newRow("invalid-ipvfuture-char1") << "http://[v7.^]" << "Invalid IPvFuture address";
+    QTest::newRow("invalid-encoded-ipv6") << "x://[%3a%3a%31]" << "Invalid IPv6 address";
+    QTest::newRow("invalid-encoded-ipvfuture") << "x://[v7.%7E%2D%54%5f%2E]" << "Invalid IPvFuture address";
     QTest::newRow("unbalanced-brackets") << "http://[ff02::1" << "Expected ']' to match '[' in hostname";
 
     // invalid hostnames happen in TolerantMode too
@@ -2035,34 +2207,21 @@ void tst_QUrl::tolerantParser()
         url.setUrl("http://foo.bar/[image][1].jpg");
         QVERIFY(url.isValid());
         QVERIFY(!url.toString().isEmpty());
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
-        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/[image][1].jpg"));
+        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/[image][1].jpg"));
         QCOMPARE(url.toString(), QString("http://foo.bar/[image][1].jpg"));
 
-        url.setUrl("[].jpg");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("%5B%5D.jpg"));
-        QCOMPARE(url.toEncoded(), QByteArray("%5B%5D.jpg"));
-        QCOMPARE(url.toString(), QString("[].jpg"));
-
-        url.setUrl("/some/[path]/[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("/some/%5Bpath%5D/%5B%5D"));
-        QCOMPARE(url.toEncoded(), QByteArray("/some/%5Bpath%5D/%5B%5D"));
-        QCOMPARE(url.toString(), QString("/some/[path]/[]"));
+        url.setUrl("http://foo.bar/%5Bimage%5D%5B1%5D.jpg");
+        QVERIFY(url.isValid());
+        QVERIFY(!url.toString().isEmpty());
+        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toString(), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
 
         url.setUrl("//[::56:56:56:56:56:56:56]");
         QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]"));
         QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]"));
         QCOMPARE(url.toString(), QString("//[0:56:56:56:56:56:56:56]"));
-
-        url.setUrl("//[::56:56:56:56:56:56:56]#[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]#%5B%5D"));
-        QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]#%5B%5D"));
-        QCOMPARE(url.toString(), QString("//[0:56:56:56:56:56:56:56]#[]"));
-
-        url.setUrl("//[::56:56:56:56:56:56:56]?[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]?[]"));
-        QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]?[]"));
-        QCOMPARE(url.toString(), QString("//[0:56:56:56:56:56:56:56]?[]"));
 
         // invoke the tolerant parser's error correction
         url.setUrl("%hello.com/f%");
@@ -2076,38 +2235,24 @@ void tst_QUrl::tolerantParser()
 
         url.setEncodedUrl("http://foo.bar/[image][1].jpg");
         QVERIFY(url.isValid());
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
-        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/[image][1].jpg"));
+        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/[image][1].jpg"));
         QCOMPARE(url.toString(), QString("http://foo.bar/[image][1].jpg"));
 
-        url.setEncodedUrl("[].jpg");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("%5B%5D.jpg"));
-        QCOMPARE(url.toEncoded(), QByteArray("%5B%5D.jpg"));
-        QCOMPARE(url.toString(), QString("[].jpg"));
-
-        url.setEncodedUrl("/some/[path]/[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("/some/%5Bpath%5D/%5B%5D"));
-        QCOMPARE(url.toEncoded(), QByteArray("/some/%5Bpath%5D/%5B%5D"));
-        QCOMPARE(url.toString(), QString("/some/[path]/[]"));
+        url.setEncodedUrl("http://foo.bar/%5Bimage%5D%5B1%5D.jpg");
+        QVERIFY(url.isValid());
+        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toEncoded(), QByteArray("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
+        QCOMPARE(url.toString(), QString("http://foo.bar/%5Bimage%5D%5B1%5D.jpg"));
 
         url.setEncodedUrl("//[::56:56:56:56:56:56:56]");
         QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]"));
         QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]"));
 
-        url.setEncodedUrl("//[::56:56:56:56:56:56:56]#[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]#%5B%5D"));
-        QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]#%5B%5D"));
-        QCOMPARE(url.toString(), QString("//[0:56:56:56:56:56:56:56]#[]"));
-
-        url.setEncodedUrl("//[::56:56:56:56:56:56:56]?[]");
-        QCOMPARE(url.toString(QUrl::FullyEncoded), QString("//[0:56:56:56:56:56:56:56]?[]"));
-        QCOMPARE(url.toEncoded(), QByteArray("//[0:56:56:56:56:56:56:56]?[]"));
-        QCOMPARE(url.toString(), QString("//[0:56:56:56:56:56:56:56]?[]"));
-
         url.setEncodedUrl("data:text/css,div%20{%20border-right:%20solid;%20}");
         QCOMPARE(url.toString(QUrl::FullyEncoded), QString("data:text/css,div%20%7B%20border-right:%20solid;%20%7D"));
         QCOMPARE(url.toEncoded(), QByteArray("data:text/css,div%20%7B%20border-right:%20solid;%20%7D"));
-        QCOMPARE(url.toString(), QString("data:text/css,div { border-right: solid; }"));
+        QCOMPARE(url.toString(), QString("data:text/css,div %7B border-right: solid; %7D"));
     }
 
     {
@@ -2386,7 +2531,7 @@ void tst_QUrl::setEncodedFragment_data()
     QTest::newRow("basic test") << BA("http://www.kde.org") << BA("abc") << BA("http://www.kde.org#abc");
     QTest::newRow("initial url has fragment") << BA("http://www.kde.org#old") << BA("new") << BA("http://www.kde.org#new");
     QTest::newRow("encoded fragment") << BA("http://www.kde.org") << BA("a%20c") << BA("http://www.kde.org#a%20c");
-    QTest::newRow("with #") << BA("http://www.kde.org") << BA("a#b") << BA("http://www.kde.org#a#b");
+    QTest::newRow("with #") << BA("http://www.kde.org") << BA("a#b") << BA("http://www.kde.org#a%23b"); // toString uses "a#b"
     QTest::newRow("unicode") << BA("http://www.kde.org") << BA("\xc3\xa9") << BA("http://www.kde.org#%C3%A9");
     QTest::newRow("binary") << BA("http://www.kde.org") << BA("\x00\xc0\x80", 3) << BA("http://www.kde.org#%00%C0%80");
 }
@@ -2408,8 +2553,9 @@ void tst_QUrl::setEncodedFragment()
 void tst_QUrl::fromEncoded()
 {
     QUrl qurl2 = QUrl::fromEncoded("print:/specials/Print%20To%20File%20(PDF%252FAcrobat)", QUrl::TolerantMode);
-    QCOMPARE(qurl2.path(), QString::fromLatin1("/specials/Print To File (PDF%252FAcrobat)"));
-    QCOMPARE(QFileInfo(qurl2.path()).fileName(), QString::fromLatin1("Print To File (PDF%252FAcrobat)"));
+    QCOMPARE(qurl2.path(), QString::fromLatin1("/specials/Print To File (PDF%2FAcrobat)"));
+    QCOMPARE(QFileInfo(qurl2.path()).fileName(), QString::fromLatin1("Print To File (PDF%2FAcrobat)"));
+    QCOMPARE(qurl2.fileName(), QString::fromLatin1("Print To File (PDF%2FAcrobat)"));
     QCOMPARE(qurl2.toEncoded().constData(), "print:/specials/Print%20To%20File%20(PDF%252FAcrobat)");
 
     QUrl qurl = QUrl::fromEncoded("http://\303\244.de");
@@ -2427,23 +2573,37 @@ void tst_QUrl::fromEncoded()
 void tst_QUrl::stripTrailingSlash_data()
 {
     QTest::addColumn<QString>("url");
-    QTest::addColumn<QString>("expected");
+    QTest::addColumn<QString>("expectedStrip");     // toString(Strip)
+    QTest::addColumn<QString>("expectedDir");       // toString(RemoveFilename)
+    QTest::addColumn<QString>("expectedDirStrip");  // toString(RemoveFilename|Strip)
 
-    QTest::newRow("ftp no slash") << "ftp://ftp.de.kde.org/dir" << "ftp://ftp.de.kde.org/dir";
-    QTest::newRow("ftp slash") << "ftp://ftp.de.kde.org/dir/" << "ftp://ftp.de.kde.org/dir";
-    QTest::newRow("file slash") << "file:///dir/" << "file:///dir";
-    QTest::newRow("file no slash") << "file:///dir/" << "file:///dir";
-    QTest::newRow("file root") << "file:///" << "file:///";
-    QTest::newRow("no path") << "remote://" << "remote://";
+    QTest::newRow("subdir no slash") << "ftp://kde.org/dir/subdir" << "ftp://kde.org/dir/subdir" << "ftp://kde.org/dir/" << "ftp://kde.org/dir";
+    QTest::newRow("ftp no slash") << "ftp://kde.org/dir" << "ftp://kde.org/dir" << "ftp://kde.org/" << "ftp://kde.org/";
+    QTest::newRow("ftp slash") << "ftp://kde.org/dir/" << "ftp://kde.org/dir" << "ftp://kde.org/dir/" << "ftp://kde.org/dir";
+    QTest::newRow("ftp_two_slashes") << "ftp://kde.org/dir//" << "ftp://kde.org/dir" << "ftp://kde.org/dir//" << "ftp://kde.org/dir";
+    QTest::newRow("file slash") << "file:///dir/" << "file:///dir" << "file:///dir/" << "file:///dir";
+    QTest::newRow("file no slash") << "file:///dir" << "file:///dir" << "file:///" << "file:///";
+    QTest::newRow("file root") << "file:///" << "file:///" << "file:///" << "file:///";
+    QTest::newRow("file_root_manyslashes") << "file://///" << "file:///" << "file://///" << "file:///";
+    QTest::newRow("no path") << "remote://" << "remote://" << "remote://" << "remote://";
 }
 
 void tst_QUrl::stripTrailingSlash()
 {
     QFETCH(QString, url);
-    QFETCH(QString, expected);
+    QFETCH(QString, expectedStrip);
+    QFETCH(QString, expectedDir);
+    QFETCH(QString, expectedDirStrip);
 
     QUrl u(url);
-    QCOMPARE(u.toString(QUrl::StripTrailingSlash), expected);
+    QCOMPARE(u.toString(QUrl::StripTrailingSlash), expectedStrip);
+    QCOMPARE(u.toString(QUrl::RemoveFilename), expectedDir);
+    QCOMPARE(u.toString(QUrl::RemoveFilename | QUrl::StripTrailingSlash), expectedDirStrip);
+
+    // Same thing, using QUrl::adjusted()
+    QCOMPARE(u.adjusted(QUrl::StripTrailingSlash).toString(), expectedStrip);
+    QCOMPARE(u.adjusted(QUrl::RemoveFilename).toString(), expectedDir);
+    QCOMPARE(u.adjusted(QUrl::RemoveFilename | QUrl::StripTrailingSlash).toString(), expectedDirStrip);
 }
 
 void tst_QUrl::hosts_data()
@@ -2501,6 +2661,29 @@ void tst_QUrl::hosts()
     QFETCH(QString, url);
 
     QTEST(QUrl(url).host(), "host");
+}
+
+void tst_QUrl::hostFlags_data()
+{
+    QTest::addColumn<QString>("urlStr");
+    QTest::addColumn<QUrl::FormattingOptions>("options");
+    QTest::addColumn<QString>("expectedHost");
+
+    QString swedish = QString::fromUtf8("http://www.räksmörgås.se/pub?a=b&a=dø&a=f#vræl");
+    QTest::newRow("se_fullydecoded") << swedish << QUrl::FormattingOptions(QUrl::FullyDecoded) << QString::fromUtf8("www.räksmörgås.se");
+    QTest::newRow("se_fullyencoded") << swedish << QUrl::FormattingOptions(QUrl::FullyEncoded) << QString::fromUtf8("www.xn--rksmrgs-5wao1o.se");
+    QTest::newRow("se_prettydecoded") << swedish << QUrl::FormattingOptions(QUrl::PrettyDecoded) << QString::fromUtf8("www.räksmörgås.se");
+    QTest::newRow("se_encodespaces") << swedish << QUrl::FormattingOptions(QUrl::EncodeSpaces) << QString::fromUtf8("www.räksmörgås.se");
+}
+
+void tst_QUrl::hostFlags()
+{
+    QFETCH(QString, urlStr);
+    QFETCH(QUrl::FormattingOptions, options);
+    QFETCH(QString, expectedHost);
+
+    QUrl url(urlStr);
+    QCOMPARE(url.host(options), expectedHost);
 }
 
 void tst_QUrl::setPort()
@@ -2729,6 +2912,43 @@ void tst_QUrl::fromUserInput()
     QCOMPARE(url, guessUrlFromString);
 }
 
+void tst_QUrl::fileName_data()
+{
+    QTest::addColumn<QString>("urlStr");
+    QTest::addColumn<QString>("expectedDirPath");
+    QTest::addColumn<QString>("expectedPrettyDecodedFileName");
+    QTest::addColumn<QString>("expectedFullyDecodedFileName");
+
+    QTest::newRow("fromDocu") << "http://qt-project.org/support/file.html"
+                              << "/support/" << "file.html" << "file.html";
+    QTest::newRow("absoluteFile") << "file:///temp/tmp.txt"
+                              << "/temp/" << "tmp.txt" << "tmp.txt";
+    QTest::newRow("absoluteDir") << "file:///temp/"
+                              << "/temp/" << QString() << QString();
+    QTest::newRow("absoluteInRoot") << "file:///temp"
+                              << "/" << "temp" << "temp";
+    QTest::newRow("relative") << "temp/tmp.txt"
+                              << "temp/" << "tmp.txt" << "tmp.txt";
+    QTest::newRow("relativeNoSlash") << "tmp.txt"
+                              << QString() << "tmp.txt" << "tmp.txt";
+    QTest::newRow("encoded") << "print:/specials/Print%20To%20File%20(PDF%252FAcrobat)"
+                              << "/specials/" << "Print To File (PDF%252FAcrobat)" << "Print To File (PDF%2FAcrobat)";
+}
+
+void tst_QUrl::fileName()
+{
+    QFETCH(QString, urlStr);
+    QFETCH(QString, expectedDirPath);
+    QFETCH(QString, expectedPrettyDecodedFileName);
+    QFETCH(QString, expectedFullyDecodedFileName);
+
+    QUrl url(urlStr);
+    QVERIFY(url.isValid());
+    QCOMPARE(url.adjusted(QUrl::RemoveFilename).path(), expectedDirPath);
+    QCOMPARE(url.fileName(QUrl::PrettyDecoded), expectedPrettyDecodedFileName);
+    QCOMPARE(url.fileName(QUrl::FullyDecoded), expectedFullyDecodedFileName);
+}
+
 // This is a regression test for a previously fixed bug where isEmpty didn't
 // work for an encoded URL that was yet to be decoded.  The test checks that
 // isEmpty works for an encoded URL both after and before decoding.
@@ -2866,7 +3086,8 @@ void tst_QUrl::effectiveTLDs()
 {
     QFETCH(QUrl, domain);
     QFETCH(QString, TLD);
-    QCOMPARE(domain.topLevelDomain(), TLD);
+    QCOMPARE(domain.topLevelDomain(QUrl::PrettyDecoded), TLD);
+    QCOMPARE(domain.topLevelDomain(QUrl::FullyDecoded), TLD);
 }
 
 void tst_QUrl::lowercasesScheme()
@@ -2950,19 +3171,25 @@ void tst_QUrl::componentEncodings_data()
 
     //    sub-delims    = "!" / "$" / "&" / "'" / "(" / ")"
     //                  / "*" / "+" / "," / ";" / "="
-    // like the unreserved, these are decoded everywhere
-    // don't test in query because they might remain encoded
-    QTest::newRow("decoded-subdelims") << QUrl("x://%21%24%26:%27%28%29@host/%2a%2b%2c#%3b%3d")
+    // these are always left alone
+    QTest::newRow("decoded-subdelims") << QUrl("x://!$&:'()@host/*+,?$=(+)#;=")
                                        << int(QUrl::FullyEncoded)
                                        << "!$&" << "'()" << "!$&:'()"
                                        << "host" << "!$&:'()@host"
-                                       << "/*+," << "" << ";="
-                                       << "x://!$&:'()@host/*+,#;=";
+                                       << "/*+," << "$=(+)" << ";="
+                                       << "x://!$&:'()@host/*+,?$=(+)#;=";
+    QTest::newRow("encoded-subdelims") << QUrl("x://%21%24%26:%27%28%29@host/%2a%2b%2c?%26=%26&%3d=%3d#%3b%3d")
+                                       << MostDecoded
+                                       << "%21%24%26" << "%27%28%29" << "%21%24%26:%27%28%29"
+                                       << "host" << "%21%24%26:%27%28%29@host"
+                                       << "/%2A%2B%2C" << "%26=%26&%3D=%3D" << "%3B%3D"
+                                       << "x://%21%24%26:%27%28%29@host/%2A%2B%2C?%26=%26&%3D=%3D#%3B%3D";
 
     //    gen-delims    = ":" / "/" / "?" / "#" / "[" / "]" / "@"
     // these are the separators between fields
-    // they must appear encoded in certain positions, no exceptions
-    // in other positions, they can appear decoded, so they always do
+    // they must appear encoded in certain positions in the full URL, no exceptions
+    // when in those positions, they appear decoded in the isolated parts
+    // in other positions and the other delimiters are always left untransformed
     // 1) test the delimiters that must appear encoded
     //    (if they were decoded, they'd would change the URL parsing)
     QTest::newRow("encoded-gendelims-changing") << QUrl("x://%5b%3a%2f%3f%23%40%5d:%5b%2f%3f%23%40%5d@host/%2f%3f%23?%23")
@@ -2972,32 +3199,21 @@ void tst_QUrl::componentEncodings_data()
                                                 << "/%2F?#" << "#" << ""
                                                 << "x://%5B%3A%2F%3F%23%40%5D:%5B%2F%3F%23%40%5D@host/%2F%3F%23?%23";
 
-    // 2) test the delimiters that may appear decoded and would not change the meaning
-    // and test that %2f is *not* decoded to a slash in the path
-    // don't test the query because in this mode it doesn't transform anything
-    QTest::newRow("decoded-gendelims-unchanging") << QUrl("x://:%3a@host/%2f%3a%40#%23%3a%2f%3f%40")
+    // 2) test that the other delimiters remain decoded
+    QTest::newRow("decoded-gendelims-unchanging") << QUrl("x://::@host/:@/[]?:/?@[]?#:/?@[]")
                                                   << int(QUrl::FullyEncoded)
                                                   << "" << ":" << "::"
                                                   << "host" << "::@host"
-                                                  << "/%2F:@" << "" << "#:/?@"
-                                                  << "x://::@host/%2F:@##:/?@";
+                                                  << "/:@/[]" << ":/?@[]?" << ":/?@[]"
+                                                  << "x://::@host/:@/[]?:/?@[]?#:/?@[]";
 
-    // 3) test "[" and "]". Even though they are not ambiguous in the path, query or fragment
-    // the RFC does not allow them to appear there decoded. QUrl adheres strictly in FullyEncoded mode
-    QTest::newRow("encoded-square-brackets") << QUrl("x:/[]#[]")
-                                             << int(QUrl::FullyEncoded)
-                                             << "" << "" << ""
-                                             << "" << ""
-                                             << "/%5B%5D" << "" << "%5B%5D"
-                                             << "x:/%5B%5D#%5B%5D";
-
-    // 4) like above, but now decode them, which is allowed
-    QTest::newRow("decoded-square-brackets") << QUrl("x:/%5B%5D#%5B%5D")
-                                             << MostDecoded
-                                             << "" << "" << ""
-                                             << "" << ""
-                                             << "/[]" << "" << "[]"
-                                             << "x:/[]#[]";
+    // 3) and test that the same encoded sequences remain encoded
+    QTest::newRow("encoded-gendelims-unchanging") << QUrl("x://:%3A@host/%3A%40%5B%5D?%3A%2F%3F%40%5B%5D#%23%3A%2F%3F%40%5B%5D")
+                                                  << MostDecoded
+                                                  << "" << "%3A" << ":%3A"
+                                                  << "host" << ":%3A@host"
+                                                  << "/%3A%40%5B%5D" << "%3A%2F%3F%40%5B%5D" << "%23%3A%2F%3F%40%5B%5D"
+                                                  << "x://:%3A@host/%3A%40%5B%5D?%3A%2F%3F%40%5B%5D#%23%3A%2F%3F%40%5B%5D";
 
     // test the query
     // since QUrl doesn't know what chars the user wants to use for the pair and value delimiters,
@@ -3051,23 +3267,13 @@ void tst_QUrl::componentEncodings_data()
                                            << QString::fromUtf8("é ")
                                            << QString::fromUtf8("x:// é:é @smørbrød.example.no/é ? é#é ");
 
-    // the pretty form re-encodes the subdelims (except in the query, where they are left alone)
-    QTest::newRow("pretty-subdelims") << QUrl("x://%21%24%26:%27%28%29@host/%2a%2b%2c?%26=%26&%3d=%3d#%3b%3d")
+    // the pretty form decodes all unambiguous gen-delims in the individual parts
+    QTest::newRow("pretty-gendelims") << QUrl("x://%5b%3a%40%2f%3f%23%5d:%5b%40%2f%3f%23%5d@host/%3f%23?%23")
                                       << int(QUrl::PrettyDecoded)
-                                      << "!$&" << "'()" << "!$&:'()"
-                                      << "host" << "!$&:'()@host"
-                                      << "/*+," << "%26=%26&%3D=%3D" << ";="
-                                      << "x://!$&:'()@host/*+,?%26=%26&%3D=%3D#;=";
-
-    // the pretty form decodes all unambiguous gen-delims
-    // (except in query, where they are left alone)
-    QTest::newRow("pretty-gendelims") << QUrl("x://%5b%3a%40%2f%5d:%5b%3a%40%2f%5d@host"
-                                              "/%3a%40%5b%3f%23%5d?[?%3f%23]%5b:%3a@%40%5d#%23")
-                                      << int(QUrl::PrettyDecoded)
-                                      << "[:@/]" << "[:@/]" << "[%3A@/]:[:@/]"
-                                      << "host" << "%5B%3A%40/%5D:%5B:%40/%5D@host"
-                                      << "/:@[?#]" << "[?%3F#]%5B:%3A@%40%5D" << "#"
-                                      << "x://%5B%3A%40%2F%5D:%5B:%40%2F%5D@host/:@[%3F%23]?[?%3F%23]%5B:%3A@%40%5D##";
+                                      << "[:@/?#]" << "[@/?#]" << "[%3A@/?#]:[@/?#]"
+                                      << "host" << "%5B%3A%40/?#%5D:%5B%40/?#%5D@host"
+                                      << "/?#" << "#" << ""
+                                      << "x://%5B%3A%40%2F%3F%23%5D:%5B%40%2F%3F%23%5D@host/%3F%23?%23";
 
     // the pretty form keeps the other characters decoded everywhere
     // except when rebuilding the full URL, when we only allow "{}" to remain decoded
@@ -3076,8 +3282,8 @@ void tst_QUrl::componentEncodings_data()
                                      << "\"<>^\\{|}" << "\"<>^\\{|}" << "\"<>^\\{|}:\"<>^\\{|}"
                                      << "host" << "\"<>^\\{|}:\"<>^\\{|}@host"
                                      << "/\"<>^\\{|}" << "\"<>^\\{|}" << "\"<>^\\{|}"
-                                     << "x://%22%3C%3E%5E%5C%7B%7C%7D:%22%3C%3E%5E%5C%7B%7C%7D@host/%22%3C%3E%5E%5C{%7C}"
-                                        "?%22%3C%3E%5E%5C{%7C}#%22%3C%3E%5E%5C%7B%7C%7D";
+                                     << "x://%22%3C%3E%5E%5C%7B%7C%7D:%22%3C%3E%5E%5C%7B%7C%7D@host/%22%3C%3E%5E%5C%7B%7C%7D"
+                                        "?%22%3C%3E%5E%5C%7B%7C%7D#%22%3C%3E%5E%5C%7B%7C%7D";
 }
 
 void tst_QUrl::componentEncodings()
@@ -3181,6 +3387,17 @@ void tst_QUrl::setComponents_data()
     QTest::newRow("path-empty") << QUrl("http://example.com/path")
                                 << int(Path) << "" << Tolerant << true
                                 << PrettyDecoded << "" << "http://example.com";
+    // If the %3A gets decoded to ":", the URL becomes invalid;
+    // see test path-invalid-1 below
+    QTest::newRow("path-%3A-before-slash") << QUrl()
+                                           << int(Path) << "c%3A/" << Tolerant << true
+                                           << PrettyDecoded << "c%3A/" << "c%3A/";
+    QTest::newRow("path-doubleslash") << QUrl("trash:/")
+                                      << int(Path) << "//path" << Tolerant << true
+                                      << PrettyDecoded << "/path" << "trash:/path";
+    QTest::newRow("path-withdotdot") << QUrl("file:///tmp")
+                                      << int(Path) << "//tmp/..///root/." << Tolerant << true
+                                      << PrettyDecoded << "/root" << "file:///root";
 
     // the other fields can be present and be empty
     // that is, their delimiters would be present, but there would be nothing to one side
@@ -3346,9 +3563,6 @@ void tst_QUrl::setComponents_data()
     QTest::newRow("invalid-scheme-encode") << QUrl("http://example.com")
                                            << int(Scheme) << "http%61" << Decoded << false
                                            << PrettyDecoded << "" << "";
-    QTest::newRow("userinfo-encode") << QUrl("http://example.com")
-                                     << int(UserInfo) << "h%61llo:world@" << Decoded << true
-                                     << PrettyDecoded << "h%2561llo:world@" << "http://h%2561llo:world%40@example.com";
     QTest::newRow("username-encode") << QUrl("http://example.com")
                                      << int(UserName) << "h%61llo:world" << Decoded << true
                                      << PrettyDecoded << "h%2561llo:world" << "http://h%2561llo%3Aworld@example.com";
@@ -3359,9 +3573,6 @@ void tst_QUrl::setComponents_data()
     QTest::newRow("invalid-host-encode") << QUrl("http://example.com")
                                          << int(Host) << "ex%61mple.com" << Decoded << false
                                          << PrettyDecoded << "" << "";
-    QTest::newRow("invalid-authority-encode") << QUrl("http://example.com")
-                                              << int(Authority) << "ex%61mple.com" << Decoded << false
-                                              << PrettyDecoded << "" << "";
     QTest::newRow("path-encode") << QUrl("http://example.com/foo")
                                  << int(Path) << "/bar%23" << Decoded << true
                                  << PrettyDecoded << "/bar%2523" << "http://example.com/bar%2523";
@@ -3371,11 +3582,7 @@ void tst_QUrl::setComponents_data()
     QTest::newRow("fragment-encode") << QUrl("http://example.com/foo#z")
                                      << int(Fragment) << "bar%23" << Decoded << true
                                      << PrettyDecoded << "bar%2523" << "http://example.com/foo#bar%2523";
-    // force decoding; note how the userinfo becomes ambiguous
-    QTest::newRow("userinfo-decode") << QUrl("http://example.com")
-                                     << int(UserInfo) << "hello%3Aworld:}}>b9o%25kR(" << Tolerant << true
-                                     << FullyDecoded << "hello:world:}}>b9o%kR("
-                                     << "http://hello%3Aworld:%7D%7D%3Eb9o%25kR(@example.com";
+    // force decoding
     QTest::newRow("username-decode") << QUrl("http://example.com")
                                      << int(UserName) << "hello%3Aworld%25" << Tolerant << true
                                      << FullyDecoded << "hello:world%" << "http://hello%3Aworld%25@example.com";
@@ -3460,6 +3667,8 @@ void tst_QUrl::setComponents()
     if (isValid) {
         QFETCH(QString, toString);
         QCOMPARE(copy.toString(), toString);
+        // Check round-tripping
+        QCOMPARE(QUrl(copy.toString()).toString(), toString);
     } else {
         QVERIFY(copy.toString().isEmpty());
     }

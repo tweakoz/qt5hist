@@ -54,7 +54,7 @@ class QLineEdit;
 class QTreeView;
 QT_END_NAMESPACE
 class MySortFilterProxyModel;
-
+class FilterWidget;
 //! [0]
 class Window : public QWidget
 {
@@ -76,12 +76,10 @@ private:
     QGroupBox *proxyGroupBox;
     QTreeView *sourceView;
     QTreeView *proxyView;
-    QCheckBox *filterCaseSensitivityCheckBox;
     QLabel *filterPatternLabel;
     QLabel *fromLabel;
     QLabel *toLabel;
-    QLineEdit *filterPatternLineEdit;
-    QComboBox *filterSyntaxComboBox;
+    FilterWidget *filterWidget;
     QDateEdit *fromDateEdit;
     QDateEdit *toDateEdit;
 };

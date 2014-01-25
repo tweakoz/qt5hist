@@ -67,12 +67,13 @@ for(group, groups) {
     $${group}_source.name = DBUSXML2CPP $${dbus_TYPE} SOURCE ${QMAKE_FILE_IN}
     $${group}_source.variable_out = SOURCES
     $${group}_source.input = $$input_list
+    $${group}_source.depends = $$eval($${group}_header.output)   # this actually belongs to the object file
 
     $${group}_moc.commands = $$moc_header.commands
     $${group}_moc.output = $$moc_header.output
     $${group}_moc.input = $${GROUP}_HEADERS
     $${group}_moc.variable_out = GENERATED_SOURCES
-    $${group}_moc.name = $$moc_header.name
+    $${group}_moc.name = $${GROUP}_$$moc_header.name
 
     QMAKE_EXTRA_COMPILERS += $${group}_header $${group}_source $${group}_moc
 }

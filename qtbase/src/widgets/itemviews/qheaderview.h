@@ -61,6 +61,7 @@ class Q_WIDGETS_EXPORT QHeaderView : public QAbstractItemView
     Q_PROPERTY(bool cascadingSectionResizes READ cascadingSectionResizes WRITE setCascadingSectionResizes)
     Q_PROPERTY(int defaultSectionSize READ defaultSectionSize WRITE setDefaultSectionSize)
     Q_PROPERTY(int minimumSectionSize READ minimumSectionSize WRITE setMinimumSectionSize)
+    Q_PROPERTY(int maximumSectionSize READ maximumSectionSize WRITE setMaximumSectionSize)
     Q_PROPERTY(Qt::Alignment defaultAlignment READ defaultAlignment WRITE setDefaultAlignment)
     Q_ENUMS(ResizeMode)
 
@@ -84,6 +85,7 @@ public:
     int offset() const;
     int length() const;
     QSize sizeHint() const;
+    void setVisible(bool v);
     int sectionSizeHint(int logicalIndex) const;
 
     int visualIndexAt(int position) const;
@@ -132,6 +134,10 @@ public:
     ResizeMode sectionResizeMode(int logicalIndex) const;
     void setSectionResizeMode(ResizeMode mode);
     void setSectionResizeMode(int logicalIndex, ResizeMode mode);
+
+    void setResizeContentsPrecision(int precision);
+    int  resizeContentsPrecision() const;
+
 #if QT_DEPRECATED_SINCE(5, 0)
     inline QT_DEPRECATED void setResizeMode(ResizeMode mode)
         { setSectionResizeMode(mode); }
@@ -161,6 +167,8 @@ public:
 
     int minimumSectionSize() const;
     void setMinimumSectionSize(int size);
+    int maximumSectionSize() const;
+    void setMaximumSectionSize(int size);
 
     Qt::Alignment defaultAlignment() const;
     void setDefaultAlignment(Qt::Alignment alignment);

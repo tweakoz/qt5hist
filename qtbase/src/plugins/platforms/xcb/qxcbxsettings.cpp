@@ -151,8 +151,6 @@ public:
         // we ignore byteorder for now
         char byteOrder = xSettings.at(1);
         Q_UNUSED(byteOrder);
-        uint serial = *reinterpret_cast<const uint *>(xSettings.mid(4,4).constData());
-        serial = serial;
         uint number_of_settings = *reinterpret_cast<const uint *>(xSettings.mid(8,4).constData());
 
         const char *data = xSettings.constData() + 12;
@@ -203,7 +201,6 @@ public:
 
     QXcbScreen *screen;
     xcb_window_t x_settings_window;
-    int serial;
     QMap<QByteArray, QXcbXSettingsPropertyValue> settings;
 };
 
@@ -221,6 +218,7 @@ QXcbXSettings::QXcbXSettings(QXcbScreen *screen)
     xcb_intern_atom_reply_t *atom_reply = xcb_intern_atom_reply(screen->xcb_connection(),atom_cookie,&error);
     if (error) {
         qWarning() << Q_FUNC_INFO << "Failed to find XSETTINGS_S atom";
+        free(error);
         return;
     }
     xcb_atom_t selection_owner_atom = atom_reply->atom;
@@ -233,14 +231,15 @@ QXcbXSettings::QXcbXSettings(QXcbScreen *screen)
             xcb_get_selection_owner_reply(screen->xcb_connection(), selection_cookie, &error);
     if (error) {
         qWarning() << Q_FUNC_INFO << "Failed to get selection owner for XSETTINGS_S atom";
+        free(error);
         return;
     }
 
     d_ptr->x_settings_window = selection_result->owner;
+    free(selection_result);
     if (!d_ptr->x_settings_window) {
         return;
     }
-    free(selection_result);
 
     const uint32_t event = XCB_CW_EVENT_MASK;
     const uint32_t event_mask[] = { XCB_EVENT_MASK_STRUCTURE_NOTIFY|XCB_EVENT_MASK_PROPERTY_CHANGE };

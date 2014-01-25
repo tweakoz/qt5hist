@@ -50,6 +50,8 @@ class QQnxNativeInterface : public QPlatformNativeInterface
 {
 public:
     void *nativeResourceForWindow(const QByteArray &resource, QWindow *window);
+    void *nativeResourceForScreen(const QByteArray &resource, QScreen *screen);
+    void setWindowProperty(QPlatformWindow *window, const QString &name, const QVariant &value);
 };
 
 QT_END_NAMESPACE

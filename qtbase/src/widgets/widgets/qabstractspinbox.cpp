@@ -41,7 +41,7 @@
 
 #include <qplatformdefs.h>
 #include <private/qabstractspinbox_p.h>
-#include <private/qdatetime_p.h>
+#include <private/qdatetimeparser_p.h>
 #include <private/qlineedit_p.h>
 #include <qabstractspinbox.h>
 
@@ -1408,7 +1408,7 @@ void QAbstractSpinBoxPrivate::updateEditFieldGeometry()
 }
 /*!
     \internal
-    Returns true if a specialValueText has been set and the current value is minimum.
+    Returns \c true if a specialValueText has been set and the current value is minimum.
 */
 
 bool QAbstractSpinBoxPrivate::specialValue() const

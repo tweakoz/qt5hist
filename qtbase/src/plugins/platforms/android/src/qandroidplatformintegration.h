@@ -60,6 +60,8 @@ QT_BEGIN_NAMESPACE
 
 class QDesktopWidget;
 class QAndroidPlatformServices;
+class QAndroidSystemLocale;
+class QPlatformAccessibility;
 
 #ifdef ANDROID_PLUGIN_OPENGL
 class QAndroidOpenGLPlatformWindow;
@@ -69,6 +71,8 @@ class QAndroidPlatformNativeInterface: public QPlatformNativeInterface
 {
 public:
     void *nativeResourceForIntegration(const QByteArray &resource);
+    QHash<int, QPalette> m_palettes;
+    QHash<int, QFont> m_fonts;
 };
 
 class QAndroidPlatformIntegration
@@ -89,7 +93,7 @@ public:
 #ifndef ANDROID_PLUGIN_OPENGL
     QPlatformBackingStore *createPlatformBackingStore(QWindow *window) const;
     QPlatformWindow *createPlatformWindow(QWindow *window) const;
-    QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+    QAbstractEventDispatcher *createEventDispatcher() const;
     QAndroidPlatformScreen *screen() { return m_primaryScreen; }
 #else
     QPlatformWindow *createPlatformWindow(QWindow *window) const;
@@ -112,7 +116,12 @@ public:
     QPlatformNativeInterface *nativeInterface() const;
     QPlatformServices *services() const;
 
+#ifndef QT_NO_ACCESSIBILITY
+    virtual QPlatformAccessibility *accessibility() const;
+#endif
+
     QVariant styleHint(StyleHint hint) const;
+    Qt::WindowState defaultWindowState(Qt::WindowFlags flags) const Q_DECL_OVERRIDE;
 
     QStringList themeNames() const;
     QPlatformTheme *createPlatformTheme(const QString &name) const;
@@ -121,6 +130,8 @@ public:
     void resumeApp();
     static void setDefaultDisplayMetrics(int gw, int gh, int sw, int sh);
     static void setDefaultDesktopSize(int gw, int gh);
+    static void setScreenOrientation(Qt::ScreenOrientation currentOrientation,
+                                     Qt::ScreenOrientation nativeOrientation);
 
     static QSize defaultDesktopSize()
     {
@@ -130,6 +141,10 @@ public:
     QTouchDevice *touchDevice() const { return m_touchDevice; }
     void setTouchDevice(QTouchDevice *touchDevice) { m_touchDevice = touchDevice; }
 
+#ifdef ANDROID_PLUGIN_OPENGL
+    QEglFSScreen *createScreen() const;
+#endif
+
 private:
 
     friend class QEglFSAndroidHooks;
@@ -137,7 +152,6 @@ private:
     QTouchDevice *m_touchDevice;
 
 #ifndef ANDROID_PLUGIN_OPENGL
-    QAbstractEventDispatcher *m_eventDispatcher;
     QAndroidPlatformScreen *m_primaryScreen;
 #endif
 
@@ -148,12 +162,19 @@ private:
     static int m_defaultPhysicalSizeWidth;
     static int m_defaultPhysicalSizeHeight;
 
+    static Qt::ScreenOrientation m_orientation;
+    static Qt::ScreenOrientation m_nativeOrientation;
+
     QPlatformFontDatabase *m_androidFDB;
     QImage *m_FbScreenImage;
     QPainter *m_compositePainter;
     QAndroidPlatformNativeInterface *m_androidPlatformNativeInterface;
     QAndroidPlatformServices *m_androidPlatformServices;
     QPlatformClipboard *m_androidPlatformClipboard;
+    QAndroidSystemLocale *m_androidSystemLocale;
+#ifndef QT_NO_ACCESSIBILITY
+    mutable QPlatformAccessibility *m_accessibility;
+#endif
 
     mutable QAndroidInputContext m_platformInputContext;
 };

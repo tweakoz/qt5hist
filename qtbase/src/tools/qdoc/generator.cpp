@@ -97,7 +97,9 @@ QStringList Generator::styleDirs;
 QStringList Generator::styleFiles;
 bool Generator::debugging_ = false;
 bool Generator::noLinkErrors_ = false;
+bool Generator::redirectDocumentationToDevNull_ = false;
 Generator::Passes Generator::qdocPass_ = Both;
+bool Generator::useOutputSubdirs_ = true;
 
 void Generator::setDebugSegfaultFlag(bool b)
 {
@@ -134,6 +136,7 @@ Generator::Generator()
       inSectionHeading_(false),
       inTableHeader_(false),
       threeColumnEnumValueTable_(true),
+      showInternal_(false),
       numTableRows_(0)
 {
     qdb_ = QDocDatabase::qdocDB();
@@ -221,7 +224,7 @@ void Generator::appendSortedQmlNames(Text& text, const Node* base, const NodeLis
     for (int i = 0; i < subs.size(); ++i) {
         Text t;
         if (!base->isQtQuickNode() || !subs[i]->isQtQuickNode() ||
-                (base->qmlModuleIdentifier() == subs[i]->qmlModuleIdentifier())) {
+                (base->qmlModuleName() == subs[i]->qmlModuleName())) {
             appendFullName(t, subs[i], base);
             classMap[t.toString().toLower()] = t;
         }
@@ -263,14 +266,17 @@ void Generator::writeOutFileNames()
 void Generator::beginSubPage(const InnerNode* node, const QString& fileName)
 {
     QString path = outputDir() + QLatin1Char('/');
-    if (!node->outputSubdirectory().isEmpty())
+    if (Generator::useOutputSubdirs() && !node->outputSubdirectory().isEmpty())
         path += node->outputSubdirectory() + QLatin1Char('/');
     path += fileName;
-    Generator::debugSegfault("Writing: " + path);
-    outFileNames.insert(fileName,fileName);
-    QFile* outFile = new QFile(path);
+
+    QFile* outFile = new QFile(redirectDocumentationToDevNull_ ? QStringLiteral("/dev/null") : path);
+    if (outFile->exists())
+        node->location().error(tr("HTML file already exists; overwriting %1").arg(outFile->fileName()));
     if (!outFile->open(QFile::WriteOnly))
         node->location().fatal(tr("Cannot open output file '%1'").arg(outFile->fileName()));
+    Generator::debugSegfault("Writing: " + path);
+    outFileNames.insert(fileName,fileName);
     QTextStream* out = new QTextStream(outFile);
 
 #ifndef QT_NO_TEXTCODEC
@@ -299,36 +305,22 @@ QString Generator::fileBase(const Node *node) const
         node = node->relates();
     else if (!node->isInnerNode())
         node = node->parent();
-    if (node->subType() == Node::QmlPropertyGroup) {
+    if (node->type() == Node::QmlPropertyGroup) {
         node = node->parent();
     }
 
-    QString base = node->doc().baseName();
-    if (!base.isEmpty())
-        return base;
-
-    const Node *p = node;
-
-    forever {
-        const Node *pp = p->parent();
-        base.prepend(p->name());
-        if (!p->qmlModuleIdentifier().isEmpty())
-            base.prepend(p->qmlModuleIdentifier()+QChar('-'));
-        /*
-          To avoid file name conflicts in the html directory,
-          we prepend a prefix (by default, "qml-") to the file name of QML
-          element doc files.
-         */
-        if ((p->subType() == Node::QmlClass) ||
-                (p->subType() == Node::QmlBasicType)) {
-            base.prepend(outputPrefix(QLatin1String("QML")));
-        }
-        if (!pp || pp->name().isEmpty() || pp->type() == Node::Document)
-            break;
-        base.prepend(QLatin1Char('-'));
-        p = pp;
+    if (node->type() == Node::Document && node->subType() == Node::Collision) {
+        const NameCollisionNode* ncn = static_cast<const NameCollisionNode*>(node);
+        if (ncn->currentChild())
+            return fileBase(ncn->currentChild());
     }
+
+    if (node->hasBaseName())
+        return node->baseName();
+
+    QString base;
     if (node->type() == Node::Document) {
+        base = node->name();
         if (node->subType() == Node::Collision) {
             const NameCollisionNode* ncn = static_cast<const NameCollisionNode*>(node);
             if (ncn->currentChild())
@@ -339,11 +331,45 @@ QString Generator::fileBase(const Node *node) const
         if (base.endsWith(".html"))
             base.truncate(base.length() - 5);
 
-        if (node->subType() == Node::QmlModule) {
-            base.prepend("qmlmodule-");
+        if (node->isQmlNode()) {
+            if (!node->qmlModuleName().isEmpty()) {
+                base.prepend(node->qmlModuleName() + QLatin1Char('-'));
+            }
+            /*
+              To avoid file name conflicts in the html directory,
+              we prepend a prefix (by default, "qml-") to the file name of QML
+              element doc files.
+            */
+            if ((node->subType() == Node::QmlClass) || (node->subType() == Node::QmlBasicType)) {
+                base.prepend(outputPrefix(QLatin1String("QML")));
+            }
         }
-        if (node->subType() == Node::Module) {
+        else if (node->subType() == Node::QmlModule) {
+            base.append("-qmlmodule");
+        }
+        else if (node->subType() == Node::Module) {
             base.append("-module");
+        }
+        if (node->isExample() || node->isExampleFile()) {
+            QString modPrefix(node->moduleName());
+            if (modPrefix.isEmpty()) {
+                modPrefix = project;
+            }
+            base.prepend(modPrefix.toLower() + QLatin1Char('-'));
+        }
+        if (node->isExample()) {
+            base.append(QLatin1String("-example"));
+        }
+    }
+    else {
+        const Node *p = node;
+        forever {
+            const Node *pp = p->parent();
+            base.prepend(p->name());
+            if (!pp || pp->name().isEmpty() || pp->type() == Node::Document)
+                break;
+            base.prepend(QLatin1Char('-'));
+            p = pp;
         }
     }
 
@@ -375,6 +401,8 @@ QString Generator::fileBase(const Node *node) const
     }
     while (res.endsWith(QLatin1Char('-')))
         res.chop(1);
+    Node* n = const_cast<Node*>(node);
+    n->setBaseName(res);
     return res;
 }
 
@@ -407,7 +435,7 @@ QMap<QString, QString>& Generator::formattingRightMap()
 /*!
   Returns the full document location.
  */
-QString Generator::fullDocumentLocation(const Node *node, bool subdir)
+QString Generator::fullDocumentLocation(const Node *node, bool useSubdir)
 {
     if (!node)
         return QString();
@@ -419,11 +447,11 @@ QString Generator::fullDocumentLocation(const Node *node, bool subdir)
     QString fdl;
 
     /*
-      If the output is being sent to subdirectories of the
-      output directory, and if the subdir parameter is set,
-      prepend the subdirectory name + '/' to the result.
+      If the useSubdir parameter is set, then the output is
+      being sent to subdirectories of the output directory.
+      Prepend the subdirectory name + '/' to the result.
      */
-    if (subdir) {
+    if (useSubdir) {
         fdl = node->outputSubdirectory();
         if (!fdl.isEmpty())
             fdl.append(QLatin1Char('/'));
@@ -447,7 +475,7 @@ QString Generator::fullDocumentLocation(const Node *node, bool subdir)
             else {
                 QString mq;
                 if (!node->qmlModuleName().isEmpty()) {
-                    mq = node->qmlModuleIdentifier().replace(QChar('.'),QChar('-'));
+                    mq = node->qmlModuleName().replace(QChar('.'),QChar('-'));
                     mq = mq.toLower() + QLatin1Char('-');
                 }
                 return fdl+ Generator::outputPrefix(QLatin1String("QML")) + mq +
@@ -467,7 +495,7 @@ QString Generator::fullDocumentLocation(const Node *node, bool subdir)
         parentName = fullDocumentLocation(node->relates());
     }
     else if ((parentNode = node->parent())) {
-        if (parentNode->subType() == Node::QmlPropertyGroup) {
+        if (parentNode->type() == Node::QmlPropertyGroup) {
             parentNode = parentNode->parent();
             parentName = fullDocumentLocation(parentNode);
         }
@@ -508,8 +536,14 @@ QString Generator::fullDocumentLocation(const Node *node, bool subdir)
         anchorRef = QLatin1Char('#') + node->name() + "-enum";
         break;
     case Node::Typedef:
+    {
+        const TypedefNode *tdef = static_cast<const TypedefNode *>(node);
+        if (tdef->associatedEnum()) {
+            return fullDocumentLocation(tdef->associatedEnum());
+        }
         anchorRef = QLatin1Char('#') + node->name() + "-typedef";
         break;
+    }
     case Node::Property:
         anchorRef = QLatin1Char('#') + node->name() + "-prop";
         break;
@@ -933,6 +967,10 @@ void Generator::generateInnerNode(InnerNode* node)
 {
     if (!node->url().isNull())
         return;
+    if (node->isIndexNode())
+        return;
+    if (node->isInternal() && !showInternal_)
+        return;
 
     if (node->type() == Node::Document) {
         DocNode* docNode = static_cast<DocNode*>(node);
@@ -940,13 +978,13 @@ void Generator::generateInnerNode(InnerNode* node)
             return;
         if (docNode->subType() == Node::Image)
             return;
-        if (docNode->subType() == Node::QmlPropertyGroup)
-            return;
         if (docNode->subType() == Node::Page) {
             if (node->count() > 0)
                 qDebug("PAGE %s HAS CHILDREN", qPrintable(docNode->title()));
         }
     }
+    else if (node->type() == Node::QmlPropertyGroup)
+        return;
 
     /*
       Obtain a code marker for the source file.
@@ -1095,14 +1133,10 @@ void Generator::generateSince(const Node *node, CodeMarker *marker)
 
         QStringList since = node->since().split(QLatin1Char(' '));
         if (since.count() == 1) {
-            // Handle legacy use of \since <version>.
-            if (project.isEmpty())
-                text << "version";
-            else
-                text << project;
-            text << " " << since[0];
+            // If there is only one argument, assume it is the Qt version number.
+            text << " Qt " << since[0];
         } else {
-            // Reconstruct the <project> <version> string.
+            // Otherwise, reconstruct the <project> <version> string.
             text << " " << since.join(' ');
         }
 
@@ -1474,7 +1508,12 @@ QString Generator::indent(int level, const QString& markedCode)
 
 void Generator::initialize(const Config &config)
 {
+
+    if (config.getBool(QString("HTML.nosubdirs")))
+        resetUseOutputSubdirs();
+
     outputFormats = config.getOutputFormats();
+    redirectDocumentationToDevNull_ = config.getBool(CONFIG_REDIRECTDOCUMENTATIONTODEVNULL);
     if (!outputFormats.isEmpty()) {
         outDir_ = config.getOutputDir();
         if (outDir_.isEmpty()) {
@@ -1487,7 +1526,7 @@ void Generator::initialize(const Config &config)
 
         QDir dirInfo;
         if (dirInfo.exists(outDir_)) {
-            if (!runGenerateOnly()) {
+            if (!runGenerateOnly() && Generator::useOutputSubdirs()) {
                 if (!Config::removeDirContents(outDir_))
                     config.lastLocation().error(tr("Cannot empty output directory '%1'").arg(outDir_));
             }
@@ -1610,7 +1649,7 @@ void Generator::initialize(const Config &config)
     }
     else
         outputPrefixes[QLatin1String("QML")] = QLatin1String("qml-");
-    noLinkErrors_ = config.getBool(QLatin1String(CONFIG_NOLINKERRORS));
+    noLinkErrors_ = config.getBool(CONFIG_NOLINKERRORS);
 }
 
 /*!
@@ -1634,6 +1673,7 @@ void Generator::augmentImageDirs(QSet<QString>& moreImageDirs)
 void Generator::initializeGenerator(const Config& config)
 {
     config_ = &config;
+    showInternal_ = config.getBool(CONFIG_SHOWINTERNAL);
 }
 
 bool Generator::matchAhead(const Atom *atom, Atom::Type expectedAtomType)
@@ -1907,8 +1947,6 @@ QString Generator::typeString(const Node *node)
         switch (node->subType()) {
         case Node::QmlClass:
             return "type";
-        case Node::QmlPropertyGroup:
-            return "property group";
         case Node::QmlBasicType:
             return "type";
         default:
@@ -1923,6 +1961,16 @@ QString Generator::typeString(const Node *node)
         return "function";
     case Node::Property:
         return "property";
+    case Node::QmlPropertyGroup:
+        return "property group";
+    case Node::QmlProperty:
+        return "QML property";
+    case Node::QmlSignal:
+        return "QML signal";
+    case Node::QmlSignalHandler:
+        return "QML signal handler";
+    case Node::QmlMethod:
+        return "QML method";
     default:
         return "documentation";
     }

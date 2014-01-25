@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -46,11 +46,12 @@
 #include "qquickitem_p.h"
 #include "qquickevents_p_p.h"
 
+#include <private/qquickdrag_p.h>
+
 #include <QtQuick/private/qsgrenderer_p.h>
 #include <QtQuick/private/qsgtexture_p.h>
-#include <QtQuick/private/qsgflashnode_p.h>
-
 #include <private/qsgrenderloop_p.h>
+#include <private/qquickanimatorcontroller_p.h>
 
 #include <private/qguiapplication_p.h>
 #include <QtGui/QInputMethod>
@@ -215,6 +216,7 @@ void QQuickWindow::exposeEvent(QExposeEvent *)
 /*! \reimp */
 void QQuickWindow::resizeEvent(QResizeEvent *)
 {
+    d_func()->windowManager->resize(this);
 }
 
 /*! \reimp */
@@ -279,6 +281,28 @@ void QQuickWindow::update()
     d->windowManager->update(this);
 }
 
+void forcePolishHelper(QQuickItem *item)
+{
+    if (item->flags() & QQuickItem::ItemHasContents) {
+        item->polish();
+    }
+
+    QList <QQuickItem *> items = item->childItems();
+    for (int i=0; i<items.size(); ++i)
+        forcePolishHelper(items.at(i));
+}
+
+/*!
+    Schedules polish events on all items in the scene.
+*/
+void QQuickWindow::forcePolish()
+{
+    Q_D(QQuickWindow);
+    if (!screen())
+        return;
+    forcePolishHelper(d->contentItem);
+}
+
 void forceUpdate(QQuickItem *item)
 {
     if (item->flags() & QQuickItem::ItemHasContents)
@@ -295,6 +319,8 @@ void QQuickWindowPrivate::syncSceneGraph()
     QML_MEMORY_SCOPE_STRING("SceneGraph");
     Q_Q(QQuickWindow);
 
+    animationController->beforeNodeSync();
+
     emit q->beforeSynchronizing();
     if (!renderer) {
         forceUpdate(contentItem);
@@ -306,6 +332,8 @@ void QQuickWindowPrivate::syncSceneGraph()
     }
 
     updateDirtyNodes();
+
+    animationController->afterNodeSync();
 
     // Copy the current state of clearing from window into renderer.
     renderer->setClearColor(clearColor);
@@ -320,6 +348,7 @@ void QQuickWindowPrivate::renderSceneGraph(const QSize &size)
 {
     QML_MEMORY_SCOPE_STRING("SceneGraph");
     Q_Q(QQuickWindow);
+    animationController->advance();
     emit q->beforeRendering();
     int fboId = 0;
     const qreal devicePixelRatio = q->devicePixelRatio();
@@ -344,6 +373,9 @@ QQuickWindowPrivate::QQuickWindowPrivate()
 #ifndef QT_NO_CURSOR
     , cursorItem(0)
 #endif
+#ifndef QT_NO_DRAGANDDROP
+    , dragGrabber(0)
+#endif
     , touchMouseId(-1)
     , touchMousePressTimestamp(0)
     , dirtyItemList(0)
@@ -360,6 +392,9 @@ QQuickWindowPrivate::QQuickWindowPrivate()
     , renderTargetId(0)
     , incubationController(0)
 {
+#ifndef QT_NO_DRAGANDDROP
+    dragGrabber = new QQuickDragGrabber;
+#endif
 }
 
 QQuickWindowPrivate::~QQuickWindowPrivate()
@@ -380,15 +415,20 @@ void QQuickWindowPrivate::init(QQuickWindow *c)
     contentItemPrivate->flags |= QQuickItem::ItemIsFocusScope;
 
     windowManager = QSGRenderLoop::instance();
-    context = windowManager->sceneGraphContext();
+    QSGContext *sg = windowManager->sceneGraphContext();
+    context = windowManager->createRenderContext(sg);
     q->setSurfaceType(QWindow::OpenGLSurface);
-    q->setFormat(context->defaultSurfaceFormat());
+    q->setFormat(sg->defaultSurfaceFormat());
+
+    animationController = new QQuickAnimatorController();
+    animationController->m_window = q;
 
     QObject::connect(context, SIGNAL(initialized()), q, SIGNAL(sceneGraphInitialized()), Qt::DirectConnection);
     QObject::connect(context, SIGNAL(invalidated()), q, SIGNAL(sceneGraphInvalidated()), Qt::DirectConnection);
     QObject::connect(context, SIGNAL(invalidated()), q, SLOT(cleanupSceneGraph()), Qt::DirectConnection);
 
     QObject::connect(q, SIGNAL(focusObjectChanged(QObject*)), q, SIGNAL(activeFocusItemChanged()));
+    QObject::connect(q, SIGNAL(screenChanged(QScreen*)), q, SLOT(forcePolish()));
 }
 
 /*!
@@ -458,7 +498,6 @@ bool QQuickWindowPrivate::checkIfDoubleClicked(ulong newPressEventTimestamp)
 
 bool QQuickWindowPrivate::translateTouchToMouse(QQuickItem *item, QTouchEvent *event)
 {
-    Q_Q(QQuickWindow);
     // For each point, check if it is accepted, if not, try the next point.
     // Any of the fingers can become the mouse one.
     // This can happen because a mouse area might not accept an event at some point but another.
@@ -484,7 +523,7 @@ bool QQuickWindowPrivate::translateTouchToMouse(QQuickItem *item, QTouchEvent *e
                 item->grabMouse();
             item->grabTouchPoints(QVector<int>() << touchMouseId);
 
-            q->sendEvent(item, mousePress.data());
+            QQuickItemPrivate::get(item)->deliverMouseEvent(mousePress.data());
             event->setAccepted(mousePress->isAccepted());
             if (!mousePress->isAccepted()) {
                 touchMouseId = -1;
@@ -497,7 +536,7 @@ bool QQuickWindowPrivate::translateTouchToMouse(QQuickItem *item, QTouchEvent *e
 
             if (mousePress->isAccepted() && checkIfDoubleClicked(event->timestamp())) {
                 QScopedPointer<QMouseEvent> mouseDoubleClick(touchToMouseEvent(QEvent::MouseButtonDblClick, p, event, item));
-                q->sendEvent(item, mouseDoubleClick.data());
+                QQuickItemPrivate::get(item)->deliverMouseEvent(mouseDoubleClick.data());
                 event->setAccepted(mouseDoubleClick->isAccepted());
                 if (mouseDoubleClick->isAccepted()) {
                     return true;
@@ -518,7 +557,7 @@ bool QQuickWindowPrivate::translateTouchToMouse(QQuickItem *item, QTouchEvent *e
             if (p.state() & Qt::TouchPointMoved) {
                 if (mouseGrabberItem) {
                     QScopedPointer<QMouseEvent> me(touchToMouseEvent(QEvent::MouseMove, p, event, mouseGrabberItem));
-                    q->sendEvent(mouseGrabberItem, me.data());
+                    QQuickItemPrivate::get(item)->deliverMouseEvent(me.data());
                     event->setAccepted(me->isAccepted());
                     if (me->isAccepted()) {
                         itemForTouchPointId[p.id()] = mouseGrabberItem; // N.B. the mouseGrabberItem may be different after returning from sendEvent()
@@ -548,7 +587,7 @@ bool QQuickWindowPrivate::translateTouchToMouse(QQuickItem *item, QTouchEvent *e
                 touchMouseId = -1;
                 if (mouseGrabberItem) {
                     QScopedPointer<QMouseEvent> me(touchToMouseEvent(QEvent::MouseButtonRelease, p, event, mouseGrabberItem));
-                    q->sendEvent(mouseGrabberItem, me.data());
+                    QQuickItemPrivate::get(item)->deliverMouseEvent(me.data());
                     if (mouseGrabberItem) // might have ungrabbed due to event
                         mouseGrabberItem->ungrabMouse();
                     return me->isAccepted();
@@ -732,23 +771,24 @@ void QQuickWindowPrivate::clearFocusInScope(QQuickItem *scope, QQuickItem *item,
         oldActiveFocusItem = activeFocusItem;
         newActiveFocusItem = scope;
 
-        Q_ASSERT(oldActiveFocusItem);
-
 #ifndef QT_NO_IM
         qApp->inputMethod()->commit();
 #endif
 
         activeFocusItem = 0;
-        QFocusEvent event(QEvent::FocusOut, reason);
-        q->sendEvent(oldActiveFocusItem, &event);
 
-        QQuickItem *afi = oldActiveFocusItem;
-        while (afi && afi != scope) {
-            if (QQuickItemPrivate::get(afi)->activeFocus) {
-                QQuickItemPrivate::get(afi)->activeFocus = false;
-                changed << afi;
+        if (oldActiveFocusItem) {
+            QFocusEvent event(QEvent::FocusOut, reason);
+            q->sendEvent(oldActiveFocusItem, &event);
+
+            QQuickItem *afi = oldActiveFocusItem;
+            while (afi && afi != scope) {
+                if (QQuickItemPrivate::get(afi)->activeFocus) {
+                    QQuickItemPrivate::get(afi)->activeFocus = false;
+                    changed << afi;
+                }
+                afi = afi->parentItem();
             }
-            afi = afi->parentItem();
         }
     }
 
@@ -781,9 +821,14 @@ void QQuickWindowPrivate::clearFocusInScope(QQuickItem *scope, QQuickItem *item,
         notifyFocusChangesRecur(changed.data(), changed.count() - 1);
 }
 
+void QQuickWindowPrivate::clearFocusObject()
+{
+    contentItem->setFocus(false, Qt::OtherFocusReason);
+}
+
 void QQuickWindowPrivate::notifyFocusChangesRecur(QQuickItem **items, int remaining)
 {
-    QQmlGuard<QQuickItem> item(*items);
+    QPointer<QQuickItem> item(*items);
 
     if (remaining)
         notifyFocusChangesRecur(items + 1, remaining - 1);
@@ -822,7 +867,7 @@ void QQuickWindowPrivate::cleanup(QSGNode *n)
 /*!
     \qmltype Window
     \instantiates QQuickWindow
-    \inqmlmodule QtQuick.Window 2
+    \inqmlmodule QtQuick.Window
     \ingroup qtquick-visual
     \brief Creates a new top-level window
 
@@ -857,7 +902,7 @@ void QQuickWindowPrivate::cleanup(QSGNode *n)
 */
 /*!
     \class QQuickWindow
-    \since QtQuick 2.0
+    \since 5.0
 
     \inmodule QtQuick
 
@@ -960,11 +1005,14 @@ QQuickWindow::~QQuickWindow()
 {
     Q_D(QQuickWindow);
 
+    d->animationController->deleteLater();
     d->windowManager->windowDestroyed(this);
 
     QCoreApplication::sendPostedEvents(0, QEvent::DeferredDelete);
     delete d->incubationController; d->incubationController = 0;
-
+#ifndef QT_NO_DRAGANDDROP
+    delete d->dragGrabber; d->dragGrabber = 0;
+#endif
     delete d->contentItem; d->contentItem = 0;
 }
 
@@ -1182,7 +1230,7 @@ bool QQuickWindow::event(QEvent *e)
     case QEvent::DragLeave:
     case QEvent::DragMove:
     case QEvent::Drop:
-        d->deliverDragEvent(&d->dragGrabber, e);
+        d->deliverDragEvent(d->dragGrabber, e);
         break;
 #endif
     case QEvent::WindowDeactivate:
@@ -1414,6 +1462,7 @@ void QQuickWindow::mouseMoveEvent(QMouseEvent *event)
 bool QQuickWindowPrivate::deliverHoverEvent(QQuickItem *item, const QPointF &scenePos, const QPointF &lastScenePos,
                                          Qt::KeyboardModifiers modifiers, bool &accepted)
 {
+    Q_Q(QQuickWindow);
     QQuickItemPrivate *itemPrivate = QQuickItemPrivate::get(item);
 
     if (itemPrivate->flags & QQuickItem::ItemClipsChildrenToShape) {
@@ -1463,7 +1512,13 @@ bool QQuickWindowPrivate::deliverHoverEvent(QQuickItem *item, const QPointF &sce
 
                     for (int i = startIdx; i >= 0; i--) {
                         QQuickItem *itemToHover = itemsToHover[i];
-                        if (QQuickItemPrivate::get(itemToHover)->hoverEnabled) {
+                        QQuickItemPrivate *itemToHoverPrivate = QQuickItemPrivate::get(itemToHover);
+                        // The item may be about to be deleted or reparented to another window
+                        // due to another hover event delivered in this function. If that is the
+                        // case, sending a hover event here will cause a crash or other bad
+                        // behavior when the leave event is generated. Checking
+                        // itemToHoverPrivate->window here prevents that case.
+                        if (itemToHoverPrivate->window == q && itemToHoverPrivate->hoverEnabled) {
                             hoverItems.prepend(itemToHover);
                             sendHoverEvent(QEvent::HoverEnter, itemToHover, scenePos, lastScenePos, modifiers, accepted);
                         }
@@ -1502,7 +1557,7 @@ bool QQuickWindowPrivate::deliverWheelEvent(QQuickItem *item, QWheelEvent *event
 
     if (item->contains(p)) {
         QWheelEvent wheel(p, p, event->pixelDelta(), event->angleDelta(), event->delta(),
-                          event->orientation(), event->buttons(), event->modifiers());
+                          event->orientation(), event->buttons(), event->modifiers(), event->phase());
         wheel.accept();
         q->sendEvent(item, &wheel);
         if (wheel.isAccepted()) {
@@ -1523,7 +1578,7 @@ void QQuickWindow::wheelEvent(QWheelEvent *event)
 #endif
 
     //if the actual wheel event was accepted, accept the compatibility wheel event and return early
-    if (d->lastWheelEventAccepted && event->angleDelta().isNull())
+    if (d->lastWheelEventAccepted && event->angleDelta().isNull() && event->phase() == Qt::ScrollUpdate)
         return;
 
     event->ignore();
@@ -1673,9 +1728,14 @@ bool QQuickWindowPrivate::deliverTouchPoints(QQuickItem *item, QTouchEvent *even
     // a single stationary press on an item shouldn't cause an event
     if (matchingNewPoints.isEmpty()) {
         bool stationaryOnly = true;
-        Q_FOREACH (QTouchEvent::TouchPoint tp, matchingPoints)
-            if (tp.state() != Qt::TouchPointStationary)
+
+        foreach (const QTouchEvent::TouchPoint &tp, matchingPoints) {
+            if (tp.state() != Qt::TouchPointStationary) {
                 stationaryOnly = false;
+                break;
+            }
+        }
+
         if (stationaryOnly)
             matchingPoints.clear();
     }
@@ -2040,13 +2100,13 @@ bool QQuickWindowPrivate::sendFilteredMouseEvent(QQuickItem *target, QQuickItem 
     return false;
 }
 
-bool QQuickWindowPrivate::dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent *event)
+bool QQuickWindowPrivate::dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent *event, int startDragThreshold)
 {
     QStyleHints *styleHints = qApp->styleHints();
     int caps = QGuiApplicationPrivate::mouseEventCaps(event);
     bool dragVelocityLimitAvailable = (caps & QTouchDevice::Velocity)
         && styleHints->startDragVelocity();
-    bool overThreshold = qAbs(d) > styleHints->startDragDistance();
+    bool overThreshold = qAbs(d) > (startDragThreshold >= 0 ? startDragThreshold : styleHints->startDragDistance());
     if (dragVelocityLimitAvailable) {
         QVector2D velocityVec = QGuiApplicationPrivate::mouseEventVelocity(event);
         qreal velocity = axis == Qt::XAxis ? velocityVec.x() : velocityVec.y();
@@ -2056,7 +2116,7 @@ bool QQuickWindowPrivate::dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent 
 }
 
 /*!
-    \qmlproperty list<Object> QtQuick.Window2::Window::data
+    \qmlproperty list<Object> Window::data
     \default
 
     The data property allows you to freely mix visual children, resources
@@ -2265,10 +2325,6 @@ void QQuickWindowPrivate::updateDirtyNodes()
 
 void QQuickWindowPrivate::updateDirtyNode(QQuickItem *item)
 {
-#ifdef QML_RUNTIME_TESTING
-    bool didFlash = false;
-#endif
-
     QQuickItemPrivate *itemPriv = QQuickItemPrivate::get(item);
     quint32 dirty = itemPriv->dirtyAttributes;
     itemPriv->dirtyAttributes = 0;
@@ -2492,19 +2548,6 @@ void QQuickWindowPrivate::updateDirtyNode(QQuickItem *item)
     }
 #endif
 
-#ifdef QML_RUNTIME_TESTING
-    if (itemPriv->sceneGraphContext()->isFlashModeEnabled()) {
-        QSGFlashNode *flash = new QSGFlashNode();
-        flash->setRect(item->boundingRect());
-        itemPriv->childContainerNode()->appendChildNode(flash);
-        didFlash = true;
-    }
-    Q_Q(QQuickWindow);
-    if (didFlash) {
-        q->maybeUpdate();
-    }
-#endif
-
 }
 
 void QQuickWindow::maybeUpdate()
@@ -2544,9 +2587,7 @@ void QQuickWindow::setTransientParent_helper(QQuickWindow *window)
 QOpenGLContext *QQuickWindow::openglContext() const
 {
     Q_D(const QQuickWindow);
-    if (d->context->isReady())
-        return d->context->glContext();
-    return 0;
+    return d->context->openglContext();
 }
 
 /*!
@@ -2583,7 +2624,7 @@ QOpenGLContext *QQuickWindow::openglContext() const
 /*!
     \class QQuickCloseEvent
     \internal
-    \since QtQuick 2.1
+    \since 5.1
 
     \inmodule QtQuick.Window
 
@@ -2592,10 +2633,10 @@ QOpenGLContext *QQuickWindow::openglContext() const
 /*!
     \qmltype CloseEvent
     \instantiates QQuickCloseEvent
-    \inqmlmodule QtQuick.Window 2
+    \inqmlmodule QtQuick.Window
     \ingroup qtquick-visual
     \brief Notification that a \l Window is about to be closed
-    \since Qt 5.1
+    \since 5.1
 
     Notification that a window is about to be closed by the windowing system
     (e.g. the user clicked the titlebar close button). The CloseEvent contains
@@ -2605,7 +2646,7 @@ QOpenGLContext *QQuickWindow::openglContext() const
 */
 
 /*!
-    \qmlproperty bool QtQuick.Window2::CloseEvent::accepted
+    \qmlproperty bool CloseEvent::accepted
 
     This property indicates whether the application will allow the user to
     close the window.  It is true by default.
@@ -2613,15 +2654,15 @@ QOpenGLContext *QQuickWindow::openglContext() const
 
 /*!
     \fn void QQuickWindow::closing()
-    \since QtQuick 2.1
+    \since 5.1
 
     This signal is emitted when the window receives a QCloseEvent from the
     windowing system.
 */
 
 /*!
-    \qmlsignal QtQuick.Window2::closing(CloseEvent close)
-    \since Qt 5.1
+    \qmlsignal closing(CloseEvent close)
+    \since 5.1
 
     This signal is emitted when the user tries to close the window.
 
@@ -2729,7 +2770,7 @@ QOpenGLFramebufferObject *QQuickWindow::renderTarget() const
     Grabs the contents of the window and returns it as an image.
 
     It is possible to call the grabWindow() function when the window is not
-    visible. This requires that the window is \l{QWindow::create} {created}
+    visible. This requires that the window is \l{QWindow::create()} {created}
     and has a valid size and that no other QQuickWindow instances are rendering
     in the same process.
 
@@ -2742,7 +2783,7 @@ QImage QQuickWindow::grabWindow()
     Q_D(QQuickWindow);
     if (!isVisible()) {
 
-        if (d->context->isReady()) {
+        if (d->context->openglContext()) {
             qWarning("QQuickWindow::grabWindow: scene graph already in use");
             return QImage();
         }
@@ -2805,6 +2846,8 @@ QQmlIncubationController *QQuickWindow::incubationController() const
 
     \value TextureOwnsGLTexture The texture object owns the texture id and
     will delete the GL texture when the texture object is deleted.
+
+    \value TextureCanUseAtlas The image can be uploaded into a texture atlas.
  */
 
 /*!
@@ -2897,6 +2940,14 @@ bool QQuickWindow::clearBeforeRendering() const
     return d->clearBeforeRendering;
 }
 
+/*!
+    \overload
+ */
+
+QSGTexture *QQuickWindow::createTextureFromImage(const QImage &image) const
+{
+    return createTextureFromImage(image, 0);
+}
 
 
 /*!
@@ -2906,10 +2957,11 @@ bool QQuickWindow::clearBeforeRendering() const
     The caller of the function is responsible for deleting the returned texture.
     The actual GL texture will be deleted when the texture object is deleted.
 
-    Depending on the underlying implementation of the scene graph, the returned
-    texture may be part of an atlas. For code to be portable across implementations
-    one should always use the texture coordinates returned from
-    QSGTexture::normalizedTextureSubRect() when building geometry.
+    When \a options contains TextureCanUseAtlas the engine may put the image
+    into a texture atlas. Textures in an atlas need to rely on
+    QSGTexture::normalizedTextureSubRect() for their geometry and will not
+    support QSGTexture::Repeat. Other values from CreateTextureOption are
+    ignored.
 
     \warning This function will return 0 if the scene graph has not yet been
     initialized.
@@ -2925,11 +2977,15 @@ bool QQuickWindow::clearBeforeRendering() const
     \sa sceneGraphInitialized()
  */
 
-QSGTexture *QQuickWindow::createTextureFromImage(const QImage &image) const
+QSGTexture *QQuickWindow::createTextureFromImage(const QImage &image, CreateTextureOptions options) const
 {
     Q_D(const QQuickWindow);
-    if (d->context && d->context->isReady())
-        return d->context->createTexture(image);
+    if (d->context && d->context->openglContext()) {
+        if (options & TextureCanUseAtlas)
+            return d->context->createTexture(image);
+        else
+            return d->context->createTextureNoAtlas(image);
+    }
     else
         return 0;
 }
@@ -2941,7 +2997,8 @@ QSGTexture *QQuickWindow::createTextureFromImage(const QImage &image) const
 
     The caller of the function is responsible for deleting the returned texture.
 
-    Use \a options to customize the texture attributes.
+    Use \a options to customize the texture attributes. The TextureUsesAtlas
+    option is ignored.
 
     \warning This function will return 0 if the scenegraph has not yet been
     initialized.
@@ -2951,7 +3008,7 @@ QSGTexture *QQuickWindow::createTextureFromImage(const QImage &image) const
 QSGTexture *QQuickWindow::createTextureFromId(uint id, const QSize &size, CreateTextureOptions options) const
 {
     Q_D(const QQuickWindow);
-    if (d->context && d->context->isReady()) {
+    if (d->context && d->context->openglContext()) {
         QSGPlainTexture *texture = new QSGPlainTexture();
         texture->setTextureId(id);
         texture->setHasAlphaChannel(options & TextureHasAlphaChannel);
@@ -2964,7 +3021,7 @@ QSGTexture *QQuickWindow::createTextureFromId(uint id, const QSize &size, Create
 }
 
 /*!
-    \qmlproperty color QtQuick.Window2::Window::color
+    \qmlproperty color Window::color
 
     The background color for the window.
 
@@ -3008,7 +3065,7 @@ QColor QQuickWindow::color() const
 /*!
     \brief Returns whether to use alpha transparency on newly created windows.
 
-    \since Qt 5.1
+    \since 5.1
     \sa setDefaultAlphaBuffer()
  */
 bool QQuickWindow::hasDefaultAlphaBuffer()
@@ -3018,7 +3075,7 @@ bool QQuickWindow::hasDefaultAlphaBuffer()
 
 /*!
     \brief \a useAlpha specifies whether to use alpha transparency on newly created windows.
-    \since Qt 5.1
+    \since 5.1
 
     In any application which expects to create translucent windows, it's
     necessary to set this to true before creating the first QQuickWindow,
@@ -3031,7 +3088,69 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
 }
 
 /*!
-    \qmlproperty string QtQuick.Window2::Window::title
+    \since 5.2
+
+    Call this function to reset the OpenGL context its default state.
+
+    The scene graph uses the OpenGL context and will both rely on and
+    clobber its state. When mixing raw OpenGL commands with scene
+    graph rendering, this function provides a convenient way of
+    resetting the OpenGL context state back to its default values.
+
+    This function does not touch state in the fixed-function pipeline.
+
+    This function does not clear the color, depth and stencil buffers. Use
+    QQuickWindow::setClearBeforeRendering to control clearing of the color
+    buffer. The depth and stencil buffer might be clobbered by the scene
+    graph renderer. Clear these manually on demand.
+
+    \sa QQuickWindow::beforeRendering()
+ */
+void QQuickWindow::resetOpenGLState()
+{
+    if (!openglContext())
+        return;
+
+    QOpenGLFunctions *gl = openglContext()->functions();
+
+    gl->glBindBuffer(GL_ARRAY_BUFFER, 0);
+    gl->glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+    int maxAttribs;
+    glGetIntegerv(GL_MAX_VERTEX_ATTRIBS, &maxAttribs);
+    for (int i=0; i<maxAttribs; ++i) {
+        gl->glVertexAttribPointer(i, 4, GL_FLOAT, GL_FALSE, 0, 0);
+        gl->glDisableVertexAttribArray(i);
+    }
+
+    gl->glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    glDisable(GL_DEPTH_TEST);
+    glDisable(GL_STENCIL_TEST);
+    glDisable(GL_SCISSOR_TEST);
+
+    glColorMask(true, true, true, true);
+    glClearColor(0, 0, 0, 0);
+
+    glDepthMask(true);
+    glDepthFunc(GL_LESS);
+    gl->glClearDepthf(1);
+
+    glStencilMask(0xff);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
+    glStencilFunc(GL_ALWAYS, 0, 0xff);
+
+    glDisable(GL_BLEND);
+    glBlendFunc(GL_ONE, GL_ZERO);
+
+    gl->glUseProgram(0);
+
+    QOpenGLFramebufferObject::bindDefault();
+}
+
+/*!
+    \qmlproperty string Window::title
 
     The window's title in the windowing system.
 
@@ -3042,7 +3161,7 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty Qt::WindowModality QtQuick.Window2::Window::modality
+    \qmlproperty Qt::WindowModality Window::modality
 
     The modality of the window.
 
@@ -3052,7 +3171,7 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty Qt::WindowFlags QtQuick.Window2::Window::flags
+    \qmlproperty Qt::WindowFlags Window::flags
 
     The window flags of the window.
 
@@ -3065,10 +3184,10 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty int QtQuick.Window2::Window::x
-    \qmlproperty int QtQuick.Window2::Window::y
-    \qmlproperty int QtQuick.Window2::Window::width
-    \qmlproperty int QtQuick.Window2::Window::height
+    \qmlproperty int Window::x
+    \qmlproperty int Window::y
+    \qmlproperty int Window::width
+    \qmlproperty int Window::height
 
     Defines the window's position and size.
 
@@ -3083,9 +3202,9 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty int QtQuick.Window2::Window::minimumWidth
-    \qmlproperty int QtQuick.Window2::Window::minimumHeight
-    \since Qt 5.1
+    \qmlproperty int Window::minimumWidth
+    \qmlproperty int Window::minimumHeight
+    \since 5.1
 
     Defines the window's minimum size.
 
@@ -3094,9 +3213,9 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty int QtQuick.Window2::Window::maximumWidth
-    \qmlproperty int QtQuick.Window2::Window::maximumHeight
-    \since Qt 5.1
+    \qmlproperty int Window::maximumWidth
+    \qmlproperty int Window::maximumHeight
+    \since 5.1
 
     Defines the window's maximum size.
 
@@ -3105,7 +3224,7 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty bool QtQuick.Window2::Window::visible
+    \qmlproperty bool Window::visible
 
     Whether the window is visible on the screen.
 
@@ -3115,7 +3234,7 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlproperty QWindow::Visibility QtQuick.Window2::Window::visibility
+    \qmlproperty QWindow::Visibility Window::visibility
 
     The screen-occupation state of the window.
 
@@ -3131,11 +3250,11 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
     visibility to Hidden is the same as setting \l visible to false.
 
     \sa visible
-    \since Qt 5.1
+    \since 5.1
  */
 
 /*!
-    \qmlproperty Qt::ScreenOrientation QtQuick.Window2::Window::contentOrientation
+    \qmlproperty Qt::ScreenOrientation Window::contentOrientation
 
     This is a hint to the window manager in case it needs to display
     additional content like popups, dialogs, status bars, or similar
@@ -3152,11 +3271,11 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
 
     \sa Screen
 
-    \since Qt 5.1
+    \since 5.1
  */
 
 /*!
-    \qmlproperty real QtQuick.Window2::Window::opacity
+    \qmlproperty real Window::opacity
 
     The opacity of the window.
 
@@ -3169,20 +3288,20 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
 
     The default value is 1.0.
 
-    \since Qt 5.1
+    \since 5.1
  */
 
 /*!
-    \qmlproperty Item QtQuick.Window2::Window::activeFocusItem
-    \since Qt 5.1
+    \qmlproperty Item Window::activeFocusItem
+    \since 5.1
 
     The item which currently has active focus or \c null if there is
     no item with active focus.
  */
 
 /*!
-    \qmlproperty QtQuick.Window2::Window::active
-    \since Qt 5.1
+    \qmlproperty Window::active
+    \since 5.1
 
     The active status of the window.
 
@@ -3190,15 +3309,15 @@ void QQuickWindow::setDefaultAlphaBuffer(bool useAlpha)
  */
 
 /*!
-    \qmlmethod QtQuick2::Window::requestActivate()
-    \since QtQuick 2.1
+    \qmlmethod QtQuick::Window::requestActivate()
+    \since 5.1
 
     Requests the window to be activated, i.e. receive keyboard focus.
  */
 
 /*!
-    \qmlmethod QtQuick2::Window::alert(int msec)
-    \since QtQuick 2.1
+    \qmlmethod QtQuick::Window::alert(int msec)
+    \since 5.1
 
     Causes an alert to be shown for \a msec miliseconds. If \a msec is \c 0 (the
     default), then the alert is shown indefinitely until the window becomes

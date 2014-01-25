@@ -95,11 +95,13 @@ public:
           stretchSections(0),
           contentsSections(0),
           minimumSectionSize(-1),
+          maximumSectionSize(-1),
           lastSectionSize(0),
           sectionIndicatorOffset(0),
           sectionIndicator(0),
           globalResizeMode(QHeaderView::Interactive),
-          sectionStartposRecalc(true)
+          sectionStartposRecalc(true),
+          resizeContentsPrecision(1000)
     {}
 
 
@@ -114,6 +116,8 @@ public:
     void _q_layoutChanged();
 
     bool isSectionSelected(int section) const;
+    bool isFirstVisibleSection(int section) const;
+    bool isLastVisibleSection(int section) const;
 
     inline bool rowIntersectsSelection(int row) const {
         return (selectionModel ? selectionModel->rowIntersectsSelection(row, root) : false);
@@ -284,6 +288,7 @@ public:
     int contentsSections;
     int defaultSectionSize;
     int minimumSectionSize;
+    int maximumSectionSize;
     int lastSectionSize; // $$$
     int sectionIndicatorOffset;
     Qt::Alignment defaultAlignment;
@@ -291,26 +296,31 @@ public:
     QHeaderView::ResizeMode globalResizeMode;
     QList<QPersistentModelIndex> persistentHiddenSections;
     mutable bool sectionStartposRecalc;
+    int resizeContentsPrecision;
     // header sections
 
     struct SectionItem {
-        int size;
+        uint size : 20;
+        uint reservedForIsHidden : 1;
+        uint resizeMode : 5;  // (holding QHeaderView::ResizeMode)
+        uint currentlyUnusedPadding : 6;
+
         union { // This union is made in order to save space and ensure good vector performance (on remove)
             mutable int calculated_startpos; // <- this is the primary used member.
             mutable int tmpLogIdx;         // When one of these 'tmp'-members has been used we call
             int tmpDataStreamSectionCount; // recalcSectionStartPos() or set sectionStartposRecalc to true
         };                                 // to ensure that calculated_startpos will be calculated afterwards.
-        QHeaderView::ResizeMode resizeMode;
+
         inline SectionItem() : size(0), resizeMode(QHeaderView::Interactive) {}
         inline SectionItem(int length, QHeaderView::ResizeMode mode)
-            : size(length), calculated_startpos(-1), resizeMode(mode) {}
+            : size(length), resizeMode(mode), calculated_startpos(-1) {}
         inline int sectionSize() const { return size; }
         inline int calculatedEndPos() const { return calculated_startpos + size; }
 #ifndef QT_NO_DATASTREAM
         inline void write(QDataStream &out) const
-        { out << size; out << 1; out << (int)resizeMode; }
+        { out << static_cast<int>(size); out << 1; out << (int)resizeMode; }
         inline void read(QDataStream &in)
-        { in >> size; in >> tmpDataStreamSectionCount; int m; in >> m; resizeMode = (QHeaderView::ResizeMode)m; }
+        { int m; in >> m; size = m; in >> tmpDataStreamSectionCount; in >> m; resizeMode = m; }
 #endif
     };
 
@@ -341,6 +351,7 @@ public:
     // other
     int viewSectionSizeHint(int logical) const;
     int adjustedVisualIndex(int visualIndex) const;
+    void setScrollOffset(const QScrollBar *scrollBar, QAbstractItemView::ScrollMode scrollMode);
 
 #ifndef QT_NO_DATASTREAM
     void write(QDataStream &out) const;

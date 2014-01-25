@@ -56,11 +56,14 @@
 #define Q_XDG_PLATFORM
 #endif
 
+static const int MaxStandardLocation = QStandardPaths::GenericConfigLocation;
+
 class tst_qstandardpaths : public QObject
 {
     Q_OBJECT
 
 private slots:
+    void dump();
     void testDefaultLocations();
     void testCustomLocations();
     void enableTestMode();
@@ -108,6 +111,40 @@ private:
     QTemporaryDir m_globalAppTempDir;
 };
 
+static const char * const enumNames[MaxStandardLocation + 1 - int(QStandardPaths::DesktopLocation)] = {
+    "DesktopLocation",
+    "DocumentsLocation",
+    "FontsLocation",
+    "ApplicationsLocation",
+    "MusicLocation",
+    "MoviesLocation",
+    "PicturesLocation",
+    "TempLocation",
+    "HomeLocation",
+    "DataLocation",
+    "CacheLocation",
+    "GenericDataLocation",
+    "RuntimeLocation",
+    "ConfigLocation",
+    "DownloadLocation",
+    "GenericCacheLocation",
+    "GenericConfigLocation"
+};
+
+void tst_qstandardpaths::dump()
+{
+#ifdef Q_XDG_PLATFORM
+    setDefaultLocations();
+#endif
+    // This is not a test. It merely dumps the output.
+    for (int i = QStandardPaths::DesktopLocation; i <= MaxStandardLocation; ++i) {
+        QStandardPaths::StandardLocation s = QStandardPaths::StandardLocation(i);
+        qDebug() << enumNames[i]
+                 << QStandardPaths::writableLocation(s)
+                 << QStandardPaths::standardLocations(s);
+    }
+}
+
 void tst_qstandardpaths::testDefaultLocations()
 {
 #ifdef Q_XDG_PLATFORM
@@ -115,9 +152,11 @@ void tst_qstandardpaths::testDefaultLocations()
 
     const QString expectedConfHome = QDir::homePath() + QString::fromLatin1("/.config");
     QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::ConfigLocation), expectedConfHome);
+    QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation), expectedConfHome);
     const QStringList confDirs = QStandardPaths::standardLocations(QStandardPaths::ConfigLocation);
     QCOMPARE(confDirs.count(), 2);
     QVERIFY(confDirs.contains(expectedConfHome));
+    QCOMPARE(QStandardPaths::standardLocations(QStandardPaths::GenericConfigLocation), confDirs);
 
     const QStringList genericDataDirs = QStandardPaths::standardLocations(QStandardPaths::GenericDataLocation);
     QCOMPARE(genericDataDirs.count(), 3);
@@ -142,6 +181,7 @@ void tst_qstandardpaths::testCustomLocations()
 
     // test writableLocation()
     QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::ConfigLocation), m_localConfigDir);
+    QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation), m_localConfigDir);
 
     // test locate()
     const QString thisFileName = QString::fromLatin1("aFile");
@@ -166,7 +206,7 @@ void tst_qstandardpaths::testCustomLocations()
 void tst_qstandardpaths::enableTestMode()
 {
     QVERIFY(!QStandardPaths::isTestModeEnabled());
-    QStandardPaths::enableTestMode(true);
+    QStandardPaths::setTestModeEnabled(true);
     QVERIFY(QStandardPaths::isTestModeEnabled());
 
 #ifdef Q_XDG_PLATFORM
@@ -176,6 +216,7 @@ void tst_qstandardpaths::enableTestMode()
     // ConfigLocation
     const QString configDir = qttestDir + QLatin1String("/config");
     QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::ConfigLocation), configDir);
+    QCOMPARE(QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation), configDir);
     const QStringList confDirs = QStandardPaths::standardLocations(QStandardPaths::ConfigLocation);
     QCOMPARE(confDirs, QStringList() << configDir << m_globalConfigDir);
 
@@ -199,12 +240,13 @@ void tst_qstandardpaths::enableTestMode()
     testLocations.insert(QStandardPaths::DataLocation, QStandardPaths::writableLocation(QStandardPaths::DataLocation));
     testLocations.insert(QStandardPaths::GenericDataLocation, QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation));
     testLocations.insert(QStandardPaths::ConfigLocation, QStandardPaths::writableLocation(QStandardPaths::ConfigLocation));
+    testLocations.insert(QStandardPaths::GenericConfigLocation, QStandardPaths::writableLocation(QStandardPaths::GenericConfigLocation));
     testLocations.insert(QStandardPaths::CacheLocation, QStandardPaths::writableLocation(QStandardPaths::CacheLocation));
     testLocations.insert(QStandardPaths::GenericCacheLocation, QStandardPaths::writableLocation(QStandardPaths::GenericCacheLocation));
     // On Windows, what should "Program Files" become, in test mode?
     //testLocations.insert(QStandardPaths::ApplicationsLocation, QStandardPaths::writableLocation(QStandardPaths::ApplicationsLocation));
 
-    QStandardPaths::enableTestMode(false);
+    QStandardPaths::setTestModeEnabled(false);
 
     for (LocationHash::const_iterator it = testLocations.constBegin(); it != testLocations.constEnd(); ++it)
         QVERIFY2(QStandardPaths::writableLocation(it.key()) != it.value(), qPrintable(it.value()));
@@ -272,13 +314,16 @@ void tst_qstandardpaths::testDataLocation()
 
 #ifndef Q_OS_WIN
 // Find "sh" on Unix.
+// It may exist twice, in /bin/sh and /usr/bin/sh, in that case use the PATH order.
 static inline QFileInfo findSh()
 {
-    const char *shPaths[] = {"/bin/sh", "/usr/bin/sh", 0};
-    for (const char **shPath = shPaths; *shPath; ++shPath) {
-        const QFileInfo fi = QFileInfo(QLatin1String(*shPath));
-        if (fi.exists())
-            return fi;
+    QLatin1String sh("/sh");
+    QByteArray pEnv = qgetenv("PATH");
+    const QLatin1Char pathSep(':');
+    const QStringList rawPaths = QString::fromLocal8Bit(pEnv.constData()).split(pathSep, QString::SkipEmptyParts);
+    foreach (const QString &path, rawPaths) {
+        if (QFile::exists(path + sh))
+            return path + sh;
     }
     return QFileInfo();
 }

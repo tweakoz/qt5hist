@@ -47,6 +47,7 @@
 #include "qnetworkreply_p.h"
 #include "QtCore/qhash.h"
 #include "QtCore/qmutex.h"
+#include "QtCore/qstringlist.h"
 #include "QtNetwork/private/qnetworksession_p.h"
 
 #include "qnetworkaccesscachebackend_p.h"
@@ -108,6 +109,22 @@ QNetworkAccessBackend *QNetworkAccessManagerPrivate::findBackend(QNetworkAccessM
         }
     }
     return 0;
+}
+
+QStringList QNetworkAccessManagerPrivate::backendSupportedSchemes() const
+{
+    if (QNetworkAccessBackendFactoryData::valid.load()) {
+        QMutexLocker locker(&factoryData()->mutex);
+        QNetworkAccessBackendFactoryData::ConstIterator it = factoryData()->constBegin();
+        QNetworkAccessBackendFactoryData::ConstIterator end = factoryData()->constEnd();
+        QStringList schemes;
+        while (it != end) {
+            schemes += (*it)->supportedSchemes();
+            ++it;
+        }
+        return schemes;
+    }
+    return QStringList();
 }
 
 QNonContiguousByteDevice* QNetworkAccessBackend::createUploadByteDevice()
@@ -357,7 +374,7 @@ void QNetworkAccessBackend::sslErrors(const QList<QSslError> &errors)
 }
 
 /*!
-    Starts the backend.  Returns true if the backend is started.  Returns false if the backend
+    Starts the backend.  Returns \c true if the backend is started.  Returns \c false if the backend
     could not be started due to an unopened or roaming session.  The caller should recall this
     function once the session has been opened or the roaming process has finished.
 */

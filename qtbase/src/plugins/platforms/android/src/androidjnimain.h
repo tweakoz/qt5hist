@@ -69,13 +69,10 @@ namespace QtAndroid
     void setAndroidPlatformIntegration(QAndroidPlatformIntegration *androidPlatformIntegration);
     void setQtThread(QThread *thread);
 
-    void setFullScreen(QWidget *widget);
-
 #ifndef ANDROID_PLUGIN_OPENGL
     void flushImage(const QPoint &pos, const QImage &image, const QRect &rect);
 #else
     EGLNativeWindowType nativeWindow(bool waitToCreate = true);
-    QSize nativeWindowSize();
 #endif
 
     QWindow *topLevelWindowAt(const QPoint &globalPos);
@@ -87,6 +84,11 @@ namespace QtAndroid
     AAssetManager *assetManager();
     jclass applicationClass();
     jobject activity();
+
+    void setApplicationActive();
+
+    void showStatusBar();
+    void hideStatusBar();
 
     jobject createBitmap(QImage img, JNIEnv *env = 0);
     jobject createBitmapDrawable(jobject bitmap, JNIEnv *env = 0);

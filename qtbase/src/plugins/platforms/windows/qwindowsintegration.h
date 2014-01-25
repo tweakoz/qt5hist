@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -58,7 +59,8 @@ public:
         FontDatabaseNative = 0x2,
         DisableArb = 0x4,
         NoNativeDialogs = 0x8,
-        XpNativeDialogs = 0x10
+        XpNativeDialogs = 0x10,
+        PassOsMouseEventsSynthesizedFromTouch = 0x20 // Pass OS-generated mouse events from touch.
     };
 
     explicit QWindowsIntegration(const QStringList &paramList);
@@ -72,7 +74,7 @@ public:
 #ifndef QT_NO_OPENGL
     virtual QPlatformOpenGLContext *createPlatformOpenGLContext(QOpenGLContext *context) const;
 #endif
-    virtual QAbstractEventDispatcher *guiThreadEventDispatcher() const;
+    virtual QAbstractEventDispatcher *createEventDispatcher() const;
 #ifndef QT_NO_CLIPBOARD
     virtual QPlatformClipboard *clipboard() const;
 #  ifndef QT_NO_DRAGANDDROP
@@ -98,6 +100,10 @@ public:
     inline void emitScreenAdded(QPlatformScreen *s) { screenAdded(s); }
 
     unsigned options() const;
+
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+    virtual QPlatformSessionManager *createPlatformSessionManager(const QString &id, const QString &key) const;
+#endif
 
 private:
     QScopedPointer<QWindowsIntegrationPrivate> d;

@@ -121,17 +121,34 @@ static const int errorBufferMax = 512;
 
 static int qt_qprocess_deadChild_pipe[2];
 static struct sigaction qt_sa_old_sigchld_handler;
-static void qt_sa_sigchld_handler(int signum)
+static void qt_sa_sigchld_sigaction(int signum, siginfo_t *info, void *context)
 {
+    // *Never* use the info or contect variables in this function
+    // (except for passing them to the next signal in the chain).
+    // We cannot be sure if another library or if the application
+    // installed a signal handler for SIGCHLD without SA_SIGINFO
+    // and fails to pass the arguments to us. If they do that,
+    // these arguments contain garbage and we'd most likely crash.
+
     qt_safe_write(qt_qprocess_deadChild_pipe[1], "", 1);
 #if defined (QPROCESS_DEBUG)
     fprintf(stderr, "*** SIGCHLD\n");
 #endif
 
-    // load it as volatile
-    void (*oldAction)(int) = ((volatile struct sigaction *)&qt_sa_old_sigchld_handler)->sa_handler;
-    if (oldAction && oldAction != SIG_IGN)
-        oldAction(signum);
+    // load as volatile
+    volatile struct sigaction *vsa = &qt_sa_old_sigchld_handler;
+
+    if (qt_sa_old_sigchld_handler.sa_flags & SA_SIGINFO) {
+        void (*oldAction)(int, siginfo_t *, void *) = vsa->sa_sigaction;
+
+        if (oldAction)
+            oldAction(signum, info, context);
+    } else {
+        void (*oldAction)(int) = vsa->sa_handler;
+
+        if (oldAction && oldAction != SIG_IGN)
+            oldAction(signum);
+    }
 }
 
 static inline void add_fd(int &nfds, int fd, fd_set *fdset)
@@ -197,10 +214,16 @@ QProcessManager::QProcessManager()
 
     // set up the SIGCHLD handler, which writes a single byte to the dead
     // child pipe every time a child dies.
+
     struct sigaction action;
-    memset(&action, 0, sizeof(action));
-    action.sa_handler = qt_sa_sigchld_handler;
-    action.sa_flags = SA_NOCLDSTOP;
+    // use the old handler as template, i.e., preserve the signal mask
+    // otherwise the original signal handler might be interrupted although it
+    // was marked to never be interrupted
+    ::sigaction(SIGCHLD, NULL, &action);
+    action.sa_sigaction = qt_sa_sigchld_sigaction;
+    // set the SA_SIGINFO flag such that we can use the three argument handler
+    // function
+    action.sa_flags = SA_NOCLDSTOP | SA_SIGINFO;
     ::sigaction(SIGCHLD, &action, &qt_sa_old_sigchld_handler);
 
     processManagerInstance = this;
@@ -225,7 +248,7 @@ QProcessManager::~QProcessManager()
 
     struct sigaction currentAction;
     ::sigaction(SIGCHLD, 0, &currentAction);
-    if (currentAction.sa_handler == qt_sa_sigchld_handler) {
+    if (currentAction.sa_sigaction == qt_sa_sigchld_sigaction) {
         ::sigaction(SIGCHLD, &qt_sa_old_sigchld_handler, 0);
     }
 
@@ -807,19 +830,29 @@ pid_t QProcessPrivate::spawnChild(const char *workingDir, char **argv, char **en
                   ? i : SPAWN_FDCLOSED;
     }
 
+    if (inputChannelMode == QProcess::ManagedInputChannel)
+        fd_map[0] = stdinChannel.pipe[0];
+    else
+        fd_map[0] = QT_FILENO(stdin);
+
     switch (processChannelMode) {
     case QProcess::ForwardedChannels:
-        fd_map[0] = stdinChannel.pipe[0];
         fd_map[1] = QT_FILENO(stdout);
         fd_map[2] = QT_FILENO(stderr);
         break;
+    case QProcess::ForwardedOutputChannel:
+        fd_map[1] = QT_FILENO(stdout);
+        fd_map[2] = stderrChannel.pipe[1];
+        break;
+    case QProcess::ForwardedErrorChannel:
+        fd_map[1] = stdoutChannel.pipe[1];
+        fd_map[2] = QT_FILENO(stderr);
+        break;
     case QProcess::MergedChannels:
-        fd_map[0] = stdinChannel.pipe[0];
         fd_map[1] = stdoutChannel.pipe[1];
         fd_map[2] = stdoutChannel.pipe[1];
         break;
     case QProcess::SeparateChannels:
-        fd_map[0] = stdinChannel.pipe[0];
         fd_map[1] = stdoutChannel.pipe[1];
         fd_map[2] = stderrChannel.pipe[1];
         break;
@@ -845,17 +878,19 @@ void QProcessPrivate::execChild(const char *workingDir, char **path, char **argv
 
     Q_Q(QProcess);
 
-    // copy the stdin socket (without closing on exec)
-    qt_safe_dup2(stdinChannel.pipe[0], fileno(stdin), 0);
+    // copy the stdin socket if asked to (without closing on exec)
+    if (inputChannelMode != QProcess::ForwardedInputChannel)
+        qt_safe_dup2(stdinChannel.pipe[0], fileno(stdin), 0);
 
     // copy the stdout and stderr if asked to
     if (processChannelMode != QProcess::ForwardedChannels) {
-        qt_safe_dup2(stdoutChannel.pipe[1], fileno(stdout), 0);
+        if (processChannelMode != QProcess::ForwardedOutputChannel)
+            qt_safe_dup2(stdoutChannel.pipe[1], fileno(stdout), 0);
 
         // merge stdout and stderr if asked to
         if (processChannelMode == QProcess::MergedChannels) {
             qt_safe_dup2(fileno(stdout), fileno(stderr), 0);
-        } else {
+        } else if (processChannelMode != QProcess::ForwardedErrorChannel) {
             qt_safe_dup2(stderrChannel.pipe[1], fileno(stderr), 0);
         }
     }
@@ -1031,6 +1066,41 @@ static int qt_timeout_value(int msecs, int elapsed)
     return timeout < 0 ? 0 : timeout;
 }
 
+#ifdef Q_OS_BLACKBERRY
+// The BlackBerry event dispatcher uses bps_get_event. Unfortunately, already registered
+// socket notifiers are disabled by a call to select. This is to rearm the standard streams.
+static int bb_select(QProcessPrivate *process, int nfds, fd_set *fdread, fd_set *fdwrite, int timeout)
+{
+    bool stdoutEnabled = false;
+    bool stderrEnabled = false;
+    bool stdinEnabled = false;
+
+    if (process->stdoutChannel.notifier && process->stdoutChannel.notifier->isEnabled()) {
+        stdoutEnabled = true;
+        process->stdoutChannel.notifier->setEnabled(false);
+    }
+    if (process->stderrChannel.notifier && process->stderrChannel.notifier->isEnabled()) {
+        stderrEnabled = true;
+        process->stderrChannel.notifier->setEnabled(false);
+    }
+    if (process->stdinChannel.notifier && process->stdinChannel.notifier->isEnabled()) {
+        stdinEnabled = true;
+        process->stdinChannel.notifier->setEnabled(false);
+    }
+
+    const int ret = select_msecs(nfds, fdread, fdwrite, timeout);
+
+    if (stdoutEnabled)
+        process->stdoutChannel.notifier->setEnabled(true);
+    if (stderrEnabled)
+        process->stderrChannel.notifier->setEnabled(true);
+    if (stdinEnabled)
+        process->stdinChannel.notifier->setEnabled(true);
+
+    return ret;
+}
+#endif // Q_OS_BLACKBERRY
+
 bool QProcessPrivate::waitForStarted(int msecs)
 {
     Q_Q(QProcess);
@@ -1091,7 +1161,11 @@ bool QProcessPrivate::waitForReadyRead(int msecs)
             add_fd(nfds, stdinChannel.pipe[1], &fdwrite);
 
         int timeout = qt_timeout_value(msecs, stopWatch.elapsed());
+#ifdef Q_OS_BLACKBERRY
+        int ret = bb_select(this, nfds + 1, &fdread, &fdwrite, timeout);
+#else
         int ret = select_msecs(nfds + 1, &fdread, &fdwrite, timeout);
+#endif
         if (ret < 0) {
             break;
         }
@@ -1163,8 +1237,12 @@ bool QProcessPrivate::waitForBytesWritten(int msecs)
         if (!writeBuffer.isEmpty() && stdinChannel.pipe[1] != -1)
             add_fd(nfds, stdinChannel.pipe[1], &fdwrite);
 
-	int timeout = qt_timeout_value(msecs, stopWatch.elapsed());
-	int ret = select_msecs(nfds + 1, &fdread, &fdwrite, timeout);
+        int timeout = qt_timeout_value(msecs, stopWatch.elapsed());
+#ifdef Q_OS_BLACKBERRY
+        int ret = bb_select(this, nfds + 1, &fdread, &fdwrite, timeout);
+#else
+        int ret = select_msecs(nfds + 1, &fdread, &fdwrite, timeout);
+#endif
         if (ret < 0) {
             break;
         }
@@ -1230,8 +1308,12 @@ bool QProcessPrivate::waitForFinished(int msecs)
         if (!writeBuffer.isEmpty() && stdinChannel.pipe[1] != -1)
             add_fd(nfds, stdinChannel.pipe[1], &fdwrite);
 
-	int timeout = qt_timeout_value(msecs, stopWatch.elapsed());
-	int ret = select_msecs(nfds + 1, &fdread, &fdwrite, timeout);
+        int timeout = qt_timeout_value(msecs, stopWatch.elapsed());
+#ifdef Q_OS_BLACKBERRY
+        int ret = bb_select(this, nfds + 1, &fdread, &fdwrite, timeout);
+#else
+        int ret = select_msecs(nfds + 1, &fdread, &fdwrite, timeout);
+#endif
         if (ret < 0) {
             break;
         }

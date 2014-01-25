@@ -45,8 +45,12 @@
 
 #include "../../3rdparty/sha1/sha1.cpp"
 
+#if defined(QT_BOOTSTRAPPED) && !defined(QT_CRYPTOGRAPHICHASH_ONLY_SHA1)
+#  error "Are you sure you need the other hashing algorithms besides SHA-1?"
+#endif
+
 #ifndef QT_CRYPTOGRAPHICHASH_ONLY_SHA1
-// qdoc only needs SHA-1
+// qdoc and qmake only need SHA-1
 #include "../../3rdparty/md5/md5.h"
 #include "../../3rdparty/md5/md5.cpp"
 #include "../../3rdparty/md4/md4.h"
@@ -322,7 +326,7 @@ void QCryptographicHash::addData(const QByteArray &data)
 
 /*!
   Reads the data from the open QIODevice \a device until it ends
-  and hashes it. Returns true if reading was successful.
+  and hashes it. Returns \c true if reading was successful.
   \since 5.0
  */
 bool QCryptographicHash::addData(QIODevice* device)

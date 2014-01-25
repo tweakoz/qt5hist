@@ -62,6 +62,7 @@
 #include <QtCore/QFileInfo>
 #include <QtCore/QTextStream>
 
+#include <private/qlocale_p.h>
 #include <private/qtranslator_p.h>
 
 QT_BEGIN_NAMESPACE
@@ -137,19 +138,54 @@ void Translator::replaceSorted(const TranslatorMessage &msg)
     }
 }
 
-void Translator::extend(const TranslatorMessage &msg)
+static QString elidedId(const QString &id, int len)
+{
+    return id.length() <= len ? id : id.left(len - 5) + QLatin1String("[...]");
+}
+
+static QString makeMsgId(const TranslatorMessage &msg)
+{
+    QString id = msg.context() + QLatin1String("//") + elidedId(msg.sourceText(), 100);
+    if (!msg.comment().isEmpty())
+        id += QLatin1String("//") + elidedId(msg.comment(), 30);
+    return id;
+}
+
+void Translator::extend(const TranslatorMessage &msg, ConversionData &cd)
 {
     int index = find(msg);
     if (index == -1) {
         append(msg);
     } else {
         TranslatorMessage &emsg = m_messages[index];
+        if (emsg.sourceText().isEmpty()) {
+            emsg.setSourceText(msg.sourceText());
+        } else if (!msg.sourceText().isEmpty() && emsg.sourceText() != msg.sourceText()) {
+            cd.appendError(QString::fromLatin1("Contradicting source strings for message with id '%1'.")
+                           .arg(emsg.id()));
+            return;
+        }
+        if (emsg.extras().isEmpty()) {
+            emsg.setExtras(msg.extras());
+        } else if (!msg.extras().isEmpty() && emsg.extras() != msg.extras()) {
+            cd.appendError(QString::fromLatin1("Contradicting meta data for for %1.")
+                           .arg(!emsg.id().isEmpty()
+                                ? QString::fromLatin1("message with id '%1'").arg(emsg.id())
+                                : QString::fromLatin1("message '%1'").arg(makeMsgId(msg))));
+            return;
+        }
         emsg.addReferenceUniq(msg.fileName(), msg.lineNumber());
         if (!msg.extraComment().isEmpty()) {
             QString cmt = emsg.extraComment();
-            if (!cmt.isEmpty())
-                cmt.append(QLatin1String("\n----------\n"));
-            cmt.append(msg.extraComment());
+            if (!cmt.isEmpty()) {
+                QStringList cmts = cmt.split(QLatin1String("\n----------\n"));
+                if (!cmts.contains(msg.extraComment())) {
+                    cmts.append(msg.extraComment());
+                    cmt = cmts.join(QLatin1String("\n----------\n"));
+                }
+            } else {
+                cmt = msg.extraComment();
+            }
             emsg.setExtraComment(cmt);
         }
     }
@@ -332,30 +368,19 @@ bool Translator::save(const QString &filename, ConversionData &cd, const QString
 
 QString Translator::makeLanguageCode(QLocale::Language language, QLocale::Country country)
 {
-    QLocale locale(language, country);
-    if (country == QLocale::AnyCountry) {
-        QString languageCode = locale.name().section(QLatin1Char('_'), 0, 0);
-        if (languageCode.length() <= 3)
-            return languageCode;
-        return QString();
-    } else {
-        return locale.name();
+    QString result = QLocalePrivate::languageToCode(language);
+    if (language != QLocale::C && country != QLocale::AnyCountry) {
+        result.append(QLatin1Char('_'));
+        result.append(QLocalePrivate::countryToCode(country));
     }
+    return result;
 }
 
 void Translator::languageAndCountry(const QString &languageCode,
     QLocale::Language *lang, QLocale::Country *country)
 {
-    QLocale locale(languageCode);
-    if (lang)
-        *lang = locale.language();
-
-    if (country) {
-        if (languageCode.indexOf(QLatin1Char('_')) != -1)
-            *country = locale.country();
-        else
-            *country = QLocale::AnyCountry;
-    }
+    QLocale::Script script;
+    QLocalePrivate::getLangAndCountry(languageCode, *lang, script, *country);
 }
 
 int Translator::find(const TranslatorMessage &msg) const
@@ -395,7 +420,7 @@ int Translator::find(const QString &context) const
 void Translator::stripObsoleteMessages()
 {
     for (TMM::Iterator it = m_messages.begin(); it != m_messages.end(); )
-        if (it->type() == TranslatorMessage::Obsolete)
+        if (it->type() == TranslatorMessage::Obsolete || it->type() == TranslatorMessage::Vanished)
             it = m_messages.erase(it);
         else
             ++it;

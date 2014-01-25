@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -51,6 +51,7 @@ QQuickDefaultClipNode::QQuickDefaultClipNode(const QRectF &rect)
     , m_dirty_geometry(true)
     , m_geometry(QSGGeometry::defaultAttributes_Point2D(), 0)
 {
+    Q_UNUSED(m_reserved);
     setGeometry(&m_geometry);
     setIsRectangular(true);
 }

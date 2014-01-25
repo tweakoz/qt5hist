@@ -50,9 +50,11 @@
 
 #include <QDebug>
 
+#include "tst_qcoreapplication.h"
+
 enum { spacing  = 50, windowSize = 200 };
 
-class tst_QGuiApplication: public QObject
+class tst_QGuiApplication: public tst_QCoreApplication
 {
     Q_OBJECT
 
@@ -765,10 +767,10 @@ void tst_QGuiApplication::genericPluginsAndWindowSystemEvents()
 
     QStaticPlugin testPluginInfo;
     testPluginInfo.instance = qt_plugin_instance;
-    testPluginInfo.metaData = qt_plugin_query_metadata;
+    testPluginInfo.rawMetaData = qt_plugin_query_metadata;
     qRegisterStaticPluginFunction(testPluginInfo);
     int argc = 3;
-    char *argv[] = { const_cast<char*>("tst_qguiapplication"), const_cast<char*>("-plugin"), const_cast<char*>("testplugin") };
+    char *argv[] = { const_cast<char*>(QTest::currentAppName()), const_cast<char*>("-plugin"), const_cast<char*>("testplugin") };
     QGuiApplication app(argc, argv);
 
     QVERIFY(QGuiApplication::primaryScreen());

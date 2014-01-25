@@ -471,6 +471,7 @@ private slots:
     void QTBUG_16374_crashInDestructor();
     void QTBUG_20699_focusScopeCrash();
     void QTBUG_30990_rightClickSelection();
+    void QTBUG_21618_untransformable_sceneTransform();
 
 private:
     QList<QGraphicsItem *> paintedItems;
@@ -4220,6 +4221,7 @@ void tst_QGraphicsItem::cursor()
     QCursor cursor = view.viewport()->cursor();
 
     {
+        QTest::mouseMove(view.viewport(), QPoint(100, 50));
         QMouseEvent event(QEvent::MouseMove, QPoint(100, 50), Qt::NoButton, 0, 0);
         QApplication::sendEvent(view.viewport(), &event);
     }
@@ -4422,10 +4424,13 @@ void tst_QGraphicsItem::defaultItemTest_QGraphicsEllipseItem()
     QCOMPARE(item.boundingRect(), QRectF(0, 0, 100, 100));
 
     item.setSpanAngle(90 * 16);
-    qFuzzyCompare(item.boundingRect().left(), qreal(50.0));
-    qFuzzyCompare(item.boundingRect().top(), qreal(0.0));
-    qFuzzyCompare(item.boundingRect().width(), qreal(50.0));
-    qFuzzyCompare(item.boundingRect().height(), qreal(50.0));
+    // for some reason, the bounding rect has very few significant digits
+    // (i.e. it's likely that floats are being used inside it), so we
+    // must force the conversion from qreals to float or these tests will fail
+    QCOMPARE(float(item.boundingRect().left()), 50.0f);
+    QVERIFY(qFuzzyIsNull(float(item.boundingRect().top())));
+    QCOMPARE(float(item.boundingRect().width()), 50.0f);
+    QCOMPARE(float(item.boundingRect().height()), 50.0f);
 
     item.setPen(QPen(Qt::black, 1));
     QCOMPARE(item.boundingRect(), QRectF(49.5, -0.5, 51, 51));
@@ -5085,6 +5090,10 @@ public:
 
 void tst_QGraphicsItem::paint()
 {
+#ifdef Q_OS_MACX
+    if (QSysInfo::MacintoshVersion == QSysInfo::MV_10_7)
+        QSKIP("QTBUG-31454 - Unstable auto-test");
+#endif
     QGraphicsScene scene;
 
     PaintTester paintTester;
@@ -6450,6 +6459,12 @@ public:
 
 void tst_QGraphicsItem::ensureUpdateOnTextItem()
 {
+#ifdef Q_OS_MAC
+    if (QSysInfo::MacintoshVersion == QSysInfo::MV_10_7) {
+        QSKIP("This test is unstable on 10.7 in CI");
+    }
+#endif
+
     QGraphicsScene scene;
     QGraphicsView view(&scene);
     view.show();
@@ -11494,6 +11509,66 @@ void tst_QGraphicsItem::QTBUG_30990_rightClickSelection()
     sendMouseRelease(&scene, item2->boundingRect().center(), Qt::RightButton);
     QVERIFY(!item1->isSelected());
     QVERIFY(!item2->isSelected());
+}
+
+void tst_QGraphicsItem::QTBUG_21618_untransformable_sceneTransform()
+{
+    QGraphicsScene scene(0, 0, 150, 150);
+    scene.addRect(-2, -2, 4, 4);
+
+    QGraphicsItem *item1 = scene.addRect(0, 0, 100, 100, QPen(), Qt::red);
+    item1->setPos(50, 50);
+    item1->translate(50, 50);
+    item1->rotate(90);
+    QGraphicsItem *item2 = scene.addRect(0, 0, 100, 100, QPen(), Qt::green);
+    item2->setPos(50, 50);
+    item2->translate(50, 50);
+    item2->rotate(90);
+    item2->setFlags(QGraphicsItem::ItemIgnoresTransformations);
+
+    QGraphicsRectItem *item1_topleft = new QGraphicsRectItem(QRectF(-2, -2, 4, 4));
+    item1_topleft->setParentItem(item1);
+    item1_topleft->setBrush(Qt::black);
+    QGraphicsRectItem *item1_bottomright = new QGraphicsRectItem(QRectF(-2, -2, 4, 4));
+    item1_bottomright->setParentItem(item1);
+    item1_bottomright->setPos(100, 100);
+    item1_bottomright->setBrush(Qt::yellow);
+
+    QGraphicsRectItem *item2_topleft = new QGraphicsRectItem(QRectF(-2, -2, 4, 4));
+    item2_topleft->setParentItem(item2);
+    item2_topleft->setBrush(Qt::black);
+    QGraphicsRectItem *item2_bottomright = new QGraphicsRectItem(QRectF(-2, -2, 4, 4));
+    item2_bottomright->setParentItem(item2);
+    item2_bottomright->setPos(100, 100);
+    item2_bottomright->setBrush(Qt::yellow);
+
+    QCOMPARE(item1->sceneTransform(), item2->sceneTransform());
+    QCOMPARE(item1_topleft->sceneTransform(), item2_topleft->sceneTransform());
+    QCOMPARE(item1_bottomright->sceneTransform(), item2_bottomright->sceneTransform());
+    QCOMPARE(item1->deviceTransform(QTransform()), item2->deviceTransform(QTransform()));
+    QCOMPARE(item1->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 100));
+    QCOMPARE(item2->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 100));
+    QCOMPARE(item1->deviceTransform(QTransform()).map(QPointF(100, 100)), QPointF(0, 200));
+    QCOMPARE(item2->deviceTransform(QTransform()).map(QPointF(100, 100)), QPointF(0, 200));
+    QCOMPARE(item1_topleft->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 100));
+    QCOMPARE(item2_topleft->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 100));
+    QCOMPARE(item1_bottomright->deviceTransform(QTransform()).map(QPointF()), QPointF(0, 200));
+    QCOMPARE(item2_bottomright->deviceTransform(QTransform()).map(QPointF()), QPointF(0, 200));
+
+    item2->setParentItem(item1);
+
+    QCOMPARE(item2->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 200));
+    QCOMPARE(item2->deviceTransform(QTransform()).map(QPointF(100, 100)), QPointF(0, 300));
+    QCOMPARE(item2_topleft->deviceTransform(QTransform()).map(QPointF()), QPointF(100, 200));
+    QCOMPARE(item2_bottomright->deviceTransform(QTransform()).map(QPointF()), QPointF(0, 300));
+
+    QTransform tx = QTransform::fromTranslate(100, 0);
+    QCOMPARE(item1->deviceTransform(tx).map(QPointF()), QPointF(200, 100));
+    QCOMPARE(item1->deviceTransform(tx).map(QPointF(100, 100)), QPointF(100, 200));
+    QCOMPARE(item2->deviceTransform(tx).map(QPointF()), QPointF(200, 200));
+    QCOMPARE(item2->deviceTransform(tx).map(QPointF(100, 100)), QPointF(100, 300));
+    QCOMPARE(item2_topleft->deviceTransform(tx).map(QPointF()), QPointF(200, 200));
+    QCOMPARE(item2_bottomright->deviceTransform(tx).map(QPointF()), QPointF(100, 300));
 }
 
 QTEST_MAIN(tst_QGraphicsItem)

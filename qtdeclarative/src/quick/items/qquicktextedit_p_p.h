@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -123,6 +123,7 @@ public:
     void mirrorChange();
     qreal getImplicitWidth() const;
     Qt::LayoutDirection textDirection(const QString &text) const;
+    bool isLinkHoveredConnected();
 
     void setNativeCursorEnabled(bool enabled) { control->setCursorWidth(enabled ? 1 : 0); }
     void handleFocusEvent(QFocusEvent *event);

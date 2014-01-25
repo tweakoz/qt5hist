@@ -523,6 +523,7 @@ private slots:
     void structQObject();
     void namespacedFlags();
     void warnOnMultipleInheritance();
+    void ignoreOptionClashes();
     void forgottenQInterface();
     void os9Newline();
     void winNewline();
@@ -530,6 +531,7 @@ private slots:
     void frameworkSearchPath();
     void cstyleEnums();
     void defineMacroViaCmdline();
+    void specifyMetaTagsFromCmdline();
     void invokable();
     void singleFunctionKeywordSignalAndSlot();
     void templateGtGt();
@@ -565,6 +567,7 @@ private slots:
     void parseDefines();
     void preprocessorOnly();
     void unterminatedFunctionMacro();
+    void QTBUG32933_relatedObjectsDontIncludeItself();
 
 signals:
     void sigWithUnsignedArg(unsigned foo);
@@ -969,6 +972,46 @@ void tst_Moc::warnOnMultipleInheritance()
 #endif
 }
 
+void tst_Moc::ignoreOptionClashes()
+{
+#ifdef MOC_CROSS_COMPILED
+    QSKIP("Not tested when cross-compiled");
+#endif
+#if defined(Q_OS_LINUX) && defined(Q_CC_GNU) && !defined(QT_NO_PROCESS)
+    QProcess proc;
+    QStringList args;
+    const QString header = m_sourceDirectory + QStringLiteral("/interface-from-include.h");
+    const QString includeDir = m_sourceDirectory + "/Test.framework/Headers";
+    // given --ignore-option-clashes, -pthread should be ignored, but the -I path should not be.
+    args << "--ignore-option-clashes" << "-pthread" << "-I" << includeDir << "-fno-builtin" << header;
+    proc.start("moc", args);
+    bool finished = proc.waitForFinished();
+    if (!finished)
+        qWarning("waitForFinished failed. QProcess error: %d", (int)proc.error());
+    QVERIFY(finished);
+    if (proc.exitCode() != 0) {
+        qDebug() << proc.readAllStandardError();
+    }
+    QCOMPARE(proc.exitCode(), 0);
+    QCOMPARE(proc.readAllStandardError(), QByteArray());
+    QByteArray mocOut = proc.readAllStandardOutput();
+
+    // If -pthread wasn't ignored, it was parsed as a prefix of "thread/", which breaks compilation.
+    QStringList gccArgs;
+    gccArgs << "-c" << "-x" << "c++" << "-I" << ".."
+         << "-I" << qtIncludePath << "-I" << includeDir << "-o" << "/dev/null" << "-fPIE" <<  "-";
+    proc.start("gcc", gccArgs);
+    QVERIFY(proc.waitForStarted());
+    proc.write(mocOut);
+    proc.closeWriteChannel();
+
+    QVERIFY(proc.waitForFinished());
+    QCOMPARE(QString::fromLocal8Bit(proc.readAllStandardError()), QString());
+#else
+    QSKIP("Only tested on linux/gcc");
+#endif
+}
+
 void tst_Moc::forgottenQInterface()
 {
 #ifdef MOC_CROSS_COMPILED
@@ -1126,6 +1169,37 @@ void tst_Moc::defineMacroViaCmdline()
 #else
     QSKIP("Only tested on linux/gcc");
 #endif
+}
+
+// tst_Moc::specifyMetaTagsFromCmdline()
+// plugin_metadata.h contains a plugin which we register here. Since we're not building this
+// application as a plugin, we need top copy some of the initializer code found in qplugin.h:
+extern "C" QObject *qt_plugin_instance();
+extern "C" const char *qt_plugin_query_metadata();
+class StaticPluginInstance{
+public:
+    StaticPluginInstance() {
+        QStaticPlugin plugin = { &qt_plugin_instance, &qt_plugin_query_metadata };
+        qRegisterStaticPluginFunction(plugin);
+    }
+};
+static StaticPluginInstance staticInstance;
+
+void tst_Moc::specifyMetaTagsFromCmdline() {
+    foreach (const QStaticPlugin &plugin, QPluginLoader::staticPlugins()) {
+        const QString iid = plugin.metaData().value(QLatin1String("IID")).toString();
+        if (iid == QLatin1String("test.meta.tags")) {
+            const QJsonArray metaTagsUriList = plugin.metaData().value("uri").toArray();
+            QCOMPARE(metaTagsUriList.size(), 2);
+
+            // The following uri-s are set in the pro file using
+            // -Muri=com.company.app -Muri=com.company.app.private
+            QCOMPARE(metaTagsUriList[0].toString(), QLatin1String("com.company.app"));
+            QCOMPARE(metaTagsUriList[1].toString(), QLatin1String("com.company.app.private"));
+            return;
+        }
+    }
+    QFAIL("Could not find plugin with IID 'test.meta.tags'");
 }
 
 void tst_Moc::invokable()
@@ -1718,6 +1792,14 @@ void tst_Moc::warnings_data()
         << 1
         << QString()
         << QString("standard input:1: Error: Class contains Q_OBJECT macro but does not inherit from QObject");
+
+    QTest::newRow("Warning on invalid macro")
+        << QByteArray("#define Foo(a, b)\n class X : public QObject { Q_OBJECT  }; \n Foo(a) \n Foo(a,b,c) \n")
+        << QStringList()
+        << 0
+        << QString("IGNORE_ALL_STDOUT")
+        << QString(":3: Warning: Macro argument mismatch.\n:4: Warning: Macro argument mismatch.");
+
 }
 
 void tst_Moc::warnings()
@@ -1759,7 +1841,7 @@ void tst_Moc::warnings()
     // magic value "IGNORE_ALL_STDOUT" ignores stdout
     if (expectedStdOut != "IGNORE_ALL_STDOUT")
         QCOMPARE(QString::fromLocal8Bit(proc.readAllStandardOutput()).trimmed(), expectedStdOut);
-    QCOMPARE(QString::fromLocal8Bit(proc.readAllStandardError()).trimmed(), expectedStdErr);
+    QCOMPARE(QString::fromLocal8Bit(proc.readAllStandardError()).trimmed().remove('\r'), expectedStdErr);
 }
 
 class tst_Moc::PrivateClass : public QObject {
@@ -2997,7 +3079,37 @@ void tst_Moc::unterminatedFunctionMacro()
 #endif
 }
 
+namespace QTBUG32933_relatedObjectsDontIncludeItself {
+    namespace NS {
+        class Obj : QObject {
+            Q_OBJECT
+            Q_PROPERTY(MyEnum p1 MEMBER member)
+            Q_PROPERTY(Obj::MyEnum p2 MEMBER member)
+            Q_PROPERTY(NS::Obj::MyEnum p3 MEMBER member)
+            Q_PROPERTY(QTBUG32933_relatedObjectsDontIncludeItself::NS::Obj::MyEnum p4 MEMBER member)
+            Q_ENUMS(MyEnum);
+        public:
+            enum MyEnum { Something, SomethingElse };
+            MyEnum member;
+        };
+    }
+}
+
+void tst_Moc::QTBUG32933_relatedObjectsDontIncludeItself()
+{
+    const QMetaObject *mo = &QTBUG32933_relatedObjectsDontIncludeItself::NS::Obj::staticMetaObject;
+    const QMetaObject **objects = mo->d.relatedMetaObjects;
+    // the related objects should be empty because the enums is in the same object.
+    QVERIFY(!objects);
+
+}
+
 QTEST_MAIN(tst_Moc)
+
+// the generated code must compile with QT_NO_KEYWORDS
+#undef signals
+#undef slots
+#undef emit
 
 #include "tst_moc.moc"
 

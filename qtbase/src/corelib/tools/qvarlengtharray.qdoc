@@ -70,8 +70,8 @@
     structure. The main differences between the two classes are:
 
     \list
-    \li QVarLengthArray's API is much more low-level. It provides no
-       iterators and lacks much of QVector's functionality.
+    \li QVarLengthArray's API is much more low-level and it lacks
+        some of QVector's functionality.
 
     \li QVarLengthArray doesn't initialize the memory if the value is
        a basic type. (QVector always does.)
@@ -181,7 +181,7 @@
 
 /*! \fn bool QVarLengthArray::isEmpty() const
 
-    Returns true if the array has size 0; otherwise returns false.
+    Returns \c true if the array has size 0; otherwise returns \c false.
 
     \sa size(), resize()
 */
@@ -627,7 +627,7 @@
 
     \relates QVarLengthArray
     \since 4.8
-    Returns true if the two arrays, specified by \a left and \a right, are equal.
+    Returns \c true if the two arrays, specified by \a left and \a right, are equal.
 
     Two arrays are considered equal if they contain the same values
     in the same order.
@@ -642,7 +642,7 @@
 
     \relates QVarLengthArray
     \since 4.8
-    Returns true if the two arrays, specified by \a left and \a right, are \e not equal.
+    Returns \c true if the two arrays, specified by \a left and \a right, are \e not equal.
 
     Two arrays are considered equal if they contain the same values
     in the same order.

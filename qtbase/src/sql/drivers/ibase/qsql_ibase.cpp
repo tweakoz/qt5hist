@@ -240,7 +240,7 @@ static ISC_TIMESTAMP toTimeStamp(const QDateTime &dt)
 static QDateTime fromTimeStamp(char *buffer)
 {
     static const QDate bd(1858, 11, 17);
-    QTime t;
+    QTime t(0, 0);
     QDate d;
 
     // have to demangle the structure ourselves because isc_decode_time
@@ -1162,6 +1162,9 @@ bool QIBaseResult::gotoNext(QSqlCachedResult::ValueCache& row, int rowIdx)
                 case QSql::HighPrecision:
                     v.convert(QVariant::String);
                     break;
+                case QSql::LowPrecisionDouble:
+                    // no conversion
+                    break;
                 }
             }
             row[idx] = v;
@@ -1424,6 +1427,7 @@ bool QIBaseDriver::hasFeature(DriverFeature f) const
     case SimpleLocking:
     case FinishQuery:
     case MultipleResultSets:
+    case CancelQuery:
         return false;
     case Transactions:
     case PreparedQueries:

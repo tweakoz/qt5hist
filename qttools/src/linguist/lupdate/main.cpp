@@ -1,6 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2012 Klarälvdalens Datakonsult AB, a KDAB Group company, info@kdab.com, author Marc Mutz <marc.mutz@kdab.com>
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Linguist of the Qt Toolkit.
@@ -42,12 +43,14 @@
 #include "lupdate.h"
 
 #include <translator.h>
+#include <qmakevfs.h>
 #include <qmakeparser.h>
 #include <profileevaluator.h>
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDebug>
 #include <QtCore/QDir>
+#include <QtCore/QDirIterator>
 #include <QtCore/QFile>
 #include <QtCore/QFileInfo>
 #include <QtCore/QString>
@@ -56,6 +59,107 @@
 #include <QtCore/QLibraryInfo>
 
 #include <iostream>
+
+// Can't have an array of QStaticByteArrayData<N> for different N, so
+// use QByteArray, which requires constructor calls. Doesn't matter
+// much, since this is in an app, not a lib:
+static const QByteArray defaultTrFunctionNames[] = {
+// MSVC can't handle the lambda in this array if QByteArrayLiteral expands
+// to a lambda. In that case, use a QByteArray instead.
+#if defined(Q_CC_MSVC) && defined(Q_COMPILER_LAMBDA)
+#define BYTEARRAYLITERAL(F) QByteArray(#F),
+#else
+#define BYTEARRAYLITERAL(F) QByteArrayLiteral(#F),
+#endif
+    LUPDATE_FOR_EACH_TR_FUNCTION(BYTEARRAYLITERAL)
+#undef BYTEARRAYLITERAL
+};
+Q_STATIC_ASSERT((TrFunctionAliasManager::NumTrFunctions == sizeof defaultTrFunctionNames / sizeof *defaultTrFunctionNames));
+
+static int trFunctionByDefaultName(const QByteArray &trFunctionName)
+{
+    for (int i = 0; i < TrFunctionAliasManager::NumTrFunctions; ++i)
+        if (trFunctionName == defaultTrFunctionNames[i])
+            return i;
+    return -1;
+}
+
+static int trFunctionByDefaultName(const QString &trFunctionName)
+{
+    return trFunctionByDefaultName(trFunctionName.toLatin1());
+}
+
+TrFunctionAliasManager::TrFunctionAliasManager()
+    : m_trFunctionAliases()
+{
+    for (int i = 0; i < NumTrFunctions; ++i)
+        m_trFunctionAliases[i].push_back(defaultTrFunctionNames[i]);
+}
+
+TrFunctionAliasManager::~TrFunctionAliasManager() {}
+
+int TrFunctionAliasManager::trFunctionByName(const QByteArray &trFunctionName) const
+{
+    ensureTrFunctionHashUpdated();
+    // this function needs to be fast
+    const QHash<QByteArray, TrFunction>::const_iterator it
+        = m_nameToTrFunctionMap.find(trFunctionName);
+    return it == m_nameToTrFunctionMap.end() ? -1 : *it;
+}
+
+void TrFunctionAliasManager::modifyAlias(int trFunction, const QByteArray &alias, Operation op)
+{
+    QList<QByteArray> &list = m_trFunctionAliases[trFunction];
+    if (op == SetAlias)
+        list.clear();
+    list.push_back(alias);
+    m_nameToTrFunctionMap.clear();
+}
+
+void TrFunctionAliasManager::ensureTrFunctionHashUpdated() const
+{
+    if (!m_nameToTrFunctionMap.empty())
+        return;
+
+    QHash<QByteArray, TrFunction> nameToTrFunctionMap;
+    for (int i = 0; i < NumTrFunctions; ++i)
+        foreach (const QByteArray &alias, m_trFunctionAliases[i])
+            nameToTrFunctionMap[alias] = TrFunction(i);
+    // commit:
+    m_nameToTrFunctionMap.swap(nameToTrFunctionMap);
+}
+
+static QStringList availableFunctions()
+{
+    QStringList result;
+    result.reserve(TrFunctionAliasManager::NumTrFunctions);
+    for (int i = 0; i < TrFunctionAliasManager::NumTrFunctions; ++i)
+        result.push_back(QString::fromLatin1(defaultTrFunctionNames[i]));
+    return result;
+}
+
+static QStringList byteArrayToStringList(const QList<QByteArray> &in)
+{
+    QStringList result;
+    result.reserve(in.size());
+    foreach (const QByteArray &function, in)
+        result.push_back(QString::fromLatin1(function));
+    return result;
+}
+
+QStringList TrFunctionAliasManager::availableFunctionsWithAliases() const
+{
+    QStringList result;
+    result.reserve(NumTrFunctions);
+    for (int i = 0; i < NumTrFunctions; ++i)
+        result.push_back(QString::fromLatin1(defaultTrFunctionNames[i]) +
+                         QLatin1String(" (=") +
+                         byteArrayToStringList(m_trFunctionAliases[i]).join(QLatin1Char('=')) +
+                         QLatin1Char(')'));
+    return result;
+}
+
+TrFunctionAliasManager trFunctionAliasManager;
 
 static QString m_defaultExtensions;
 
@@ -127,12 +231,19 @@ static void printUsage()
         "           different file suffix. Projects are recursed into and merged.\n"
         "    -pro-out <directory>\n"
         "           Virtual output directory for processing subsequent .pro files.\n"
+        "    -pro-debug\n"
+        "           Trace processing .pro files. Specify twice for more verbosity.\n"
         "    -source-language <language>[_<region>]\n"
         "           Specify the language of the source strings for new files.\n"
         "           Defaults to POSIX if not specified.\n"
         "    -target-language <language>[_<region>]\n"
         "           Specify the language of the translations for new files.\n"
         "           Guessed from the file name if not specified.\n"
+        "    -tr-function-alias <function>{+=,=}<alias>[,<function>{+=,=}<alias>]...\n"
+        "           With +=, recognize <alias> as an alternative spelling of <function>.\n"
+        "           With  =, recognize <alias> as the only spelling of <function>.\n"
+        "           Available <function>s (with their currently defined aliases) are:\n"
+        "             %2\n"
         "    -ts <ts-file>...\n"
         "           Specify the output file(s). This will override the TRANSLATIONS.\n"
         "    -version\n"
@@ -140,7 +251,39 @@ static void printUsage()
         "    @lst-file\n"
         "           Read additional file names (one per line) or includepaths (one per\n"
         "           line, and prefixed with -I) from lst-file.\n"
-    ).arg(m_defaultExtensions));
+    ).arg(m_defaultExtensions,
+          trFunctionAliasManager.availableFunctionsWithAliases()
+                                .join(QStringLiteral("\n             "))));
+}
+
+static bool handleTrFunctionAliases(const QString &arg)
+{
+    foreach (const QString &pair, arg.split(QLatin1Char(','), QString::SkipEmptyParts)) {
+        const int equalSign = pair.indexOf(QLatin1Char('='));
+        if (equalSign < 0) {
+            printErr(LU::tr("tr-function mapping '%1' in -tr-function-alias is missing the '='.\n").arg(pair));
+            return false;
+        }
+        const bool plusEqual = equalSign > 0 && pair[equalSign-1] == QLatin1Char('+');
+        const int trFunctionEnd = plusEqual ? equalSign-1 : equalSign;
+        const QString trFunctionName = pair.left(trFunctionEnd).trimmed();
+        const QString alias = pair.mid(equalSign+1).trimmed();
+        const int trFunction = trFunctionByDefaultName(trFunctionName);
+        if (trFunction < 0) {
+            printErr(LU::tr("Unknown tr-function '%1' in -tr-function-alias option.\n"
+                            "Available tr-functions are: %2")
+                     .arg(trFunctionName, availableFunctions().join(QLatin1Char(','))));
+            return false;
+        }
+        if (alias.isEmpty()) {
+            printErr(LU::tr("Empty alias for tr-function '%1' in -tr-function-alias option.\n")
+                     .arg(trFunctionName));
+            return false;
+        }
+        trFunctionAliasManager.modifyAlias(trFunction, alias.toLatin1(),
+                                           plusEqual ? TrFunctionAliasManager::AddAlias : TrFunctionAliasManager::SetAlias);
+    }
+    return true;
 }
 
 static void updateTsFiles(const Translator &fetchedTor, const QStringList &tsFileNames,
@@ -148,6 +291,13 @@ static void updateTsFiles(const Translator &fetchedTor, const QStringList &tsFil
     const QString &sourceLanguage, const QString &targetLanguage,
     UpdateOptions options, bool *fail)
 {
+    for (int i = 0; i < fetchedTor.messageCount(); i++) {
+        const TranslatorMessage &msg = fetchedTor.constMessage(i);
+        if (!msg.id().isEmpty() && msg.sourceText().isEmpty())
+            printErr(LU::tr("lupdate warning: Message with id '%1' has no source.\n")
+                     .arg(msg.id()));
+    }
+
     QList<Translator> aliens;
     foreach (const QString &fileName, alienFiles) {
         ConversionData cd;
@@ -232,25 +382,32 @@ static void updateTsFiles(const Translator &fetchedTor, const QStringList &tsFil
     }
 }
 
-static void print(const QString &fileName, int lineNo, int type, const QString &msg)
+static void print(const QString &fileName, int lineNo, const QString &msg)
 {
-    QString pfx = ((type & QMakeHandler::CategoryMask) == QMakeHandler::WarningMessage)
-                  ? QString::fromLatin1("WARNING: ") : QString();
     if (lineNo > 0)
-        printErr(QString::fromLatin1("%1%2:%3: %4\n").arg(pfx, fileName, QString::number(lineNo), msg));
+        printErr(QString::fromLatin1("%1:%2: %3\n").arg(fileName, QString::number(lineNo), msg));
     else if (lineNo)
-        printErr(QString::fromLatin1("%1%2: %3\n").arg(pfx, fileName, msg));
+        printErr(QString::fromLatin1("%1: %2\n").arg(fileName, msg));
     else
-        printErr(QString::fromLatin1("%1%2\n").arg(pfx, msg));
+        printErr(QString::fromLatin1("%1\n").arg(msg));
 }
+
 
 class EvalHandler : public QMakeHandler {
 public:
     virtual void message(int type, const QString &msg, const QString &fileName, int lineNo)
-        { if (verbose) print(fileName, lineNo, type, msg); }
+    {
+        if (verbose && (type & CategoryMask) == ErrorMessage)
+            print(fileName, lineNo, msg);
+    }
 
-    virtual void fileMessage(const QString &msg)
-        { printErr(msg + QLatin1Char('\n')); }
+    virtual void fileMessage(int type, const QString &msg)
+    {
+        if (verbose && !(type & CumulativeEvalMessage) && (type & CategoryMask) == ErrorMessage) {
+            // "Downgrade" errors, as we don't really care for them
+            printErr(QLatin1String("WARNING: ") + msg + QLatin1Char('\n'));
+        }
+    }
 
     virtual void aboutToEval(ProFile *, ProFile *, EvalFileType) {}
     virtual void doneWithEval(ProFile *) {}
@@ -269,7 +426,8 @@ static QStringList getSources(const char *var, const char *vvar, const QStringLi
     return visitor.absoluteFileValues(QLatin1String(var), projectDir, vPaths, 0);
 }
 
-static QStringList getSources(const ProFileEvaluator &visitor, const QString &projectDir)
+static QStringList getSources(const ProFileEvaluator &visitor, const QString &projectDir,
+                              const QStringList &excludes)
 {
     QStringList baseVPaths;
     baseVPaths += visitor.absolutePathValues(QLatin1String("VPATH"), projectDir);
@@ -280,24 +438,48 @@ static QStringList getSources(const ProFileEvaluator &visitor, const QString &pr
 
     // app/lib template
     sourceFiles += getSources("SOURCES", "VPATH_SOURCES", baseVPaths, projectDir, visitor);
+    sourceFiles += getSources("HEADERS", "VPATH_HEADERS", baseVPaths, projectDir, visitor);
 
     sourceFiles += getSources("FORMS", "VPATH_FORMS", baseVPaths, projectDir, visitor);
-    sourceFiles += getSources("FORMS3", "VPATH_FORMS3", baseVPaths, projectDir, visitor);
 
-    QStringList vPathsInc = baseVPaths;
-    vPathsInc += visitor.absolutePathValues(QLatin1String("INCLUDEPATH"), projectDir);
-    vPathsInc.removeDuplicates();
-    sourceFiles += visitor.absoluteFileValues(QLatin1String("HEADERS"), projectDir, vPathsInc, 0);
+    QStringList installs = visitor.values(QLatin1String("INSTALLS"))
+                         + visitor.values(QLatin1String("DEPLOYMENT"));
+    installs.removeDuplicates();
+    QDir baseDir(projectDir);
+    foreach (const QString inst, installs) {
+        foreach (const QString &file, visitor.values(inst + QLatin1String(".files"))) {
+            QFileInfo info(file);
+            if (!info.isAbsolute())
+                info.setFile(baseDir.absoluteFilePath(file));
+            QStringList nameFilter;
+            QString searchPath;
+            if (info.isDir()) {
+                nameFilter << QLatin1String("*");
+                searchPath = info.filePath();
+            } else {
+                nameFilter << info.fileName();
+                searchPath = info.path();
+            }
+
+            QDirIterator iterator(searchPath, nameFilter,
+                                  QDir::Files | QDir::NoDotAndDotDot | QDir::NoSymLinks,
+                                  QDirIterator::Subdirectories);
+            while (iterator.hasNext()) {
+                iterator.next();
+                QFileInfo cfi = iterator.fileInfo();
+                QString ext = cfi.suffix();
+                if (ext == QLatin1String("qml")
+                    || ext == QLatin1String("js") || ext == QLatin1String("qs")
+                    || ext == QLatin1String("ui") || ext == QLatin1String("jui")) {
+                    sourceFiles << cfi.filePath();
+                }
+            }
+        }
+    }
 
     sourceFiles.removeDuplicates();
     sourceFiles.sort();
 
-    QStringList excludes;
-    foreach (QString ex, visitor.values(QLatin1String("TR_EXCLUDE"))) {
-        if (!QFileInfo(ex).isAbsolute())
-            ex = QDir(projectDir).absoluteFilePath(ex);
-        excludes << QDir::cleanPath(ex);
-    }
     foreach (const QString &ex, excludes) {
         // TODO: take advantage of the file list being sorted
         QRegExp rx(ex, Qt::CaseSensitive, QRegExp::Wildcard);
@@ -310,6 +492,50 @@ static QStringList getSources(const ProFileEvaluator &visitor, const QString &pr
     }
 
     return sourceFiles;
+}
+
+QStringList getExcludes(const ProFileEvaluator &visitor, const QString &projectDir)
+{
+    QStringList excludes;
+    foreach (QString ex, visitor.values(QLatin1String("TR_EXCLUDE"))) {
+        if (!QFileInfo(ex).isAbsolute())
+            ex = QDir(projectDir).absoluteFilePath(ex);
+        excludes << QDir::cleanPath(ex);
+    }
+
+    return excludes;
+}
+
+static void excludeProjects(const ProFileEvaluator &visitor, QStringList *subProjects)
+{
+    foreach (const QString &ex, visitor.values(QLatin1String("TR_EXCLUDE"))) {
+        QRegExp rx(ex, Qt::CaseSensitive, QRegExp::Wildcard);
+        for (QStringList::Iterator it = subProjects->begin(); it != subProjects->end(); ) {
+            if (rx.exactMatch(*it))
+                it = subProjects->erase(it);
+            else
+                ++it;
+        }
+    }
+}
+
+static bool processTs(Translator &fetchedTor, const QString &file, ConversionData &cd)
+{
+    foreach (const Translator::FileFormat &fmt, Translator::registeredFileFormats()) {
+        if (file.endsWith(QLatin1Char('.') + fmt.extension, Qt::CaseInsensitive)) {
+            Translator tor;
+            if (tor.load(file, cd, fmt.extension)) {
+                foreach (TranslatorMessage msg, tor.messages()) {
+                    msg.setType(TranslatorMessage::Unfinished);
+                    msg.setTranslations(QStringList());
+                    msg.setTranslatorComment(QString());
+                    fetchedTor.extend(msg, cd);
+                }
+            }
+            return true;
+        }
+    }
+    return false;
 }
 
 static void processSources(Translator &fetchedTor,
@@ -337,7 +563,7 @@ static void processSources(Translator &fetchedTor,
                  || it->endsWith(QLatin1String(".qs"), Qt::CaseInsensitive))
             requireQmlSupport = true;
 #endif // QT_NO_QML
-        else
+        else if (!processTs(fetchedTor, *it, cd))
             sourceFilesCpp << *it;
     }
 
@@ -352,14 +578,15 @@ static void processSources(Translator &fetchedTor,
 }
 
 static void processProjects(bool topLevel, bool nestComplain, const QStringList &proFiles,
-        const QHash<QString, QString> &outDirMap, ProFileGlobals *option, QMakeParser *parser,
+        const QHash<QString, QString> &outDirMap,
+        ProFileGlobals *option, QMakeVfs *vfs, QMakeParser *parser,
         UpdateOptions options,
         const QString &targetLanguage, const QString &sourceLanguage,
         Translator *parentTor, bool *fail);
 
 static void processProject(
         bool nestComplain, const QString &proFile,
-        ProFileGlobals *option, QMakeParser *parser, ProFileEvaluator &visitor,
+        ProFileGlobals *option, QMakeVfs *vfs, QMakeParser *parser, ProFileEvaluator &visitor,
         UpdateOptions options,
         const QString &targetLanguage, const QString &sourceLanguage,
         Translator *fetchedTor, bool *fail)
@@ -380,9 +607,11 @@ static void processProject(
     }
     QString proPath = QFileInfo(proFile).path();
     if (visitor.templateType() == ProFileEvaluator::TT_Subdirs) {
+        QStringList subProjects = visitor.values(QLatin1String("SUBDIRS"));
+        excludeProjects(visitor, &subProjects);
         QStringList subProFiles;
         QDir proDir(proPath);
-        foreach (const QString &subdir, visitor.values(QLatin1String("SUBDIRS"))) {
+        foreach (const QString &subdir, subProjects) {
             QString realdir = visitor.value(subdir + QLatin1String(".subdir"));
             if (realdir.isEmpty())
                 realdir = visitor.value(subdir + QLatin1String(".file"));
@@ -397,14 +626,15 @@ static void processProject(
                 subProFiles << subPro;
         }
         processProjects(false, nestComplain, subProFiles, QHash<QString, QString>(),
-                        option, parser, options,
+                        option, vfs, parser, options,
                         targetLanguage, sourceLanguage, fetchedTor, fail);
     } else {
         ConversionData cd;
         cd.m_noUiLines = options & NoUiLines;
         cd.m_sourceIsUtf16 = options & SourceIsUtf16;
-        cd.m_includePath = visitor.values(QLatin1String("INCLUDEPATH"));
-        QStringList sourceFiles = getSources(visitor, proPath);
+        cd.m_includePath = visitor.absolutePathValues(QLatin1String("INCLUDEPATH"), proPath);
+        cd.m_excludes = getExcludes(visitor, proPath);
+        QStringList sourceFiles = getSources(visitor, proPath, cd.m_excludes);
         QSet<QString> sourceDirs;
         sourceDirs.insert(proPath + QLatin1Char('/'));
         foreach (const QString &sf, sourceFiles)
@@ -422,7 +652,8 @@ static void processProject(
 }
 
 static void processProjects(bool topLevel, bool nestComplain, const QStringList &proFiles,
-        const QHash<QString, QString> &outDirMap, ProFileGlobals *option, QMakeParser *parser,
+        const QHash<QString, QString> &outDirMap,
+        ProFileGlobals *option, QMakeVfs *vfs, QMakeParser *parser,
         UpdateOptions options,
         const QString &targetLanguage, const QString &sourceLanguage,
         Translator *parentTor, bool *fail)
@@ -432,15 +663,16 @@ static void processProjects(bool topLevel, bool nestComplain, const QStringList 
         if (!outDirMap.isEmpty())
             option->setDirectories(QFileInfo(proFile).path(), outDirMap[proFile]);
 
-        ProFileEvaluator visitor(option, parser, &evalHandler);
-        visitor.setCumulative(true);
-        visitor.setOutputDir(option->shadowedPath(proFile));
         ProFile *pro;
-        if (!(pro = parser->parsedProFile(proFile))) {
+        if (!(pro = parser->parsedProFile(proFile, topLevel ? QMakeParser::ParseReportMissing
+                                                            : QMakeParser::ParseDefault))) {
             if (topLevel)
                 *fail = true;
             continue;
         }
+        ProFileEvaluator visitor(option, parser, vfs, &evalHandler);
+        visitor.setCumulative(true);
+        visitor.setOutputDir(option->shadowedPath(pro->directoryName()));
         if (!visitor.accept(pro)) {
             if (topLevel)
                 *fail = true;
@@ -473,7 +705,7 @@ static void processProjects(bool topLevel, bool nestComplain, const QStringList 
                 continue;
             }
             Translator tor;
-            processProject(false, proFile, option, parser, visitor, options,
+            processProject(false, proFile, option, vfs, parser, visitor, options,
                            targetLanguage, sourceLanguage, &tor, fail);
             updateTsFiles(tor, tsFiles, QStringList(),
                           sourceLanguage, targetLanguage, options, fail);
@@ -486,10 +718,10 @@ static void processProjects(bool topLevel, bool nestComplain, const QStringList 
                 printErr(LU::tr("lupdate warning: no TS files specified. Only diagnostics "
                                 "will be produced for '%1'.\n").arg(proFile));
             Translator tor;
-            processProject(nestComplain, proFile, option, parser, visitor, options,
+            processProject(nestComplain, proFile, option, vfs, parser, visitor, options,
                            targetLanguage, sourceLanguage, &tor, fail);
         } else {
-            processProject(nestComplain, proFile, option, parser, visitor, options,
+            processProject(nestComplain, proFile, option, vfs, parser, visitor, options,
                            targetLanguage, sourceLanguage, parentTor, fail);
         }
         pro->deref();
@@ -531,8 +763,10 @@ int main(int argc, char **argv)
     UpdateOptions options =
         Verbose | // verbose is on by default starting with Qt 4.2
         HeuristicSameText | HeuristicSimilarText | HeuristicNumber;
+    int proDebug = 0;
     int numFiles = 0;
     bool metTsFlag = false;
+    bool metXTsFlag = false;
     bool recursiveScan = true;
 
     QString extensions = m_defaultExtensions;
@@ -557,6 +791,9 @@ int main(int argc, char **argv)
             continue;
         } else if (arg == QLatin1String("-silent")) {
             options &= ~Verbose;
+            continue;
+        } else if (arg == QLatin1String("-pro-debug")) {
+            proDebug++;
             continue;
         } else if (arg == QLatin1String("-target-language")) {
             ++i;
@@ -630,6 +867,11 @@ int main(int argc, char **argv)
             return 0;
         } else if (arg == QLatin1String("-ts")) {
             metTsFlag = true;
+            metXTsFlag = false;
+            continue;
+        } else if (arg == QLatin1String("-xts")) {
+            metTsFlag = false;
+            metXTsFlag = true;
             continue;
         } else if (arg == QLatin1String("-extensions")) {
             ++i;
@@ -638,6 +880,15 @@ int main(int argc, char **argv)
                 return 1;
             }
             extensions = args[i];
+            continue;
+        } else if (arg == QLatin1String("-tr-function-alias")) {
+            ++i;
+            if (i == argc) {
+                printErr(LU::tr("The -tr-function-alias option should be followed by a list of function=alias mappings.\n"));
+                return 1;
+            }
+            if (!handleTrFunctionAliases(args[i]))
+                return 1;
             continue;
         } else if (arg == QLatin1String("-pro")) {
             ++i;
@@ -722,6 +973,8 @@ int main(int argc, char **argv)
                 }
             }
             numFiles++;
+        } else if (metXTsFlag) {
+            alienFiles += files;
         } else {
             foreach (const QString &file, files) {
                 QFileInfo fi(file);
@@ -773,17 +1026,10 @@ int main(int argc, char **argv)
                         }
                     }
                 } else {
-                    foreach (const Translator::FileFormat &fmt, Translator::registeredFileFormats()) {
-                        if (file.endsWith(QLatin1Char('.') + fmt.extension, Qt::CaseInsensitive)) {
-                            alienFiles << file;
-                            goto gotfile;
-                        }
-                    }
                     sourceFiles << QDir::cleanPath(fi.absoluteFilePath());;
                     projectRoots.insert(fi.absolutePath() + QLatin1Char('/'));
                 }
             }
-          gotfile:
             numFiles++;
         }
     } // for args
@@ -825,19 +1071,21 @@ int main(int argc, char **argv)
         option.qmake_abslocation = QString::fromLocal8Bit(qgetenv("QMAKE"));
         if (option.qmake_abslocation.isEmpty())
             option.qmake_abslocation = app.applicationDirPath() + QLatin1String("/qmake");
+        option.debugLevel = proDebug;
         option.initProperties();
         option.setCommandLineArguments(QDir::currentPath(),
                                        QStringList() << QLatin1String("CONFIG+=lupdate_run"));
-        QMakeParser parser(0, &evalHandler);
+        QMakeVfs vfs;
+        QMakeParser parser(0, &vfs, &evalHandler);
 
         if (!tsFileNames.isEmpty()) {
             Translator fetchedTor;
-            processProjects(true, true, proFiles, outDirMap, &option, &parser, options,
+            processProjects(true, true, proFiles, outDirMap, &option, &vfs, &parser, options,
                             targetLanguage, sourceLanguage, &fetchedTor, &fail);
             updateTsFiles(fetchedTor, tsFileNames, alienFiles,
                           sourceLanguage, targetLanguage, options, &fail);
         } else {
-            processProjects(true, false, proFiles, outDirMap, &option, &parser, options,
+            processProjects(true, false, proFiles, outDirMap, &option, &vfs, &parser, options,
                             targetLanguage, sourceLanguage, 0, &fail);
         }
     }

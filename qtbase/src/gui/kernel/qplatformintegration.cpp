@@ -51,6 +51,10 @@
 #include <private/qdnd_p.h>
 #include <private/qsimpledrag_p.h>
 
+#ifndef QT_NO_SESSIONMANAGER
+# include <qpa/qplatformsessionmanager.h>
+#endif
+
 QT_BEGIN_NAMESPACE
 
 /*!
@@ -217,27 +221,38 @@ QPlatformServices *QPlatformIntegration::services() const
     libraries.
 
     \value NonFullScreenWindows The platform supports top-level windows which do not
-    fill the screen. The default implementation returns true. Returning false for
+    fill the screen. The default implementation returns \c true. Returning false for
     this will cause all windows, including dialogs and popups, to be resized to fill the
     screen.
- */
 
+    \value WindowManagement The platform is based on a system that performs window
+    management.  This includes the typical desktop platforms. Can be set to false on
+    platforms where no window management is available, meaning for example that windows
+    are never repositioned by the window manager. The default implementation returns \c true.
+ */
 
 /*!
 
-    \fn QAbstractEventDispatcher *QPlatformIntegration::guiThreadEventDispatcher() const = 0
+    \fn QAbstractEventDispatcher *QPlatformIntegration::createEventDispatcher() const = 0
 
-    Accessor function for the event dispatcher. The platform plugin should create
-    an instance of the QAbstractEventDispatcher in its constructor and set it
-    on the application using QGuiApplicationPrivate::instance()->setEventDispatcher().
-    The event dispatcher is owned by QGuiApplication, the accessor should return
-    a flat pointer.
-    \sa QGuiApplicationPrivate
+    Factory function for the GUI event dispatcher. The platform plugin should create
+    and return a QAbstractEventDispatcher subclass when this function is called.
+
+    If the platform plugin for some reason creates the event dispatcher outside of
+    this function (for example in the constructor), it needs to handle the case
+    where this function is never called, ensuring that the event dispatcher is
+    still deleted at some point (typically in the destructor).
+
+    Note that the platform plugin should never explicitly set the event dispatcher
+    itself, using QCoreApplication::setEventDispatcher(), but let QCoreApplication
+    decide when and which event dispatcher to create.
+
+    \since 5.2
 */
 
 bool QPlatformIntegration::hasCapability(Capability cap) const
 {
-    return cap == NonFullScreenWindows;
+    return cap == NonFullScreenWindows || cap == NativeWidgets || cap == WindowManagement;
 }
 
 QPlatformPixmap *QPlatformIntegration::createPlatformPixmap(QPlatformPixmap::PixelType type) const
@@ -273,6 +288,18 @@ QPaintEngine *QPlatformIntegration::createImagePaintEngine(QPaintDevice *paintDe
 {
     Q_UNUSED(paintDevice)
     return 0;
+}
+
+/*!
+  Performs initialization steps that depend on having an event dispatcher
+  available. Called after the event dispatcher has been created.
+
+  Tasks that require an event dispatcher, for example creating socket notifiers, cannot be
+  performed in the constructor. Instead, they should be performed here. The default
+  implementation does nothing.
+*/
+void QPlatformIntegration::initialize()
+{
 }
 
 /*!
@@ -316,6 +343,8 @@ QVariant QPlatformIntegration::styleHint(StyleHint hint) const
         return QPlatformTheme::defaultThemeHint(QPlatformTheme::StartDragTime);
     case ShowIsFullScreen:
         return false;
+    case ShowIsMaximized:
+        return false;
     case PasswordMaskDelay:
         return QPlatformTheme::defaultThemeHint(QPlatformTheme::PasswordMaskDelay);
     case PasswordMaskCharacter:
@@ -328,9 +357,25 @@ QVariant QPlatformIntegration::styleHint(StyleHint hint) const
         return QVariant(false);
     case SynthesizeMouseFromTouchEvents:
         return true;
+    case SetFocusOnTouchRelease:
+        return QVariant(false);
     }
 
     return 0;
+}
+
+Qt::WindowState QPlatformIntegration::defaultWindowState(Qt::WindowFlags flags) const
+{
+    // Leave popup-windows as is
+    if (flags & Qt::Popup & ~Qt::Window)
+        return Qt::WindowNoState;
+
+    if (styleHint(QPlatformIntegration::ShowIsFullScreen).toBool())
+        return Qt::WindowFullScreen;
+    else if (styleHint(QPlatformIntegration::ShowIsMaximized).toBool())
+        return Qt::WindowMaximized;
+
+    return Qt::WindowNoState;
 }
 
 Qt::KeyboardModifiers QPlatformIntegration::queryKeyboardModifiers() const
@@ -391,6 +436,34 @@ QPlatformOffscreenSurface *QPlatformIntegration::createPlatformOffscreenSurface(
 {
     Q_UNUSED(surface)
     return 0;
+}
+
+#ifndef QT_NO_SESSIONMANAGER
+/*!
+   \since 5.2
+
+   Factory function for QPlatformSessionManager. The default QPlatformSessionManager provides the same
+   functionality as the QSessionManager.
+*/
+QPlatformSessionManager *QPlatformIntegration::createPlatformSessionManager(const QString &id, const QString &key) const
+{
+    return new QPlatformSessionManager(id, key);
+}
+#endif
+
+/*!
+   \since 5.2
+
+   Function to sync the platform integrations state with the window system.
+
+   This is often implemented as a roundtrip from the platformintegration to the window system.
+
+   This function should not call QWindowSystemInterface::flushWindowSystemEvents() or
+   QCoreApplication::processEvents()
+*/
+void QPlatformIntegration::sync()
+{
+
 }
 
 QT_END_NAMESPACE

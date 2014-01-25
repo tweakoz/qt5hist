@@ -122,8 +122,17 @@ public:
 
     QList<ScriptReference> resolvedScripts() const;
 
+    struct CompositeSingletonReference
+    {
+        QString typeName;
+        QString prefix;
+    };
+
+    QList<CompositeSingletonReference> resolvedCompositeSingletons() const;
+
     static QString completeQmldirPath(const QString &uri, const QString &base, int vmaj, int vmin,
                                       QQmlImports::ImportVersion version);
+    static QString versionString(int vmaj, int vmin, ImportVersion version);
 
     static bool isLocal(const QString &url);
     static bool isLocal(const QUrl &url);
@@ -161,6 +170,8 @@ private:
     QString resolvePlugin(QQmlTypeLoader *typeLoader,
                           const QString &qmldirPath, const QString &qmldirPluginPath,
                           const QString &baseName);
+    bool importPlugin(QObject *instance, const QString &basePath, const QString &uri,
+                          const QString &typeNamespace, bool initEngine, QList<QQmlError> *errors);
 
     struct QmldirCache {
         int versionMajor;

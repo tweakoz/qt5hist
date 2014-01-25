@@ -111,13 +111,10 @@ extern bool qt_wince_is_pocket_pc();  //qguifunctions_wince.cpp
 static void initResources()
 {
 #if defined(Q_OS_WINCE)
-    Q_INIT_RESOURCE_EXTERN(qstyle_wince)
     Q_INIT_RESOURCE(qstyle_wince);
 #else
-    Q_INIT_RESOURCE_EXTERN(qstyle)
     Q_INIT_RESOURCE(qstyle);
 #endif
-    Q_INIT_RESOURCE_EXTERN(qmessagebox)
     Q_INIT_RESOURCE(qmessagebox);
 
 }
@@ -1073,7 +1070,10 @@ void QApplication::setStyle(QStyle *style)
     if (QApplicationPrivate::set_pal) {
         QApplication::setPalette(*QApplicationPrivate::set_pal);
     } else if (QApplicationPrivate::sys_pal) {
+        clearSystemPalette();
+        initSystemPalette();
         QApplicationPrivate::initializeWidgetPaletteHash();
+        QApplicationPrivate::initializeWidgetFontHash();
         QApplicationPrivate::setPalette_helper(*QApplicationPrivate::sys_pal, /*className=*/0, /*clearWidgetPaletteHash=*/false);
     } else if (!QApplicationPrivate::sys_pal) {
         // Initialize the sys_pal if it hasn't happened yet...
@@ -1852,8 +1852,11 @@ bool QApplication::event(QEvent *e)
                 if (showToolTip) {
                     QHelpEvent e(QEvent::ToolTip, d->toolTipPos, d->toolTipGlobalPos);
                     QApplication::sendEvent(d->toolTipWidget, &e);
-                    if (e.isAccepted())
-                        d->toolTipFallAsleep.start(2000, this);
+                    if (e.isAccepted()) {
+                        QStyle *s = d->toolTipWidget->style();
+                        int sleepDelay = s->styleHint(QStyle::SH_ToolTip_FallAsleepDelay, 0, d->toolTipWidget, 0);
+                        d->toolTipFallAsleep.start(sleepDelay, this);
+                    }
                 }
             }
         } else if (te->timerId() == d->toolTipFallAsleep.timerId()) {
@@ -2232,7 +2235,7 @@ Q_WIDGETS_EXPORT bool qt_tryModalHelper(QWidget *widget, QWidget **rettop)
 }
 
 /*! \internal
-    Returns true if \a widget is blocked by a modal window.
+    Returns \c true if \a widget is blocked by a modal window.
  */
 bool QApplicationPrivate::isBlockedByModal(QWidget *widget)
 {
@@ -2361,7 +2364,7 @@ bool QApplicationPrivate::isWindowBlocked(QWindow *window, QWindow **blockingWin
 
 /*!\internal
 
-  Called from qapplication_\e{platform}.cpp, returns true
+  Called from qapplication_\e{platform}.cpp, returns \c true
   if the widget should accept the event.
  */
 bool QApplicationPrivate::tryModalHelper(QWidget *widget, QWidget **rettop)
@@ -2641,7 +2644,7 @@ void QApplication::setStartDragDistance(int l)
     and the current position (e.g. in the mouse move event) is \c currentPos,
     you can find out if a drag should be started with code like this:
 
-    \snippet code/src_gui_kernel_qapplication.cpp 7
+    \snippet code/src_gui_kernel_qapplication.cpp 6
 
     Qt uses this value internally, e.g. in QFileDialog.
 
@@ -2858,7 +2861,14 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
                 QKeyEvent* key = static_cast<QKeyEvent*>(e);
 #ifndef QT_NO_SHORTCUT
                 // Try looking for a Shortcut before sending key events
-                if (qApp->d_func()->shortcutMap.tryShortcutEvent(receiver, key))
+                QObject *shortcutReceiver = receiver;
+                if (!isWidget && isWindow) {
+                    QWindow *w = qobject_cast<QWindow *>(receiver);
+                    QObject *focus = w ? w->focusObject() : 0;
+                    if (focus)
+                        shortcutReceiver = focus;
+                }
+                if (qApp->d_func()->shortcutMap.tryShortcutEvent(shortcutReceiver, key))
                     return true;
 #endif
                 qt_in_tab_key_event = (key->key() == Qt::Key_Backtab
@@ -2942,12 +2952,8 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
             QPoint relpos = mouse->pos();
 
             if (e->spontaneous()) {
-
-                if (e->type() == QEvent::MouseButtonPress) {
-                    QApplicationPrivate::giveFocusAccordingToFocusPolicy(w,
-                                                                         Qt::ClickFocus,
-                                                                         Qt::MouseFocusReason);
-                }
+                if (e->type() != QEvent::MouseMove)
+                    QApplicationPrivate::giveFocusAccordingToFocusPolicy(w, e, relpos);
 
                 // ### Qt 5 These dynamic tool tips should be an OPT-IN feature. Some platforms
                 // like Mac OS X (probably others too), can optimize their views by not
@@ -2960,7 +2966,9 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
                     d->toolTipWidget = w;
                     d->toolTipPos = relpos;
                     d->toolTipGlobalPos = mouse->globalPos();
-                    d->toolTipWakeUp.start(d->toolTipFallAsleep.isActive()?20:700, this);
+                    QStyle *s = d->toolTipWidget->style();
+                    int wakeDelay = s->styleHint(QStyle::SH_ToolTip_WakeUpDelay, 0, d->toolTipWidget, 0);
+                    d->toolTipWakeUp.start(d->toolTipFallAsleep.isActive() ? 20 : wakeDelay, this);
                 }
             }
 
@@ -3035,11 +3043,8 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
             QPoint relpos = wheel->pos();
             bool eventAccepted = wheel->isAccepted();
 
-            if (e->spontaneous()) {
-                QApplicationPrivate::giveFocusAccordingToFocusPolicy(w,
-                                                                     Qt::WheelFocus,
-                                                                     Qt::MouseFocusReason);
-            }
+            if (e->spontaneous())
+                QApplicationPrivate::giveFocusAccordingToFocusPolicy(w, e, relpos);
 
             while (w) {
                 QWheelEvent we(relpos, wheel->globalPos(), wheel->pixelDelta(), wheel->angleDelta(), wheel->delta(), wheel->orientation(), wheel->buttons(),
@@ -3227,6 +3232,11 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
         QTouchEvent *touchEvent = static_cast<QTouchEvent *>(e);
         const bool acceptTouchEvents = widget->testAttribute(Qt::WA_AcceptTouchEvents);
 
+        if (e->type() != QEvent::TouchUpdate && acceptTouchEvents && e->spontaneous()) {
+            const QPoint localPos = touchEvent->touchPoints()[0].pos().toPoint();
+            QApplicationPrivate::giveFocusAccordingToFocusPolicy(widget, e, localPos);
+        }
+
         touchEvent->setTarget(widget);
         touchEvent->setAccepted(acceptTouchEvents);
 
@@ -3244,16 +3254,16 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
         QWidget *widget = static_cast<QWidget *>(receiver);
         QTouchEvent *touchEvent = static_cast<QTouchEvent *>(e);
         bool eventAccepted = touchEvent->isAccepted();
-        if (widget->testAttribute(Qt::WA_AcceptTouchEvents) && e->spontaneous()) {
-            // give the widget focus if the focus policy allows it
-            QApplicationPrivate::giveFocusAccordingToFocusPolicy(widget,
-                                                                 Qt::ClickFocus,
-                                                                 Qt::MouseFocusReason);
+        bool acceptTouchEvents = widget->testAttribute(Qt::WA_AcceptTouchEvents);
+
+        if (acceptTouchEvents && e->spontaneous()) {
+            const QPoint localPos = touchEvent->touchPoints()[0].pos().toPoint();
+            QApplicationPrivate::giveFocusAccordingToFocusPolicy(widget, e, localPos);
         }
 
         while (widget) {
             // first, try to deliver the touch event
-            bool acceptTouchEvents = widget->testAttribute(Qt::WA_AcceptTouchEvents);
+            acceptTouchEvents = widget->testAttribute(Qt::WA_AcceptTouchEvents);
             touchEvent->setTarget(widget);
             touchEvent->setAccepted(acceptTouchEvents);
             QPointer<QWidget> p = widget;
@@ -3526,7 +3536,7 @@ void QApplication::setKeypadNavigationEnabled(bool enable)
 }
 
 /*!
-    Returns true if Qt is set to use keypad navigation; otherwise returns
+    Returns \c true if Qt is set to use keypad navigation; otherwise returns
     false.  The default value is false.
 
     This feature is available in Qt for Embedded Linux, and Windows CE only.
@@ -3673,7 +3683,7 @@ int QApplication::keyboardInputInterval()
 /*!
     \fn bool QApplication::isEffectEnabled(Qt::UIEffect effect)
 
-    Returns true if \a effect is enabled; otherwise returns false.
+    Returns \c true if \a effect is enabled; otherwise returns \c false.
 
     By default, Qt will try to use the desktop settings. To prevent this, call
     setDesktopSettingsAware(false).
@@ -3718,20 +3728,40 @@ bool qt_sendSpontaneousEvent(QObject *receiver, QEvent *event)
     return QGuiApplication::sendSpontaneousEvent(receiver, event);
 }
 
-
-void QApplicationPrivate::giveFocusAccordingToFocusPolicy(QWidget *widget,
-                                                          Qt::FocusPolicy focusPolicy,
-                                                          Qt::FocusReason focusReason)
+void QApplicationPrivate::giveFocusAccordingToFocusPolicy(QWidget *widget, QEvent *event, QPoint localPos)
 {
+    const bool setFocusOnRelease = QGuiApplication::styleHints()->setFocusOnTouchRelease();
+    Qt::FocusPolicy focusPolicy = Qt::ClickFocus;
+
+    switch (event->type()) {
+        case QEvent::MouseButtonPress:
+        case QEvent::TouchBegin:
+            if (setFocusOnRelease)
+                return;
+            break;
+        case QEvent::MouseButtonRelease:
+        case QEvent::TouchEnd:
+            if (!setFocusOnRelease)
+                return;
+            break;
+        case QEvent::Wheel:
+            focusPolicy = Qt::WheelFocus;
+            break;
+        default:
+            return;
+    }
+
     QWidget *focusWidget = widget;
     while (focusWidget) {
         if (focusWidget->isEnabled()
+            && focusWidget->rect().contains(localPos)
             && QApplicationPrivate::shouldSetFocus(focusWidget, focusPolicy)) {
-            focusWidget->setFocus(focusReason);
+            focusWidget->setFocus(Qt::MouseFocusReason);
             break;
         }
         if (focusWidget->isWindow())
             break;
+        localPos += focusWidget->pos();
         focusWidget = focusWidget->parentWidget();
     }
 }

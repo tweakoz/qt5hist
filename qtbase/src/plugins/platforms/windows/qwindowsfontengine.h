@@ -68,10 +68,7 @@ class QWindowsFontEngineData;
 
 class QWindowsFontEngine : public QFontEngine
 {
-    Q_OBJECT
-    Q_PROPERTY(HFONT hFont READ hFont STORED false)
-    Q_PROPERTY(LOGFONT logFont READ logFont STORED false)
-    Q_PROPERTY(bool trueType READ trueType STORED false)
+    friend class QWindowsMultiFontEngine;
 
 public:
     QWindowsFontEngine(const QString &name, HFONT, bool, LOGFONT,
@@ -121,6 +118,7 @@ public:
     virtual QImage alphaMapForGlyph(glyph_t t) { return alphaMapForGlyph(t, QTransform()); }
     virtual QImage alphaMapForGlyph(glyph_t, const QTransform &xform);
     virtual QImage alphaRGBMapForGlyph(glyph_t t, QFixed subPixelPosition, const QTransform &xform);
+    virtual glyph_metrics_t alphaMapBoundingBox(glyph_t glyph, QFixed, const QTransform &matrix, GlyphFormat);
 
     virtual QFontEngine *cloneWithSize(qreal pixelSize) const;
     virtual bool supportsTransformation(const QTransform &transform) const;
@@ -135,11 +133,6 @@ public:
     bool getOutlineMetrics(glyph_t glyph, const QTransform &t, glyph_metrics_t *metrics) const;
 
     const QSharedPointer<QWindowsFontEngineData> &fontEngineData() const { return m_fontEngineData; }
-
-    // Properties accessed by QWin32PrintEngine (Qt Print Support)
-    LOGFONT logFont() const { return m_logfont; }
-    HFONT hFont() const     { return hfont; }
-    bool trueType() const   { return ttf; }
 
     void setUniqueFamilyName(const QString &newName) { uniqueFamilyName = newName; }
 

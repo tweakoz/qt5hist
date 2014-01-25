@@ -140,16 +140,24 @@ public:
     {
         typedef QVector<ObjectTreeNode> DataList;
 
-        inline ObjectTreeNode() : obj(0), flags(0), activeChildren(0) { }
+        inline ObjectTreeNode() : obj(0), flags(0) { }
         inline ObjectTreeNode(const QString &n) // intentionally implicit
-            : name(n), obj(0), flags(0), activeChildren(0) { }
+            : name(n), obj(0), flags(0) { }
         inline ~ObjectTreeNode() { }
         inline bool operator<(const QString &other) const
             { return name < other; }
         inline bool operator<(const QStringRef &other) const
             { return QStringRef(&name) < other; }
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+        inline bool operator<(const ObjectTreeNode &other) const
+            { return name < other.name; }
+        friend inline bool operator<(const QString &str, const ObjectTreeNode &obj)
+            { return str < obj.name; }
+        friend inline bool operator<(const QStringRef &str, const ObjectTreeNode &obj)
+            { return str < QStringRef(&obj.name); }
+#endif
         inline bool isActive() const
-        { return obj || activeChildren; }
+        { return obj || !children.isEmpty(); }
 
         QString name;
         union {
@@ -157,7 +165,6 @@ public:
             QDBusVirtualObject *treeNode;
         };
         int flags;
-        int activeChildren;
 
         DataList children;
     };
@@ -199,9 +206,8 @@ public:
     int send(const QDBusMessage &message);
     QDBusMessage sendWithReply(const QDBusMessage &message, int mode, int timeout = -1);
     QDBusMessage sendWithReplyLocal(const QDBusMessage &message);
-    QDBusPendingCallPrivate *sendWithReplyAsync(const QDBusMessage &message, int timeout = -1);
-    int sendWithReplyAsync(const QDBusMessage &message, QObject *receiver,
-                           const char *returnMethod, const char *errorMethod, int timeout = -1);
+    QDBusPendingCallPrivate *sendWithReplyAsync(const QDBusMessage &message, QObject *receiver,
+                                                const char *returnMethod, const char *errorMethod,int timeout = -1);
     bool connectSignal(const QString &service, const QString &path, const QString& interface,
                        const QString &name, const QStringList &argumentMatch, const QString &signature,
                        QObject *receiver, const char *slot);
@@ -342,9 +348,9 @@ public:
 };
 
 // in qdbusmisc.cpp
-extern int qDBusParametersForMethod(const QMetaMethod &mm, QVector<int> &metaTypes);
+extern int qDBusParametersForMethod(const QMetaMethod &mm, QVector<int> &metaTypes, QString &errorMsg);
 #endif // QT_BOOTSTRAPPED
-extern Q_DBUS_EXPORT int qDBusParametersForMethod(const QList<QByteArray> &parameters, QVector<int>& metaTypes);
+extern Q_DBUS_EXPORT int qDBusParametersForMethod(const QList<QByteArray> &parameters, QVector<int>& metaTypes, QString &errorMsg);
 extern Q_DBUS_EXPORT bool qDBusCheckAsyncTag(const char *tag);
 #ifndef QT_BOOTSTRAPPED
 extern bool qDBusInterfaceInObject(QObject *obj, const QString &interface_name);

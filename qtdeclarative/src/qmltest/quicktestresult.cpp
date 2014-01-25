@@ -59,6 +59,8 @@
 #include <QtGui/qvector3d.h>
 #include <QtQml/private/qqmlglobal_p.h>
 
+#include <algorithm>
+
 QT_BEGIN_NAMESPACE
 
 static const char *globalProgramName = 0;
@@ -472,22 +474,21 @@ bool QuickTestResult::fuzzyCompare(const QVariant &actual, const QVariant &expec
     return false;
 }
 
-void QuickTestResult::stringify(QQmlV8Function *args)
+void QuickTestResult::stringify(QQmlV4Function *args)
 {
-    if (args->Length() < 1)
-        args->returnValue(v8::Null());
+    if (args->length() < 1)
+        args->setReturnValue(QV4::Encode::null());
 
-    v8::Local<v8::Value> value = (*args)[0];
+    QV4::Scope scope(args->v4engine());
+    QV4::ScopedValue value(scope, (*args)[0]);
 
     QString result;
     QV8Engine *engine = args->engine();
 
     //Check for Object Type
-    if (value->IsObject()
-    && !value->IsFunction()
-    && !value->IsArray()
-    && !value->IsDate()
-    && !value->IsRegExp()) {
+    if (value->isObject()
+        && !value->asFunctionObject()
+        && !value->asArrayObject()) {
         QVariant v = engine->toVariant(value, QMetaType::UnknownType);
         if (v.isValid()) {
             switch (v.type()) {
@@ -505,15 +506,14 @@ void QuickTestResult::stringify(QQmlV8Function *args)
             result = QLatin1String("Object");
         }
     } else {
-        v8::Local<v8::String> jsstr = value->ToString();
-        QString tmp = engine->toString(jsstr);
-        if (value->IsArray())
+        QString tmp = value->toQStringNoThrow();
+        if (value->asArrayObject())
             result.append(QString::fromLatin1("[%1]").arg(tmp));
         else
             result.append(tmp);
     }
 
-    args->returnValue(args->engine()->toString(result));
+    args->setReturnValue(args->engine()->toString(result));
 }
 
 bool QuickTestResult::compare
@@ -628,7 +628,7 @@ static QBenchmarkResult qMedian(const QList<QBenchmarkResult> &container)
         return container.at(0);
 
     QList<QBenchmarkResult> containerCopy = container;
-    qSort(containerCopy);
+    std::sort(containerCopy.begin(), containerCopy.end());
 
     const int middle = count / 2;
 
@@ -720,7 +720,7 @@ void QuickTestResult::setProgramName(const char *name)
 
 void QuickTestResult::setCurrentAppname(const char *appname)
 {
-    QTestResult::setCurrentAppname(appname);
+    QTestResult::setCurrentAppName(appname);
 }
 
 int QuickTestResult::exitCode()

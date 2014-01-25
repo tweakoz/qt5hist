@@ -198,7 +198,6 @@ void QApplicationPrivate::closePopup(QWidget *popup)
                 // mouse release event or inside
                 qt_replay_popup_mouse_event = false;
             } else { // mouse press event
-                QGuiApplicationPrivate::mousePressTime -= 10000; // avoid double click
                 qt_replay_popup_mouse_event = true;
             }
 
@@ -276,8 +275,12 @@ void QApplicationPrivate::initializeWidgetPaletteHash()
     QPlatformTheme *platformTheme = QGuiApplicationPrivate::platformTheme();
     if (!platformTheme)
         return;
+    qt_app_palettes_hash()->clear();
+
     setPossiblePalette(platformTheme->palette(QPlatformTheme::ToolButtonPalette), "QToolButton");
     setPossiblePalette(platformTheme->palette(QPlatformTheme::ButtonPalette), "QAbstractButton");
+    setPossiblePalette(platformTheme->palette(QPlatformTheme::CheckBoxPalette), "QCheckBox");
+    setPossiblePalette(platformTheme->palette(QPlatformTheme::RadioButtonPalette), "QRadioButton");
     setPossiblePalette(platformTheme->palette(QPlatformTheme::HeaderPalette), "QHeaderView");
     setPossiblePalette(platformTheme->palette(QPlatformTheme::ItemViewPalette), "QAbstractItemView");
     setPossiblePalette(platformTheme->palette(QPlatformTheme::MessageBoxLabelPelette), "QMessageBoxLabel");
@@ -297,6 +300,8 @@ void QApplicationPrivate::initializeWidgetFontHash()
     if (!theme)
         return;
     FontHash *fontHash = qt_app_fonts_hash();
+    fontHash->clear();
+
     if (const QFont *font = theme->font(QPlatformTheme::MenuFont))
         fontHash->insert(QByteArrayLiteral("QMenu"), *font);
     if (const QFont *font = theme->font(QPlatformTheme::MenuBarFont))
@@ -319,6 +324,10 @@ void QApplicationPrivate::initializeWidgetFontHash()
         fontHash->insert(QByteArrayLiteral("QDockWidgetTitle"), *font);
     if (const QFont *font = theme->font(QPlatformTheme::PushButtonFont))
         fontHash->insert(QByteArrayLiteral("QPushButton"), *font);
+    if (const QFont *font = theme->font(QPlatformTheme::CheckBoxFont))
+        fontHash->insert(QByteArrayLiteral("QCheckBox"), *font);
+    if (const QFont *font = theme->font(QPlatformTheme::RadioButtonFont))
+        fontHash->insert(QByteArrayLiteral("QRadioButton"), *font);
     if (const QFont *font = theme->font(QPlatformTheme::ToolButtonFont))
         fontHash->insert(QByteArrayLiteral("QToolButton"), *font);
     if (const QFont *font = theme->font(QPlatformTheme::ItemViewFont))

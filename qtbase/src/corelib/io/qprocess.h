@@ -124,7 +124,13 @@ public:
     enum ProcessChannelMode {
         SeparateChannels,
         MergedChannels,
-        ForwardedChannels
+        ForwardedChannels,
+        ForwardedOutputChannel,
+        ForwardedErrorChannel
+    };
+    enum InputChannelMode {
+        ManagedInputChannel,
+        ForwardedInputChannel
     };
     enum ExitStatus {
         NormalExit,
@@ -149,6 +155,8 @@ public:
     void setReadChannelMode(ProcessChannelMode mode);
     ProcessChannelMode processChannelMode() const;
     void setProcessChannelMode(ProcessChannelMode mode);
+    InputChannelMode inputChannelMode() const;
+    void setInputChannelMode(InputChannelMode mode);
 
     ProcessChannel readChannel() const;
     void setReadChannel(ProcessChannel channel);
@@ -208,6 +216,8 @@ public:
     static bool startDetached(const QString &program);
 
     static QStringList systemEnvironment();
+
+    static QString nullDevice();
 
 public Q_SLOTS:
     void terminate();

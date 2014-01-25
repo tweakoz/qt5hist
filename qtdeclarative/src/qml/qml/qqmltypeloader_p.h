@@ -59,8 +59,8 @@
 #include <QtQml/qqmlerror.h>
 #include <QtQml/qqmlengine.h>
 #include <QtQml/qqmlfile.h>
+#include <QtQml/qqmlabstracturlinterceptor.h>
 
-#include <private/qv8_p.h>
 #include <private/qhashedstring_p.h>
 #include <private/qqmlscript_p.h>
 #include <private/qqmlimport_p.h>
@@ -68,7 +68,9 @@
 #include <private/qqmldirparser_p.h>
 #include <private/qqmlbundle_p.h>
 #include <private/qflagpointer_p.h>
-#include <private/qqmlabstracturlinterceptor_p.h>
+
+#include <private/qv4value_p.h>
+#include <private/qv4script_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -81,6 +83,10 @@ class QQmlComponentPrivate;
 class QQmlTypeData;
 class QQmlDataLoader;
 class QQmlExtensionInterface;
+
+namespace QtQml {
+struct ParsedQML;
+}
 
 class Q_QML_PRIVATE_EXPORT QQmlDataBlob : public QQmlRefCount
 {
@@ -273,6 +279,7 @@ public:
 
     protected:
         bool addImport(const QQmlScript::Import &import, QList<QQmlError> *errors);
+        bool addPragma(const QQmlScript::Pragma &pragma, QList<QQmlError> *errors);
 
         bool fetchQmldir(const QUrl &url, const QQmlScript::Import *import, int priority, QList<QQmlError> *errors);
         bool updateQmldir(QQmlQmldirData *data, const QQmlScript::Import *import, QList<QQmlError> *errors);
@@ -288,6 +295,7 @@ public:
     protected:
         QQmlTypeLoader *m_typeLoader;
         QQmlImports m_imports;
+        bool m_isSingleton;
         QHash<const QQmlScript::Import *, int> m_unresolvedImports;
         QList<QQmlQmldirData *> m_qmldirs;
     };
@@ -321,16 +329,10 @@ public:
     QQmlTypeLoader(QQmlEngine *);
     ~QQmlTypeLoader();
 
-    enum Option {
-        None,
-        PreserveParser
-    };
-    Q_DECLARE_FLAGS(Options, Option)
-
     QQmlImportDatabase *importDatabase();
 
     QQmlTypeData *getType(const QUrl &url, Mode mode = PreferSynchronous);
-    QQmlTypeData *getType(const QByteArray &, const QUrl &url, Options = None);
+    QQmlTypeData *getType(const QByteArray &, const QUrl &url);
 
     QQmlScriptBlob *getScript(const QUrl &);
     QQmlQmldirData *getQmldir(const QUrl &);
@@ -389,8 +391,6 @@ private:
     QmldirBundleIdCache m_qmldirBundleIdCache;
 };
 
-Q_DECLARE_OPERATORS_FOR_FLAGS(QQmlTypeLoader::Options)
-
 class Q_AUTOTEST_EXPORT QQmlTypeData : public QQmlTypeLoader::Blob
 {
 public:
@@ -403,6 +403,7 @@ public:
         int majorVersion;
         int minorVersion;
         QQmlTypeData *typeData;
+        QString prefix; // used by CompositeSingleton types
     };
 
     struct ScriptReference
@@ -417,7 +418,7 @@ public:
 private:
     friend class QQmlTypeLoader;
 
-    QQmlTypeData(const QUrl &, QQmlTypeLoader::Options, QQmlTypeLoader *);
+    QQmlTypeData(const QUrl &, QQmlTypeLoader *);
 
 public:
     ~QQmlTypeData();
@@ -427,6 +428,7 @@ public:
     const QList<TypeReference> &resolvedTypes() const;
     const QList<ScriptReference> &resolvedScripts() const;
     const QSet<QString> &namespaces() const;
+    const QList<TypeReference> &compositeSingletons() const;
 
     QQmlCompiledData *compiledData() const;
 
@@ -449,19 +451,31 @@ protected:
 private:
     void resolveTypes();
     void compile();
+    bool resolveType(const QQmlScript::TypeReference *parserRef, int &majorVersion, int &minorVersion, TypeReference &ref);
 
     virtual void scriptImported(QQmlScriptBlob *blob, const QQmlScript::Location &location, const QString &qualifier, const QString &nameSpace);
 
-    QQmlTypeLoader::Options m_options;
-
+    // --- old compiler
     QQmlScript::Parser scriptParser;
+    // --- new compiler
+    QScopedPointer<QtQml::ParsedQML> parsedQML;
+    QList<QQmlScript::Import> m_newImports;
+    QList<QQmlScript::Pragma> m_newPragmas;
+    // ---
 
     QList<ScriptReference> m_scripts;
 
     QSet<QString> m_namespaces;
+    QList<TypeReference> m_compositeSingletons;
 
+    // --- old compiler
     QList<TypeReference> m_types;
+    // --- new compiler
+    // map from name index to resolved type
+    QHash<int, TypeReference> m_resolvedTypes;
+    // ---
     bool m_typesResolved:1;
+    bool m_useNewCompiler:1;
 
     QQmlCompiledData *m_compiledData;
 
@@ -495,12 +509,7 @@ public:
     QList<QQmlScriptBlob *> scripts;
     QQmlScript::Object::ScriptBlock::Pragmas pragmas;
 
-    bool isInitialized() const { return hasEngine(); }
-    void initialize(QQmlEngine *);
-
-    bool hasError() const { return m_error.isValid(); }
-    void setError(const QQmlError &error) { m_error = error; }
-    QQmlError error() const { return m_error; }
+    QV4::PersistentValue scriptValueForContext(QQmlContextData *parentCtxt);
 
 protected:
     virtual void clear(); // From QQmlCleanup
@@ -509,11 +518,12 @@ private:
     friend class QQmlVME;
     friend class QQmlScriptBlob;
 
+    void initialize(QQmlEngine *);
+
     bool m_loaded;
-    QByteArray m_programSource;
-    v8::Persistent<v8::Script> m_program;
-    v8::Persistent<v8::Object> m_value;
-    QQmlError m_error;
+    QV4::CompiledData::CompilationUnit *m_precompiledScript;
+    QV4::Script *m_program;
+    QV4::PersistentValue m_value;
 };
 
 class Q_AUTOTEST_EXPORT QQmlScriptBlob : public QQmlTypeLoader::Blob

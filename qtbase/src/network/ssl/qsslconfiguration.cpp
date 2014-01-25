@@ -49,7 +49,8 @@ QT_BEGIN_NAMESPACE
 
 const QSsl::SslOptions QSslConfigurationPrivate::defaultSslOptions = QSsl::SslOptionDisableEmptyFragments
                                                                     |QSsl::SslOptionDisableLegacyRenegotiation
-                                                                    |QSsl::SslOptionDisableCompression;
+                                                                    |QSsl::SslOptionDisableCompression
+                                                                    |QSsl::SslOptionDisableSessionPersistence;
 
 /*!
     \class QSslConfiguration
@@ -159,7 +160,7 @@ QSslConfiguration &QSslConfiguration::operator=(const QSslConfiguration &other)
 */
 
 /*!
-    Returns true if this QSslConfiguration object is equal to \a
+    Returns \c true if this QSslConfiguration object is equal to \a
     other.
 
     Two QSslConfiguration objects are considered equal if they have
@@ -182,13 +183,15 @@ bool QSslConfiguration::operator==(const QSslConfiguration &other) const
         d->peerVerifyMode == other.d->peerVerifyMode &&
         d->peerVerifyDepth == other.d->peerVerifyDepth &&
         d->allowRootCertOnDemandLoading == other.d->allowRootCertOnDemandLoading &&
-        d->sslOptions == other.d->sslOptions;
+        d->sslOptions == other.d->sslOptions &&
+        d->sslSession == other.d->sslSession &&
+        d->sslSessionTicketLifeTimeHint == other.d->sslSessionTicketLifeTimeHint;
 }
 
 /*!
     \fn QSslConfiguration::operator!=(const QSslConfiguration &other) const
 
-    Returns true if this QSslConfiguration differs from \a other. Two
+    Returns \c true if this QSslConfiguration differs from \a other. Two
     QSslConfiguration objects are considered different if any state or
     setting is different.
 
@@ -196,7 +199,7 @@ bool QSslConfiguration::operator==(const QSslConfiguration &other) const
 */
 
 /*!
-    Returns true if this is a null QSslConfiguration object.
+    Returns \c true if this is a null QSslConfiguration object.
 
     A QSslConfiguration object is null if it has been
     default-constructed and no setter methods have been called.
@@ -216,7 +219,9 @@ bool QSslConfiguration::isNull() const
             d->privateKey.isNull() &&
             d->peerCertificate.isNull() &&
             d->peerCertificateChain.count() == 0 &&
-            d->sslOptions == QSslConfigurationPrivate::defaultSslOptions);
+            d->sslOptions == QSslConfigurationPrivate::defaultSslOptions &&
+            d->sslSession.isNull() &&
+            d->sslSessionTicketLifeTimeHint == -1);
 }
 
 /*!
@@ -584,13 +589,67 @@ void QSslConfiguration::setSslOption(QSsl::SslOption option, bool on)
 /*!
   \since 4.8
 
-  Returns true if the specified SSL compatibility \a option is enabled.
+  Returns \c true if the specified SSL compatibility \a option is enabled.
 
   \sa setSslOption()
 */
 bool QSslConfiguration::testSslOption(QSsl::SslOption option) const
 {
     return d->sslOptions & option;
+}
+
+/*!
+  \since 5.2
+
+  If QSsl::SslOptionDisableSessionPersistence was turned off, this
+  function returns the session ticket used in the SSL handshake in ASN.1
+  format, suitable to e.g. be persisted to disk. If no session ticket was
+  used or QSsl::SslOptionDisableSessionPersistence was not turned off,
+  this function returns an empty QByteArray.
+
+  \b{Note:} When persisting the session ticket to disk or similar, be
+  careful not to expose the session to a potential attacker, as
+  knowledge of the session allows for eavesdropping on data
+  encrypted with the session parameters.
+
+  \sa setSessionTicket(), QSsl::SslOptionDisableSessionPersistence, setSslOption()
+ */
+QByteArray QSslConfiguration::sessionTicket() const
+{
+    return d->sslSession;
+}
+
+/*!
+  \since 5.2
+
+  Sets the session ticket to be used in an SSL handshake.
+  QSsl::SslOptionDisableSessionPersistence must be turned off
+  for this to work, and \a sessionTicket must be in ASN.1 format
+  as returned by sessionTicket().
+
+  \sa sessionTicket(), QSsl::SslOptionDisableSessionPersistence, setSslOption()
+ */
+void QSslConfiguration::setSessionTicket(const QByteArray &sessionTicket)
+{
+    d->sslSession = sessionTicket;
+}
+
+/*!
+  \since 5.2
+
+  If QSsl::SslOptionDisableSessionPersistence was turned off, this
+  function returns the session ticket life time hint sent by the
+  server (which might be 0).
+  If the server did not send a session ticket (e.g. when
+  resuming a session or when the server does not support it) or
+  QSsl::SslOptionDisableSessionPersistence was not turned off,
+  this function returns -1.
+
+  \sa sessionTicket(), QSsl::SslOptionDisableSessionPersistence, setSslOption()
+ */
+int QSslConfiguration::sessionTicketLifeTimeHint() const
+{
+    return d->sslSessionTicketLifeTimeHint;
 }
 
 /*!

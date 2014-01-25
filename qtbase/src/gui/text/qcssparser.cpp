@@ -51,6 +51,8 @@
 #include <qimagereader.h>
 #include "private/qfunctions_p.h"
 
+#include <algorithm>
+
 #ifndef QT_NO_CSSPARSER
 
 QT_BEGIN_NAMESPACE
@@ -345,6 +347,13 @@ static const QCssKnownValue styleFeatures[NumKnownStyleFeatures - 1] = {
     { "none", StyleFeature_None }
 };
 
+#if defined(Q_CC_MSVC) && _MSC_VER < 1600
+Q_STATIC_GLOBAL_OPERATOR bool operator<(const QCssKnownValue &prop1, const QCssKnownValue &prop2)
+{
+    return QString::compare(QString::fromLatin1(prop1.name), QLatin1String(prop2.name), Qt::CaseInsensitive) < 0;
+}
+#endif
+
 Q_STATIC_GLOBAL_OPERATOR bool operator<(const QString &name, const QCssKnownValue &prop)
 {
     return QString::compare(name, QLatin1String(prop.name), Qt::CaseInsensitive) < 0;
@@ -358,8 +367,8 @@ Q_STATIC_GLOBAL_OPERATOR bool operator<(const QCssKnownValue &prop, const QStrin
 static quint64 findKnownValue(const QString &name, const QCssKnownValue *start, int numValues)
 {
     const QCssKnownValue *end = &start[numValues - 1];
-    const QCssKnownValue *prop = qBinaryFind(start, end, name);
-    if (prop == end)
+    const QCssKnownValue *prop = std::lower_bound(start, end, name);
+    if ((prop == end) || (name < *prop))
         return 0;
     return prop->id;
 }
@@ -583,7 +592,11 @@ bool ValueExtractor::extractBorder(int *borders, QBrush *colors, BorderStyle *st
         case BorderRightStyle: styles[RightEdge] = decl.styleValue(); break;
         case BorderStyles:  decl.styleValues(styles); break;
 
+#ifndef QT_OS_ANDROID_GCC_48_WORKAROUND
         case BorderTopLeftRadius: radii[0] = sizeValue(decl); break;
+#else
+        case BorderTopLeftRadius: new(radii)QSize(sizeValue(decl)); break;
+#endif
         case BorderTopRightRadius: radii[1] = sizeValue(decl); break;
         case BorderBottomLeftRadius: radii[2] = sizeValue(decl); break;
         case BorderBottomRightRadius: radii[3] = sizeValue(decl); break;
@@ -1128,7 +1141,7 @@ static bool setFontWeightFromValue(const QCss::Value &value, QFont *font)
 /** \internal
  * parse the font family from the values (starting from index \a start)
  * and set it the \a font
- * The function returns true if a family was extracted.
+ * The function returns \c true if a family was extracted.
  */
 static bool setFontFamilyFromValues(const QVector<QCss::Value> &values, QFont *font, int start = 0)
 {

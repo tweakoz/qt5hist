@@ -59,7 +59,7 @@
 #include "qhash.h"
 #include "qdebug.h"
 #include "qendian.h"
-#include "qcollator_p.h"
+#include "qcollator.h"
 
 #ifdef Q_OS_MAC
 #include <private/qcore_mac_p.h>
@@ -455,8 +455,8 @@ const QString::Null QString::null = { };
     your applications will be easy to translate if you want to expand
     your application's market at some point. The two main cases where
     QByteArray is appropriate are when you need to store raw binary
-    data, and when memory conservation is critical (e.g., with
-    \l{Qt for Embedded Linux}).
+    data, and when memory conservation is critical (like in embedded
+    systems).
 
     \tableofcontents
 
@@ -805,8 +805,7 @@ const QString::Null QString::null = { };
 
 /*! \typedef QString::const_iterator
 
-    The QString::const_iterator typedef provides an STL-style const
-    iterator for QString.
+    This typedef provides an STL-style const iterator for QString.
 
     \sa QString::iterator
 */
@@ -820,22 +819,46 @@ const QString::Null QString::null = { };
 */
 
 /*!
+    \typedef QString::size_type
+
+    The QString::size_type typedef provides an STL-style type for sizes (int).
+*/
+
+/*!
+    \typedef QString::difference_type
+
+    The QString::size_type typedef provides an STL-style type for difference between pointers.
+*/
+
+/*!
     \typedef QString::const_reference
 
-    The QString::const_reference typedef provides an STL-style
-    const reference for QString.
+    This typedef provides an STL-style const reference for a QString element (QChar).
 */
 /*!
     \typedef QString::reference
 
-    The QString::const_reference typedef provides an STL-style
-    reference for QString.
+    This typedef provides an STL-style
+    reference for a QString element (QChar).
 */
+
+/*!
+    \typedef QString::const_pointer
+
+    The QString::const_pointer typedef provides an STL-style
+    const pointer to a QString element (QChar).
+*/
+/*!
+    \typedef QString::pointer
+
+    The QString::const_pointer typedef provides an STL-style
+    pointer to a QString element (QChar).
+*/
+
 /*!
     \typedef QString::value_type
 
-    The QString::const_reference typedef provides an STL-style
-    value type for QString.
+    This typedef provides an STL-style value type for QString.
 */
 
 /*! \fn QString::iterator QString::begin()
@@ -904,6 +927,15 @@ const QString::Null QString::null = { };
     Constructs a null string. Null strings are also empty.
 
     \sa isEmpty()
+*/
+
+/*!
+    \fn QString::QString(QString &&other)
+
+    Move-constructs a QString instance, making it point at the same
+    object that \a other was pointing to.
+
+    \since 5.2
 */
 
 /*! \fn QString::QString(const char *str)
@@ -1326,6 +1358,13 @@ QString &QString::operator=(const QString &other)
     return *this;
 }
 
+/*!
+    \fn QString &QString::operator=(QString &&other)
+
+    Move-assigns \a other to this QString instance.
+
+    \since 5.2
+*/
 
 /*! \fn QString &QString::operator=(QLatin1String str)
 
@@ -1654,7 +1693,7 @@ QString &QString::remove(int pos, int len)
 {
     if (pos < 0)  // count from end of string
         pos += d->size;
-    if (pos < 0 || pos >= d->size) {
+    if (uint(pos) >= uint(d->size)) {
         // range problems
     } else if (len >= d->size - pos) {
         resize(pos); // truncate
@@ -1778,7 +1817,7 @@ QString &QString::replace(int pos, int len, const QString &after)
 */
 QString &QString::replace(int pos, int len, const QChar *unicode, int size)
 {
-    if (pos < 0 || pos > d->size)
+    if (uint(pos) > uint(d->size))
         return *this;
     if (len > d->size - pos)
         len = d->size - pos;
@@ -2121,8 +2160,8 @@ QString &QString::replace(QChar c, QLatin1String after, Qt::CaseSensitivity cs)
 
 /*!
   \relates QString
-  Returns true if string \a s1 is equal to string \a s2; otherwise
-  returns false.
+  Returns \c true if string \a s1 is equal to string \a s2; otherwise
+  returns \c false.
 
   The comparison is based exclusively on the numeric Unicode values of
   the characters and is very fast, but is not what a human would
@@ -2190,8 +2229,8 @@ bool QString::operator==(QLatin1String other) const
 
 /*!
    \relates QString
-    Returns true if string \a s1 is lexically less than string
-    \a s2; otherwise returns false.
+    Returns \c true if string \a s1 is lexically less than string
+    \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -2253,8 +2292,8 @@ bool QString::operator<(QLatin1String other) const
 
 /*! \fn bool QString::operator<=(const QString &s1, const QString &s2)
 
-    Returns true if string \a s1 is lexically less than or equal to
-    string \a s2; otherwise returns false.
+    Returns \c true if string \a s1 is lexically less than or equal to
+    string \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -2296,8 +2335,8 @@ bool QString::operator<(QLatin1String other) const
 
 /*! \fn bool QString::operator>(const QString &s1, const QString &s2)
 
-    Returns true if string \a s1 is lexically greater than string \a
-    s2; otherwise returns false.
+    Returns \c true if string \a s1 is lexically greater than string \a
+    s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -2356,8 +2395,8 @@ bool QString::operator>(QLatin1String other) const
 /*! \fn bool operator>=(const QString &s1, const QString &s2)
     \relates QString
 
-    Returns true if string \a s1 is lexically greater than or equal to
-    string \a s2; otherwise returns false.
+    Returns \c true if string \a s1 is lexically greater than or equal to
+    string \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -2400,8 +2439,8 @@ bool QString::operator>(QLatin1String other) const
 /*! \fn bool operator!=(const QString &s1, const QString &s2)
     \relates QString
 
-    Returns true if string \a s1 is not equal to string \a s2;
-    otherwise returns false.
+    Returns \c true if string \a s1 is not equal to string \a s2;
+    otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -2665,7 +2704,7 @@ int QString::lastIndexOf(const QString &str, int from, Qt::CaseSensitivity cs) c
     int delta = l-sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
         return -1;
     if (from > delta)
         from = delta;
@@ -2704,7 +2743,7 @@ int QString::lastIndexOf(QLatin1String str, int from, Qt::CaseSensitivity cs) co
     int delta = l-sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
         return -1;
     if (from > delta)
         from = delta;
@@ -2754,7 +2793,7 @@ int QString::lastIndexOf(const QStringRef &str, int from, Qt::CaseSensitivity cs
     int delta = l - sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
     return -1;
     if (from > delta)
         from = delta;
@@ -3107,8 +3146,8 @@ int QString::count(const QStringRef &str, Qt::CaseSensitivity cs) const
 
 /*! \fn bool QString::contains(const QString &str, Qt::CaseSensitivity cs = Qt::CaseSensitive) const
 
-    Returns true if this string contains an occurrence of the string
-    \a str; otherwise returns false.
+    Returns \c true if this string contains an occurrence of the string
+    \a str; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -3123,15 +3162,15 @@ int QString::count(const QStringRef &str, Qt::CaseSensitivity cs) const
 
     \overload contains()
 
-    Returns true if this string contains an occurrence of the
-    character \a ch; otherwise returns false.
+    Returns \c true if this string contains an occurrence of the
+    character \a ch; otherwise returns \c false.
 */
 
 /*! \fn bool QString::contains(const QStringRef &str, Qt::CaseSensitivity cs = Qt::CaseSensitive) const
     \since 4.8
 
-    Returns true if this string contains an occurrence of the string
-    reference \a str; otherwise returns false.
+    Returns \c true if this string contains an occurrence of the string
+    reference \a str; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -3143,16 +3182,16 @@ int QString::count(const QStringRef &str, Qt::CaseSensitivity cs) const
 
     \overload contains()
 
-    Returns true if the regular expression \a rx matches somewhere in
-    this string; otherwise returns false.
+    Returns \c true if the regular expression \a rx matches somewhere in
+    this string; otherwise returns \c false.
 */
 
 /*! \fn bool QString::contains(QRegExp &rx) const
     \overload contains()
     \since 4.5
 
-    Returns true if the regular expression \a rx matches somewhere in
-    this string; otherwise returns false.
+    Returns \c true if the regular expression \a rx matches somewhere in
+    this string; otherwise returns \c false.
 
     If there is a match, the \a rx regular expression will contain the
     matched captures (see QRegExp::matchedLength, QRegExp::cap).
@@ -3327,8 +3366,8 @@ int QString::lastIndexOf(const QRegularExpression &re, int from) const
 /*! \overload contains()
     \since 5.0
 
-    Returns true if the regular expression \a re matches somewhere in
-    this string; otherwise returns false.
+    Returns \c true if the regular expression \a re matches somewhere in
+    this string; otherwise returns \c false.
 */
 bool QString::contains(const QRegularExpression &re) const
 {
@@ -3344,8 +3383,8 @@ bool QString::contains(const QRegularExpression &re) const
     \overload contains()
     \since 5.1
 
-    Returns true if the regular expression \a re matches somewhere in this
-    string; otherwise returns false.
+    Returns \c true if the regular expression \a re matches somewhere in this
+    string; otherwise returns \c false.
 
     If the match is successful and \a match is not a null pointer, it also
     writes the results of the match into the QRegularExpressionMatch object
@@ -3670,7 +3709,7 @@ QString QString::section(const QRegularExpression &re, int start, int end, Secti
 */
 QString QString::left(int n)  const
 {
-    if (n >= d->size || n < 0)
+    if (uint(n) >= uint(d->size))
         return *this;
     return QString((const QChar*) d->data(), n);
 }
@@ -3688,7 +3727,7 @@ QString QString::left(int n)  const
 */
 QString QString::right(int n) const
 {
-    if (n >= d->size || n < 0)
+    if (uint(n) >= uint(d->size))
         return *this;
     return QString((const QChar*) d->data() + d->size - n, n);
 }
@@ -3722,7 +3761,7 @@ QString QString::mid(int position, int n) const
 
         n += position;
         position = 0;
-    } else if (n < 0 || n > d->size - position)
+    } else if (uint(n) > uint(d->size - position))
         n = d->size - position;
     if (position == 0 && n == d->size)
         return *this;
@@ -3730,7 +3769,7 @@ QString QString::mid(int position, int n) const
 }
 
 /*!
-    Returns true if the string starts with \a s; otherwise returns
+    Returns \c true if the string starts with \a s; otherwise returns
     false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
@@ -3757,7 +3796,7 @@ bool QString::startsWith(QLatin1String s, Qt::CaseSensitivity cs) const
 /*!
   \overload startsWith()
 
-  Returns true if the string starts with \a c; otherwise returns
+  Returns \c true if the string starts with \a c; otherwise returns
   false.
 */
 bool QString::startsWith(QChar c, Qt::CaseSensitivity cs) const
@@ -3771,8 +3810,8 @@ bool QString::startsWith(QChar c, Qt::CaseSensitivity cs) const
 /*!
     \since 4.8
     \overload
-    Returns true if the string starts with the string reference \a s;
-    otherwise returns false.
+    Returns \c true if the string starts with the string reference \a s;
+    otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
     sensitive; otherwise the search is case insensitive.
@@ -3786,7 +3825,7 @@ bool QString::startsWith(const QStringRef &s, Qt::CaseSensitivity cs) const
 }
 
 /*!
-    Returns true if the string ends with \a s; otherwise returns
+    Returns \c true if the string ends with \a s; otherwise returns
     false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
@@ -3805,8 +3844,8 @@ bool QString::endsWith(const QString& s, Qt::CaseSensitivity cs) const
 /*!
     \since 4.8
     \overload endsWith()
-    Returns true if the string ends with the string reference \a s;
-    otherwise returns false.
+    Returns \c true if the string ends with the string reference \a s;
+    otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
     sensitive; otherwise the search is case insensitive.
@@ -3829,7 +3868,7 @@ bool QString::endsWith(QLatin1String s, Qt::CaseSensitivity cs) const
 }
 
 /*!
-  Returns true if the string ends with \a c; otherwise returns
+  Returns \c true if the string ends with \a c; otherwise returns
   false.
 
   \overload endsWith()
@@ -3872,7 +3911,7 @@ static inline __m128i mergeQuestionMarks(__m128i chunk)
 # else
     // SSE has no compare instruction for unsigned comparison.
     // The variables must be shiffted + 0x8000 to be compared
-    const __m128i signedBitOffset = _mm_set1_epi16(0x8000);
+    const __m128i signedBitOffset = _mm_set1_epi16(short(0x8000));
     const __m128i thresholdMask = _mm_set1_epi16(short(0xff + 0x8000));
 
     const __m128i signedChunk = _mm_add_epi16(chunk, signedBitOffset);
@@ -4593,7 +4632,7 @@ QString& QString::fill(QChar ch, int size)
 
 /*! \fn bool QString::isNull() const
 
-    Returns true if this string is null; otherwise returns false.
+    Returns \c true if this string is null; otherwise returns \c false.
 
     Example:
 
@@ -4609,7 +4648,7 @@ QString& QString::fill(QChar ch, int size)
 
 /*! \fn bool QString::isEmpty() const
 
-    Returns true if the string has no characters; otherwise returns
+    Returns \c true if the string has no characters; otherwise returns
     false.
 
     Example:
@@ -4712,7 +4751,7 @@ QString& QString::fill(QChar ch, int size)
     \overload  operator==()
     \relates QString
 
-    Returns true if \a s1 is equal to \a s2; otherwise returns false.
+    Returns \c true if \a s1 is equal to \a s2; otherwise returns \c false.
     Note that no string is equal to \a s1 being 0.
 
     Equivalent to \c {s1 != 0 && compare(s1, s2) == 0}.
@@ -4724,7 +4763,7 @@ QString& QString::fill(QChar ch, int size)
     \fn bool operator!=(const char *s1, const QString &s2)
     \relates QString
 
-    Returns true if \a s1 is not equal to \a s2; otherwise returns
+    Returns \c true if \a s1 is not equal to \a s2; otherwise returns
     false.
 
     For \a s1 != 0, this is equivalent to \c {compare(} \a s1, \a s2
@@ -4737,8 +4776,8 @@ QString& QString::fill(QChar ch, int size)
     \fn bool operator<(const char *s1, const QString &s2)
     \relates QString
 
-    Returns true if \a s1 is lexically less than \a s2; otherwise
-    returns false.  For \a s1 != 0, this is equivalent to \c
+    Returns \c true if \a s1 is lexically less than \a s2; otherwise
+    returns \c false.  For \a s1 != 0, this is equivalent to \c
     {compare(s1, s2) < 0}.
 
     The comparison is based exclusively on the numeric Unicode values
@@ -4753,8 +4792,8 @@ QString& QString::fill(QChar ch, int size)
     \fn bool operator<=(const char *s1, const QString &s2)
     \relates QString
 
-    Returns true if \a s1 is lexically less than or equal to \a s2;
-    otherwise returns false.  For \a s1 != 0, this is equivalent to \c
+    Returns \c true if \a s1 is lexically less than or equal to \a s2;
+    otherwise returns \c false.  For \a s1 != 0, this is equivalent to \c
     {compare(s1, s2) <= 0}.
 
     The comparison is based exclusively on the numeric Unicode values
@@ -4769,8 +4808,8 @@ QString& QString::fill(QChar ch, int size)
     \fn bool operator>(const char *s1, const QString &s2)
     \relates QString
 
-    Returns true if \a s1 is lexically greater than \a s2; otherwise
-    returns false.  Equivalent to \c {compare(s1, s2) > 0}.
+    Returns \c true if \a s1 is lexically greater than \a s2; otherwise
+    returns \c false.  Equivalent to \c {compare(s1, s2) > 0}.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -4784,8 +4823,8 @@ QString& QString::fill(QChar ch, int size)
     \fn bool operator>=(const char *s1, const QString &s2)
     \relates QString
 
-    Returns true if \a s1 is lexically greater than or equal to \a s2;
-    otherwise returns false.  For \a s1 != 0, this is equivalent to \c
+    Returns \c true if \a s1 is lexically greater than or equal to \a s2;
+    otherwise returns \c false.  For \a s1 != 0, this is equivalent to \c
     {compare(s1, s2) >= 0}.
 
     The comparison is based exclusively on the numeric Unicode values
@@ -5000,7 +5039,7 @@ int QString::compare_helper(const QChar *data1, int length1, QLatin1String s2,
     On Mac OS X since Qt 4.3, this function compares according the
     "Order for sorted lists" setting in the International preferences panel.
 
-    \sa compare(), QTextCodec::locale()
+    \sa compare(), QLocale
 */
 
 /*!
@@ -5479,7 +5518,7 @@ QString &QString::sprintf(const char *cformat, ...)
 
 QString &QString::vsprintf(const char* cformat, va_list ap)
 {
-    QLocale locale(QLocale::C);
+    const QLocale locale(QLocale::C);
 
     if (!cformat || !*cformat) {
         // Qt 1.x compat
@@ -6611,6 +6650,8 @@ void qt_string_normalize(QString *data, QString::NormalizationForm mode, QChar::
     for (int i = from; i < len; ++i) {
         if (p[i].unicode() >= 0x80) {
             simple = false;
+            if (i > from)
+                from = i - 1;
             break;
         }
     }
@@ -6653,6 +6694,10 @@ void qt_string_normalize(QString *data, QString::NormalizationForm mode, QChar::
             }
         }
     }
+
+    if (normalizationQuickCheckHelper(data, mode, from, &from))
+        return;
+
     decomposeHelper(data, mode < QString::NormalizationForm_KD, version, from);
 
     canonicalOrderHelper(data, version, from);
@@ -7338,6 +7383,31 @@ QString QString::multiArg(int numArgs, const QString **args) const
 }
 
 
+/*! \fn QString QString::fromCFString(CFStringRef string)
+    \since 5.2
+
+    Constructs a new QString containing a copy of the \a string CFString.
+*/
+
+/*! \fn CFStringRef QString::toCFString() const
+    \since 5.2
+
+    Creates a CFString from a QString. The caller owns the CFString and is
+    responsible for releasing it.
+*/
+
+/*! \fn QString QString::fromNSString(const NSString *string)
+    \since 5.2
+
+    Constructs a new QString containing a copy of the \a string NSString.
+*/
+
+/*! \fn NSString QString::toNSString() const
+    \since 5.2
+
+    Creates a NSString from a QString.g. The NSString is autoreleased.
+*/
+
 /*! \fn bool QString::isSimpleText() const
 
     \internal
@@ -7360,7 +7430,7 @@ bool QString::isSimpleText() const
 
 /*! \fn bool QString::isRightToLeft() const
 
-    Returns true if the string is read right to left.
+    Returns \c true if the string is read right to left.
 */
 bool QString::isRightToLeft() const
 {
@@ -7638,8 +7708,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 
 /*! \fn bool QLatin1String::operator==(const QString &other) const
 
-    Returns true if this string is equal to string \a other;
-    otherwise returns false.
+    Returns \c true if this string is equal to string \a other;
+    otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7663,8 +7733,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 
 /*! \fn bool QLatin1String::operator!=(const QString &other) const
 
-    Returns true if this string is not equal to string \a other;
-    otherwise returns false.
+    Returns \c true if this string is not equal to string \a other;
+    otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7689,8 +7759,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 /*!
     \fn bool QLatin1String::operator>(const QString &other) const
 
-    Returns true if this string is lexically greater than string \a
-    other; otherwise returns false.
+    Returns \c true if this string is lexically greater than string \a
+    other; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7715,8 +7785,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 /*!
     \fn bool QLatin1String::operator<(const QString &other) const
 
-    Returns true if this string is lexically less than the \a other
-    string; otherwise returns false.
+    Returns \c true if this string is lexically less than the \a other
+    string; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7741,8 +7811,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 /*!
     \fn bool QLatin1String::operator>=(const QString &other) const
 
-    Returns true if this string is lexically greater than or equal
-    to string \a other; otherwise returns false.
+    Returns \c true if this string is lexically greater than or equal
+    to string \a other; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7766,8 +7836,8 @@ QString &QString::setRawData(const QChar *unicode, int size)
 
 /*! \fn bool QLatin1String::operator<=(const QString &other) const
 
-    Returns true if this string is lexically less than or equal
-    to string \a other; otherwise returns false.
+    Returns \c true if this string is lexically less than or equal
+    to string \a other; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -7794,38 +7864,38 @@ QString &QString::setRawData(const QChar *unicode, int size)
 /*! \fn bool operator==(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically equal to string \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically equal to string \a s2; otherwise
+   returns \c false.
 */
 /*! \fn bool operator!=(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically unequal to string \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically unequal to string \a s2; otherwise
+   returns \c false.
 */
 /*! \fn bool operator<(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically smaller than string \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically smaller than string \a s2; otherwise
+   returns \c false.
 */
 /*! \fn bool operator<=(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically smaller than or equal to string \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically smaller than or equal to string \a s2; otherwise
+   returns \c false.
 */
 /*! \fn bool operator>(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically greater than string \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically greater than string \a s2; otherwise
+   returns \c false.
 */
 /*! \fn bool operator>=(QLatin1String s1, QLatin1String s2)
    \relates QLatin1String
 
-   Returns true if string \a s1 is lexically greater than or equal to
-   string \a s2; otherwise returns false.
+   Returns \c true if string \a s1 is lexically greater than or equal to
+   string \a s2; otherwise returns \c false.
 */
 
 
@@ -8050,7 +8120,7 @@ ownership of it, no memory is freed when instances are destroyed.
 /*!
     \fn bool QStringRef::isEmpty() const
 
-    Returns true if the string reference has no characters; otherwise returns
+    Returns \c true if the string reference has no characters; otherwise returns
     false.
 
     A string reference is empty if its size is zero.
@@ -8061,8 +8131,8 @@ ownership of it, no memory is freed when instances are destroyed.
 /*!
     \fn bool QStringRef::isNull() const
 
-    Returns true if string() returns a null pointer or a pointer to a
-    null string; otherwise returns true.
+    Returns \c true if string() returns a null pointer or a pointer to a
+    null string; otherwise returns \c true.
 
     \sa size()
 */
@@ -8121,8 +8191,8 @@ QString QStringRef::toString() const {
 
 /*! \relates QStringRef
 
-   Returns true if string reference \a s1 is lexically equal to string reference \a s2; otherwise
-   returns false.
+   Returns \c true if string reference \a s1 is lexically equal to string reference \a s2; otherwise
+   returns \c false.
 */
 bool operator==(const QStringRef &s1,const QStringRef &s2)
 { return (s1.size() == s2.size() &&
@@ -8131,8 +8201,8 @@ bool operator==(const QStringRef &s1,const QStringRef &s2)
 
 /*! \relates QStringRef
 
-   Returns true if string \a s1 is lexically equal to string reference \a s2; otherwise
-   returns false.
+   Returns \c true if string \a s1 is lexically equal to string reference \a s2; otherwise
+   returns \c false.
 */
 bool operator==(const QString &s1,const QStringRef &s2)
 { return (s1.size() == s2.size() &&
@@ -8141,8 +8211,8 @@ bool operator==(const QString &s1,const QStringRef &s2)
 
 /*! \relates QStringRef
 
-   Returns true if string  \a s1 is lexically equal to string reference \a s2; otherwise
-   returns false.
+   Returns \c true if string  \a s1 is lexically equal to string reference \a s2; otherwise
+   returns \c false.
 */
 bool operator==(QLatin1String s1, const QStringRef &s2)
 {
@@ -8167,8 +8237,8 @@ bool operator==(QLatin1String s1, const QStringRef &s2)
 /*!
    \relates QStringRef
 
-    Returns true if string reference \a s1 is lexically less than
-    string reference \a s2; otherwise returns false.
+    Returns \c true if string reference \a s1 is lexically less than
+    string reference \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -8184,8 +8254,8 @@ bool operator<(const QStringRef &s1,const QStringRef &s2)
 
    \relates QStringRef
 
-    Returns true if string reference \a s1 is lexically less than
-    or equal to string reference \a s2; otherwise returns false.
+    Returns \c true if string reference \a s1 is lexically less than
+    or equal to string reference \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -8197,8 +8267,8 @@ bool operator<(const QStringRef &s1,const QStringRef &s2)
 
    \relates QStringRef
 
-    Returns true if string reference \a s1 is lexically greater than
-    or equal to string reference \a s2; otherwise returns false.
+    Returns \c true if string reference \a s1 is lexically greater than
+    or equal to string reference \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -8210,8 +8280,8 @@ bool operator<(const QStringRef &s1,const QStringRef &s2)
 
    \relates QStringRef
 
-    Returns true if string reference \a s1 is lexically greater than
-    string reference \a s2; otherwise returns false.
+    Returns \c true if string reference \a s1 is lexically greater than
+    string reference \a s2; otherwise returns \c false.
 
     The comparison is based exclusively on the numeric Unicode values
     of the characters and is very fast, but is not what a human would
@@ -8380,7 +8450,7 @@ QStringRef QStringRef::appendTo(QString *string) const
     On Mac OS X, this function compares according the
     "Order for sorted lists" setting in the International prefereces panel.
 
-    \sa compare(), QTextCodec::locale()
+    \sa compare(), QLocale
 */
 
 /*!
@@ -8445,6 +8515,25 @@ QString &QString::append(const QStringRef &str)
 }
 
 /*!
+    \fn QStringRef::left(int n) const
+    \since 5.2
+
+    Returns a substring reference to the \a n leftmost characters
+    of the string.
+
+    If \a n is greater than size() or less than zero, a reference to the entire
+    string is returned.
+
+    \sa right(), mid(), startsWith()
+*/
+QStringRef QStringRef::left(int n) const
+{
+    if (uint(n) >= uint(m_size))
+        return *this;
+    return QStringRef(m_string, m_position, n);
+}
+
+/*!
     \since 4.4
 
     Returns a substring reference to the \a n leftmost characters
@@ -8459,9 +8548,28 @@ QString &QString::append(const QStringRef &str)
 */
 QStringRef QString::leftRef(int n)  const
 {
-    if (n >= d->size || n < 0)
+    if (uint(n) >= uint(d->size))
         n = d->size;
     return QStringRef(this, 0, n);
+}
+
+/*!
+    \fn QStringRef::right(int n) const
+    \since 5.2
+
+    Returns a substring reference to the \a n rightmost characters
+    of the string.
+
+    If \a n is greater than size() or less than zero, a reference to the entire
+    string is returned.
+
+    \sa left(), mid(), endsWith()
+*/
+QStringRef QStringRef::right(int n) const
+{
+    if (uint(n) >= uint(m_size))
+        return *this;
+    return QStringRef(m_string, n + m_position, m_size - n);
 }
 
 /*!
@@ -8479,9 +8587,43 @@ QStringRef QString::leftRef(int n)  const
 */
 QStringRef QString::rightRef(int n) const
 {
-    if (n >= d->size || n < 0)
+    if (uint(n) >= uint(d->size))
         n = d->size;
     return QStringRef(this, d->size - n, n);
+}
+
+/*!
+    \fn QStringRef::mid(int position, int n = -1) const
+    \since 5.2
+
+    Returns a substring reference to \a n characters of this string,
+    starting at the specified \a position.
+
+    If the \a position exceeds the length of the string, a null
+    reference is returned.
+
+    If there are less than \a n characters available in the string,
+    starting at the given \a position, or if \a n is -1 (default), the
+    function returns all characters from the specified \a position
+    onwards.
+
+    \sa left(), right()
+*/
+QStringRef QStringRef::mid(int pos, int n) const
+{
+    if (pos > m_size)
+        return QStringRef();
+    if (pos < 0) {
+        if (n < 0 || n + pos >= m_size)
+            return QStringRef(m_string, m_position, m_size);
+        if (n + pos <= 0)
+            return QStringRef();
+        n += pos;
+        pos = 0;
+    } else if (uint(n) > uint(m_size - pos)) {
+        n = m_size - pos;
+    }
+    return QStringRef(m_string, pos + m_position, n);
 }
 
 /*!
@@ -8504,7 +8646,6 @@ QStringRef QString::rightRef(int n) const
 
     \sa mid(), leftRef(), rightRef()
 */
-
 QStringRef QString::midRef(int position, int n) const
 {
     if (position > d->size)
@@ -8517,7 +8658,7 @@ QStringRef QString::midRef(int position, int n) const
 
         n += position;
         position = 0;
-    } else if (n < 0 || n > d->size - position)
+    } else if (uint(n) > uint(d->size - position))
         n = d->size - position;
     return QStringRef(this, position, n);
 }
@@ -8622,7 +8763,7 @@ int QStringRef::lastIndexOf(const QString &str, int from, Qt::CaseSensitivity cs
     int delta = l - sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
         return -1;
     if (from > delta)
         from = delta;
@@ -8672,7 +8813,7 @@ int QStringRef::lastIndexOf(QLatin1String str, int from, Qt::CaseSensitivity cs)
     int delta = l - sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
         return -1;
     if (from > delta)
         from = delta;
@@ -8711,7 +8852,7 @@ int QStringRef::lastIndexOf(const QStringRef &str, int from, Qt::CaseSensitivity
     int delta = l - sl;
     if (from == l && sl == 0)
         return from;
-    if (from < 0 || from >= l || delta < 0)
+    if (uint(from) >= uint(l) || delta < 0)
         return -1;
     if (from > delta)
         from = delta;
@@ -8773,8 +8914,8 @@ int QStringRef::count(const QStringRef &str, Qt::CaseSensitivity cs) const
 /*!
     \since 4.8
 
-    Returns true if the string reference starts with \a str; otherwise
-    returns false.
+    Returns \c true if the string reference starts with \a str; otherwise
+    returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -8812,8 +8953,8 @@ bool QStringRef::startsWith(const QStringRef &str, Qt::CaseSensitivity cs) const
     \since 4.8
     \overload startsWith()
 
-    Returns true if the string reference starts with \a ch; otherwise
-    returns false.
+    Returns \c true if the string reference starts with \a ch; otherwise
+    returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
     sensitive; otherwise the search is case insensitive.
@@ -8834,8 +8975,8 @@ bool QStringRef::startsWith(QChar ch, Qt::CaseSensitivity cs) const
 
 /*!
     \since 4.8
-    Returns true if the string reference ends with \a str; otherwise
-    returns false.
+    Returns \c true if the string reference ends with \a str; otherwise
+    returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
     sensitive; otherwise the search is case insensitive.
@@ -8852,8 +8993,8 @@ bool QStringRef::endsWith(const QString &str, Qt::CaseSensitivity cs) const
     \since 4.8
     \overload endsWith()
 
-    Returns true if the string reference ends with \a ch; otherwise
-    returns false.
+    Returns \c true if the string reference ends with \a ch; otherwise
+    returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is case
     sensitive; otherwise the search is case insensitive.
@@ -8898,8 +9039,8 @@ bool QStringRef::endsWith(const QStringRef &str, Qt::CaseSensitivity cs) const
 /*! \fn bool QStringRef::contains(const QString &str, Qt::CaseSensitivity cs = Qt::CaseSensitive) const
 
     \since 4.8
-    Returns true if this string reference contains an occurrence of
-    the string \a str; otherwise returns false.
+    Returns \c true if this string reference contains an occurrence of
+    the string \a str; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -8912,8 +9053,8 @@ bool QStringRef::endsWith(const QStringRef &str, Qt::CaseSensitivity cs) const
     \overload contains()
     \since 4.8
 
-    Returns true if this string contains an occurrence of the
-    character \a ch; otherwise returns false.
+    Returns \c true if this string contains an occurrence of the
+    character \a ch; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -8924,8 +9065,8 @@ bool QStringRef::endsWith(const QStringRef &str, Qt::CaseSensitivity cs) const
     \overload contains()
     \since 4.8
 
-    Returns true if this string reference contains an occurrence of
-    the string reference \a str; otherwise returns false.
+    Returns \c true if this string reference contains an occurrence of
+    the string reference \a str; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -8937,8 +9078,8 @@ bool QStringRef::endsWith(const QStringRef &str, Qt::CaseSensitivity cs) const
     \since 4,8
     \overload contains()
 
-    Returns true if this string reference contains an occurrence of
-    the string \a str; otherwise returns false.
+    Returns \c true if this string reference contains an occurrence of
+    the string \a str; otherwise returns \c false.
 
     If \a cs is Qt::CaseSensitive (default), the search is
     case sensitive; otherwise the search is case insensitive.
@@ -8952,7 +9093,7 @@ static inline int qt_last_index_of(const QChar *haystack, int haystackLen, QChar
     ushort c = needle.unicode();
     if (from < 0)
         from += haystackLen;
-    if (from < 0 || from >= haystackLen)
+    if (uint(from) >= uint(haystackLen))
         return -1;
     if (from >= 0) {
         const ushort *b = reinterpret_cast<const ushort*>(haystack);
@@ -9658,8 +9799,8 @@ QString QString::toHtmlEscaped() const
   if (attribute.name() == QLatin1String("http-contents-length")) //...
   \endcode
 
-  \note There some restrictions when using the MSVC 2010 or 2012 compilers. The example snippets provided here
-  fail to compile with them.
+  \note There are some restrictions when using the MSVC 2010 or 2012 compilers. The example snippets
+  provided here fail to compile with them.
   \list
   \li Concatenated string literals cannot be used with QStringLiteral.
   \code

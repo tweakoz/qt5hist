@@ -96,15 +96,15 @@ class QDocDatabase
     DocNode* getGroup(const QString& name);
     DocNode* findGroup(const QString& name);
     DocNode* findModule(const QString& name);
-    DocNode* findQmlModule(const QString& name);
+    QmlModuleNode* findQmlModule(const QString& name);
 
     DocNode* addGroup(const QString& name);
     DocNode* addModule(const QString& name);
-    DocNode* addQmlModule(const QString& name);
+    QmlModuleNode* addQmlModule(const QString& name);
 
     DocNode* addToGroup(const QString& name, Node* node);
     DocNode* addToModule(const QString& name, Node* node);
-    DocNode* addToQmlModule(const QString& name, Node* node);
+    void addToQmlModule(const QString& name, Node* node);
 
     QmlClassNode* findQmlType(const QString& qmid, const QString& name) const;
     QmlClassNode* findQmlType(const ImportRec& import, const QString& name) const;
@@ -200,6 +200,7 @@ class QDocDatabase
     void insertOpenNamespace(const QString& path) { openNamespaces_.insert(path); }
     FunctionNode* findNodeInOpenNamespace(const QStringList& parentPath, const FunctionNode* clone);
     Node* findNodeInOpenNamespace(QStringList& path, Node::Type type, Node::SubType subtype);
+    void setShowInternal(bool value) { showInternal_ = value; }
 
     /* debugging functions */
     void printModules() const;
@@ -220,6 +221,7 @@ class QDocDatabase
 
  private:
     static QDocDatabase*    qdocDB_;
+    bool                    showInternal_;
     QString                 version_;
     QDocMultiMap            masterMap_;
     Tree*                   tree_;

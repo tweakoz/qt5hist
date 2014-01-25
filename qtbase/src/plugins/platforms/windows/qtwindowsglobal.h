@@ -1,5 +1,6 @@
 /****************************************************************************
 **
+** Copyright (C) 2013 Samuel Gaist <samuel.gaist@edeltech.ch>
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
@@ -83,19 +84,24 @@ enum WindowsEventType // Simplify event types
     CalculateSize = WindowEventFlag + 16,
     FocusInEvent = WindowEventFlag + 17,
     FocusOutEvent = WindowEventFlag + 18,
+    WhatsThisEvent = WindowEventFlag + 19,
     MouseEvent = MouseEventFlag + 1,
     MouseWheelEvent = MouseEventFlag + 2,
     CursorEvent = MouseEventFlag + 3,
     TouchEvent = TouchEventFlag + 1,
     NonClientMouseEvent = NonClientEventFlag + MouseEventFlag + 1,
+    NonClientHitTest = NonClientEventFlag + 2,
     KeyEvent = KeyEventFlag + 1,
     KeyDownEvent = KeyEventFlag + KeyDownEventFlag + 1,
+    KeyboardLayoutChangeEvent = KeyEventFlag + 2,
     InputMethodKeyEvent = InputMethodEventFlag + KeyEventFlag + 1,
     InputMethodKeyDownEvent = InputMethodEventFlag + KeyEventFlag + KeyDownEventFlag + 1,
     ClipboardEvent = ClipboardEventFlag + 1,
     ActivateApplicationEvent = ApplicationEventFlag + 1,
     DeactivateApplicationEvent = ApplicationEventFlag + 2,
     AccessibleObjectFromWindowRequest = ApplicationEventFlag + 3,
+    QueryEndSessionApplicationEvent = ApplicationEventFlag + 4,
+    EndSessionApplicationEvent = ApplicationEventFlag + 5,
     InputMethodStartCompositionEvent = InputMethodEventFlag + 1,
     InputMethodCompositionEvent = InputMethodEventFlag + 2,
     InputMethodEndCompositionEvent = InputMethodEventFlag + 3,
@@ -103,6 +109,7 @@ enum WindowsEventType // Simplify event types
     InputMethodCloseCandidateWindowEvent = InputMethodEventFlag + 5,
     InputMethodRequest = InputMethodEventFlag + 6,
     ThemeChanged = ThemingEventFlag + 1,
+    CompositionSettingsChanged = ThemingEventFlag + 2,
     DisplayChangedEvent = 437,
     SettingChangedEvent = DisplayChangedEvent + 1,
     ContextMenu = 123,
@@ -142,6 +149,10 @@ inline QtWindows::WindowsEventType windowsEventType(UINT message, WPARAM wParamI
         return QtWindows::ResizeEvent;
     case WM_NCCALCSIZE:
         return QtWindows::CalculateSize;
+#ifndef Q_OS_WINCE
+    case WM_NCHITTEST:
+        return QtWindows::NonClientHitTest;
+#endif // !Q_OS_WINCE
     case WM_GETMINMAXINFO:
         return QtWindows::QuerySizeHints;
     case WM_KEYDOWN:                        // keyboard event
@@ -155,6 +166,10 @@ inline QtWindows::WindowsEventType windowsEventType(UINT message, WPARAM wParamI
         return QtWindows::InputMethodKeyEvent;
     case WM_IME_KEYDOWN:
         return QtWindows::InputMethodKeyDownEvent;
+#ifdef WM_INPUTLANGCHANGE
+    case WM_INPUTLANGCHANGE:
+        return QtWindows::KeyboardLayoutChangeEvent;
+#endif // WM_INPUTLANGCHANGE
     case WM_TOUCH:
         return QtWindows::TouchEvent;
     case WM_CHANGECBCHAIN:
@@ -194,10 +209,27 @@ inline QtWindows::WindowsEventType windowsEventType(UINT message, WPARAM wParamI
     case WM_DISPLAYCHANGE:
         return QtWindows::DisplayChangedEvent;
     case WM_THEMECHANGED:
+#ifdef WM_SYSCOLORCHANGE // Windows 7: Handle color change as theme change (QTBUG-34170).
+    case WM_SYSCOLORCHANGE:
+#endif
         return QtWindows::ThemeChanged;
+    case WM_DWMCOMPOSITIONCHANGED:
+        return QtWindows::CompositionSettingsChanged;
 #ifndef QT_NO_CONTEXTMENU
     case WM_CONTEXTMENU:
         return QtWindows::ContextMenu;
+#endif
+    case WM_SYSCOMMAND:
+#ifndef Q_OS_WINCE
+        if ((wParamIn & 0xfff0) == SC_CONTEXTHELP)
+            return QtWindows::WhatsThisEvent;
+#endif
+        break;
+#if !defined(Q_OS_WINCE) && !defined(QT_NO_SESSIONMANAGER)
+    case WM_QUERYENDSESSION:
+        return QtWindows::QueryEndSessionApplicationEvent;
+    case WM_ENDSESSION:
+        return QtWindows::EndSessionApplicationEvent;
 #endif
     default:
         break;

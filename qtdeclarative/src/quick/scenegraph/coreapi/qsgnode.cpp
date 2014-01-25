@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -40,6 +40,7 @@
 ****************************************************************************/
 
 #include "qsgnode.h"
+#include "qsgnode_p.h"
 #include "qsgrenderer_p.h"
 #include "qsgnodeupdater_p.h"
 #include "qsgmaterial.h"
@@ -267,6 +268,26 @@ QSGNode::QSGNode(NodeType type)
 }
 
 /*!
+ * Constructs a new node with the given node type.
+ *
+ * \internal
+ */
+QSGNode::QSGNode(QSGNodePrivate &dd, NodeType type)
+    : m_parent(0)
+    , m_type(type)
+    , m_firstChild(0)
+    , m_lastChild(0)
+    , m_nextSibling(0)
+    , m_previousSibling(0)
+    , m_subtreeRenderableCount(type == GeometryNodeType || type == RenderNodeType ? 1 : 0)
+    , m_nodeFlags(OwnedByParent)
+    , m_dirtyState(0)
+    , d_ptr(&dd)
+{
+    init();
+}
+
+/*!
  * \internal
  */
 void QSGNode::init()
@@ -280,6 +301,11 @@ void QSGNode::init()
             atexit_registered = true;
         }
     }
+#endif
+
+#ifdef QSG_RUNTIME_DESCRIPTION
+    if (d_ptr.isNull())
+        d_ptr.reset(new QSGNodePrivate());
 #endif
 }
 
@@ -341,7 +367,7 @@ QSGNode::~QSGNode()
 
 bool QSGNode::isSubtreeBlocked() const
 {
-    return m_subtreeRenderableCount == 0;
+    return false;
 }
 
 /*!
@@ -630,10 +656,6 @@ void QSGNode::setFlags(Flags f, bool enabled)
 
 void QSGNode::markDirty(DirtyState bits)
 {
-    m_dirtyState |= (bits & DirtyPropagationMask);
-
-    DirtyState subtreeBits = DirtyState((bits & DirtyPropagationMask) << 16);
-
     int renderableCountDiff = 0;
     if (bits & DirtyNodeAdded)
         renderableCountDiff += m_subtreeRenderableCount;
@@ -642,7 +664,6 @@ void QSGNode::markDirty(DirtyState bits)
 
     QSGNode *p = m_parent;
     while (p) {
-        p->m_dirtyState |= subtreeBits;
         p->m_subtreeRenderableCount += renderableCountDiff;
         if (p->type() == RootNodeType)
             static_cast<QSGRootNode *>(p)->notifyNodeChange(this, bits);
@@ -650,7 +671,12 @@ void QSGNode::markDirty(DirtyState bits)
     }
 }
 
-
+#ifdef QSG_RUNTIME_DESCRIPTION
+void qsgnode_set_description(QSGNode *node, const QString &description)
+{
+    QSGNodePrivate::setDescription(node, description);
+}
+#endif
 
 /*!
     \class QSGBasicGeometryNode
@@ -670,6 +696,18 @@ void QSGNode::markDirty(DirtyState bits)
  */
 QSGBasicGeometryNode::QSGBasicGeometryNode(NodeType type)
     : QSGNode(type)
+    , m_geometry(0)
+    , m_matrix(0)
+    , m_clip_list(0)
+{
+}
+
+
+/*!
+    \internal
+ */
+QSGBasicGeometryNode::QSGBasicGeometryNode(QSGBasicGeometryNodePrivate &dd, NodeType type)
+    : QSGNode(dd, type)
     , m_geometry(0)
     , m_matrix(0)
     , m_clip_list(0)
@@ -799,6 +837,19 @@ void QSGBasicGeometryNode::setGeometry(QSGGeometry *geometry)
 
 QSGGeometryNode::QSGGeometryNode()
     : QSGBasicGeometryNode(GeometryNodeType)
+    , m_render_order(0)
+    , m_material(0)
+    , m_opaque_material(0)
+    , m_opacity(1)
+{
+}
+
+
+/*!
+    \internal
+ */
+QSGGeometryNode::QSGGeometryNode(QSGGeometryNodePrivate &dd)
+    : QSGBasicGeometryNode(dd, GeometryNodeType)
     , m_render_order(0)
     , m_material(0)
     , m_opaque_material(0)
@@ -1002,6 +1053,7 @@ void QSGGeometryNode::setInheritedOpacity(qreal opacity)
 QSGClipNode::QSGClipNode()
     : QSGBasicGeometryNode(ClipNodeType)
 {
+    Q_UNUSED(m_reserved);
 }
 
 
@@ -1253,7 +1305,7 @@ QSGOpacityNode::~QSGOpacityNode()
     Returns this opacity node's opacity.
  */
 
-
+const qreal OPACITY_THRESHOLD = 0.001;
 
 /*!
     Sets the opacity of this node to \a opacity.
@@ -1269,8 +1321,14 @@ void QSGOpacityNode::setOpacity(qreal opacity)
     opacity = qBound<qreal>(0, opacity, 1);
     if (m_opacity == opacity)
         return;
+    DirtyState dirtyState = DirtyOpacity;
+
+    if ((m_opacity < OPACITY_THRESHOLD && opacity >= OPACITY_THRESHOLD)     // blocked to unblocked
+        || (m_opacity >= OPACITY_THRESHOLD && opacity < OPACITY_THRESHOLD)) // unblocked to blocked
+        dirtyState |= DirtySubtreeBlocked;
+
     m_opacity = opacity;
-    markDirty(DirtyOpacity);
+    markDirty(dirtyState);
 }
 
 
@@ -1314,7 +1372,7 @@ void QSGOpacityNode::setCombinedOpacity(qreal opacity)
 
 bool QSGOpacityNode::isSubtreeBlocked() const
 {
-    return QSGNode::isSubtreeBlocked() || m_opacity < 0.001;
+    return m_opacity < OPACITY_THRESHOLD;
 }
 
 
@@ -1376,10 +1434,10 @@ void QSGNodeVisitor::visitChildren(QSGNode *n)
 QDebug operator<<(QDebug d, const QSGGeometryNode *n)
 {
     if (!n) {
-        d << "QSGGeometryNode(null)";
+        d << "Geometry(null)";
         return d;
     }
-    d << "QSGGeometryNode(" << hex << (void *) n << dec;
+    d << "GeometryNode(" << hex << (void *) n << dec;
 
     const QSGGeometry *g = n->geometry();
 
@@ -1394,33 +1452,32 @@ QDebug operator<<(QDebug d, const QSGGeometryNode *n)
         default: break;
         }
 
-         d << g->vertexCount();
+        d << "#V:" << g->vertexCount() << "#I:" << g->indexCount();
 
-         if (g->attributeCount() > 0 && g->attributes()->type == GL_FLOAT) {
-             float x1 = 1e10, x2 = -1e10, y1=1e10, y2=-1e10;
-             int stride = g->sizeOfVertex();
-             for (int i = 0; i < g->vertexCount(); ++i) {
-                 float x = ((float *)((char *)const_cast<QSGGeometry *>(g)->vertexData() + i * stride))[0];
-                 float y = ((float *)((char *)const_cast<QSGGeometry *>(g)->vertexData() + i * stride))[1];
+        if (g->attributeCount() > 0 && g->attributes()->type == GL_FLOAT) {
+            float x1 = 1e10, x2 = -1e10, y1=1e10, y2=-1e10;
+            int stride = g->sizeOfVertex();
+            for (int i = 0; i < g->vertexCount(); ++i) {
+                float x = ((float *)((char *)const_cast<QSGGeometry *>(g)->vertexData() + i * stride))[0];
+                float y = ((float *)((char *)const_cast<QSGGeometry *>(g)->vertexData() + i * stride))[1];
 
-                 x1 = qMin(x1, x);
-                 x2 = qMax(x2, x);
-                 y1 = qMin(y1, y);
-                 y2 = qMax(y2, y);
-             }
+                x1 = qMin(x1, x);
+                x2 = qMax(x2, x);
+                y1 = qMin(y1, y);
+                y2 = qMax(y2, y);
+            }
 
-             d << "x1=" << x1 << "y1=" << y1 << "x2=" << x2 << "y2=" << y2;
-         }
+            d << "x1=" << x1 << "y1=" << y1 << "x2=" << x2 << "y2=" << y2;
+        }
     }
 
-    d << "order=" << n->renderOrder();
     if (n->material())
-        d << "effect=" << n->material() << "type=" << n->material()->type();
+        d << "materialtype=" << n->material()->type();
 
 
     d << ')';
-#ifdef QML_RUNTIME_TESTING
-    d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+    d << QSGNodePrivate::description(n);
 #endif
     d << "dirty=" << hex << (int) n->dirtyState() << dec;
     return d;
@@ -1429,10 +1486,10 @@ QDebug operator<<(QDebug d, const QSGGeometryNode *n)
 QDebug operator<<(QDebug d, const QSGClipNode *n)
 {
     if (!n) {
-        d << "QSGClipNode(null)";
+        d << "ClipNode(null)";
         return d;
     }
-    d << "QSGClipNode(" << hex << (void *) n << dec;
+    d << "ClipNode(" << hex << (void *) n << dec;
 
     if (n->childCount())
         d << "children=" << n->childCount();
@@ -1440,8 +1497,8 @@ QDebug operator<<(QDebug d, const QSGClipNode *n)
     d << "is rect?" << (n->isRectangular() ? "yes" : "no");
 
     d << ')';
-#ifdef QML_RUNTIME_TESTING
-    d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+    d << QSGNodePrivate::description(n);
 #endif
     d << "dirty=" << hex << (int) n->dirtyState() << dec << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
     return d;
@@ -1450,11 +1507,11 @@ QDebug operator<<(QDebug d, const QSGClipNode *n)
 QDebug operator<<(QDebug d, const QSGTransformNode *n)
 {
     if (!n) {
-        d << "QSGTransformNode(null)";
+        d << "TransformNode(null)";
         return d;
     }
     const QMatrix4x4 m = n->matrix();
-    d << "QSGTransformNode(";
+    d << "TransformNode(";
     d << hex << (void *) n << dec;
     if (m.isIdentity())
         d << "identity";
@@ -1462,8 +1519,8 @@ QDebug operator<<(QDebug d, const QSGTransformNode *n)
         d << "translate" << m(0, 3) << m(1, 3) << m(2, 3);
     else
         d << "det=" << n->matrix().determinant();
-#ifdef QML_RUNTIME_TESTING
-    d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+    d << QSGNodePrivate::description(n);
 #endif
     d << "dirty=" << hex << (int) n->dirtyState() << dec << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
     d << ')';
@@ -1473,16 +1530,16 @@ QDebug operator<<(QDebug d, const QSGTransformNode *n)
 QDebug operator<<(QDebug d, const QSGOpacityNode *n)
 {
     if (!n) {
-        d << "QSGOpacityNode(null)";
+        d << "OpacityNode(null)";
         return d;
     }
-    d << "QSGOpacityNode(";
+    d << "OpacityNode(";
     d << hex << (void *) n << dec;
     d << "opacity=" << n->opacity()
       << "combined=" << n->combinedOpacity()
       << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
-#ifdef QML_RUNTIME_TESTING
-    d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+    d << QSGNodePrivate::description(n);
 #endif
     d << "dirty=" << hex << (int) n->dirtyState() << dec;
     d << ')';
@@ -1493,13 +1550,13 @@ QDebug operator<<(QDebug d, const QSGOpacityNode *n)
 QDebug operator<<(QDebug d, const QSGRootNode *n)
 {
     if (!n) {
-        d << "QSGRootNode(null)";
+        d << "RootNode(null)";
         return d;
     }
-    d << "QSGRootNode" << hex << (void *) n << "dirty=" << (int) n->dirtyState() << dec
+    d << "RootNode" << hex << (void *) n << "dirty=" << (int) n->dirtyState() << dec
       << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
-#ifdef QML_RUNTIME_TESTING
-    d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+    d << QSGNodePrivate::description(n);
 #endif
     d << ')';
     return d;
@@ -1510,7 +1567,7 @@ QDebug operator<<(QDebug d, const QSGRootNode *n)
 QDebug operator<<(QDebug d, const QSGNode *n)
 {
     if (!n) {
-        d << "QSGNode(null)";
+        d << "Node(null)";
         return d;
     }
     switch (n->type()) {
@@ -1529,13 +1586,23 @@ QDebug operator<<(QDebug d, const QSGNode *n)
     case QSGNode::OpacityNodeType:
         d << static_cast<const QSGOpacityNode *>(n);
         break;
-    default:
-        d << "QSGNode(" << hex << (void *) n << dec
+    case QSGNode::RenderNodeType:
+        d << "RenderNode(" << hex << (void *) n << dec
           << "dirty=" << hex << (int) n->dirtyState()
           << "flags=" << (int) n->flags() << dec
           << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
-#ifdef QML_RUNTIME_TESTING
-        d << n->description;
+#ifdef QSG_RUNTIME_DESCRIPTION
+        d << QSGNodePrivate::description(n);
+#endif
+        d << ')';
+        break;
+    default:
+        d << "Node(" << hex << (void *) n << dec
+          << "dirty=" << hex << (int) n->dirtyState()
+          << "flags=" << (int) n->flags() << dec
+          << (n->isSubtreeBlocked() ? "*BLOCKED*" : "");
+#ifdef QSG_RUNTIME_DESCRIPTION
+        d << QSGNodePrivate::description(n);
 #endif
         d << ')';
         break;

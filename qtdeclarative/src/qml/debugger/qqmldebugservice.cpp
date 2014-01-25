@@ -52,20 +52,18 @@
 QT_BEGIN_NAMESPACE
 
 QQmlDebugServicePrivate::QQmlDebugServicePrivate()
-    : server(0)
 {
 }
 
 QQmlDebugService::QQmlDebugService(const QString &name, float version, QObject *parent)
     : QObject(*(new QQmlDebugServicePrivate), parent)
 {
+    QQmlDebugServer::instance(); // create it when it isn't there yet.
+
     Q_D(QQmlDebugService);
     d->name = name;
     d->version = version;
-    d->server = QQmlDebugServer::instance();
     d->state = QQmlDebugService::NotConnected;
-
-
 }
 
 QQmlDebugService::QQmlDebugService(QQmlDebugServicePrivate &dd,
@@ -75,7 +73,6 @@ QQmlDebugService::QQmlDebugService(QQmlDebugServicePrivate &dd,
     Q_D(QQmlDebugService);
     d->name = name;
     d->version = version;
-    d->server = QQmlDebugServer::instance();
     d->state = QQmlDebugService::NotConnected;
 }
 
@@ -86,24 +83,23 @@ QQmlDebugService::QQmlDebugService(QQmlDebugServicePrivate &dd,
 QQmlDebugService::State QQmlDebugService::registerService()
 {
     Q_D(QQmlDebugService);
-    if (!d->server)
+    QQmlDebugServer *server = QQmlDebugServer::instance();
+
+    if (!server)
         return NotConnected;
 
-    if (d->server->serviceNames().contains(d->name)) {
+    if (server->serviceNames().contains(d->name)) {
         qWarning() << "QQmlDebugService: Conflicting plugin name" << d->name;
-        d->server = 0;
     } else {
-        d->server->addService(this);
+        server->addService(this);
     }
     return state();
 }
 
 QQmlDebugService::~QQmlDebugService()
 {
-    Q_D(const QQmlDebugService);
-    if (d->server) {
-        d->server->removeService(this);
-    }
+    if (QQmlDebugServer *inst = QQmlDebugServer::instance())
+        inst->removeService(this);
 }
 
 QString QQmlDebugService::name() const
@@ -215,25 +211,25 @@ QList<QObject*> QQmlDebugService::objectForLocationInfo(const QString &filename,
 {
     ObjectReferenceHash *hash = objectReferenceHash();
     QList<QObject*> objects;
-    QHash<int, QObject *>::Iterator iter;
-    for (iter = hash->ids.begin(); iter != hash->ids.end(); ++iter) {
-        QQmlData *ddata = QQmlData::get(iter.value());
-        if (!ddata || !ddata->outerContext)
-            continue;
-        //column number may be different due to qmlrewriter
-        if (QFileInfo(ddata->outerContext->urlString).fileName() == filename &&
-                ddata->lineNumber == lineNumber &&
-                ddata->columnNumber >= columnNumber) {
-            QHash<QObject *, ObjectReference>::Iterator objIter =
-                    hash->objects.find(*iter);
-            Q_ASSERT(objIter != hash->objects.end());
+    QHash<int, QObject *>::Iterator iter = hash->ids.begin();
+    while (iter != hash->ids.end()) {
+        QHash<QObject *, ObjectReference>::Iterator objIter =
+                hash->objects.find(*iter);
+        Q_ASSERT(objIter != hash->objects.end());
 
-            if (objIter->object == 0) {
-                hash->ids.erase(iter);
-                hash->objects.erase(objIter);
-            } else {
-                objects << *iter;
+        if (objIter->object == 0) {
+            iter = hash->ids.erase(iter);
+            hash->objects.erase(objIter);
+        } else {
+            QQmlData *ddata = QQmlData::get(iter.value());
+            if (ddata && ddata->outerContext) {
+                if (QFileInfo(ddata->outerContext->urlString).fileName() == filename &&
+                    ddata->lineNumber == lineNumber &&
+                    ddata->columnNumber >= columnNumber) {
+                    objects << *iter;
+                }
             }
+            ++iter;
         }
     }
     return objects;
@@ -303,12 +299,11 @@ void QQmlDebugService::sendMessage(const QByteArray &message)
 
 void QQmlDebugService::sendMessages(const QList<QByteArray> &messages)
 {
-    Q_D(QQmlDebugService);
-
     if (state() != Enabled)
         return;
 
-    d->server->sendMessages(this, messages);
+    if (QQmlDebugServer *inst = QQmlDebugServer::instance())
+        inst->sendMessages(this, messages);
 }
 
 void QQmlDebugService::stateAboutToBeChanged(State)

@@ -49,7 +49,7 @@
     \qmltype RowLayout
     \instantiates QQuickRowLayout
     \inherits Item
-    \inqmlmodule QtQuick.Layouts 1.0
+    \inqmlmodule QtQuick.Layouts
     \ingroup layouts
     \brief Identical to \l GridLayout, but having only one row.
 
@@ -78,7 +78,7 @@
     \qmltype ColumnLayout
     \instantiates QQuickColumnLayout
     \inherits Item
-    \inqmlmodule QtQuick.Layouts 1.0
+    \inqmlmodule QtQuick.Layouts
     \ingroup layouts
     \brief Identical to \l GridLayout, but having only one column.
 
@@ -109,14 +109,14 @@
     \qmltype GridLayout
     \instantiates QQuickGridLayout
     \inherits Item
-    \inqmlmodule QtQuick.Layouts 1.0
+    \inqmlmodule QtQuick.Layouts
     \ingroup layouts
     \brief Provides a way of dynamically arranging items in a grid.
 
     If the GridLayout is resized, all items in the layout will be rearranged. It is similar
-    to the widget-based QGridLayout. All children of the GridLayout element will belong to
+    to the widget-based QGridLayout. All visible children of the GridLayout element will belong to
     the layout. If you want a layout with just one row or one column, you can use the
-    \l RowLayout or \l ColumnLayout. These offers a bit more convenient API, and improves
+    \l RowLayout or \l ColumnLayout. These offer a bit more convenient API, and improve
     readability.
 
     By default items will be arranged according to the \l flow property. The default value of
@@ -216,9 +216,64 @@ QSizeF QQuickGridLayoutBase::sizeHint(Qt::SizeHint whichSizeHint) const
     return d->engine.sizeHint(whichSizeHint, QSizeF());
 }
 
+/*!
+    \qmlproperty enumeration GridLayout::layoutDirection
+    \since QtQuick.Layouts 1.1
+
+    This property holds the layout direction of the grid layout - it controls whether items are
+    laid out from left ro right or right to left. If \c Qt.RightToLeft is specified,
+    left-aligned items will be right-aligned and right-aligned items will be left-aligned.
+
+    Possible values:
+
+    \list
+    \li Qt.LeftToRight (default) - Items are laid out from left to right.
+    \li Qt.RightToLeft - Items are laid out from right to left
+    \endlist
+
+    \sa RowLayout::layoutDirection, ColumnLayout::layoutDirection
+*/
+Qt::LayoutDirection QQuickGridLayoutBase::layoutDirection() const
+{
+    Q_D(const QQuickGridLayoutBase);
+    return d->m_layoutDirection;
+}
+
+void QQuickGridLayoutBase::setLayoutDirection(Qt::LayoutDirection dir)
+{
+    Q_D(QQuickGridLayoutBase);
+    d->m_layoutDirection = dir;
+    invalidate();
+}
+
+Qt::LayoutDirection QQuickGridLayoutBase::effectiveLayoutDirection() const
+{
+    Q_D(const QQuickGridLayoutBase);
+    return !d->effectiveLayoutMirror == (layoutDirection() == Qt::LeftToRight)
+                                      ? Qt::LeftToRight : Qt::RightToLeft;
+}
+
+void QQuickGridLayoutBase::setAlignment(QQuickItem *item, Qt::Alignment alignment)
+{
+    Q_D(QQuickGridLayoutBase);
+    d->engine.setAlignment(item, alignment);
+}
+
 QQuickGridLayoutBase::~QQuickGridLayoutBase()
 {
     d_func()->m_isReady = false;
+
+    /* Avoid messy deconstruction, should give:
+        * Faster deconstruction
+        * Less risk of signals reaching already deleted objects
+    */
+    for (int i = 0; i < itemCount(); ++i) {
+        QQuickItem *item = itemAt(i);
+        QObject::disconnect(item, SIGNAL(destroyed()), this, SLOT(onItemDestroyed()));
+        QObject::disconnect(item, SIGNAL(visibleChanged()), this, SLOT(onItemVisibleChanged()));
+        QObject::disconnect(item, SIGNAL(implicitWidthChanged()), this, SLOT(invalidateSenderItem()));
+        QObject::disconnect(item, SIGNAL(implicitHeightChanged()), this, SLOT(invalidateSenderItem()));
+    }
 }
 
 void QQuickGridLayoutBase::componentComplete()
@@ -322,6 +377,18 @@ void QQuickGridLayoutBase::updateLayoutItems()
     quickLayoutDebug() << "QQuickGridLayoutBase::updateLayoutItems LEAVING";
 }
 
+QQuickItem *QQuickGridLayoutBase::itemAt(int index) const
+{
+    Q_D(const QQuickGridLayoutBase);
+    return static_cast<QQuickGridLayoutItem*>(d->engine.itemAt(index))->layoutItem();
+}
+
+int QQuickGridLayoutBase::itemCount() const
+{
+    Q_D(const QQuickGridLayoutBase);
+    return d->engine.itemCount();
+}
+
 void QQuickGridLayoutBase::itemChange(ItemChange change, const ItemChangeData &value)
 {
     if (change == ItemChildAddedChange) {
@@ -329,8 +396,9 @@ void QQuickGridLayoutBase::itemChange(ItemChange change, const ItemChangeData &v
         QQuickItem *item = value.item;
         QObject::connect(item, SIGNAL(destroyed()), this, SLOT(onItemDestroyed()));
         QObject::connect(item, SIGNAL(visibleChanged()), this, SLOT(onItemVisibleChanged()));
-        QObject::connect(item, SIGNAL(implicitWidthChanged()), this, SLOT(onItemImplicitSizeChanged()));
-        QObject::connect(item, SIGNAL(implicitHeightChanged()), this, SLOT(onItemImplicitSizeChanged()));
+        QObject::connect(item, SIGNAL(implicitWidthChanged()), this, SLOT(invalidateSenderItem()));
+        QObject::connect(item, SIGNAL(implicitHeightChanged()), this, SLOT(invalidateSenderItem()));
+        QObject::connect(item, SIGNAL(baselineOffsetChanged(qreal)), this, SLOT(invalidateSenderItem()));
 
         if (isReady() && isVisible())
             updateLayoutItems();
@@ -339,8 +407,9 @@ void QQuickGridLayoutBase::itemChange(ItemChange change, const ItemChangeData &v
         QQuickItem *item = value.item;
         QObject::disconnect(item, SIGNAL(destroyed()), this, SLOT(onItemDestroyed()));
         QObject::disconnect(item, SIGNAL(visibleChanged()), this, SLOT(onItemVisibleChanged()));
-        QObject::disconnect(item, SIGNAL(implicitWidthChanged()), this, SLOT(onItemImplicitSizeChanged()));
-        QObject::disconnect(item, SIGNAL(implicitHeightChanged()), this, SLOT(onItemImplicitSizeChanged()));
+        QObject::disconnect(item, SIGNAL(implicitWidthChanged()), this, SLOT(invalidateSenderItem()));
+        QObject::disconnect(item, SIGNAL(implicitHeightChanged()), this, SLOT(invalidateSenderItem()));
+        QObject::disconnect(item, SIGNAL(baselineOffsetChanged(qreal)), this, SLOT(invalidateSenderItem()));
         if (isReady() && isVisible())
             updateLayoutItems();
     }
@@ -404,7 +473,7 @@ void QQuickGridLayoutBase::onItemDestroyed()
     }
 }
 
-void QQuickGridLayoutBase::onItemImplicitSizeChanged()
+void QQuickGridLayoutBase::invalidateSenderItem()
 {
     if (!isReady())
         return;
@@ -420,7 +489,7 @@ void QQuickGridLayoutBase::rearrange(const QSizeF &size)
         return;
 
     quickLayoutDebug() << objectName() << "QQuickGridLayoutBase::rearrange()" << size;
-    Qt::LayoutDirection visualDir = Qt::LeftToRight;    // ### Fix if RTL support is needed
+    Qt::LayoutDirection visualDir = effectiveLayoutDirection();
     d->engine.setVisualDirection(visualDir);
 
     /*
@@ -537,7 +606,7 @@ void QQuickGridLayout::setColumns(int columns)
     if (d->columns == columns)
         return;
     d->columns = columns;
-    invalidate();
+    updateLayoutItems();
     emit columnsChanged();
 }
 
@@ -560,7 +629,7 @@ void QQuickGridLayout::setRows(int rows)
     if (d->rows == rows)
         return;
     d->rows = rows;
-    invalidate();
+    updateLayoutItems();
     emit rowsChanged();
 }
 
@@ -730,6 +799,42 @@ QQuickLinearLayout::QQuickLinearLayout(Qt::Orientation orientation,
     d->spacing = quickLayoutDefaultSpacing();
     d->engine.setSpacing(d->spacing, Qt::Horizontal | Qt::Vertical);
 }
+
+/*!
+    \qmlproperty enumeration RowLayout::layoutDirection
+    \since QtQuick.Layouts 1.1
+
+    This property holds the layout direction of the row layout - it controls whether items are laid
+    out from left ro right or right to left. If \c Qt.RightToLeft is specified,
+    left-aligned items will be right-aligned and right-aligned items will be left-aligned.
+
+    Possible values:
+
+    \list
+    \li Qt.LeftToRight (default) - Items are laid out from left to right.
+    \li Qt.RightToLeft - Items are laid out from right to left
+    \endlist
+
+    \sa GridLayout::layoutDirection, ColumnLayout::layoutDirection
+*/
+/*!
+    \qmlproperty enumeration ColumnLayout::layoutDirection
+    \since QtQuick.Layouts 1.1
+
+    This property holds the layout direction of the column layout - it controls whether items are laid
+    out from left ro right or right to left. If \c Qt.RightToLeft is specified,
+    left-aligned items will be right-aligned and right-aligned items will be left-aligned.
+
+    Possible values:
+
+    \list
+    \li Qt.LeftToRight (default) - Items are laid out from left to right.
+    \li Qt.RightToLeft - Items are laid out from right to left
+    \endlist
+
+    \sa GridLayout::layoutDirection, RowLayout::layoutDirection
+*/
+
 
 /*!
     \qmlproperty real RowLayout::spacing

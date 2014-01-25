@@ -64,8 +64,14 @@ namespace std
 #error qstring.h must be included before any header file that defines truncate
 #endif
 
-QT_BEGIN_NAMESPACE
+#ifdef Q_OS_MAC
+Q_FORWARD_DECLARE_CF_TYPE(CFString);
+#  ifdef __OBJC__
+Q_FORWARD_DECLARE_OBJC_CLASS(NSString);
+#  endif
+#endif
 
+QT_BEGIN_NAMESPACE
 
 class QCharRef;
 class QRegExp;
@@ -657,8 +663,12 @@ public:
     const_iterator constEnd() const;
 
     // STL compatibility
+    typedef int size_type;
+    typedef qptrdiff difference_type;
     typedef const QChar & const_reference;
     typedef QChar & reference;
+    typedef QChar *pointer;
+    typedef const QChar *const_pointer;
     typedef QChar value_type;
     inline void push_back(QChar c) { append(c); }
     inline void push_back(const QString &s) { append(s); }
@@ -670,6 +680,14 @@ public:
     static inline QString fromStdWString(const std::wstring &s);
     inline std::wstring toStdWString() const;
 
+#if defined(Q_OS_MAC) || defined(Q_QDOC)
+    static QString fromCFString(CFStringRef string);
+    CFStringRef toCFString() const Q_DECL_CF_RETURNS_RETAINED;
+#  if defined(__OBJC__) || defined(Q_QDOC)
+    static QString fromNSString(const NSString *string);
+    NSString *toNSString() const Q_DECL_NS_RETURNS_AUTORELEASED;
+#  endif
+#endif
     // compatibility
     struct Null { };
     static const Null null;
@@ -920,8 +938,8 @@ inline QString::~QString() { if (!d->ref.deref()) Data::deallocate(d); }
 
 inline void QString::reserve(int asize)
 {
-    if (d->ref.isShared() || uint(asize) + 1u > d->alloc)
-        reallocData(uint(asize) + 1u);
+    if (d->ref.isShared() || uint(asize) >= d->alloc)
+        reallocData(qMax(asize, d->size) + 1u);
 
     if (!d->capacityReserved) {
         // cannot set unconditionally, since d could be the shared_null/shared_empty (which is const)
@@ -1221,6 +1239,10 @@ public:
     int count(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     int count(QChar c, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     int count(const QStringRef &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
+
+    QStringRef left(int n) const Q_REQUIRED_RESULT;
+    QStringRef right(int n) const Q_REQUIRED_RESULT;
+    QStringRef mid(int pos, int n = -1) const Q_REQUIRED_RESULT;
 
     bool startsWith(const QString &s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;
     bool startsWith(QLatin1String s, Qt::CaseSensitivity cs = Qt::CaseSensitive) const;

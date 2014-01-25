@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtQml module of the Qt Toolkit.
+** This file is part of the QtQuick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -55,7 +55,7 @@ QT_BEGIN_NAMESPACE
 /*!
     \qmltype AnimatedImage
     \instantiates QQuickAnimatedImage
-    \inqmlmodule QtQuick 2
+    \inqmlmodule QtQuick
     \inherits Image
     \brief Plays animations stored as a series of images
     \ingroup qtquick-visual
@@ -90,7 +90,7 @@ QT_BEGIN_NAMESPACE
 */
 
 /*!
-    \qmlproperty url QtQuick2::AnimatedImage::source
+    \qmlproperty url QtQuick::AnimatedImage::source
 
     This property holds the URL that refers to the source image.
 
@@ -114,7 +114,7 @@ QQuickAnimatedImage::~QQuickAnimatedImage()
 }
 
 /*!
-  \qmlproperty bool QtQuick2::AnimatedImage::paused
+  \qmlproperty bool QtQuick::AnimatedImage::paused
   This property holds whether the animated image is paused.
 
   By default, this property is false. Set it to true when you want to pause
@@ -143,7 +143,7 @@ void QQuickAnimatedImage::setPaused(bool pause)
 }
 
 /*!
-  \qmlproperty bool QtQuick2::AnimatedImage::playing
+  \qmlproperty bool QtQuick::AnimatedImage::playing
   This property holds whether the animated image is playing.
 
   By default, this property is true, meaning that the animation
@@ -185,8 +185,8 @@ void QQuickAnimatedImage::setPlaying(bool play)
 }
 
 /*!
-  \qmlproperty int QtQuick2::AnimatedImage::currentFrame
-  \qmlproperty int QtQuick2::AnimatedImage::frameCount
+  \qmlproperty int QtQuick::AnimatedImage::currentFrame
+  \qmlproperty int QtQuick::AnimatedImage::frameCount
 
   currentFrame is the frame that is currently visible. By monitoring this property
   for changes, you can animate other items at the same time as the image.
