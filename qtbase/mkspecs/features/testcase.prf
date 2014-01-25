@@ -32,7 +32,7 @@ contains(MUNGED_TARGET,.*/.*):check.commands = cd $(DESTDIR) &&
 # Allow for a custom test runner script
 check.commands += $(TESTRUNNER)
 
-macx {
+mac {
     app_bundle: check.commands += ./$(QMAKE_TARGET).app/Contents/MacOS/$(QMAKE_TARGET)
     else:       check.commands += ./$(QMAKE_TARGET)
 }
@@ -43,7 +43,7 @@ else:           check.commands += $(DESTDIR_TARGET)
 check.commands += $(TESTARGS)
 
 # Add environment for non-installed builds
-qtAddTargetEnv(check.commands)
+qtAddTargetEnv(check.commands, QT)
 
 # If the test is marked as insignificant, discard the exit code
 insignificant_test:check.commands = -$${check.commands}

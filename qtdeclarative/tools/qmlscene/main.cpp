@@ -152,6 +152,7 @@ struct Options
         , slowAnimations(false)
         , quitImmediately(false)
         , resizeViewToRootItem(false)
+        , multisample(false)
     {
     }
 
@@ -167,6 +168,7 @@ struct Options
     bool slowAnimations;
     bool quitImmediately;
     bool resizeViewToRootItem;
+    bool multisample;
     QString translationFile;
 };
 
@@ -349,7 +351,7 @@ static void usage()
     qWarning("  --maximized ............................... Run maximized");
     qWarning("  --fullscreen .............................. Run fullscreen");
     qWarning("  --transparent ............................. Make the window transparent");
-    qWarning("  --no-multisample .......................... Disable multisampling (anti-aliasing)");
+    qWarning("  --multisample ............................. Enable multisampling (OpenGL anti-aliasing)");
     qWarning("  --no-version-detection .................... Do not try to detect the version of the .qml file");
     qWarning("  --slow-animations ......................... Run all animations in slow motion");
     qWarning("  --resize-to-root .......................... Resize the window to the size of the root item");
@@ -391,6 +393,8 @@ int main(int argc, char ** argv)
                 options.translationFile = QLatin1String(argv[++i]);
             else if (lowerArgument == QLatin1String("--resize-to-root"))
                 options.resizeViewToRootItem = true;
+            else if (lowerArgument == QLatin1String("--multisample"))
+                options.multisample = true;
             else if (lowerArgument == QLatin1String("-i") && i + 1 < argc)
                 imports.append(QString::fromLatin1(argv[++i]));
             else if (lowerArgument == QLatin1String("-b") && i + 2 < argc) {
@@ -479,7 +483,9 @@ int main(int argc, char ** argv)
             QObject *topLevel = component->create();
             QQuickWindow *window = qobject_cast<QQuickWindow *>(topLevel);
             QQuickView* qxView = 0;
-            if (!window) {
+            if (window) {
+                engine.setIncubationController(window->incubationController());
+            } else {
                 QQuickItem *contentItem = qobject_cast<QQuickItem *>(topLevel);
                 if (contentItem) {
                     qxView = new QQuickView(&engine, NULL);
@@ -487,7 +493,6 @@ int main(int argc, char ** argv)
                     // Set window default properties; the qml can still override them
                     QString oname = contentItem->objectName();
                     window->setTitle(oname.isEmpty() ? QString::fromLatin1("qmlscene") : QString::fromLatin1("qmlscene: ") + oname);
-                    window->setFlags(Qt::Window | Qt::WindowSystemMenuHint | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
                     if (options.resizeViewToRootItem)
                         qxView->setResizeMode(QQuickView::SizeViewToRootObject);
                     else
@@ -497,20 +502,25 @@ int main(int argc, char ** argv)
             }
 
             if (window) {
+                QSurfaceFormat surfaceFormat = window->requestedFormat();
+                if (options.multisample)
+                    surfaceFormat.setSamples(16);
                 if (options.transparent) {
-                    QSurfaceFormat surfaceFormat;
                     surfaceFormat.setAlphaBufferSize(8);
-                    window->setFormat(surfaceFormat);
                     window->setClearBeforeRendering(true);
                     window->setColor(QColor(Qt::transparent));
                     window->setFlags(Qt::FramelessWindowHint);
                 }
+                window->setFormat(surfaceFormat);
+
+                if (window->flags() == Qt::Window) // Fix window flags unless set by QML.
+                    window->setFlags(Qt::Window | Qt::WindowSystemMenuHint | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint | Qt::WindowFullscreenButtonHint);
 
                 if (options.fullscreen)
                     window->showFullScreen();
                 else if (options.maximized)
                     window->showMaximized();
-                else
+                else if (!window->isVisible())
                     window->show();
             }
 

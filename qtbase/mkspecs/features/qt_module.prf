@@ -27,6 +27,19 @@ isEmpty(VERSION): error("Module does not define version.")
 # unless overridden. Host builds are always static
 host_build|staticlib: CONFIG += static
 
+host_build {
+    QT -= gui   # no host module will ever use gui
+    force_bootstrap {
+        !build_pass: CONFIG += release
+        contains(QT, core(-private)?|xml) {
+            QT -= core core-private xml
+            QT += bootstrap-private
+        }
+    } else {
+        !build_pass:contains(QT_CONFIG, build_all): CONFIG += release
+    }
+}
+
 ucmodule = $$upper($$MODULE)
 
 isEmpty(MODULE_INCNAME): MODULE_INCNAME = $$TARGET
@@ -74,25 +87,19 @@ contains(TARGET, QtAddOn.*): \
 else: \
     DEFINES += QT_BUILD_$${ucmodule}_LIB
 
-contains(QT_CONFIG, reduce_exports):CONFIG += hide_symbols
-unix:contains(QT_CONFIG, reduce_relocations):CONFIG += bsymbolic_functions
-contains(QT_CONFIG, largefile):CONFIG += largefile
-contains(QT_CONFIG, separate_debug_info):CONFIG += separate_debug_info
-contains(QT_CONFIG, separate_debug_info_nocopy):CONFIG += separate_debug_info_nocopy
-contains(QT_CONFIG, c++11):CONFIG += c++11
-
 #mac frameworks
 mac:CONFIG(shared, static|shared):contains(QT_CONFIG, qt_framework) {
    #QMAKE_FRAMEWORK_VERSION = 4.0
-   CONFIG += lib_bundle qt_no_framework_direct_includes qt_framework
-   CONFIG(release, debug|release) {
-      !debug_and_release|build_pass {
-          CONFIG -= qt_install_headers #no need to install these as well
-          FRAMEWORK_HEADERS.version = Versions
-          FRAMEWORK_HEADERS.files = $$SYNCQT.HEADER_FILES $$SYNCQT.HEADER_CLASSES
-          FRAMEWORK_HEADERS.path = Headers
-      }
-      QMAKE_BUNDLE_DATA += FRAMEWORK_HEADERS
+   CONFIG += lib_bundle qt_framework
+   !debug_and_release|if(build_all:CONFIG(release, debug|release)) {
+        FRAMEWORK_HEADERS.version = Versions
+        FRAMEWORK_HEADERS.files = $$SYNCQT.HEADER_FILES $$SYNCQT.HEADER_CLASSES
+        FRAMEWORK_HEADERS.path = Headers
+        FRAMEWORK_PRIVATE_HEADERS.files = $$SYNCQT.PRIVATE_HEADER_FILES
+        FRAMEWORK_PRIVATE_HEADERS.path = Headers/$$VERSION/$$MODULE_INCNAME/private
+        FRAMEWORK_QPA_HEADERS.files = $$SYNCQT.QPA_HEADER_FILES
+        FRAMEWORK_QPA_HEADERS.path = Headers/$$VERSION/$$MODULE_INCNAME/qpa
+        QMAKE_BUNDLE_DATA += FRAMEWORK_HEADERS FRAMEWORK_PRIVATE_HEADERS FRAMEWORK_QPA_HEADERS
    }
 }
 
@@ -115,12 +122,17 @@ aix-g++* {
      QMAKE_CXXFLAGS += -mminimal-toc
 }
 
+android: CONFIG += qt_android_deps
+
 #install directives
 load(qt_installs)
 
 unix|win32-g++* {
    CONFIG += create_pc
-   QMAKE_PKGCONFIG_LIBDIR = $$[QT_INSTALL_LIBS/raw]
+   host_build: \
+       QMAKE_PKGCONFIG_LIBDIR = $$[QT_HOST_LIBS]
+   else: \
+       QMAKE_PKGCONFIG_LIBDIR = $$[QT_INSTALL_LIBS/raw]
    QMAKE_PKGCONFIG_INCDIR = $$[QT_INSTALL_HEADERS/raw]
    QMAKE_PKGCONFIG_CFLAGS = -I${includedir}/$$MODULE_INCNAME
    QMAKE_PKGCONFIG_DESTDIR = pkgconfig
@@ -131,14 +143,14 @@ unix|win32-g++* {
    include_replace.match = $$rplbase/include
    include_replace.replace = $$[QT_INSTALL_HEADERS/raw]
    lib_replace.match = $$rplbase/lib
-   lib_replace.replace = $$[QT_INSTALL_LIBS/raw]
+   lib_replace.replace = $$QMAKE_PKGCONFIG_LIBDIR
    QMAKE_PKGCONFIG_INSTALL_REPLACE += include_replace lib_replace
    QMAKE_PRL_INSTALL_REPLACE += include_replace lib_replace
 }
 
 unix {
    CONFIG += create_libtool explicitlib
-   QMAKE_LIBTOOL_LIBDIR = $$[QT_INSTALL_LIBS/raw]
+   QMAKE_LIBTOOL_LIBDIR = $$QMAKE_PKGCONFIG_LIBDIR
    QMAKE_LIBTOOL_INSTALL_REPLACE += include_replace lib_replace
 }
 
@@ -169,6 +181,7 @@ win32 {
 TARGET = $$qtLibraryTarget($$TARGET$$QT_LIBINFIX) #do this towards the end
 
 load(qt_targets)
+load(qt_common)
 
 win32:DEFINES+=_USE_MATH_DEFINES
 

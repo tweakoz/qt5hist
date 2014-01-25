@@ -111,7 +111,7 @@ static bool tabBetweenSubWindowsIn(QMdiArea *mdiArea, int tabCount = -1, bool re
         if (tabCount > 1)
             QTest::qWait(500);
         if (walkThrough) {
-            QRubberBand *rubberBand = qFindChild<QRubberBand *>(mdiArea->viewport());
+            QRubberBand *rubberBand = mdiArea->viewport()->findChild<QRubberBand *>();
             if (!rubberBand) {
                 qWarning("No rubber band");
                 return false;
@@ -290,7 +290,6 @@ private slots:
 
 private:
     QMdiSubWindow *activeWindow;
-    bool accelPressed;
 };
 
 tst_QMdiArea::tst_QMdiArea()
@@ -1706,6 +1705,11 @@ void tst_QMdiArea::tileSubWindows()
         subWindow->setMinimumSize(minSize);
 
     QCOMPARE(workspace.size(), QSize(350, 150));
+
+    // Prevent scrollbars from messing up the expected viewport calculation below
+    workspace.setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    workspace.setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
     workspace.tileSubWindows();
     // The sub-windows are now tiled like this:
     // | win 1 || win 2 || win 3 |
@@ -1724,10 +1728,11 @@ void tst_QMdiArea::tileSubWindows()
 #ifdef Q_OS_WINCE
     QSKIP("Not fixed yet! See task 197453");
 #endif
-#ifdef Q_OS_MAC
-    QEXPECT_FAIL("", "QTBUG-25298", Abort);
-#endif
     QTRY_COMPARE(workspace.viewport()->rect().size(), expectedViewportSize);
+
+    // Restore original scrollbar behavior for test below
+    workspace.setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    workspace.setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 
     // Not enough space for all sub-windows to be visible -> provide scroll bars.
     workspace.resize(160, 150);
@@ -2335,14 +2340,14 @@ void tst_QMdiArea::setViewMode()
 
     // Default.
     QVERIFY(!activeSubWindow->isMaximized());
-    QTabBar *tabBar = qFindChild<QTabBar *>(&mdiArea);
+    QTabBar *tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(!tabBar);
     QCOMPARE(mdiArea.viewMode(), QMdiArea::SubWindowView);
 
     // Tabbed view.
     mdiArea.setViewMode(QMdiArea::TabbedView);
     QCOMPARE(mdiArea.viewMode(), QMdiArea::TabbedView);
-    tabBar = qFindChild<QTabBar *>(&mdiArea);
+    tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(tabBar);
     QVERIFY(tabBar->isVisible());
 
@@ -2409,7 +2414,7 @@ void tst_QMdiArea::setViewMode()
     // Go back to default (QMdiArea::SubWindowView).
     mdiArea.setViewMode(QMdiArea::SubWindowView);
     QVERIFY(!activeSubWindow->isMaximized());
-    tabBar = qFindChild<QTabBar *>(&mdiArea);
+    tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(!tabBar);
     QCOMPARE(mdiArea.viewMode(), QMdiArea::SubWindowView);
 }
@@ -2423,14 +2428,14 @@ void tst_QMdiArea::setTabsClosable()
     QCOMPARE(mdiArea.tabsClosable(), false);
 
     // change value before tab bar exists
-    QTabBar *tabBar = qFindChild<QTabBar *>(&mdiArea);
+    QTabBar *tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(!tabBar);
     mdiArea.setTabsClosable(true);
     QCOMPARE(mdiArea.tabsClosable(), true);
 
     // force tab bar creation
     mdiArea.setViewMode(QMdiArea::TabbedView);
-    tabBar = qFindChild<QTabBar *>(&mdiArea);
+    tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(tabBar);
 
     // value must've been propagated
@@ -2453,14 +2458,14 @@ void tst_QMdiArea::setTabsMovable()
     QCOMPARE(mdiArea.tabsMovable(), false);
 
     // change value before tab bar exists
-    QTabBar *tabBar = qFindChild<QTabBar *>(&mdiArea);
+    QTabBar *tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(!tabBar);
     mdiArea.setTabsMovable(true);
     QCOMPARE(mdiArea.tabsMovable(), true);
 
     // force tab bar creation
     mdiArea.setViewMode(QMdiArea::TabbedView);
-    tabBar = qFindChild<QTabBar *>(&mdiArea);
+    tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(tabBar);
 
     // value must've been propagated
@@ -2501,7 +2506,7 @@ void tst_QMdiArea::setTabShape()
 
     mdiArea.setViewMode(QMdiArea::TabbedView);
 
-    QTabBar *tabBar = qFindChild<QTabBar *>(&mdiArea);
+    QTabBar *tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(tabBar);
     QCOMPARE(tabBar->shape(), QTabBar::TriangularNorth);
 
@@ -2544,7 +2549,7 @@ void tst_QMdiArea::setTabPosition()
     // Default.
     QCOMPARE(mdiArea.tabPosition(), QTabWidget::North);
     mdiArea.setViewMode(QMdiArea::TabbedView);
-    QTabBar *tabBar = qFindChild<QTabBar *>(&mdiArea);
+    QTabBar *tabBar = mdiArea.findChild<QTabBar *>();
     QVERIFY(tabBar);
     QCOMPARE(tabBar->shape(), QTabBar::RoundedNorth);
 

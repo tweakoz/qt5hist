@@ -44,7 +44,7 @@
 #include <QDebug>
 #include <private/qcore_unix_p.h>
 
-#ifdef QQNXNAVIGATOR_DEBUG
+#if defined(QQNXNAVIGATOR_DEBUG)
 #define qNavigatorDebug qDebug
 #else
 #define qNavigatorDebug QT_NO_QDEBUG_MACRO
@@ -150,9 +150,8 @@ void QQnxNavigatorPps::parsePPS(const QByteArray &ppsData, QHash<QByteArray, QBy
     QList<QByteArray> lines = ppsData.split('\n');
 
     // validate pps object
-    if (lines.size() == 0 || lines.at(0) != "@control") {
+    if (lines.size() == 0 || lines.at(0) != "@control")
         qFatal("QQNX: unrecognized pps object, data=%s", ppsData.constData());
-    }
 
     // parse pps object attributes and extract values
     for (int i = 1; i < lines.size(); i++) {

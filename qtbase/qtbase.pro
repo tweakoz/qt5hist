@@ -77,21 +77,18 @@ INSTALLS += qmake
 
 #syncqt
 syncqt.path = $$[QT_HOST_BINS]
-syncqt.files = $$PWD/bin/syncqt
-equals(QMAKE_HOST.os, Windows):syncqt.files += $$PWD/bin/syncqt.bat
+syncqt.files = $$PWD/bin/syncqt.pl
 INSTALLS += syncqt
 
 # If we are doing a prefix build, create a "module" pri which enables
 # qtPrepareTool() to find the non-installed syncqt.
-prefix_build {
+prefix_build|!equals(PWD, $$OUT_PWD) {
 
-    cmd = $$shell_path($$OUT_PWD/bin/syncqt)
-    contains(QMAKE_HOST.os, Windows): \
-        cmd = $${cmd}.bat
+    cmd = perl -w $$shell_path($$PWD/bin/syncqt.pl)
 
     TOOL_PRI = $$OUT_PWD/mkspecs/modules/qt_tool_syncqt.pri
 
-    TOOL_PRI_CONT = "QT_TOOL.syncqt.command = $$val_escape(cmd)"
+    TOOL_PRI_CONT = "QT_TOOL.syncqt.binary = $$val_escape(cmd)"
     write_file($$TOOL_PRI, TOOL_PRI_CONT)|error("Aborting.")
 
     # Then, inject the new tool into the current cache state
@@ -100,7 +97,7 @@ prefix_build {
         cache(QMAKE_INTERNAL_INCLUDED_FILES, add transient, added)
     }
     include($$TOOL_PRI)
-    cache(QT_TOOL.syncqt.command, transient)
+    cache(QT_TOOL.syncqt.binary, transient)
 
 }
 

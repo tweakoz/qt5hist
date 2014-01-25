@@ -59,8 +59,6 @@
 #include <QtGui/qcursor.h>
 #endif
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -93,11 +91,17 @@ class Q_GUI_EXPORT QWindow : public QObject, public QSurface
     Q_OBJECT
     Q_DECLARE_PRIVATE(QWindow)
 
+    Q_ENUMS(Visibility)
+
     // All properties which are declared here are inherited by QQuickWindow and therefore available in QML.
     // So please think carefully about what it does to the QML namespace if you add any new ones,
     // particularly the possible meanings these names might have in any specializations of Window.
     // For example "state" (meaning windowState) is not a good property to declare, because it has
     // a different meaning in QQuickItem, and users will tend to assume it is the same for Window.
+
+    // Any new properties which you add here MUST be versioned and MUST be documented both as
+    // C++ properties in qwindow.cpp AND as QML properties in qquickwindow.cpp.
+    // http://qt-project.org/doc/qt-5.0/qtqml/qtqml-cppintegration-definetypes.html#type-revisions-and-versions
 
     Q_PROPERTY(QString title READ title WRITE setTitle)
     Q_PROPERTY(Qt::WindowModality modality READ modality WRITE setModality NOTIFY modalityChanged)
@@ -111,9 +115,20 @@ class Q_GUI_EXPORT QWindow : public QObject, public QSurface
     Q_PROPERTY(int maximumWidth READ maximumWidth WRITE setMaximumWidth NOTIFY maximumWidthChanged)
     Q_PROPERTY(int maximumHeight READ maximumHeight WRITE setMaximumHeight NOTIFY maximumHeightChanged)
     Q_PROPERTY(bool visible READ isVisible WRITE setVisible NOTIFY visibleChanged)
+    Q_PROPERTY(bool active READ isActive NOTIFY activeChanged REVISION 1)
+    Q_PROPERTY(Visibility visibility READ visibility WRITE setVisibility NOTIFY visibilityChanged REVISION 1)
     Q_PROPERTY(Qt::ScreenOrientation contentOrientation READ contentOrientation WRITE reportContentOrientationChange NOTIFY contentOrientationChanged)
+    Q_PROPERTY(qreal opacity READ opacity WRITE setOpacity NOTIFY opacityChanged REVISION 1)
 
 public:
+    enum Visibility {
+        Hidden = 0,
+        AutomaticVisibility,
+        Windowed,
+        Minimized,
+        Maximized,
+        FullScreen
+    };
 
     explicit QWindow(QScreen *screen = 0);
     explicit QWindow(QWindow *parent);
@@ -123,6 +138,9 @@ public:
     SurfaceType surfaceType() const;
 
     bool isVisible() const;
+
+    Visibility visibility() const;
+    void setVisibility(Visibility v);
 
     void create();
 
@@ -148,7 +166,10 @@ public:
     QString title() const;
 
     void setOpacity(qreal level);
-    void requestActivate();
+    qreal opacity() const;
+
+    void setMask(const QRegion &region);
+    QRegion mask() const;
 
     bool isActive() const;
 
@@ -239,7 +260,11 @@ public:
     void unsetCursor();
 #endif
 
+    static QWindow *fromWinId(WId id);
+
 public Q_SLOTS:
+    Q_REVISION(1) void requestActivate();
+
     void setVisible(bool visible);
 
     void show();
@@ -266,6 +291,8 @@ public Q_SLOTS:
     void setMaximumWidth(int w);
     void setMaximumHeight(int h);
 
+    Q_REVISION(1) void alert(int msec);
+
 Q_SIGNALS:
     void screenChanged(QScreen *screen);
     void modalityChanged(Qt::WindowModality modality);
@@ -283,9 +310,13 @@ Q_SIGNALS:
     void maximumHeightChanged(int arg);
 
     void visibleChanged(bool arg);
+    Q_REVISION(1) void visibilityChanged(QWindow::Visibility visibility);
+    Q_REVISION(1) void activeChanged();
     void contentOrientationChanged(Qt::ScreenOrientation orientation);
 
     void focusObjectChanged(QObject *object);
+
+    Q_REVISION(1) void opacityChanged(qreal opacity);
 
 private Q_SLOTS:
     void screenDestroyed(QObject *screen);
@@ -299,6 +330,7 @@ protected:
 
     virtual void showEvent(QShowEvent *);
     virtual void hideEvent(QHideEvent *);
+    // TODO Qt 6 - add closeEvent virtual handler
 
     virtual bool event(QEvent *);
     virtual void keyPressEvent(QKeyEvent *);
@@ -319,6 +351,7 @@ protected:
     QWindow(QWindowPrivate &dd, QWindow *parent);
 
 private:
+    Q_PRIVATE_SLOT(d_func(), void _q_clearAlert())
     QPlatformSurface *surfaceHandle() const;
 
     Q_DISABLE_COPY(QWindow)
@@ -329,7 +362,5 @@ private:
 };
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QWINDOW_H

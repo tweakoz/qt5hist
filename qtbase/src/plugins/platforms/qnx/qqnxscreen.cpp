@@ -41,6 +41,7 @@
 
 #include "qqnxscreen.h"
 #include "qqnxwindow.h"
+#include "qqnxcursor.h"
 
 #include <QtCore/QThread>
 #include <QtCore/QDebug>
@@ -48,7 +49,7 @@
 
 #include <errno.h>
 
-#ifdef QQNXSCREEN_DEBUG
+#if defined(QQNXSCREEN_DEBUG)
 #define qScreenDebug qDebug
 #else
 #define qScreenDebug QT_NO_QDEBUG_MACRO
@@ -60,6 +61,14 @@
 #elif defined(QQNX_PHYSICAL_SCREEN_WIDTH) || defined(QQNX_PHYSICAL_SCREEN_HEIGHT)
 #error Please define QQNX_PHYSICAL_SCREEN_WIDTH and QQNX_PHYSICAL_SCREEN_HEIGHT to values greater than zero
 #endif
+
+// The default z-order of a window (intended to be overlain) created by
+// mmrender.
+static const int MMRENDER_DEFAULT_ZORDER = -1;
+
+// The maximum z-order at which a foreign window will be considered
+// an underlay.
+static const int MAX_UNDERLAY_ZORDER = MMRENDER_DEFAULT_ZORDER - 1;
 
 QT_BEGIN_NAMESPACE
 
@@ -110,24 +119,24 @@ QQnxScreen::QQnxScreen(screen_context_t screenContext, screen_display_t display,
       m_posted(false),
       m_keyboardHeight(0),
       m_nativeOrientation(Qt::PrimaryOrientation),
-      m_platformContext(0)
+      m_platformContext(0),
+      m_cursor(new QQnxCursor())
 {
     qScreenDebug() << Q_FUNC_INFO;
     // Cache initial orientation of this display
     errno = 0;
     int result = screen_get_display_property_iv(m_display, SCREEN_PROPERTY_ROTATION, &m_initialRotation);
-    if (result != 0) {
+    if (result != 0)
         qFatal("QQnxScreen: failed to query display rotation, errno=%d", errno);
-    }
+
     m_currentRotation = m_initialRotation;
 
     // Cache size of this display in pixels
     errno = 0;
     int val[2];
     result = screen_get_display_property_iv(m_display, SCREEN_PROPERTY_SIZE, val);
-    if (result != 0) {
+    if (result != 0)
         qFatal("QQnxScreen: failed to query display size, errno=%d", errno);
-    }
 
     m_currentGeometry = m_initialGeometry = QRect(0, 0, val[0], val[1]);
 
@@ -149,6 +158,10 @@ QQnxScreen::QQnxScreen(screen_context_t screenContext, screen_display_t display,
 QQnxScreen::~QQnxScreen()
 {
     qScreenDebug() << Q_FUNC_INFO;
+    Q_FOREACH (QQnxWindow *childWindow, m_childWindows)
+        childWindow->setScreen(0);
+
+    delete m_cursor;
 }
 
 static int defaultDepth()
@@ -159,9 +172,8 @@ static int defaultDepth()
         // check if display depth was specified in environment variable;
         // use default value if no valid value found
         defaultDepth = qgetenv("QQNX_DISPLAY_DEPTH").toInt();
-        if (defaultDepth != 16 && defaultDepth != 32) {
+        if (defaultDepth != 16 && defaultDepth != 32)
             defaultDepth = 32;
-        }
     }
     return defaultDepth;
 }
@@ -459,16 +471,32 @@ void QQnxScreen::updateHierarchy()
     qScreenDebug() << Q_FUNC_INFO;
 
     QList<QQnxWindow*>::const_iterator it;
-    int topZorder = 1; // root window is z-order 0, all "top" level windows are "above" it
+    int result;
+    int topZorder;
 
+    errno = 0;
+    result = screen_get_window_property_iv(rootWindow()->nativeHandle(), SCREEN_PROPERTY_ZORDER, &topZorder);
+    if (result != 0)
+        qFatal("QQnxScreen: failed to query root window z-order, errno=%d", errno);
+
+    topZorder++; // root window has the lowest z-order in the windowgroup
+
+    // Underlays sit immediately above the root window in the z-ordering
+    Q_FOREACH (screen_window_t underlay, m_underlays) {
+        // Do nothing when this fails. This can happen if we have stale windows in m_underlays,
+        // which in turn can happen because a window was removed but we didn't get a notification
+        // yet.
+        screen_set_window_property_iv(underlay, SCREEN_PROPERTY_ZORDER, &topZorder);
+        topZorder++;
+    }
+
+    // Normal Qt windows come next above underlays in the z-ordering
     for (it = m_childWindows.constBegin(); it != m_childWindows.constEnd(); ++it)
         (*it)->updateZorder(topZorder);
 
-    topZorder++;
+    // Finally overlays sit above all else in the z-ordering
     Q_FOREACH (screen_window_t overlay, m_overlays) {
-        // Do nothing when this fails. This can happen if we have stale windows in mOverlays,
-        // which in turn can happen because a window was removed but we didn't get a notification
-        // yet.
+        // No error handling, see underlay logic above
         screen_set_window_property_iv(overlay, SCREEN_PROPERTY_ZORDER, &topZorder);
         topZorder++;
     }
@@ -492,6 +520,23 @@ void QQnxScreen::onWindowPost(QQnxWindow *window)
     }
 }
 
+void QQnxScreen::adjustOrientation()
+{
+    if (!m_primaryScreen)
+        return;
+
+    bool ok = false;
+    const int rotation = qgetenv("ORIENTATION").toInt(&ok);
+
+    if (ok)
+        setRotation(rotation);
+}
+
+QPlatformCursor * QQnxScreen::cursor() const
+{
+    return m_cursor;
+}
+
 void QQnxScreen::keyboardHeightChanged(int height)
 {
     if (height == m_keyboardHeight)
@@ -508,10 +553,16 @@ void QQnxScreen::addOverlayWindow(screen_window_t window)
     updateHierarchy();
 }
 
-void QQnxScreen::removeOverlayWindow(screen_window_t window)
+void QQnxScreen::addUnderlayWindow(screen_window_t window)
 {
-    const int numOverlaysRemoved = m_overlays.removeAll(window);
-    if (numOverlaysRemoved > 0)
+    m_underlays.append(window);
+    updateHierarchy();
+}
+
+void QQnxScreen::removeOverlayOrUnderlayWindow(screen_window_t window)
+{
+    const int numRemoved = m_overlays.removeAll(window) + m_underlays.removeAll(window);
+    if (numRemoved > 0)
         updateHierarchy();
 }
 
@@ -525,13 +576,28 @@ void QQnxScreen::newWindowCreated(void *window)
         return;
     }
 
+    int zorder;
+    if (screen_get_window_property_iv(windowHandle, SCREEN_PROPERTY_ZORDER, &zorder) != 0) {
+        qWarning("QQnx: Failed to get z-order for window, errno=%d", errno);
+        zorder = 0;
+    }
+
     if (display == nativeDisplay()) {
         // A window was created on this screen. If we don't know about this window yet, it means
         // it was not created by Qt, but by some foreign library like the multimedia renderer, which
         // creates an overlay window when playing a video.
-        // Treat all foreign windows as overlays here.
-        if (!findWindow(windowHandle))
-            addOverlayWindow(windowHandle);
+        //
+        // Treat all foreign windows as overlays or underlays here.
+        //
+        // Assume that if a foreign window already has a Z-Order both negative and
+        // less than the default Z-Order installed by mmrender on windows it creates,
+        // the windows should be treated as an underlay. Otherwise, we treat it as an overlay.
+        if (!findWindow(windowHandle)) {
+            if (zorder <= MAX_UNDERLAY_ZORDER)
+                addUnderlayWindow(windowHandle);
+            else
+                addOverlayWindow(windowHandle);
+        }
     }
 }
 
@@ -539,7 +605,22 @@ void QQnxScreen::windowClosed(void *window)
 {
     Q_ASSERT(thread() == QThread::currentThread());
     const screen_window_t windowHandle = reinterpret_cast<screen_window_t>(window);
-    removeOverlayWindow(windowHandle);
+    removeOverlayOrUnderlayWindow(windowHandle);
+}
+
+void QQnxScreen::windowGroupStateChanged(const QByteArray &id, Qt::WindowState state)
+{
+    qScreenDebug() << Q_FUNC_INFO;
+
+    if (!rootWindow() || id != rootWindow()->groupName())
+        return;
+
+    QWindow * const window = topMostChildWindow();
+
+    if (!window)
+        return;
+
+    QWindowSystemInterface::handleWindowStateChanged(window, state);
 }
 
 void QQnxScreen::activateWindowGroup(const QByteArray &id)
@@ -549,13 +630,12 @@ void QQnxScreen::activateWindowGroup(const QByteArray &id)
     if (!rootWindow() || id != rootWindow()->groupName())
         return;
 
-    if (!m_childWindows.isEmpty()) {
-        // We're picking up the last window of the list here
-        // because this list is ordered by stacking order.
-        // Last window is effectively the one on top.
-        QWindow * const window = m_childWindows.last()->window();
-        QWindowSystemInterface::handleWindowActivated(window);
-    }
+    QWindow * const window = topMostChildWindow();
+
+    if (!window)
+        return;
+
+    QWindowSystemInterface::handleWindowActivated(window);
 }
 
 void QQnxScreen::deactivateWindowGroup(const QByteArray &id)
@@ -575,6 +655,19 @@ QSharedPointer<QQnxRootWindow> QQnxScreen::rootWindow() const
         m_rootWindow = QSharedPointer<QQnxRootWindow>(new QQnxRootWindow(this));
 
     return m_rootWindow;
+}
+
+QWindow * QQnxScreen::topMostChildWindow() const
+{
+    if (!m_childWindows.isEmpty()) {
+
+        // We're picking up the last window of the list here
+        // because this list is ordered by stacking order.
+        // Last window is effectively the one on top.
+        return m_childWindows.last()->window();
+    }
+
+    return 0;
 }
 
 QT_END_NAMESPACE

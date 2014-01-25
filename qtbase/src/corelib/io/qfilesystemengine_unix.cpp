@@ -59,7 +59,7 @@
 
 QT_BEGIN_NAMESPACE
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 static inline bool _q_isMacHidden(const char *nativePath)
 {
     OSErr err;
@@ -143,7 +143,7 @@ QFileSystemEntry QFileSystemEngine::getLinkTarget(const QFileSystemEntry &link, 
             ret.chop(1);
         return QFileSystemEntry(ret);
     }
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     {
         FSRef fref;
         if (FSPathMakeRef((const UInt8 *)QFile::encodeName(QDir::cleanPath(link.filePath())).data(), &fref, 0) == noErr) {
@@ -169,13 +169,13 @@ QFileSystemEntry QFileSystemEngine::canonicalName(const QFileSystemEntry &entry,
     if (entry.isEmpty() || entry.isRoot())
         return entry;
 
-#if !defined(Q_OS_MAC) && !defined(Q_OS_QNX) && _POSIX_VERSION < 200809L
+#if !defined(Q_OS_MAC) && !defined(Q_OS_QNX) && !defined(Q_OS_ANDROID) && _POSIX_VERSION < 200809L
     // realpath(X,0) is not supported
     Q_UNUSED(data);
     return QFileSystemEntry(slowCanonicalized(absoluteName(entry).filePath()));
 #else
     char *ret = 0;
-# if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+# if defined(Q_OS_MACX)
     // When using -mmacosx-version-min=10.4, we get the legacy realpath implementation,
     // which does not work properly with the realpath(X,0) form. See QTBUG-28282.
     if (QSysInfo::MacintoshVersion >= QSysInfo::MV_10_6) {
@@ -286,7 +286,7 @@ QString QFileSystemEngine::resolveUserName(uint userId)
 
     struct passwd *pw = 0;
 #if !defined(Q_OS_INTEGRITY)
-#if !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && !defined(Q_OS_OPENBSD)
+#if !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && !defined(Q_OS_OPENBSD) && !defined(Q_OS_VXWORKS)
     struct passwd entry;
     getpwuid_r(userId, &entry, buf.data(), buf.size(), &pw);
 #else
@@ -310,7 +310,7 @@ QString QFileSystemEngine::resolveGroupName(uint groupId)
 
     struct group *gr = 0;
 #if !defined(Q_OS_INTEGRITY)
-#if !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && !defined(Q_OS_OPENBSD)
+#if !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && !defined(Q_OS_OPENBSD) && !defined(Q_OS_VXWORKS)
     size_max = sysconf(_SC_GETGR_R_SIZE_MAX);
     if (size_max == -1)
         size_max = 1024;
@@ -335,7 +335,7 @@ QString QFileSystemEngine::resolveGroupName(uint groupId)
     return QString();
 }
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 //static
 QString QFileSystemEngine::bundleName(const QFileSystemEntry &entry)
 {
@@ -355,18 +355,16 @@ QString QFileSystemEngine::bundleName(const QFileSystemEntry &entry)
 bool QFileSystemEngine::fillMetaData(const QFileSystemEntry &entry, QFileSystemMetaData &data,
         QFileSystemMetaData::MetaDataFlags what)
 {
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     if (what & QFileSystemMetaData::BundleType) {
         if (!data.hasFlags(QFileSystemMetaData::DirectoryType))
             what |= QFileSystemMetaData::DirectoryType;
     }
-#    if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_5
     if (what & QFileSystemMetaData::HiddenAttribute) {
         // Mac OS >= 10.5: st_flags & UF_HIDDEN
         what |= QFileSystemMetaData::PosixStatFlags;
     }
-#   endif // MAC_OS_X_VERSION_MAX_ALLOWED...
-#endif // defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#endif // defined(Q_OS_MACX)
 
     if (what & QFileSystemMetaData::PosixStatFlags)
         what |= QFileSystemMetaData::PosixStatFlags;
@@ -427,7 +425,7 @@ bool QFileSystemEngine::fillMetaData(const QFileSystemEntry &entry, QFileSystemM
             | QFileSystemMetaData::ExistsAttribute;
     }
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     if (what & QFileSystemMetaData::AliasType)
     {
         if (entryExists) {
@@ -473,7 +471,7 @@ bool QFileSystemEngine::fillMetaData(const QFileSystemEntry &entry, QFileSystemM
         data.knownFlagsMask |= QFileSystemMetaData::HiddenAttribute;
     }
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     if (what & QFileSystemMetaData::BundleType) {
         if (entryExists && data.isDirectory()) {
             QCFType<CFStringRef> path = CFStringCreateWithBytes(0,
@@ -512,11 +510,12 @@ bool QFileSystemEngine::createDirectory(const QFileSystemEntry &entry, bool crea
             }
             if (slash) {
                 const QByteArray chunk = QFile::encodeName(dirName.left(slash));
-                QT_STATBUF st;
-                if (QT_STAT(chunk.constData(), &st) != -1) {
-                    if ((st.st_mode & S_IFMT) != S_IFDIR)
-                        return false;
-                } else if (QT_MKDIR(chunk.constData(), 0777) != 0) {
+                if (QT_MKDIR(chunk.constData(), 0777) != 0) {
+                    if (errno == EEXIST) {
+                        QT_STATBUF st;
+                        if (QT_STAT(chunk.constData(), &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR)
+                            continue;
+                    }
                     return false;
                 }
             }
@@ -685,8 +684,16 @@ QFileSystemEntry QFileSystemEngine::currentPath()
         }
 #else
         char currentName[PATH_MAX+1];
-        if (::getcwd(currentName, PATH_MAX))
+        if (::getcwd(currentName, PATH_MAX)) {
+#if defined(Q_OS_VXWORKS) && defined(VXWORKS_VXSIM)
+            QByteArray dir(currentName);
+            if (dir.indexOf(':') < dir.indexOf('/'))
+                dir.remove(0, dir.indexOf(':')+1);
+
+            qstrncpy(currentName, dir.constData(), PATH_MAX);
+#endif
             result = QFileSystemEntry(QByteArray(currentName), QFileSystemEntry::FromNativePath());
+        }
 # if defined(QT_DEBUG)
         if (result.isEmpty())
             qWarning("QFileSystemEngine::currentPath: getcwd() failed");

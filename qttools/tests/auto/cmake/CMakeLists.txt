@@ -33,10 +33,7 @@ if(NOT CMAKE_CROSSCOMPILING)
     expect_pass(test_translation_macros)
 endif()
 
-find_package(Qt5Widgets)
-if (Qt5Widgets_FOUND)
-    set(Qt5_MODULE_TEST_DEPENDS Xml Widgets)
-
+if (NOT NO_WIDGETS)
     test_module_includes(
       Designer QFormBuilder
       Help QHelpSearchQuery

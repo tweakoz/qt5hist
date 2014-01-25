@@ -651,7 +651,7 @@ QString ProcessAST::asString(AST::UiQualifiedId *node) const
     QString s;
 
     for (AST::UiQualifiedId *it = node; it; it = it->next) {
-        s.append(it->name.toString());
+        s.append(it->name);
 
         if (it->next)
             s.append(QLatin1Char('.'));
@@ -1318,13 +1318,15 @@ bool QQmlScript::Parser::parse(const QString &qmlcode, const QByteArray & /* pre
 
     QQmlJS::Parser parser(&data->engine);
 
-    if (! parser.parse() || !_errors.isEmpty()) {
+    if (! parser.parse() || !parser.diagnosticMessages().isEmpty()) {
 
         // Extract errors from the parser
         foreach (const DiagnosticMessage &m, parser.diagnosticMessages()) {
 
-            if (m.isWarning())
+            if (m.isWarning()) {
+                qWarning("%s:%d : %s", qPrintable(_scriptFile), m.loc.startLine, qPrintable(m.message));
                 continue;
+            }
 
             QQmlError error;
             error.setUrl(url);

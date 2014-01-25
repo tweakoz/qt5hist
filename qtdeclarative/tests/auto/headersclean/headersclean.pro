@@ -1,4 +1,2 @@
-QT = qml quick qmltest qmldevtools
+QT = qml quick qmltest
 load(qt_headersclean)
-# shadowing problems in scenegraph, allow it for now
-*-g++*: QMAKE_CXXFLAGS -= -Wshadow

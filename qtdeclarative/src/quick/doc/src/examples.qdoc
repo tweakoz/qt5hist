@@ -33,23 +33,25 @@
 \ingroup all-examples
 \ingroup qtquick
 \target qtquick-samples
-\inqmlmodule QtQuick 2
 
 These are code samples that show how to use various aspects of Qt Quick. Larger
 compound interfaces are grouped as applications as they demonstrate more Qt
 Quick features.
 
+Here is a list of fully-functional demo applications.
 To run the sample applications, open them in Qt Creator or use the included
 \l {Prototyping with qmlscene}{qmlscene} tool.
 
-Some of these code samples have a corresponding \l{qtquick-tutorials}{tutorial}.
+\annotatedlist{qtquickdemos}
+
+Some of these code samples below  have a corresponding \l{qtquick-tutorials}{tutorial}.
 The Qt Quick features are covered in the \l {qtquick-overviews}{main page}.
 This set of code samples are part of the collection of \l{Qt Examples}.
 
 \annotatedlist{qtquickexamples}
 
 The following examples show how a QML-based user interface can be combined with C++
-code using the \l{Qt Qml} Module.
+code using the \l{Qt QML} module.
 
 \annotatedlist{qmlextendingexamples}
 
@@ -127,11 +129,11 @@ code using the \l{Qt Qml} Module.
             Elements and Components
         \enddiv
         \list
-        \li \l{QML Types provided by the QtQuick Module}
+        \li \l{Qt Quick QML Types}
         \li \l{external: Qt Mobility QML Plugins}{QML Plugins}
         \li \l{external: Qt Quick Components for Symbian}{Symbian Components}
         \li MeeGo Components
-        \li \l{QtWebKit QML Module}
+        \li \l{Qt WebKit QML Types}
         \endlist
     \enddiv
     \div {class="threecolumn_piece"}

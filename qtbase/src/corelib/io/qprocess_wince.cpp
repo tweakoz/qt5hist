@@ -158,7 +158,7 @@ void QProcessPrivate::startProcess()
     if (!pid)
         return;
 
-    if (threadData->eventDispatcher) {
+    if (threadData->hasEventDispatcher()) {
         processFinishedNotifier = new QWinEventNotifier(pid->hProcess, q);
         QObject::connect(processFinishedNotifier, SIGNAL(activated(HANDLE)), q, SLOT(_q_processDied()));
         processFinishedNotifier->setEnabled(true);
@@ -231,6 +231,11 @@ bool QProcessPrivate::waitForStarted(int)
     processError = QProcess::Timedout;
     q->setErrorString(QProcess::tr("Process operation timed out"));
     return false;
+}
+
+bool QProcessPrivate::drainOutputPipes()
+{
+    return true;
 }
 
 bool QProcessPrivate::waitForReadyRead(int msecs)

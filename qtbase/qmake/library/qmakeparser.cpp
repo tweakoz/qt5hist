@@ -298,12 +298,12 @@ bool QMakeParser::read(ProFile *pro, const QString &in, int line, SubGrammar gra
     // Worst-case size calculations:
     // - line marker adds 1 (2-nl) to 1st token of each line
     // - empty assignment "A=":2 =>
-    //   TokHashLiteral(1) + hash(2) + len(1) + "A"(1) + TokAssign(1) +
-    //   TokValueTerminator(1) == 7 (8)
+    //   TokHashLiteral(1) + hash(2) + len(1) + "A"(1) + TokAssign(1) + 0(1) +
+    //   TokValueTerminator(1) == 8 (9)
     // - non-empty assignment "A=B C":5 =>
-    //   TokHashLiteral(1) + hash(2) + len(1) + "A"(1) + TokAssign(1) +
+    //   TokHashLiteral(1) + hash(2) + len(1) + "A"(1) + TokAssign(1) + 2(1) +
     //   TokLiteral(1) + len(1) + "B"(1) +
-    //   TokLiteral(1) + len(1) + "C"(1) + TokValueTerminator(1) == 13 (14)
+    //   TokLiteral(1) + len(1) + "C"(1) + TokValueTerminator(1) == 14 (15)
     // - variable expansion: "$$f":3 =>
     //   TokVariable(1) + hash(2) + len(1) + "f"(1) = 5
     // - function expansion: "$$f()":5 =>
@@ -1024,7 +1024,6 @@ void QMakeParser::finalizeCall(ushort *&tokPtr, ushort *uc, ushort *ptr, int arg
             m_tmp.setRawData((QChar *)uc + 4, nlen);
             const QString *defName;
             ushort defType;
-            uchar nest;
             if (m_tmp == statics.strfor) {
                 if (m_invert || m_operator == OrOperator) {
                     // '|' could actually work reasonably, but qmake does nonsense here.
@@ -1101,13 +1100,20 @@ void QMakeParser::finalizeCall(ushort *&tokPtr, ushort *uc, ushort *ptr, int arg
                 parseError(fL1S("%1(function) requires one literal argument.").arg(*defName));
                 return;
             } else if (m_tmp == statics.strreturn) {
-                if (argc > 1) {
-                    parseError(fL1S("return() requires zero or one argument."));
-                    bogusTest(tokPtr);
-                    return;
+                if (m_blockstack.top().nest & NestFunction) {
+                    if (argc > 1) {
+                        parseError(fL1S("return() requires zero or one argument."));
+                        bogusTest(tokPtr);
+                        return;
+                    }
+                } else {
+                    if (*uce != TokFuncTerminator) {
+                        parseError(fL1S("Top-level return() requires zero arguments."));
+                        bogusTest(tokPtr);
+                        return;
+                    }
                 }
                 defType = TokReturn;
-                nest = NestFunction;
                 goto ctrlstm2;
             } else if (m_tmp == statics.strnext) {
                 defType = TokNext;
@@ -1120,15 +1126,14 @@ void QMakeParser::finalizeCall(ushort *&tokPtr, ushort *uc, ushort *ptr, int arg
                     bogusTest(tokPtr);
                     return;
                 }
-                nest = NestLoop;
-              ctrlstm2:
-                if (m_invert) {
-                    parseError(fL1S("Unexpected NOT operator in front of %1().").arg(m_tmp));
+                if (!(m_blockstack.top().nest & NestLoop)) {
+                    parseError(fL1S("Unexpected %1().").arg(m_tmp));
                     bogusTest(tokPtr);
                     return;
                 }
-                if (!(m_blockstack.top().nest & nest)) {
-                    parseError(fL1S("Unexpected %1().").arg(m_tmp));
+              ctrlstm2:
+                if (m_invert) {
+                    parseError(fL1S("Unexpected NOT operator in front of %1().").arg(m_tmp));
                     bogusTest(tokPtr);
                     return;
                 }

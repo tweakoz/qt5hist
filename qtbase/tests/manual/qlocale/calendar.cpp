@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the examples of the Qt Toolkit.
+** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:BSD$
 ** You may use this file under the terms of the BSD license as follows:
@@ -38,9 +38,16 @@
 **
 ****************************************************************************/
 
-#include <QtWidgets>
-
 #include "calendar.h"
+
+#include <QComboBox>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QCalendarWidget>
+#include <QLabel>
+#include <QDateEdit>
+#include <QCheckBox>
+#include <QTextCharFormat>
 
 CalendarWidget::CalendarWidget()
 {
@@ -397,9 +404,9 @@ void CalendarWidget::createTextFormatsGroupBox()
 QComboBox *CalendarWidget::createColorComboBox()
 {
     QComboBox *comboBox = new QComboBox;
-    comboBox->addItem(tr("Red"), Qt::red);
-    comboBox->addItem(tr("Blue"), Qt::blue);
-    comboBox->addItem(tr("Black"), Qt::black);
-    comboBox->addItem(tr("Magenta"), Qt::magenta);
+    comboBox->addItem(tr("Red"), QColor(Qt::red));
+    comboBox->addItem(tr("Blue"), QColor(Qt::blue));
+    comboBox->addItem(tr("Black"), QColor(Qt::black));
+    comboBox->addItem(tr("Magenta"), QColor(Qt::magenta));
     return comboBox;
 }

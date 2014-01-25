@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the examples of the Qt Toolkit.
+** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -39,7 +39,14 @@
 **
 ****************************************************************************/
 
-#include <QtWidgets>
+#include <QMainWindow>
+#include <QApplication>
+#include <QColorDialog>
+#include <QFileDialog>
+#include <QFontDialog>
+#include <QInputDialog>
+#include <QMessageBox>
+#include <QSignalMapper>
 #include "ui_keypadnavigation.h"
 
 class KeypadNavigation : public QMainWindow

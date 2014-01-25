@@ -293,6 +293,8 @@ public:
     static QQuickTransform *transform_at(QQmlListProperty<QQuickTransform> *list, int);
     static void transform_clear(QQmlListProperty<QQuickTransform> *list);
 
+    void _q_resourceObjectDeleted(QObject *);
+
     enum ChangeType {
         Geometry = 0x01,
         SiblingOrder = 0x02,
@@ -363,6 +365,8 @@ public:
         Qt::MouseButtons acceptedMouseButtons;
 
         QQuickItem::TransformOrigin origin:5;
+
+        QObjectList resourcesList;
     };
     QLazilyAllocated<ExtraData> extra;
 
@@ -396,8 +400,8 @@ public:
     bool antialiasing:1;
     bool focus:1;
     bool activeFocus:1;
-    bool notifiedFocus:1;
     // Bit 16
+    bool notifiedFocus:1;
     bool notifiedActiveFocus:1;
     bool filtersChildMouseEvents:1;
     bool explicitVisible:1;
@@ -413,8 +417,8 @@ public:
     bool isAccessible:1;
     bool culled:1;
     bool hasCursor:1;
-    // bool dummy:1
     // Bit 32
+    bool activeFocusOnTab:1;
 
     enum DirtyType {
         TransformOrigin         = 0x00000001,
@@ -483,6 +487,12 @@ public:
     QTransform windowToItemTransform() const;
     QTransform itemToWindowTransform() const;
     void itemToParentTransform(QTransform &) const;
+
+    static bool focusNextPrev(QQuickItem *item, bool forward);
+    static QQuickItem *nextPrevItemInTabFocusChain(QQuickItem *item, bool forward);
+
+    static bool qt_tab_all_widgets(); //todo: move to QGuiApplication?
+    static bool canAcceptTabFocus(QQuickItem *item);
 
     qreal x;
     qreal y;
@@ -819,28 +829,9 @@ private:
     virtual void inputMethodEvent(QInputMethodEvent *, bool post);
     virtual QVariant inputMethodQuery(Qt::InputMethodQuery query) const;
 #endif
-    const QByteArray keyToSignal(int key) {
-        QByteArray keySignal;
-        if (key >= Qt::Key_0 && key <= Qt::Key_9) {
-            keySignal = "digit0Pressed";
-            keySignal[5] = '0' + (key - Qt::Key_0);
-        } else {
-            int i = 0;
-            while (sigMap[i].key && sigMap[i].key != key)
-                ++i;
-            keySignal = sigMap[i].sig;
-        }
-        return keySignal;
-    }
+    const QByteArray keyToSignal(int key);
 
     bool isConnected(const char *signalName);
-
-    struct SigMap {
-        int key;
-        const char *sig;
-    };
-
-    static const SigMap sigMap[];
 };
 
 Qt::MouseButtons QQuickItemPrivate::acceptedMouseButtons() const

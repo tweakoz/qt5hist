@@ -62,6 +62,7 @@
 #include <private/qfontengine_p.h>
 #include <private/qdatabuffer_p.h>
 #include <private/qtriangulatingstroker_p.h>
+#include <private/qopenglextensions_p.h>
 
 enum EngineMode {
     ImageDrawingMode,
@@ -81,12 +82,12 @@ QT_BEGIN_NAMESPACE
 class QGL2PaintEngineExPrivate;
 
 
-class QOpenGL2PaintEngineState : public QPainterState
+class QGL2PaintEngineState : public QPainterState
 {
 public:
-    QOpenGL2PaintEngineState(QOpenGL2PaintEngineState &other);
-    QOpenGL2PaintEngineState();
-    ~QOpenGL2PaintEngineState();
+    QGL2PaintEngineState(QGL2PaintEngineState &other);
+    QGL2PaintEngineState();
+    ~QGL2PaintEngineState();
 
     uint isNew : 1;
     uint needsClipBufferClear : 1;
@@ -140,11 +141,11 @@ public:
 
     virtual void setState(QPainterState *s);
     virtual QPainterState *createState(QPainterState *orig) const;
-    inline QOpenGL2PaintEngineState *state() {
-        return static_cast<QOpenGL2PaintEngineState *>(QPaintEngineEx::state());
+    inline QGL2PaintEngineState *state() {
+        return static_cast<QGL2PaintEngineState *>(QPaintEngineEx::state());
     }
-    inline const QOpenGL2PaintEngineState *state() const {
-        return static_cast<const QOpenGL2PaintEngineState *>(QPaintEngineEx::state());
+    inline const QGL2PaintEngineState *state() const {
+        return static_cast<const QGL2PaintEngineState *>(QPaintEngineEx::state());
     }
 
     void beginNativePainting();
@@ -155,7 +156,8 @@ public:
     void setRenderTextActive(bool);
 
     bool isNativePaintingActive() const;
-    bool supportsTransformations(QFontEngine *, const QTransform &) const { return true; }
+    bool requiresPretransformedGlyphPositions(QFontEngine *, const QTransform &) const { return false; }
+    bool shouldDrawCachedGlyphs(QFontEngine *, const QTransform &) const;
 private:
     Q_DISABLE_COPY(QGL2PaintEngineEx)
 };
@@ -190,7 +192,7 @@ public:
     void updateBrushUniforms();
     void updateMatrix();
     void updateCompositionMode();
-    void updateTextureFilter(GLenum target, GLenum wrapMode, bool smoothPixmapTransform, GLuint id = -1);
+    void updateTextureFilter(GLenum target, GLenum wrapMode, bool smoothPixmapTransform, GLuint id = GLuint(-1));
 
     void resetGLState();
 
@@ -226,6 +228,7 @@ public:
     void setBrush(const QBrush& brush);
     void transferMode(EngineMode newMode);
     bool prepareForDraw(bool srcPixelsAreOpaque); // returns true if the program has changed
+    bool prepareForCachedGlyphDraw(const QFontEngineGlyphCache &cache);
     inline void useSimpleShader();
     inline GLuint location(const QGLEngineShaderManager::Uniform uniform) {
         return shaderManager->getUniformLocation(uniform);
@@ -253,6 +256,8 @@ public:
     QGLContext *ctx;
     EngineMode mode;
     QFontEngineGlyphCache::Type glyphCacheType;
+
+    QOpenGLExtensions funcs;
 
     // Dirty flags
     bool matrixDirty; // Implies matrix uniforms are also dirty
@@ -315,9 +320,9 @@ void QGL2PaintEngineExPrivate::setVertexAttributePointer(unsigned int arrayIndex
 
     vertexAttribPointers[arrayIndex] = pointer;
     if (arrayIndex == QT_OPACITY_ATTR)
-        glVertexAttribPointer(arrayIndex, 1, GL_FLOAT, GL_FALSE, 0, pointer);
+        funcs.glVertexAttribPointer(arrayIndex, 1, GL_FLOAT, GL_FALSE, 0, pointer);
     else
-        glVertexAttribPointer(arrayIndex, 2, GL_FLOAT, GL_FALSE, 0, pointer);
+        funcs.glVertexAttribPointer(arrayIndex, 2, GL_FLOAT, GL_FALSE, 0, pointer);
 }
 
 QT_END_NAMESPACE

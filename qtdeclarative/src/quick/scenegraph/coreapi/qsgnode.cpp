@@ -49,6 +49,7 @@
 QT_BEGIN_NAMESPACE
 
 #ifndef QT_NO_DEBUG
+static bool qsg_leak_check = !qgetenv("QML_LEAK_CHECK").isEmpty();
 static int qt_node_count = 0;
 
 static void qt_print_node_count()
@@ -127,12 +128,12 @@ static void qt_print_node_count()
     before rendering starts.
     \value OwnsGeometry Only valid for QSGGeometryNode and QSGClipNode.
     The node has ownership over the QSGGeometry instance and will
-    delete it when the node is destroyed.
+    delete it when the node is destroyed or a geometry is assigned.
     \value OwnsMaterial Only valid for QSGGeometryNode. The node has ownership
-    over the material and will delete it when the node is destroyed.
+    over the material and will delete it when the node is destroyed or a material is assigned.
     \value OwnsOpaqueMaterial Only valid for QSGGeometryNode. The node has
     ownership over the opaque material and will delete it when the node is
-    destroyed.
+    destroyed or a material is assigned.
  */
 
 /*!
@@ -271,11 +272,13 @@ QSGNode::QSGNode(NodeType type)
 void QSGNode::init()
 {
 #ifndef QT_NO_DEBUG
-    ++qt_node_count;
-    static bool atexit_registered = false;
-    if (!atexit_registered) {
-        atexit(qt_print_node_count);
-        atexit_registered = true;
+    if (qsg_leak_check) {
+        ++qt_node_count;
+        static bool atexit_registered = false;
+        if (!atexit_registered) {
+            atexit(qt_print_node_count);
+            atexit_registered = true;
+        }
     }
 #endif
 }
@@ -289,9 +292,11 @@ void QSGNode::init()
 QSGNode::~QSGNode()
 {
 #ifndef QT_NO_DEBUG
-    --qt_node_count;
-    if (qt_node_count < 0)
-        qDebug("Node destroyed after qt_print_node_count() was called.");
+    if (qsg_leak_check) {
+        --qt_node_count;
+        if (qt_node_count < 0)
+            qDebug("Node destroyed after qt_print_node_count() was called.");
+    }
 #endif
     destroy();
 }

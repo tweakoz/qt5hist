@@ -159,8 +159,10 @@ void QQuickFolderListModelPrivate::_q_directoryUpdated(const QString &directory,
         data = list;
         q->beginRemoveRows(parent, fromIndex, toIndex);
         q->endRemoveRows();
-        q->beginInsertRows(parent, fromIndex, list.size()-1);
-        q->endInsertRows();
+        if (list.size() > 0) {
+            q->beginInsertRows(parent, fromIndex, list.size()-1);
+            q->endInsertRows();
+        }
         emit q->rowCountChanged();
     } else if (data.size() < list.size()) {
         //qDebug() << "File added. FromIndex: " << fromIndex << " toIndex: " << toIndex << " list size: " << list.size();
@@ -277,7 +279,27 @@ QString QQuickFolderListModelPrivate::resolvePath(const QUrl &path)
     The following example shows a FolderListModel being used to provide a list
     of QML files in a \l ListView:
 
-    \snippet qml/folderlistmodel.qml 0
+    \qml
+    import QtQuick 2.0
+    import Qt.labs.folderlistmodel 1.0
+
+    ListView {
+        width: 200; height: 400
+
+        FolderListModel {
+            id: folderModel
+            nameFilters: ["*.qml"]
+        }
+
+        Component {
+            id: fileDelegate
+            Text { text: fileName }
+        }
+
+        model: folderModel
+        delegate: fileDelegate
+    }
+    \endqml
 
     \section1 Path Separators
 
@@ -334,10 +356,10 @@ QVariant QQuickFolderListModel::data(const QModelIndex &index, int role) const
             rv = d->data.at(index.row()).size();
             break;
         case FileLastModifiedRole:
-            rv = d->data.at(index.row()).lastModified().date().toString(Qt::ISODate) + " " + d->data.at(index.row()).lastModified().time().toString();
+            rv = d->data.at(index.row()).lastModified();
             break;
         case FileLastReadRole:
-            rv = d->data.at(index.row()).lastRead().date().toString(Qt::ISODate) + " " + d->data.at(index.row()).lastRead().time().toString();
+            rv = d->data.at(index.row()).lastRead();
             break;
         case FileIsDirRole:
             rv = d->data.at(index.row()).isDir();

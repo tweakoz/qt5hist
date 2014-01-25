@@ -48,11 +48,13 @@
 #include <QStandardPaths>
 #include <QSignalSpy>
 #include <QDebug>
+#include <QBuffer>
 #include <QQmlComponent>
 #include <QQmlNetworkAccessManagerFactory>
 #include <QQmlExpression>
 #include <QQmlIncubationController>
 #include <private/qqmlengine_p.h>
+#include <private/qqmlabstracturlinterceptor_p.h>
 
 class tst_qqmlengine : public QQmlDataTest
 {
@@ -63,6 +65,7 @@ public:
 private slots:
     void rootContext();
     void networkAccessManager();
+    void synchronousNetworkAccessManager();
     void baseUrl();
     void contextForObject();
     void offlineStoragePath();
@@ -77,6 +80,8 @@ private slots:
     void multipleEngines();
     void qtqmlModule_data();
     void qtqmlModule();
+    void urlInterceptor_data();
+    void urlInterceptor();
 
 public slots:
     QObject *createAQObjectForOwnershipTest ()
@@ -126,6 +131,53 @@ void tst_qqmlengine::networkAccessManager()
     QVERIFY(engine->networkAccessManager() == factory.manager);
     delete engine;
 }
+
+class ImmediateReply : public QNetworkReply {
+
+    Q_OBJECT
+
+public:
+    ImmediateReply() {
+        setFinished(true);
+    }
+    virtual qint64 readData(char* , qint64 ) {
+        return 0;
+    }
+    virtual void abort() { }
+};
+
+class ImmediateManager : public QNetworkAccessManager {
+
+    Q_OBJECT
+
+public:
+    ImmediateManager(QObject *parent = 0) : QNetworkAccessManager(parent) {
+    }
+
+    QNetworkReply *createRequest(Operation, const QNetworkRequest & , QIODevice * outgoingData = 0) {
+        Q_UNUSED(outgoingData);
+        return new ImmediateReply;
+    }
+};
+
+class ImmediateFactory : public QQmlNetworkAccessManagerFactory {
+
+public:
+    QNetworkAccessManager *create(QObject *) {
+        return new ImmediateManager;
+    }
+};
+
+void tst_qqmlengine::synchronousNetworkAccessManager()
+{
+    ImmediateFactory factory;
+    QQmlEngine engine;
+    engine.setNetworkAccessManagerFactory(&factory);
+    QQmlComponent c(&engine, QUrl("myScheme://test.qml"));
+    // reply is finished, so should not be in loading state.
+    QVERIFY(!c.isLoading());
+}
+
 
 void tst_qqmlengine::baseUrl()
 {
@@ -623,6 +675,99 @@ void tst_qqmlengine::qtqmlModule()
     } else {
         QCOMPARE(c.errorString(), expectedError);
     }
+}
+
+class CustomSelector : public QQmlAbstractUrlInterceptor
+{
+public:
+    virtual QUrl intercept(const QUrl &url, QQmlAbstractUrlInterceptor::DataType d)
+    {
+        if (url.scheme() != QStringLiteral("file"))
+            return url;
+        if (!m_interceptionPoints.contains(d))
+            return url;
+
+        QString alteredPath = url.path();
+        int a = alteredPath.lastIndexOf('/');
+        if (a < 0)
+            a = 0;
+        alteredPath.insert(a, QStringLiteral("/intercepted"));
+
+        QUrl ret = url;
+        ret.setPath(alteredPath);
+        return ret;
+    }
+    QList<QQmlAbstractUrlInterceptor::DataType> m_interceptionPoints;
+};
+
+Q_DECLARE_METATYPE(QList<QQmlAbstractUrlInterceptor::DataType>);
+void tst_qqmlengine::urlInterceptor_data()
+{
+    QTest::addColumn<QUrl>("testFile");
+    QTest::addColumn<QList<QQmlAbstractUrlInterceptor::DataType> >("interceptionPoint");
+    QTest::addColumn<QString>("expectedFilePath");
+    QTest::addColumn<QString>("expectedChildString");
+    QTest::addColumn<QString>("expectedScriptString");
+    QTest::addColumn<QString>("expectedResolvedUrl");
+    QTest::addColumn<QString>("expectedAbsoluteUrl");
+
+    QTest::newRow("InterceptTypes")
+        << testFileUrl("interception/types/urlInterceptor.qml")
+        << (QList<QQmlAbstractUrlInterceptor::DataType>() << QQmlAbstractUrlInterceptor::QmlFile << QQmlAbstractUrlInterceptor::JavaScriptFile << QQmlAbstractUrlInterceptor::UrlString)
+        << testFileUrl("interception/types/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("intercepted")
+        << QStringLiteral("intercepted")
+        << testFileUrl("interception/types/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("file:///intercepted/doesNotExist.file");
+
+    QTest::newRow("InterceptQmlDir")
+        << testFileUrl("interception/qmldir/urlInterceptor.qml")
+        << (QList<QQmlAbstractUrlInterceptor::DataType>() << QQmlAbstractUrlInterceptor::QmldirFile << QQmlAbstractUrlInterceptor::UrlString)
+        << testFileUrl("interception/qmldir/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("intercepted")
+        << QStringLiteral("base file")
+        << testFileUrl("interception/qmldir/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("file:///intercepted/doesNotExist.file");
+
+    QTest::newRow("InterceptStrings")
+        << testFileUrl("interception/strings/urlInterceptor.qml")
+        << (QList<QQmlAbstractUrlInterceptor::DataType>() << QQmlAbstractUrlInterceptor::UrlString)
+        << testFileUrl("interception/strings/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("base file")
+        << QStringLiteral("base file")
+        << testFileUrl("interception/strings/intercepted/doesNotExist.file").toString()
+        << QStringLiteral("file:///intercepted/doesNotExist.file");
+}
+
+void tst_qqmlengine::urlInterceptor()
+{
+
+    QFETCH(QUrl, testFile);
+    QFETCH(QList<QQmlAbstractUrlInterceptor::DataType>, interceptionPoint);
+    QFETCH(QString, expectedFilePath);
+    QFETCH(QString, expectedChildString);
+    QFETCH(QString, expectedScriptString);
+    QFETCH(QString, expectedResolvedUrl);
+    QFETCH(QString, expectedAbsoluteUrl);
+
+    QQmlEngine e;
+    CustomSelector cs;
+    cs.m_interceptionPoints = interceptionPoint;
+    e.setUrlInterceptor(&cs);
+    QQmlComponent c(&e, testFile); //Note that this can get intercepted too
+    QObject *o = c.create();
+    if (!o)
+        qDebug() << c.errorString();
+    QVERIFY(o);
+    //Test a URL as a property initialization
+    QCOMPARE(o->property("filePath").toString(), expectedFilePath);
+    //Test a URL as a Type location
+    QCOMPARE(o->property("childString").toString(), expectedChildString);
+    //Test a URL as a Script location
+    QCOMPARE(o->property("scriptString").toString(), expectedScriptString);
+    //Test a URL as a resolveUrl() call
+    QCOMPARE(o->property("resolvedUrl").toString(), expectedResolvedUrl);
+    QCOMPARE(o->property("absoluteUrl").toString(), expectedAbsoluteUrl);
 }
 
 QTEST_MAIN(tst_qqmlengine)

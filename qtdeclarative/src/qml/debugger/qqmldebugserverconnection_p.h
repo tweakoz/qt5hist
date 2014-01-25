@@ -56,8 +56,6 @@
 // We mean it.
 //
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -69,7 +67,7 @@ public:
     virtual ~QQmlDebugServerConnection() {}
 
     virtual void setServer(QQmlDebugServer *server) = 0;
-    virtual void setPort(int port, bool bock, const QString &hostaddress) = 0;
+    virtual void setPortRange(int portFrom, int portTo, bool bock, const QString &hostaddress) = 0;
     virtual bool isConnected() const = 0;
     virtual void send(const QList<QByteArray> &messages) = 0;
     virtual void disconnect() = 0;
@@ -81,7 +79,5 @@ public:
 Q_DECLARE_INTERFACE(QQmlDebugServerConnection, QQmlDebugServerConnection_iid)
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QQMLDEBUGSERVERCONNECTION_H

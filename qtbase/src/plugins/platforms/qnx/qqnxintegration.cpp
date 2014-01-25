@@ -89,14 +89,14 @@
 #include <QtGui/QOpenGLContext>
 #endif
 
-#include <QtPlatformSupport/private/qsimpledrag_p.h>
+#include <private/qsimpledrag_p.h>
 
 #include <QtCore/QDebug>
 #include <QtCore/QHash>
 
 #include <errno.h>
 
-#ifdef QQNXINTEGRATION_DEBUG
+#if defined(QQNXINTEGRATION_DEBUG)
 #define qIntegrationDebug qDebug
 #else
 #define qIntegrationDebug QT_NO_QDEBUG_MACRO
@@ -139,9 +139,8 @@ QQnxIntegration::QQnxIntegration()
     // Open connection to QNX composition manager
     errno = 0;
     int result = screen_create_context(&m_screenContext, SCREEN_APPLICATION_CONTEXT);
-    if (result != 0) {
+    if (result != 0)
         qFatal("QQnx: failed to connect to composition manager, errno=%d", errno);
-    }
 
     // Not on BlackBerry, it has specialized event dispatcher which also handles navigator events
 #if !defined(Q_OS_BLACKBERRY) && defined(QQNX_PPS)
@@ -367,9 +366,8 @@ QPlatformClipboard *QQnxIntegration::clipboard() const
     qIntegrationDebug() << Q_FUNC_INFO;
 
 #if defined(QQNX_PPS)
-    if (!m_clipboard) {
+    if (!m_clipboard)
         m_clipboard = new QQnxClipboard;
-    }
 #endif
     return m_clipboard;
 }
@@ -442,9 +440,8 @@ void QQnxIntegration::createDisplays()
     errno = 0;
     int displayCount;
     int result = screen_get_context_property_iv(m_screenContext, SCREEN_PROPERTY_DISPLAY_COUNT, &displayCount);
-    if (result != 0) {
+    if (result != 0)
         qFatal("QQnxIntegration: failed to query display count, errno=%d", errno);
-    }
 
     if (displayCount < 1) {
         // Never happens, even if there's no display, libscreen returns 1
@@ -455,9 +452,8 @@ void QQnxIntegration::createDisplays()
     errno = 0;
     screen_display_t *displays = (screen_display_t *)alloca(sizeof(screen_display_t) * displayCount);
     result = screen_get_context_property_pv(m_screenContext, SCREEN_PROPERTY_DISPLAYS, (void **)displays);
-    if (result != 0) {
+    if (result != 0)
         qFatal("QQnxIntegration: failed to query displays, errno=%d", errno);
-    }
 
     // If it's primary, we create a QScreen for it even if it's not attached
     // since Qt will dereference QGuiApplication::primaryScreen()
@@ -486,6 +482,7 @@ void QQnxIntegration::createDisplay(screen_display_t display, bool isPrimary)
     QQnxScreen *screen = new QQnxScreen(m_screenContext, display, isPrimary);
     m_screens.append(screen);
     screenAdded(screen);
+    screen->adjustOrientation();
 
     QObject::connect(m_screenEventHandler, SIGNAL(newWindowCreated(void*)),
                      screen, SLOT(newWindowCreated(void*)));
@@ -495,6 +492,8 @@ void QQnxIntegration::createDisplay(screen_display_t display, bool isPrimary)
     QObject::connect(m_navigatorEventHandler, SIGNAL(rotationChanged(int)), screen, SLOT(setRotation(int)));
     QObject::connect(m_navigatorEventHandler, SIGNAL(windowGroupActivated(QByteArray)), screen, SLOT(activateWindowGroup(QByteArray)));
     QObject::connect(m_navigatorEventHandler, SIGNAL(windowGroupDeactivated(QByteArray)), screen, SLOT(deactivateWindowGroup(QByteArray)));
+    QObject::connect(m_navigatorEventHandler, SIGNAL(windowGroupStateChanged(QByteArray,Qt::WindowState)),
+            screen, SLOT(windowGroupStateChanged(QByteArray,Qt::WindowState)));
 }
 
 void QQnxIntegration::removeDisplay(QQnxScreen *screen)

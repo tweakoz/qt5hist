@@ -138,14 +138,14 @@ void tst_QQuickWorkerScript::messaging_data()
     QTest::newRow("variant list") << qVariantFromValue((QVariantList() << "a" << "b" << "c"));
     QTest::newRow("date time") << qVariantFromValue(QDateTime::currentDateTime());
 #ifndef QT_NO_REGEXP
-    // QtScript's QScriptValue -> QRegExp uses RegExp2 pattern syntax
+    // Qt Script's QScriptValue -> QRegExp uses RegExp2 pattern syntax
     QTest::newRow("regexp") << qVariantFromValue(QRegExp("^\\d\\d?$", Qt::CaseInsensitive, QRegExp::RegExp2));
 #endif
 }
 
 void tst_QQuickWorkerScript::messaging_sendQObjectList()
 {
-    // Not allowed to send QObjects other than QQuickListModelWorkerAgent
+    // Not allowed to send QObjects other than QQmlListModelWorkerAgent
     // instances. If objects are sent in a list, they will be sent as 'undefined'
     // js values.
 

@@ -62,15 +62,6 @@
 
 //#define DEBUG_RESOURCE_MATCH
 
-#if defined(Q_OS_VXWORKS)
-#  if defined(m_data)
-#    undef m_data
-#  endif
-#  if defined(m_len)
-#    undef m_len
-#  endif
-#endif
-
 QT_BEGIN_NAMESPACE
 
 
@@ -674,7 +665,7 @@ int QResourceRoot::findNode(const QString &_path, const QLocale &locale) const
             qDebug() << "   " << child+j << " :: " << name(child+j);
         }
 #endif
-        const uint h = qt_hash(segment.toString());
+        const uint h = qt_hash(segment);
 
         //do the binary search for the hash
         int l = 0, r = child_count-1;

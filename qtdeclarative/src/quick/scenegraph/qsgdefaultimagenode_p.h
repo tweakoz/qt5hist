@@ -40,13 +40,11 @@
 ****************************************************************************/
 
 
-#ifndef DEFAULT_PIXMAPNODE_H
-#define DEFAULT_PIXMAPNODE_H
+#ifndef QSGDEFAULTIMAGENODE_P_H
+#define QSGDEFAULTIMAGENODE_P_H
 
 #include <private/qsgadaptationlayer_p.h>
 #include <QtQuick/qsgtexturematerial.h>
-
-QT_BEGIN_HEADER
 
 QT_BEGIN_NAMESPACE
 
@@ -62,7 +60,7 @@ protected:
     virtual QSGMaterialShader *createShader() const;
 };
 
-class QSGDefaultImageNode : public QSGImageNode
+class Q_QUICK_PRIVATE_EXPORT QSGDefaultImageNode : public QSGImageNode
 {
 public:
     QSGDefaultImageNode();
@@ -102,7 +100,5 @@ private:
 };
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif

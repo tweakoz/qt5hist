@@ -51,8 +51,7 @@
 #include <QtQuick/private/qquickitem_p.h>
 #include <QtQuick/private/qquickgridview_p.h>
 #include <QtQuick/private/qquicktext_p.h>
-#include <QtQuick/private/qquickvisualitemmodel_p.h>
-#include <QtQml/private/qquicklistmodel_p.h>
+#include <QtQml/private/qqmllistmodel_p.h>
 #include "../../shared/util.h"
 #include "../shared/viewtestutil.h"
 #include "../shared/visualtestutil.h"
@@ -533,6 +532,7 @@ void tst_QQuickGridView::inserted_defaultLayout(QQuickGridView::Flow flow,
     for (int i=0; i<insertCount; i++)
         newData << qMakePair(QString("value %1").arg(i), QString::number(i));
     model.insertItems(insertIndex, newData);
+    gridview->forceLayout();
     QTRY_COMPARE(gridview->property("count").toInt(), model.count());
 
     // check visibleItems.first() is in correct position
@@ -729,6 +729,7 @@ void tst_QQuickGridView::insertBeforeVisible()
     for (int i=0; i<insertCount; i++)
         newData << qMakePair(QString("value %1").arg(i), QString::number(i));
     model.insertItems(insertIndex, newData);
+    gridview->forceLayout();
     QTRY_COMPARE(gridview->property("count").toInt(), model.count());
 
     // now, moving to the top of the view should position the inserted items correctly
@@ -959,6 +960,7 @@ void tst_QQuickGridView::removed_defaultLayout(QQuickGridView::Flow flow,
         QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
 
     model.removeItems(removeIndex, removeCount);
+    gridview->forceLayout();
     QTRY_COMPARE(gridview->property("count").toInt(), model.count());
 
     QString firstName;
@@ -1246,6 +1248,7 @@ void tst_QQuickGridView::clear()
     QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
 
     model.clear();
+    gridview->forceLayout();
 
     QVERIFY(gridview->count() == 0);
     QVERIFY(gridview->currentItem() == 0);
@@ -1255,6 +1258,7 @@ void tst_QQuickGridView::clear()
 
     // confirm sanity when adding an item to cleared list
     model.addItem("New", "1");
+    gridview->forceLayout();
     QTRY_COMPARE(gridview->count(), 1);
     QVERIFY(gridview->currentItem() != 0);
     QVERIFY(gridview->currentIndex() == 0);
@@ -2435,7 +2439,7 @@ void tst_QQuickGridView::modelChanges()
     QQuickGridView *gridView = window->rootObject()->findChild<QQuickGridView*>("gridView");
     QTRY_VERIFY(gridView);
 
-    QQuickListModel *alternateModel = window->rootObject()->findChild<QQuickListModel*>("alternateModel");
+    QQmlListModel *alternateModel = window->rootObject()->findChild<QQmlListModel*>("alternateModel");
     QTRY_VERIFY(alternateModel);
     QVariant modelVariant = QVariant::fromValue<QObject *>(alternateModel);
     QSignalSpy modelSpy(gridView, SIGNAL(modelChanged()));
@@ -2871,7 +2875,8 @@ void tst_QQuickGridView::enforceRange_rightToLeft()
     ctxt->setContextProperty("testTopToBottom", QVariant(true));
 
     window->setSource(testFileUrl("gridview-enforcerange.qml"));
-    qApp->processEvents();
+    window->show();
+    QTRY_VERIFY(window->isExposed());
     QVERIFY(window->rootObject() != 0);
 
     QQuickGridView *gridview = findItem<QQuickGridView>(window->rootObject(), "grid");
@@ -3483,6 +3488,7 @@ void tst_QQuickGridView::extents()
     QCOMPARE(gridview->originY(), origin_empty.y());
     for (int i=0; i<30; i++)
         model.addItem("Item" + QString::number(i), "");
+    gridview->forceLayout();
     QTRY_COMPARE(gridview->count(), model.count());
     QCOMPARE(gridview->originX(), origin_nonEmpty.x());
     QCOMPARE(gridview->originY(), origin_nonEmpty.y());
@@ -3942,9 +3948,9 @@ void tst_QQuickGridView::onAdd()
     ctxt->setContextProperty("delegateHeight", delegateHeight);
     window->setSource(testFileUrl("attachedSignals.qml"));
 
-    QObject *object = window->rootObject();
-    object->setProperty("width", window->width());
-    object->setProperty("height", window->height());
+    QQuickGridView *gridview = qobject_cast<QQuickGridView*>(window->rootObject());
+    gridview->setProperty("width", window->width());
+    gridview->setProperty("height", window->height());
     qApp->processEvents();
 
     QList<QPair<QString, QString> > items;
@@ -3952,10 +3958,11 @@ void tst_QQuickGridView::onAdd()
         items << qMakePair(QString("value %1").arg(i), QString::number(i));
     model.addItems(items);
 
-    QTRY_COMPARE(model.count(), qobject_cast<QQuickGridView*>(window->rootObject())->count());
+    gridview->forceLayout();
+    QTRY_COMPARE(model.count(), gridview->count());
     qApp->processEvents();
 
-    QVariantList result = object->property("addedDelegates").toList();
+    QVariantList result = gridview->property("addedDelegates").toList();
     QTRY_COMPARE(result.count(), items.count());
     for (int i=0; i<items.count(); i++)
         QCOMPARE(result[i].toString(), items[i].first);
@@ -3999,11 +4006,12 @@ void tst_QQuickGridView::onRemove()
     ctxt->setContextProperty("delegateWidth", delegateWidth);
     ctxt->setContextProperty("delegateHeight", delegateHeight);
     window->setSource(testFileUrl("attachedSignals.qml"));
-    QObject *object = window->rootObject();
+    QQuickGridView *gridview = qobject_cast<QQuickGridView*>(window->rootObject());
 
     model.removeItems(indexToRemove, removeCount);
-    QTRY_COMPARE(model.count(), qobject_cast<QQuickGridView*>(window->rootObject())->count());
-    QCOMPARE(object->property("removedDelegateCount"), QVariant(removeCount));
+    gridview->forceLayout();
+    QTRY_COMPARE(model.count(), gridview->count());
+    QCOMPARE(gridview->property("removedDelegateCount"), QVariant(removeCount));
 
     releaseView(window);
 }
@@ -4151,6 +4159,7 @@ void tst_QQuickGridView::margins()
         gridview->setContentX(-400);
         QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
         model.removeItems(0, 4);
+        gridview->forceLayout();
         QTRY_COMPARE(model.count(), gridview->count());
         gridview->setContentX(-240+50);
         gridview->returnToBounds();
@@ -4308,22 +4317,22 @@ void tst_QQuickGridView::snapOneRow_data()
     QTest::addColumn<qreal>("startExtent");
 
     QTest::newRow("vertical, left to right") << QQuickGridView::FlowLeftToRight << Qt::LeftToRight << int(QQuickItemView::NoHighlightRange)
-        << QPoint(20, 200) << QPoint(20, 20) << 100.0 << 240.0 << 0.0;
+        << QPoint(20, 160) << QPoint(20, 20) << 100.0 << 240.0 << 0.0;
 
     QTest::newRow("horizontal, left to right") << QQuickGridView::FlowTopToBottom << Qt::LeftToRight << int(QQuickItemView::NoHighlightRange)
-        << QPoint(200, 20) << QPoint(20, 20) << 100.0 << 240.0 << 0.0;
+        << QPoint(160, 20) << QPoint(20, 20) << 100.0 << 240.0 << 0.0;
 
     QTest::newRow("horizontal, right to left") << QQuickGridView::FlowTopToBottom << Qt::RightToLeft << int(QQuickItemView::NoHighlightRange)
-        << QPoint(20, 20) << QPoint(200, 20) << -340.0 << -240.0 - 240.0 << -240.0;
+        << QPoint(20, 20) << QPoint(160, 20) << -340.0 << -240.0 - 240.0 << -240.0;
 
     QTest::newRow("vertical, left to right, enforce range") << QQuickGridView::FlowLeftToRight << Qt::LeftToRight << int(QQuickItemView::StrictlyEnforceRange)
-        << QPoint(20, 200) << QPoint(20, 20) << 100.0 << 340.0 << -20.0;
+        << QPoint(20, 160) << QPoint(20, 20) << 100.0 << 340.0 << -20.0;
 
     QTest::newRow("horizontal, left to right, enforce range") << QQuickGridView::FlowTopToBottom << Qt::LeftToRight << int(QQuickItemView::StrictlyEnforceRange)
-        << QPoint(200, 20) << QPoint(20, 20) << 100.0 << 340.0 << -20.0;
+        << QPoint(160, 20) << QPoint(20, 20) << 100.0 << 340.0 << -20.0;
 
     QTest::newRow("horizontal, right to left, enforce range") << QQuickGridView::FlowTopToBottom << Qt::RightToLeft << int(QQuickItemView::StrictlyEnforceRange)
-        << QPoint(20, 20) << QPoint(200, 20) << -340.0 << -240.0 - 240.0 - 100.0 << -220.0;
+        << QPoint(20, 20) << QPoint(160, 20) << -340.0 << -240.0 - 240.0 - 100.0 << -220.0;
 }
 
 void tst_QQuickGridView::snapOneRow()
@@ -4458,6 +4467,7 @@ void tst_QQuickGridView::unaligned()
 
     // removing
     model.removeItems(7, 10);
+    gridview->forceLayout();
     QTRY_COMPARE(model.count(), gridview->count());
     for (int i = 0; i < 18; ++i) {
         QQuickItem *item = 0;
@@ -4663,6 +4673,7 @@ void tst_QQuickGridView::addTransitions()
     // start animation
     if (!newData.isEmpty()) {
         model.insertItems(insertionIndex, newData);
+        gridview->forceLayout();
         QTRY_COMPARE(model.count(), gridview->count());
     }
 
@@ -4866,6 +4877,7 @@ void tst_QQuickGridView::moveTransitions()
 
     // start animation
     model.moveItems(moveFrom, moveTo, moveCount);
+    gridview->forceLayout();
 
     QTRY_COMPARE(gridview->property("targetTransitionsDone").toInt(), expectedTargetData.count());
     QTRY_COMPARE(gridview->property("displaceTransitionsDone").toInt(),
@@ -5114,6 +5126,7 @@ void tst_QQuickGridView::removeTransitions()
 
     // start animation
     model.removeItems(removalIndex, removalCount);
+    gridview->forceLayout();
     QTRY_COMPARE(model.count(), gridview->count());
 
     if (shouldAnimateTargets || expectedDisplacedIndexes.isValid()) {
@@ -5327,6 +5340,7 @@ void tst_QQuickGridView::displacedTransitions()
         case ListChange::Polish:
             break;
     }
+    gridview->forceLayout();
 
     QVariantList resultTargetIndexes = gridview->property("displacedTargetIndexes").toList();
     QVariantList resultTargetItems = gridview->property("displacedTargetItems").toList();
@@ -5534,6 +5548,7 @@ void tst_QQuickGridView::multipleTransitions()
                 for (int j=changes[i].index; j<changes[i].index + changes[i].count; ++j)
                     targetItems << qMakePair(QString("new item %1").arg(j), QString::number(j));
                 model.insertItems(changes[i].index, targetItems);
+                gridview->forceLayout();
                 QTRY_COMPARE(model.count(), gridview->count());
                 if (i == changes.count() - 1) {
                     QTRY_VERIFY(!gridview->property("runningAddTargets").toBool());
@@ -5545,6 +5560,7 @@ void tst_QQuickGridView::multipleTransitions()
             }
             case ListChange::Removed:
                 model.removeItems(changes[i].index, changes[i].count);
+                gridview->forceLayout();
                 QTRY_COMPARE(model.count(), gridview->count());
                 if (i == changes.count() - 1) {
                     QTRY_VERIFY(!gridview->property("runningRemoveTargets").toBool());
@@ -5555,6 +5571,7 @@ void tst_QQuickGridView::multipleTransitions()
                 break;
             case ListChange::Moved:
                 model.moveItems(changes[i].index, changes[i].to, changes[i].count);
+                gridview->forceLayout();
                 QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
                 if (i == changes.count() - 1) {
                     QTRY_VERIFY(!gridview->property("runningMoveTargets").toBool());
@@ -5566,16 +5583,17 @@ void tst_QQuickGridView::multipleTransitions()
             case ListChange::SetCurrent:
                 gridview->setCurrentIndex(changes[i].index);
                 QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
+                gridview->forceLayout();
                 break;
             case ListChange::SetContentY:
                 gridview->setContentY(changes[i].pos);
                 QTRY_COMPARE(QQuickItemPrivate::get(gridview)->polishScheduled, false);
+                gridview->forceLayout();
                 break;
             case ListChange::Polish:
                 break;
         }
     }
-    QCOMPARE(gridview->count(), model.count());
 
     QList<QQuickItem*> items = findItems<QQuickItem>(contentItem, "wrapper");
     int firstVisibleIndex = -1;
@@ -5586,6 +5604,7 @@ void tst_QQuickGridView::multipleTransitions()
             break;
         }
     }
+    QTRY_COMPARE(gridview->count(), model.count());
     QVERIFY2(firstVisibleIndex >= 0, QTest::toString(firstVisibleIndex));
 
     // verify all items moved to the correct final positions

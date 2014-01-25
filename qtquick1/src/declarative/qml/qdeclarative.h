@@ -49,9 +49,8 @@
 #include <QtDeclarative/qdeclarativelist.h>
 
 #include <QtCore/qbytearray.h>
+#include <QtCore/qurl.h>
 #include <QtCore/qmetaobject.h>
-
-QT_BEGIN_HEADER
 
 #define QML_DECLARE_TYPE(TYPE) \
     Q_DECLARE_METATYPE(TYPE *) \
@@ -390,13 +389,33 @@ int qmlRegisterCustomType(const char *uri, int versionMajor, int versionMinor,
     return QDeclarativePrivate::qmlregister(QDeclarativePrivate::TypeRegistration, &type);
 }
 
+inline int qmlRegisterType(const QUrl &url, const char *uri, int versionMajor, int versionMinor, const char *qmlName)
+{
+    QDeclarativePrivate::RegisterComponent type = {
+        url,
+        uri,
+        qmlName,
+        versionMajor,
+        versionMinor
+    };
+
+    return QDeclarativePrivate::qmlregister(QDeclarativePrivate::ComponentRegistration, &type);
+}
+
 class QDeclarativeContext;
 class QDeclarativeEngine;
-Q_DECLARATIVE_EXPORT void qmlExecuteDeferred(QObject *);
-Q_DECLARATIVE_EXPORT QDeclarativeContext *qmlContext(const QObject *);
-Q_DECLARATIVE_EXPORT QDeclarativeEngine *qmlEngine(const QObject *);
-Q_DECLARATIVE_EXPORT QObject *qmlAttachedPropertiesObjectById(int, const QObject *, bool create = true);
-Q_DECLARATIVE_EXPORT QObject *qmlAttachedPropertiesObject(int *, const QObject *, const QMetaObject *, bool create);
+
+namespace QtDeclarative {
+    // declared in namespace to avoid symbol conflicts with QtQml
+    Q_DECLARATIVE_EXPORT void qmlExecuteDeferred(QObject *);
+    Q_DECLARATIVE_EXPORT QDeclarativeContext *qmlContext(const QObject *);
+    Q_DECLARATIVE_EXPORT QDeclarativeEngine *qmlEngine(const QObject *);
+    Q_DECLARATIVE_EXPORT QObject *qmlAttachedPropertiesObjectById(int, const QObject *,
+                                                                  bool create = true);
+    Q_DECLARATIVE_EXPORT QObject *qmlAttachedPropertiesObject(int *, const QObject *,
+                                                              const QMetaObject *, bool create);
+}
+using namespace QtDeclarative;
 
 template<typename T>
 QObject *qmlAttachedPropertiesObject(const QObject *obj, bool create = true)
@@ -409,7 +428,5 @@ QT_END_NAMESPACE
 
 QML_DECLARE_TYPE(QObject)
 Q_DECLARE_METATYPE(QVariant)
-
-QT_END_HEADER
 
 #endif // QDECLARATIVE_H

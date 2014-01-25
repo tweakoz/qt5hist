@@ -56,6 +56,8 @@ class SimpleFontData;
 typedef cairo_glyph_t GlyphBufferGlyph;
 #elif OS(WINCE)
 typedef wchar_t GlyphBufferGlyph;
+#elif PLATFORM(QT)
+typedef quint32 GlyphBufferGlyph;
 #else
 typedef Glyph GlyphBufferGlyph;
 #endif
@@ -88,6 +90,18 @@ public:
 
 private:
     float advance;
+};
+#elif PLATFORM(QT)
+struct GlyphBufferAdvance : public QPointF {
+public:
+    GlyphBufferAdvance(const QPointF& advance)
+        : QPointF(advance)
+    {
+    }
+
+    void setWidth(qreal width) { QPointF::setX(width); }
+    qreal width() const { return QPointF::x(); }
+    qreal height() const { return QPointF::y(); }
 };
 #else
 typedef FloatSize GlyphBufferAdvance;
@@ -139,6 +153,16 @@ public:
 #endif
     }
 
+    void add(const GlyphBuffer* glyphBuffer, int from, int len)
+    {
+        m_glyphs.append(glyphBuffer->glyphs(from), len);
+        m_advances.append(glyphBuffer->advances(from), len);
+        m_fontData.append(glyphBuffer->m_fontData.data() + from, len);
+#if PLATFORM(WIN)
+        m_offsets.append(glyphBuffer->m_offsets.data() + from, len);
+#endif
+    }
+
     void add(Glyph glyph, const SimpleFontData* font, float width, const FloatSize* offset = 0)
     {
         m_fontData.append(font);
@@ -156,6 +180,8 @@ public:
         m_advances.append(advance);
 #elif OS(WINCE)
         m_advances.append(width);
+#elif PLATFORM(QT)
+        m_advances.append(QPointF(width, 0));
 #else
         m_advances.append(FloatSize(width, 0));
 #endif

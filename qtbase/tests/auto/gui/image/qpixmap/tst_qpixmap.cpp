@@ -114,6 +114,7 @@ private slots:
 
     void convertFromImageNoDetach();
     void convertFromImageDetach();
+    void convertFromImageCacheKey();
 
 #if defined(Q_OS_WIN)
     void toWinHBITMAP_data();
@@ -782,6 +783,28 @@ void tst_QPixmap::convertFromImageDetach()
     QVERIFY(copy.isDetached());
 }
 
+void tst_QPixmap::convertFromImageCacheKey()
+{
+    QPixmap randomPixmap(10, 10);
+    if (randomPixmap.handle()->classId() != QPlatformPixmap::RasterClass)
+        QSKIP("Test only valid for raster pixmaps");
+
+    //first get the screen format
+    QImage::Format screenFormat = randomPixmap.toImage().format();
+    QVERIFY(screenFormat != QImage::Format_Invalid);
+
+    QImage orig(100,100, screenFormat);
+    orig.fill(0);
+
+    QPixmap pix = QPixmap::fromImage(orig);
+    QImage copy = pix.toImage();
+
+    QVERIFY(copy.format() == screenFormat);
+
+    QCOMPARE(orig.cacheKey(), pix.cacheKey());
+    QCOMPARE(copy.cacheKey(), pix.cacheKey());
+}
+
 #if defined(Q_OS_WIN)
 
 QT_BEGIN_NAMESPACE
@@ -982,6 +1005,7 @@ void tst_QPixmap::fromWinHICON_data()
 
 void tst_QPixmap::fromWinHICON()
 {
+#ifndef Q_OS_WINCE
     QFETCH(int, width);
     QFETCH(int, height);
     QFETCH(QString, image);
@@ -997,6 +1021,7 @@ void tst_QPixmap::fromWinHICON()
     // between QImage::Format_ARGB32 and QImage::Format_ARGB32_Premultiplied, or elsewhere
 
     QVERIFY(compareImages(imageFromHICON, imageFromFile));
+#endif // Q_OS_WINCE
 }
 
 #endif // Q_OS_WIN

@@ -50,8 +50,6 @@
 #include <QtCore/QObject>
 #include <QtGui/QPainterPath>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class QQuickCurve;
@@ -395,6 +393,15 @@ Q_SIGNALS:
 protected:
     virtual void componentComplete();
     virtual void classBegin();
+    void disconnectPathElements();
+    void connectPathElements();
+    void gatherAttributes();
+
+    // pathElements property
+    static QQuickPathElement *pathElements_at(QQmlListProperty<QQuickPathElement> *, int);
+    static void pathElements_append(QQmlListProperty<QQuickPathElement> *, QQuickPathElement *);
+    static int pathElements_count(QQmlListProperty<QQuickPathElement> *);
+    static void pathElements_clear(QQmlListProperty<QQuickPathElement> *);
 
 private Q_SLOTS:
     void processPath();
@@ -445,7 +452,5 @@ QML_DECLARE_TYPE(QQuickPathArc)
 QML_DECLARE_TYPE(QQuickPathSvg)
 QML_DECLARE_TYPE(QQuickPathPercent)
 QML_DECLARE_TYPE(QQuickPath)
-
-QT_END_HEADER
 
 #endif // QQUICKPATH_H

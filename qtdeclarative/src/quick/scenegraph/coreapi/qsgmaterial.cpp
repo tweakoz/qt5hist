@@ -44,6 +44,10 @@
 
 QT_BEGIN_NAMESPACE
 
+#ifndef QT_NO_DEBUG
+static bool qsg_leak_check = !qgetenv("QML_LEAK_CHECK").isEmpty();
+#endif
+
 /*!
     \group qtquick-scenegraph-materials
     \title Qt Quick Scene Graph Material Classes
@@ -412,6 +416,12 @@ QMatrix4x4 QSGMaterialShader::RenderState::combinedMatrix() const
     return static_cast<const QSGRenderer *>(m_data)->currentCombinedMatrix();
 }
 
+float QSGMaterialShader::RenderState::devicePixelRatio() const
+{
+    Q_ASSERT(m_data);
+    return static_cast<const QSGRenderer *>(m_data)->devicePixelRatio();
+}
+
 
 
 /*!
@@ -436,6 +446,16 @@ QMatrix4x4 QSGMaterialShader::RenderState::modelViewMatrix() const
 {
     Q_ASSERT(m_data);
     return static_cast<const QSGRenderer *>(m_data)->currentModelViewMatrix();
+}
+
+/*!
+    Returns the projection matrix.
+ */
+
+QMatrix4x4 QSGMaterialShader::RenderState::projectionMatrix() const
+{
+    Q_ASSERT(m_data);
+    return static_cast<const QSGRenderer *>(m_data)->currentProjectionMatrix();
 }
 
 
@@ -536,13 +556,16 @@ static void qt_print_material_count()
 
 QSGMaterial::QSGMaterial()
     : m_flags(0)
+    , m_reserved(0)
 {
 #ifndef QT_NO_DEBUG
-    ++qt_material_count;
-    static bool atexit_registered = false;
-    if (!atexit_registered) {
-        atexit(qt_print_material_count);
-        atexit_registered = true;
+    if (qsg_leak_check) {
+        ++qt_material_count;
+        static bool atexit_registered = false;
+        if (!atexit_registered) {
+            atexit(qt_print_material_count);
+            atexit_registered = true;
+        }
     }
 #endif
 }
@@ -555,9 +578,11 @@ QSGMaterial::QSGMaterial()
 QSGMaterial::~QSGMaterial()
 {
 #ifndef QT_NO_DEBUG
-    --qt_material_count;
-    if (qt_material_count < 0)
-        qDebug("Material destroyed after qt_print_material_count() was called.");
+    if (qsg_leak_check) {
+        --qt_material_count;
+        if (qt_material_count < 0)
+            qDebug("Material destroyed after qt_print_material_count() was called.");
+    }
 #endif
 }
 

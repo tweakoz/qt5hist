@@ -50,6 +50,9 @@
    The operating system, must be one of: (Q_OS_x)
 
      DARWIN   - Darwin OS (synonym for Q_OS_MAC)
+     MAC      - OS X or iOS (synonym for Q_OS_DARWIN)
+     MACX     - OS X
+     IOS      - iOS
      MSDOS    - MS-DOS and Windows
      OS2      - OS/2
      OS2EMX   - XFree86 on OS/2 (not PM)
@@ -78,6 +81,7 @@
      LYNX     - LynxOS
      BSD4     - Any BSD 4.4 system
      UNIX     - Any UNIX BSD/SYSV system
+     ANDROID  - Android platform
 */
 
 #if defined(__APPLE__) && (defined(__GNUC__) || defined(__xlC__) || defined(__xlc__))
@@ -88,6 +92,9 @@
 #  else
 #    define Q_OS_DARWIN32
 #  endif
+#elif defined(ANDROID)
+#  define Q_OS_ANDROID
+#  define Q_OS_LINUX
 #elif defined(__CYGWIN__)
 #  define Q_OS_CYGWIN
 #elif !defined(SAG_COM) && (defined(WIN64) || defined(_WIN64) || defined(__WIN64__))
@@ -160,11 +167,16 @@
 
 #if defined(Q_OS_DARWIN)
 #  define Q_OS_MAC
-#  define Q_OS_MACX /* Q_OS_MACX is only for compatibility.*/
 #  if defined(Q_OS_DARWIN64)
 #     define Q_OS_MAC64
 #  elif defined(Q_OS_DARWIN32)
 #     define Q_OS_MAC32
+#  endif
+#  include <TargetConditionals.h>
+#  if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
+#     define Q_OS_IOS
+#  else
+#     define Q_OS_MACX
 #  endif
 #endif
 
@@ -175,31 +187,60 @@
 #endif
 
 #ifdef Q_OS_DARWIN
-#  ifdef MAC_OS_X_VERSION_MIN_REQUIRED
-#    undef MAC_OS_X_VERSION_MIN_REQUIRED
+#  include <Availability.h>
+#  if !defined(__MAC_OS_X_VERSION_MIN_REQUIRED) || __MAC_OS_X_VERSION_MIN_REQUIRED < __MAC_10_6
+#     undef __MAC_OS_X_VERSION_MIN_REQUIRED
+#     define __MAC_OS_X_VERSION_MIN_REQUIRED __MAC_10_6
 #  endif
-#  define MAC_OS_X_VERSION_MIN_REQUIRED MAC_OS_X_VERSION_10_4
 #  include <AvailabilityMacros.h>
-#  if !defined(MAC_OS_X_VERSION_10_3)
-#     define MAC_OS_X_VERSION_10_3 MAC_OS_X_VERSION_10_2 + 1
+#  if !defined(MAC_OS_X_VERSION_MIN_REQUIRED) || MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_X_VERSION_10_6
+#     undef MAC_OS_X_VERSION_MIN_REQUIRED
+#     define MAC_OS_X_VERSION_MIN_REQUIRED MAC_OS_X_VERSION_10_6
 #  endif
-#  if !defined(MAC_OS_X_VERSION_10_4)
-#       define MAC_OS_X_VERSION_10_4 MAC_OS_X_VERSION_10_3 + 1
+#
+#  // Numerical checks are preferred to named checks, but to be safe
+#  // we define the missing version names in case Qt uses them.
+#
+#  if !defined(__MAC_10_7)
+#       define __MAC_10_7 1070
 #  endif
-#  if !defined(MAC_OS_X_VERSION_10_5)
-#       define MAC_OS_X_VERSION_10_5 MAC_OS_X_VERSION_10_4 + 1
+#  if !defined(__MAC_10_8)
+#       define __MAC_10_8 1080
 #  endif
-#  if !defined(MAC_OS_X_VERSION_10_6)
-#       define MAC_OS_X_VERSION_10_6 MAC_OS_X_VERSION_10_5 + 1
+#  if !defined(__MAC_10_9)
+#       define __MAC_10_9 1090
 #  endif
 #  if !defined(MAC_OS_X_VERSION_10_7)
-#       define MAC_OS_X_VERSION_10_7 MAC_OS_X_VERSION_10_6 + 1
+#       define MAC_OS_X_VERSION_10_7 1070
 #  endif
 #  if !defined(MAC_OS_X_VERSION_10_8)
-#       define MAC_OS_X_VERSION_10_8 MAC_OS_X_VERSION_10_7 + 1
+#       define MAC_OS_X_VERSION_10_8 1080
 #  endif
-#  if (MAC_OS_X_VERSION_MAX_ALLOWED > MAC_OS_X_VERSION_10_8)
-#    warning "This version of Mac OS X is unsupported"
+#  if !defined(MAC_OS_X_VERSION_10_9)
+#       define MAC_OS_X_VERSION_10_9 1090
+#  endif
+#
+#  if !defined(__IPHONE_4_3)
+#       define __IPHONE_4_3 40300
+#  endif
+#  if !defined(__IPHONE_5_0)
+#       define __IPHONE_5_0 50000
+#  endif
+#  if !defined(__IPHONE_5_1)
+#       define __IPHONE_5_1 50100
+#  endif
+#  if !defined(__IPHONE_6_0)
+#       define __IPHONE_6_0 60000
+#  endif
+#  if !defined(__IPHONE_6_1)
+#       define __IPHONE_6_1 60100
+#  endif
+#  if !defined(__IPHONE_7_0)
+#       define __IPHONE_7_0 70000
+#  endif
+#
+#  if (__MAC_OS_X_VERSION_MAX_ALLOWED > __MAC_10_8)
+#    warning "This version of OS X is unsupported"
 #  endif
 #endif
 

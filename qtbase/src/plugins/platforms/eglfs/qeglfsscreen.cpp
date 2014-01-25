@@ -55,12 +55,8 @@ QEglFSScreen::QEglFSScreen(EGLDisplay dpy)
 #endif
 
     static int hideCursor = qgetenv("QT_QPA_EGLFS_HIDECURSOR").toInt();
-    if (!hideCursor) {
-        if (QEglFSCursor *customCursor = hooks->createCursor(this))
-            m_cursor = customCursor;
-        else
-            m_cursor = new QEglFSCursor(this);
-    }
+    if (!hideCursor)
+        m_cursor = QEglFSHooks::hooks()->createCursor(this);
 }
 
 QEglFSScreen::~QEglFSScreen()
@@ -70,18 +66,29 @@ QEglFSScreen::~QEglFSScreen()
 
 QRect QEglFSScreen::geometry() const
 {
-    return QRect(QPoint(0, 0), hooks->screenSize());
+    return QRect(QPoint(0, 0), QEglFSHooks::hooks()->screenSize());
 }
 
 int QEglFSScreen::depth() const
 {
-    return hooks->screenDepth();
+    return QEglFSHooks::hooks()->screenDepth();
 }
 
 QImage::Format QEglFSScreen::format() const
 {
-    return hooks->screenFormat();
+    return QEglFSHooks::hooks()->screenFormat();
 }
+
+QSizeF QEglFSScreen::physicalSize() const
+{
+    return QEglFSHooks::hooks()->physicalScreenSize();
+}
+
+QDpi QEglFSScreen::logicalDpi() const
+{
+    return QEglFSHooks::hooks()->logicalDpi();
+}
+
 
 QPlatformCursor *QEglFSScreen::cursor() const
 {

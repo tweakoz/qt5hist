@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtGui module of the Qt Toolkit.
+** This file is part of the QtWidgets module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -47,8 +47,6 @@
 
 #ifndef QT_NO_FONTCOMBOBOX
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -61,7 +59,6 @@ class Q_WIDGETS_EXPORT QFontComboBox : public QComboBox
     Q_PROPERTY(QFontDatabase::WritingSystem writingSystem READ writingSystem WRITE setWritingSystem)
     Q_PROPERTY(FontFilters fontFilters READ fontFilters WRITE setFontFilters)
     Q_PROPERTY(QFont currentFont READ currentFont WRITE setCurrentFont NOTIFY currentFontChanged)
-    Q_ENUMS(FontSelection)
 
 public:
     explicit QFontComboBox(QWidget *parent = 0);
@@ -104,8 +101,6 @@ private:
 Q_DECLARE_OPERATORS_FOR_FLAGS(QFontComboBox::FontFilters)
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QT_NO_FONTCOMBOBOX
 #endif

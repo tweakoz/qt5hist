@@ -493,7 +493,7 @@ Database connections are automatically closed during Javascript garbage collecti
 
 The API can be used from JavaScript functions in your QML:
 
-\snippet quick/localstorage/localstorage/hello.qml 0
+\snippet localstorage/localstorage/hello.qml 0
 
 The API conforms to the Synchronous API of the HTML5 Web Database API,
 \link http://www.w3.org/TR/2009/WD-webdatabase-20091029/ W3C Working Draft 29 October 2009\endlink.
@@ -503,7 +503,7 @@ using the Offline Storage API.
 
 \section3 Open or create a databaseData
 \code
-import QtQuick.LocalStorage 2.0 as LS
+import QtQuick.LocalStorage 2.0 as Sql
 
 db = Sql.openDatabaseSync(identifier, version, description, estimated_size, callback(db))
 \endcode

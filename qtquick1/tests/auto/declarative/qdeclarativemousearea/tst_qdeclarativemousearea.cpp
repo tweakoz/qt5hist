@@ -71,6 +71,8 @@ private slots:
     void preventContextMenu();
 #endif // QT_NO_CONTEXTMENU
     void changeAxis();
+    void nestedStopAtBounds();
+    void nestedStopAtBounds_data();
 
 private:
     QDeclarativeView *createView();
@@ -237,18 +239,18 @@ void tst_QDeclarativeMouseArea::dragging()
     QApplication::sendEvent(scene, &moveEvent);
 
     QVERIFY(drag->active());
-    QCOMPARE(blackRect->x(), 72.0);
-    QCOMPARE(blackRect->y(), 72.0);
+    QCOMPARE(blackRect->x(), 61.0);
+    QCOMPARE(blackRect->y(), 61.0);
 
     QGraphicsSceneMouseEvent releaseEvent(QEvent::GraphicsSceneMouseRelease);
-    releaseEvent.setScenePos(QPointF(110, 110));
+    releaseEvent.setScenePos(QPointF(122, 122));
     releaseEvent.setButton(Qt::LeftButton);
     releaseEvent.setButtons(Qt::LeftButton);
     QApplication::sendEvent(scene, &releaseEvent);
 
     QVERIFY(!drag->active());
-    QCOMPARE(blackRect->x(), 72.0);
-    QCOMPARE(blackRect->y(), 72.0);
+    QCOMPARE(blackRect->x(), 61.0);
+    QCOMPARE(blackRect->y(), 61.0);
 
     delete canvas;
 }
@@ -739,14 +741,14 @@ void tst_QDeclarativeMouseArea::changeAxis()
     QApplication::sendEvent(scene, &moveEvent);
 
     QVERIFY(drag->active());
-    QCOMPARE(blackRect->x(), 72.0);
-    QCOMPARE(blackRect->y(), 72.0);
+    QCOMPARE(blackRect->x(), 61.0);
+    QCOMPARE(blackRect->y(), 61.0);
     QCOMPARE(drag->axis(), QDeclarativeDrag::XandYAxis);
 
     /* When blackRect.x becomes bigger than 75, the drag axis is change to
      * Drag.YAxis by the QML code. Verify that this happens, and that the drag
      * movement is effectively constrained to the Y axis. */
-    moveEvent.setScenePos(QPointF(133, 133));
+    moveEvent.setScenePos(QPointF(144, 144));
     moveEvent.setButton(Qt::LeftButton);
     moveEvent.setButtons(Qt::LeftButton);
     QApplication::sendEvent(scene, &moveEvent);
@@ -755,7 +757,7 @@ void tst_QDeclarativeMouseArea::changeAxis()
     QCOMPARE(blackRect->y(), 83.0);
     QCOMPARE(drag->axis(), QDeclarativeDrag::YAxis);
 
-    moveEvent.setScenePos(QPointF(144, 144));
+    moveEvent.setScenePos(QPointF(155, 155));
     moveEvent.setButton(Qt::LeftButton);
     moveEvent.setButtons(Qt::LeftButton);
     QApplication::sendEvent(scene, &moveEvent);
@@ -764,7 +766,7 @@ void tst_QDeclarativeMouseArea::changeAxis()
     QCOMPARE(blackRect->y(), 94.0);
 
     QGraphicsSceneMouseEvent releaseEvent(QEvent::GraphicsSceneMouseRelease);
-    releaseEvent.setScenePos(QPointF(144, 144));
+    releaseEvent.setScenePos(QPointF(155, 155));
     releaseEvent.setButton(Qt::LeftButton);
     releaseEvent.setButtons(Qt::LeftButton);
     QApplication::sendEvent(scene, &releaseEvent);
@@ -774,6 +776,80 @@ void tst_QDeclarativeMouseArea::changeAxis()
     QCOMPARE(blackRect->y(), 94.0);
 
     delete canvas;
+}
+
+void tst_QDeclarativeMouseArea::nestedStopAtBounds_data()
+{
+    QTest::addColumn<bool>("transpose");
+    QTest::addColumn<bool>("invert");
+
+    QTest::newRow("left") << false << false;
+    QTest::newRow("right") << false << true;
+    QTest::newRow("top") << true << false;
+    QTest::newRow("bottom") << true << true;
+}
+
+void tst_QDeclarativeMouseArea::nestedStopAtBounds()
+{
+    QFETCH(bool, transpose);
+    QFETCH(bool, invert);
+
+    QDeclarativeView view;
+    view.setSource(QUrl::fromLocalFile(SRCDIR "/data/nestedStopAtBounds.qml"));
+    view.show();
+    view.activateWindow();
+    QVERIFY(QTest::qWaitForWindowExposed(&view));
+    QVERIFY(view.rootObject());
+
+    QDeclarativeMouseArea *outer =  view.rootObject()->findChild<QDeclarativeMouseArea*>("outer");
+    QVERIFY(outer);
+
+    QDeclarativeMouseArea *inner = outer->findChild<QDeclarativeMouseArea*>("inner");
+    QVERIFY(inner);
+    inner->drag()->setAxis(transpose ? QDeclarativeDrag::YAxis : QDeclarativeDrag::XAxis);
+    inner->setX(invert ? 100 : 0);
+    inner->setY(invert ? 100 : 0);
+
+    const int threshold = QApplication::startDragDistance();
+
+    QPoint position(200, 200);
+    int &axis = transpose ? position.ry() : position.rx();
+
+    QGraphicsSceneMouseEvent moveEvent(QEvent::GraphicsSceneMouseMove);
+    moveEvent.setButton(Qt::LeftButton);
+    moveEvent.setButtons(Qt::LeftButton);
+
+    // drag toward the aligned boundary.  Outer mouse area dragged.
+    QTest::mousePress(view.viewport(), Qt::LeftButton, 0, position);
+    QTest::qWait(10);
+    axis += invert ? threshold * 2 : -threshold * 2;
+    moveEvent.setScenePos(position);
+    QApplication::sendEvent(view.scene(), &moveEvent);
+    axis += invert ? threshold : -threshold;
+    moveEvent.setScenePos(position);
+    QApplication::sendEvent(view.scene(), &moveEvent);
+    QCOMPARE(outer->drag()->active(), true);
+    QCOMPARE(inner->drag()->active(), false);
+    QTest::mouseRelease(view.viewport(), Qt::LeftButton, 0, position);
+
+    QVERIFY(!outer->drag()->active());
+
+    axis = 200;
+    outer->setX(50);
+    outer->setY(50);
+
+    // drag away from the aligned boundary.  Inner mouse area dragged.
+    QTest::mousePress(view.viewport(), Qt::LeftButton, 0, position);
+    QTest::qWait(10);
+    axis += invert ? -threshold * 2 : threshold * 2;
+    moveEvent.setScenePos(position);
+    QApplication::sendEvent(view.scene(), &moveEvent);
+    axis += invert ? -threshold : threshold;
+    moveEvent.setScenePos(position);
+    QApplication::sendEvent(view.scene(), &moveEvent);
+    QCOMPARE(outer->drag()->active(), false);
+    QCOMPARE(inner->drag()->active(), true);
+    QTest::mouseRelease(view.viewport(), Qt::LeftButton, 0, position);
 }
 
 QTEST_MAIN(tst_QDeclarativeMouseArea)

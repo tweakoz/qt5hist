@@ -50,8 +50,6 @@
 #include <QtGui/qguiapplication.h>
 #include <QtGui/qstylehints.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class QQuickMultiPointTouchArea;
@@ -253,6 +251,9 @@ protected:
     void grabGesture();
     virtual QSGNode *updatePaintNode(QSGNode *, UpdatePaintNodeData *);
 
+protected slots:
+    void setTouchEventsEnabledForWindow(QWindow *window);
+
 private:
     void ungrab();
     QMap<int,QQuickTouchPoint*> _touchPrototypes;  //TouchPoints defined in QML
@@ -260,6 +261,7 @@ private:
     QList<QObject*> _releasedTouchPoints;
     QList<QObject*> _pressedTouchPoints;
     QList<QObject*> _movedTouchPoints;
+    QWindow *_currentWindow;
     int _minimumTouchPoints;
     int _maximumTouchPoints;
     bool _stealMouse;
@@ -270,7 +272,5 @@ QT_END_NAMESPACE
 QML_DECLARE_TYPE(QQuickTouchPoint)
 QML_DECLARE_TYPE(QQuickGrabGestureEvent)
 QML_DECLARE_TYPE(QQuickMultiPointTouchArea)
-
-QT_END_HEADER
 
 #endif // QQUICKMULTIPOINTTOUCHAREA_H

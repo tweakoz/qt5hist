@@ -73,7 +73,7 @@ QT_BEGIN_NAMESPACE
 
 //Make it easy to identify and customize the root item if needed
 
-class QQuickWindowManager;
+class QSGRenderLoop;
 
 class QQuickRootItem : public QQuickItem
 {
@@ -163,8 +163,8 @@ public:
     };
     Q_DECLARE_FLAGS(FocusOptions, FocusOption)
 
-    void setFocusInScope(QQuickItem *scope, QQuickItem *item, FocusOptions = 0);
-    void clearFocusInScope(QQuickItem *scope, QQuickItem *item, FocusOptions = 0);
+    void setFocusInScope(QQuickItem *scope, QQuickItem *item, Qt::FocusReason reason, FocusOptions = 0);
+    void clearFocusInScope(QQuickItem *scope, QQuickItem *item, Qt::FocusReason reason, FocusOptions = 0);
     static void notifyFocusChangesRecur(QQuickItem **item, int remaining);
 
     void updateFocusItemTransform();
@@ -177,9 +177,6 @@ public:
     void renderSceneGraph(const QSize &size);
 
     bool isRenderable() const;
-
-    bool renderWithoutShowing;
-    void setRenderWithoutShowing(bool enabled);
 
     QQuickItem::UpdatePaintNodeData updatePaintNodeData;
 
@@ -200,7 +197,7 @@ public:
     QSGContext *context;
     QSGRenderer *renderer;
 
-    QQuickWindowManager *windowManager;
+    QSGRenderLoop *windowManager;
 
     QColor clearColor;
 
@@ -212,6 +209,7 @@ public:
     uint persistentSceneGraph : 1;
 
     uint lastWheelEventAccepted : 1;
+    bool componentCompleted : 1;
 
     QOpenGLFramebufferObject *renderTarget;
     uint renderTargetId;
@@ -222,15 +220,40 @@ public:
 
     mutable QQuickWindowIncubationController *incubationController;
 
+    static bool defaultAlphaBuffer;
+
     static bool dragOverThreshold(qreal d, Qt::Axis axis, QMouseEvent *event);
+
+    // data property
+    static void data_append(QQmlListProperty<QObject> *, QObject *);
+    static int data_count(QQmlListProperty<QObject> *);
+    static QObject *data_at(QQmlListProperty<QObject> *, int);
+    static void data_clear(QQmlListProperty<QObject> *);
 
 private:
     static void cleanupNodesOnShutdown(QQuickItem *);
 };
 
+class Q_QUICK_PRIVATE_EXPORT QQuickCloseEvent : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(bool accepted READ isAccepted WRITE setAccepted)
+
+public:
+    QQuickCloseEvent()
+        : _accepted(true) {}
+
+    bool isAccepted() { return _accepted; }
+    void setAccepted(bool accepted) { _accepted = accepted; }
+
+private:
+    bool _accepted;
+};
 
 Q_DECLARE_OPERATORS_FOR_FLAGS(QQuickWindowPrivate::FocusOptions)
 
 QT_END_NAMESPACE
+
+QML_DECLARE_TYPE(QQuickCloseEvent)
 
 #endif // QQUICKWINDOW_P_H

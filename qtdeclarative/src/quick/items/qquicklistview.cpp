@@ -41,8 +41,8 @@
 
 #include "qquicklistview_p.h"
 #include "qquickitemview_p_p.h"
-#include "qquickvisualitemmodel_p.h"
 
+#include <private/qqmlobjectmodel_p.h>
 #include <QtQml/qqmlexpression.h>
 #include <QtQml/qqmlengine.h>
 #include <QtQml/qqmlinfo.h>
@@ -106,7 +106,7 @@ public:
     virtual void setPosition(qreal pos);
     virtual void layoutVisibleItems(int fromModelIndex = 0);
 
-    virtual bool applyInsertionChange(const QQuickChangeSet::Insert &insert, ChangeResult *changeResult, QList<FxViewItem *> *addedItems, QList<MovedItem> *movingIntoView);
+    virtual bool applyInsertionChange(const QQmlChangeSet::Insert &insert, ChangeResult *changeResult, QList<FxViewItem *> *addedItems, QList<MovedItem> *movingIntoView);
     virtual void translateAndTransitionItemsAfter(int afterIndex, const ChangeResult &insertionResult, const ChangeResult &removalResult);
 
     virtual void updateSectionCriteria();
@@ -172,7 +172,9 @@ public:
         , highlightMoveVelocity(400), highlightResizeVelocity(400), highlightResizeDuration(-1)
         , sectionCriteria(0), currentSectionItem(0), nextSectionItem(0)
         , overshootDist(0.0), correctFlick(false), inFlickCorrection(false)
-    {}
+    {
+        highlightMoveDuration = -1; //override default value set in base class
+    }
     ~QQuickListViewPrivate() {
         delete highlightPosAnimator;
         delete highlightSizeAnimator;
@@ -1657,7 +1659,7 @@ bool QQuickListViewPrivate::flick(AxisData &data, qreal minExtent, qreal maxExte
 
     A ListView displays data from models created from built-in QML types like ListModel
     and XmlListModel, or custom model classes defined in C++ that inherit from
-    QAbstractListModel.
+    QAbstractItemModel or QAbstractListModel.
 
     A ListView has a \l model, which defines the data to be displayed, and
     a \l delegate, which defines how the data should be displayed. Items in a
@@ -2183,7 +2185,7 @@ void QQuickListView::setOrientation(QQuickListView::Orientation orientation)
     each section.
 
 
-    \snippet quick/views/listview/sections.qml 0
+    \snippet views/listview/sections.qml 0
 
     \image qml-listview-sections-example.png
 
@@ -2803,13 +2805,16 @@ void QQuickListView::geometryChanged(const QRectF &newGeometry, const QRectF &ol
     QQuickItemView::geometryChanged(newGeometry, oldGeometry);
 }
 
-void QQuickListView::initItem(int index, QQuickItem *item)
+void QQuickListView::initItem(int index, QObject *object)
 {
-    QQuickItemView::initItem(index, item);
-    QQuickListViewAttached *attached = static_cast<QQuickListViewAttached *>(
-            qmlAttachedPropertiesObject<QQuickListView>(item));
-    if (attached)
-        attached->setView(this);
+    QQuickItemView::initItem(index, object);
+    QQuickItem *item = qmlobject_cast<QQuickItem*>(object);
+    if (item) {
+        QQuickListViewAttached *attached = static_cast<QQuickListViewAttached *>(
+                qmlAttachedPropertiesObject<QQuickListView>(item));
+        if (attached)
+            attached->setView(this);
+    }
 }
 
 
@@ -2867,7 +2872,7 @@ void QQuickListViewPrivate::updateSectionCriteria()
     }
 }
 
-bool QQuickListViewPrivate::applyInsertionChange(const QQuickChangeSet::Insert &change, ChangeResult *insertResult, QList<FxViewItem *> *addedItems, QList<MovedItem> *movingIntoView)
+bool QQuickListViewPrivate::applyInsertionChange(const QQmlChangeSet::Insert &change, ChangeResult *insertResult, QList<FxViewItem *> *addedItems, QList<MovedItem> *movingIntoView)
 {
     int modelIndex = change.index;
     int count = change.count;
@@ -3099,6 +3104,21 @@ void QQuickListViewPrivate::translateAndTransitionItemsAfter(int afterModelIndex
 
     If the item is outside the visible area, null is returned, regardless of
     whether an item will exist at that point when scrolled into view.
+
+    \b Note: methods should only be called after the Component has completed.
+*/
+
+/*!
+    \qmlmethod QtQuick2::ListView::forceLayout()
+
+    Responding to changes in the model is usually batched to happen only once
+    per frame. This means that inside script blocks it is possible for the
+    underlying model to have changed, but the ListView has not caught up yet.
+
+    This method forces the ListView to immediately respond to any outstanding
+    changes in the model.
+
+    \since 5.1
 
     \b Note: methods should only be called after the Component has completed.
 */

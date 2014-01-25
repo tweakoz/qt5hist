@@ -68,6 +68,7 @@
 #include <private/qqmldirparser_p.h>
 #include <private/qqmlbundle_p.h>
 #include <private/qflagpointer_p.h>
+#include <private/qqmlabstracturlinterceptor_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -92,14 +93,16 @@ public:
         Error                    // Error
     };
 
-    enum Type {
-        QmlFile,
-        JavaScriptFile,
-        QmldirFile
+    enum Type { //Matched in QQmlAbstractUrlInterceptor
+        QmlFile = QQmlAbstractUrlInterceptor::QmlFile,
+        JavaScriptFile = QQmlAbstractUrlInterceptor::JavaScriptFile,
+        QmldirFile = QQmlAbstractUrlInterceptor::QmldirFile
     };
 
     QQmlDataBlob(const QUrl &, Type);
     virtual ~QQmlDataBlob();
+
+    void startLoading(QQmlDataLoader* manager);
 
     Type type() const;
 
@@ -465,6 +468,8 @@ private:
     QList<TypeDataCallback *> m_callbacks;
 
     QQmlScript::Import *m_implicitImport;
+    bool m_implicitImportLoaded;
+    bool loadImplicitImport();
 };
 
 // QQmlScriptData instances are created, uninitialized, by the loader in the 

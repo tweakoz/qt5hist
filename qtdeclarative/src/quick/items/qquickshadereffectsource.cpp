@@ -53,6 +53,7 @@
 QT_BEGIN_NAMESPACE
 
 DEFINE_BOOL_CONFIG_OPTION(qmlFboOverlay, QML_FBO_OVERLAY)
+DEFINE_BOOL_CONFIG_OPTION(qmlFboFlushBeforeDetach, QML_FBO_FLUSH_BEFORE_DETACH)
 
 namespace
 {
@@ -75,6 +76,8 @@ namespace
 
     BindableFbo::~BindableFbo()
     {
+        if (qmlFboFlushBeforeDetach())
+            glFlush();
         if (m_depthStencil)
             m_depthStencil->detach();
     }
@@ -128,6 +131,7 @@ void QQuickShaderEffectSourceNode::markDirtyTexture()
 QQuickShaderEffectTexture::QQuickShaderEffectTexture(QQuickItem *shaderSource)
     : QSGDynamicTexture()
     , m_item(0)
+    , m_device_pixel_ratio(1)
     , m_format(GL_RGBA)
     , m_renderer(0)
     , m_fbo(0)
@@ -310,6 +314,7 @@ void QQuickShaderEffectTexture::grab()
         m_renderer = m_context->createRenderer();
         connect(m_renderer, SIGNAL(sceneGraphChanged()), this, SLOT(markDirtyTexture()));
     }
+    m_renderer->setDevicePixelRatio(m_device_pixel_ratio);
     m_renderer->setRootNode(static_cast<QSGRootNode *>(root));
 
     bool deleteFboLater = false;
@@ -463,7 +468,7 @@ QImage QQuickShaderEffectTexture::toImage() const
     \since QtQuick 2.0
     \inherits Item
     \ingroup qtquick-effects
-    \brief Renders a QtQuick item into a texture and displays it
+    \brief Renders a \l {Qt Quick} item into a texture and displays it
 
     The ShaderEffectSource type renders \l sourceItem into a texture and
     displays it in the scene. \l sourceItem is drawn into the texture as though
@@ -473,7 +478,7 @@ QImage QQuickShaderEffectTexture::toImage() const
     ShaderEffectSource can be used as:
     \list
     \li a texture source in a \l ShaderEffect.
-       This allows you to apply custom shader effects to any QtQuick item.
+       This allows you to apply custom shader effects to any \l {Qt Quick} item.
     \li a cache for a complex item.
        The complex item can be rendered once into the texture, which can
        then be animated freely without the need to render the complex item
@@ -937,7 +942,7 @@ void QQuickShaderEffectSource::releaseResources()
 
 QSGNode *QQuickShaderEffectSource::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *)
 {
-    if (!m_sourceItem || m_sourceItem->width() == 0 || m_sourceItem->height() == 0) {
+    if (!m_sourceItem || m_sourceItem->width() <= 0 || m_sourceItem->height() <= 0) {
         if (m_texture)
             m_texture->setItem(0);
         delete oldNode;
@@ -957,11 +962,12 @@ QSGNode *QQuickShaderEffectSource::updatePaintNode(QSGNode *oldNode, UpdatePaint
                       : m_textureSize;
     Q_ASSERT(!textureSize.isEmpty());
 
-    // Crate large textures on high-dpi displays.
-    if (sourceItem() && sourceItem()->window())
-        textureSize *= sourceItem()->window()->devicePixelRatio();
-
     QQuickItemPrivate *d = static_cast<QQuickItemPrivate *>(QObjectPrivate::get(this));
+
+    // Crate large textures on high-dpi displays.
+    if (sourceItem())
+        textureSize *= d->window->devicePixelRatio();
+
     const QSize minTextureSize = d->sceneGraphContext()->minimumFBOSize();
     // Keep power-of-two by doubling the size.
     while (textureSize.width() < minTextureSize.width())
@@ -969,6 +975,7 @@ QSGNode *QQuickShaderEffectSource::updatePaintNode(QSGNode *oldNode, UpdatePaint
     while (textureSize.height() < minTextureSize.height())
         textureSize.rheight() *= 2;
 
+    m_texture->setDevicePixelRatio(d->window->devicePixelRatio());
     m_texture->setSize(textureSize);
     m_texture->setRecursive(m_recursive);
     m_texture->setFormat(GLenum(m_format));

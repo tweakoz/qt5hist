@@ -45,6 +45,8 @@
 #include <qpagesetupdialog.h>
 #include <qpainter.h>
 #include <qprintdialog.h>
+#include <qprintpreviewdialog.h>
+#include <qprintpreviewwidget.h>
 #include <qprinterinfo.h>
 #include <qvariant.h>
 #include <qpainter.h>
@@ -98,6 +100,7 @@ private slots:
     void testMargins_data();
     void testMargins();
     void testPageSetupDialog();
+    void testPrintPreviewDialog();
     void testMulitpleSets_data();
     void testMulitpleSets();
     void testPageMargins_data();
@@ -119,6 +122,8 @@ private slots:
 
     void taskQTBUG4497_reusePrinterOnDifferentFiles();
     void testPdfTitle();
+    void testPageMetrics_data();
+    void testPageMetrics();
 #endif
 };
 
@@ -238,6 +243,49 @@ void tst_QPrinter::testPageSetupDialog()
         QPrinter printer;
         QPageSetupDialog dialog(&printer);
     }
+}
+
+// A preview dialog showing 4 pages for testPrintPreviewDialog().
+
+class MyPreviewDialog : public QPrintPreviewDialog {
+    Q_OBJECT
+public:
+    MyPreviewDialog(QPrinter *p) : QPrintPreviewDialog(p)
+    {
+        connect(this, SIGNAL(paintRequested(QPrinter*)), this, SLOT(slotPaintRequested(QPrinter*)));
+    }
+
+public slots:
+    void slotPaintRequested(QPrinter *p);
+};
+
+void MyPreviewDialog::slotPaintRequested(QPrinter *p)
+{
+    enum { pageCount = 4 };
+    QPainter painter;
+    painter.begin(p);
+    for (int i = 0; i < pageCount; ++i) {
+        const QRect f = p->pageRect(QPrinter::DevicePixel).toRect();
+        painter.fillRect(f, Qt::white);
+        painter.drawText(f.center(), QString::fromLatin1("Page %1").arg(i + 1));
+        if (i != pageCount - 1)
+            p->newPage();
+    }
+    painter.end();
+}
+
+void tst_QPrinter::testPrintPreviewDialog()
+{
+    // QTBUG-14517: Showing the dialog with Qt::WindowMaximized caused it to switch to
+    // page 2 due to the scrollbar logic (besides testing for crashes).
+    QPrinter printer;
+    MyPreviewDialog dialog(&printer);
+    dialog.setWindowState(Qt::WindowMaximized);
+    dialog.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&dialog));
+    QPrintPreviewWidget *widget = dialog.findChild<QPrintPreviewWidget *>();
+    QVERIFY(widget);
+    QCOMPARE(widget->currentPage(), 1);
 }
 
 #ifdef Q_OS_WIN
@@ -1108,6 +1156,42 @@ void tst_QPrinter::testPdfTitle()
     const char *expected = reinterpret_cast<const char*>(expectedBuf);
     QVERIFY(file.readAll().contains(QByteArray(expected, 26)));
 }
+
+void tst_QPrinter::testPageMetrics_data()
+{
+    QTest::addColumn<int>("pageSize");
+    QTest::addColumn<int>("widthMM");
+    QTest::addColumn<int>("heightMM");
+    QTest::addColumn<float>("widthMMf");
+    QTest::addColumn<float>("heightMMf");
+
+    QTest::newRow("A4")     << int(QPrinter::A4)     << 210 << 297 << 210.0f << 297.0f;
+    QTest::newRow("A5")     << int(QPrinter::A5)     << 148 << 210 << 148.0f << 210.0f;
+    QTest::newRow("Letter") << int(QPrinter::Letter) << 216 << 279 << 215.9f << 279.4f;
+}
+
+void tst_QPrinter::testPageMetrics()
+{
+    QFETCH(int, pageSize);
+    QFETCH(int, widthMM);
+    QFETCH(int, heightMM);
+    QFETCH(float, widthMMf);
+    QFETCH(float, heightMMf);
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setFullPage(true);
+    printer.setPageSize(QPrinter::PageSize(pageSize));
+
+    if (printer.pageSize() != pageSize) {
+        QSKIP("Current page size is not supported on this printer");
+        return;
+    }
+
+    QCOMPARE(printer.widthMM(), int(widthMM));
+    QCOMPARE(printer.heightMM(), int(heightMM));
+    QCOMPARE(printer.pageSizeMM(), QSizeF(widthMMf, heightMMf));
+}
+
 #endif // QT_NO_PRINTER
 
 QTEST_MAIN(tst_QPrinter)

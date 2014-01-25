@@ -29,11 +29,10 @@
     \page qtmac-as-native.html
     \title Qt is Mac OS X Native
     \brief An explanation of Qt's native features on Mac OS X.
-    \ingroup platform-specific
 
     This document explains what makes an application native on Mac OS X.
     It shows the areas where Qt is compliant, and the grey areas where
-    compliance is more questionable. (See also the document 
+    compliance is more questionable. (See also the document
     \l{mac-differences.html}{Qt for Mac OS X - Specific Issues}.)
 
     Normally when referring to a native Mac application, one really means an
@@ -63,7 +62,7 @@
     \section1 Aqua
 
     This is a critical piece of Mac OS X (documentation can be found at
-    \l{https://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html#//apple_ref/doc/uid/20000957}).
+    \l{http://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html#//apple_ref/doc/uid/20000957}).
     It is a huge topic, but the most important guidelines for GUI
     design are probably these:
 
@@ -130,7 +129,7 @@
     style Makefiles. Generating Xcode project files by using
     the \l qmake tool is also possible. For example:
 
-    \snippet doc/src/snippets/code/doc_src_qtmac-as-native.qdoc 0
+    \snippet snippets/code/doc_src_qtmac-as-native.qdoc 0
 
     will generate an Xcode project file from project.pro. With \l qmake
     you do not have to worry about rules for Qt's preprocessors (\l moc

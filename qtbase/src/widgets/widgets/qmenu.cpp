@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtGui module of the Qt Toolkit.
+** This file is part of the QtWidgets module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -67,6 +67,7 @@
 #include "qwidgetaction.h"
 #include "qtoolbutton.h"
 #include "qpushbutton.h"
+#include "qtooltip.h"
 #include <private/qpushbutton_p.h>
 #include <private/qaction_p.h>
 #include <private/qguiapplication_p.h>
@@ -153,7 +154,7 @@ void QMenuPrivate::init()
     }
 
     platformMenu = QGuiApplicationPrivate::platformTheme()->createPlatformMenu();
-    if (platformMenu) {
+    if (!platformMenu.isNull()) {
         QObject::connect(platformMenu, SIGNAL(aboutToShow()), q, SIGNAL(aboutToShow()));
         QObject::connect(platformMenu, SIGNAL(aboutToHide()), q, SIGNAL(aboutToHide()));
     }
@@ -259,12 +260,15 @@ void QMenuPrivate::updateActionRects(const QRect &screen) const
     bool previousWasSeparator = true; // this is true to allow removing the leading separators
     for(int i = 0; i <= lastVisibleAction; i++) {
         QAction *action = actions.at(i);
+        const bool isSection = action->isSeparator() && (!action->text().isEmpty() || !action->icon().isNull());
+        const bool isPlainSeparator = (isSection && !q->style()->styleHint(QStyle::SH_Menu_SupportsSections))
+                                   || (action->isSeparator() && !isSection);
 
         if (!action->isVisible() ||
-            (collapsibleSeparators && previousWasSeparator && action->isSeparator()))
+            (collapsibleSeparators && previousWasSeparator && isPlainSeparator))
             continue; // we continue, this action will get an empty QRect
 
-        previousWasSeparator = action->isSeparator();
+        previousWasSeparator = isPlainSeparator;
 
         //let the style modify the above size..
         QStyleOptionMenuItem opt;
@@ -416,25 +420,17 @@ void QMenuPrivate::hideUpToMenuBar()
             if (QMenu *m = qobject_cast<QMenu*>(caused)) {
                 caused = m->d_func()->causedPopup.widget;
                 if (!m->d_func()->tornoff)
-                    hideMenu(m, fadeMenus);
+                    hideMenu(m);
                 if (!fadeMenus) // Mac doesn't clear the action until after hidden.
                     m->d_func()->setCurrentAction(0);
             } else {                caused = 0;
             }
         }
-#if defined(Q_WS_MAC)
-        if (fadeMenus) {
-            QEventLoop eventLoop;
-            QTimer::singleShot(int(MenuFadeTimeInSec * 1000), &eventLoop, SLOT(quit()));
-            QMacWindowFader::currentFader()->performFade();
-            eventLoop.exec();
-        }
-#endif
     }
     setCurrentAction(0);
 }
 
-void QMenuPrivate::hideMenu(QMenu *menu, bool justRegister)
+void QMenuPrivate::hideMenu(QMenu *menu)
 {
     if (!menu)
         return;
@@ -458,27 +454,10 @@ void QMenuPrivate::hideMenu(QMenu *menu, bool justRegister)
         eventLoop.exec();
     }
 
-    // Fade out.
-    if (menu->style()->styleHint(QStyle::SH_Menu_FadeOutOnHide)) {
-        // ### Qt 4.4:
-        // Should be something like: q->transitionWindow(Qt::FadeOutTransition, MenuFadeTimeInSec);
-        // Hopefully we'll integrate qt/research/windowtransitions into main before 4.4.
-        // Talk to Richard, Trenton or Bjoern.
-#if defined(Q_WS_MAC)
-        if (justRegister) {
-            QMacWindowFader::currentFader()->setFadeDuration(MenuFadeTimeInSec);
-            QMacWindowFader::currentFader()->registerWindowToFade(menu);
-        } else {
-            macWindowFade(qt_mac_window_for(menu), MenuFadeTimeInSec);
-        }
-
-#endif // Q_WS_MAC
-    }
     aboutToHide = false;
     menu->blockSignals(false);
 #endif // QT_NO_EFFECTS
-    if (!justRegister)
-        menu->close();
+    menu->close();
 }
 
 void QMenuPrivate::popupAction(QAction *action, int delay, bool activateFirst)
@@ -1510,6 +1489,54 @@ QAction *QMenu::addSeparator()
 }
 
 /*!
+    \since 5.1
+
+    This convenience function creates a new section action, i.e. an
+    action with QAction::isSeparator() returning true but also
+    having \a text hint, and adds the new action to this menu's list
+    of actions. It returns the newly created action.
+
+    The rendering of the hint is style and platform dependent. Widget
+    styles can use the text information in the rendering for sections,
+    or can choose to ignore it and render sections like simple separators.
+
+    QMenu takes ownership of the returned QAction.
+
+    \sa QWidget::addAction()
+*/
+QAction *QMenu::addSection(const QString &text)
+{
+    QAction *action = new QAction(text, this);
+    action->setSeparator(true);
+    addAction(action);
+    return action;
+}
+
+/*!
+    \since 5.1
+
+    This convenience function creates a new section action, i.e. an
+    action with QAction::isSeparator() returning true but also
+    having \a text and \a icon hints, and adds the new action to this menu's
+    list of actions. It returns the newly created action.
+
+    The rendering of the hints is style and platform dependent. Widget
+    styles can use the text and icon information in the rendering for sections,
+    or can choose to ignore them and render sections like simple separators.
+
+    QMenu takes ownership of the returned QAction.
+
+    \sa QWidget::addAction()
+*/
+QAction *QMenu::addSection(const QIcon &icon, const QString &text)
+{
+    QAction *action = new QAction(icon, text, this);
+    action->setSeparator(true);
+    addAction(action);
+    return action;
+}
+
+/*!
     This convenience function inserts \a menu before action \a before
     and returns the menus menuAction().
 
@@ -1535,6 +1562,55 @@ QAction *QMenu::insertMenu(QAction *before, QMenu *menu)
 QAction *QMenu::insertSeparator(QAction *before)
 {
     QAction *action = new QAction(this);
+    action->setSeparator(true);
+    insertAction(before, action);
+    return action;
+}
+
+/*!
+    \since 5.1
+
+    This convenience function creates a new title action, i.e. an
+    action with QAction::isSeparator() returning true but also having
+    \a text hint. The function inserts the newly created action
+    into this menu's list of actions before action \a before and
+    returns it.
+
+    The rendering of the hint is style and platform dependent. Widget
+    styles can use the text information in the rendering for sections,
+    or can choose to ignore it and render sections like simple separators.
+
+    QMenu takes ownership of the returned QAction.
+
+    \sa QWidget::insertAction(), addSection()
+*/
+QAction *QMenu::insertSection(QAction *before, const QString &text)
+{
+    QAction *action = new QAction(text, this);
+    action->setSeparator(true);
+    insertAction(before, action);
+    return action;
+}
+
+/*!
+    \since 5.1
+
+    This convenience function creates a new title action, i.e. an
+    action with QAction::isSeparator() returning true but also having
+    \a text and \a icon hints. The function inserts the newly created action
+    into this menu's list of actions before action \a before and returns it.
+
+    The rendering of the hints is style and platform dependent. Widget
+    styles can use the text and icon information in the rendering for sections,
+    or can choose to ignore them and render sections like simple separators.
+
+    QMenu takes ownership of the returned QAction.
+
+    \sa QWidget::insertAction(), addSection()
+*/
+QAction *QMenu::insertSection(QAction *before, const QIcon &icon, const QString &text)
+{
+    QAction *action = new QAction(icon, text, this);
     action->setSeparator(true);
     insertAction(before, action);
     return action;
@@ -1866,8 +1942,8 @@ void QMenu::popup(const QPoint &p, QAction *atAction)
                 pos.setX(mouse.x() - size.width());
 
 #ifndef QT_NO_MENUBAR
-            // if in a menubar, it should be right-aligned
-            if (qobject_cast<QMenuBar*>(d->causedPopup.widget))
+            // if the menu is in a menubar or is a submenu, it should be right-aligned
+            if (qobject_cast<QMenuBar*>(d->causedPopup.widget) || qobject_cast<QMenu*>(d->causedPopup.widget))
                 pos.rx() -= size.width();
 #endif //QT_NO_MENUBAR
 
@@ -2310,7 +2386,7 @@ void QMenu::changeEvent(QEvent *e)
         if (d->tornPopup) // torn-off menu
             d->tornPopup->setEnabled(isEnabled());
         d->menuAction->setEnabled(isEnabled());
-        if (d->platformMenu)
+        if (!d->platformMenu.isNull())
             d->platformMenu->setEnabled(isEnabled());
     }
     QWidget::changeEvent(e);
@@ -2368,6 +2444,19 @@ QMenu::event(QEvent *e)
         if (d->currentAction)
             d->popupAction(d->currentAction, 0, false);
         break;
+#ifndef QT_NO_TOOLTIP
+    case QEvent::ToolTip:
+        if (d->toolTipsVisible) {
+            const QHelpEvent *ev = static_cast<const QHelpEvent*>(e);
+            if (const QAction *action = actionAt(ev->pos())) {
+                const QString toolTip = action->d_func()->tooltip;
+                if (!toolTip.isEmpty())
+                    QToolTip::showText(ev->globalPos(), toolTip, this);
+                return true;
+            }
+        }
+        break;
+#endif // QT_NO_TOOLTIP
 #ifndef QT_NO_WHATSTHIS
     case QEvent::QueryWhatsThis:
         e->setAccepted(d->whatsThis.size());
@@ -2826,7 +2915,7 @@ QMenu::timerEvent(QTimerEvent *e)
     }
 }
 
-void copyActionToPlatformItem(const QAction *action, QPlatformMenuItem* item)
+static void copyActionToPlatformItem(const QAction *action, QPlatformMenuItem* item)
 {
     item->setText(action->text());
     item->setIsSeparator(action->isSeparator());
@@ -2834,6 +2923,7 @@ void copyActionToPlatformItem(const QAction *action, QPlatformMenuItem* item)
         item->setIcon(action->icon());
     item->setVisible(action->isVisible());
     item->setShortcut(action->shortcut());
+    item->setCheckable(action->isCheckable());
     item->setChecked(action->isChecked());
     item->setFont(action->font());
     item->setRole((QPlatformMenuItem::MenuRole) action->menuRole());
@@ -2877,18 +2967,20 @@ void QMenu::actionEvent(QActionEvent *e)
         d->widgetItems.remove(e->action());
     }
 
-    if (d->platformMenu) {
+    if (!d->platformMenu.isNull()) {
         if (e->type() == QEvent::ActionAdded) {
             QPlatformMenuItem *menuItem =
                 QGuiApplicationPrivate::platformTheme()->createPlatformMenuItem();
             menuItem->setTag(reinterpret_cast<quintptr>(e->action()));
             QObject::connect(menuItem, SIGNAL(activated()), e->action(), SLOT(trigger()));
+            QObject::connect(menuItem, SIGNAL(hovered()), e->action(), SIGNAL(hovered()));
             copyActionToPlatformItem(e->action(), menuItem);
             QPlatformMenuItem* beforeItem = d->platformMenu->menuItemForTag(reinterpret_cast<quintptr>(e->before()));
             d->platformMenu->insertMenuItem(menuItem, beforeItem);
         } else if (e->type() == QEvent::ActionRemoved) {
             QPlatformMenuItem *menuItem = d->platformMenu->menuItemForTag(reinterpret_cast<quintptr>(e->action()));
             d->platformMenu->removeMenuItem(menuItem);
+            delete menuItem;
         } else if (e->type() == QEvent::ActionChanged) {
             QPlatformMenuItem *menuItem = d->platformMenu->menuItemForTag(reinterpret_cast<quintptr>(e->action()));
             copyActionToPlatformItem(e->action(), menuItem);
@@ -3085,8 +3177,34 @@ void QMenu::setSeparatorsCollapsible(bool collapse)
         d->updateActionRects();
         update();
     }
-    if (d->platformMenu)
+    if (!d->platformMenu.isNull())
         d->platformMenu->syncSeparatorsCollapsible(collapse);
+}
+
+/*!
+  \property QMenu::toolTipsVisible
+  \since 5.1
+
+  \brief whether tooltips of menu actions should be visible
+
+  This property specifies whether action menu entries show
+  their tooltip.
+
+  By default, this property is false.
+*/
+bool QMenu::toolTipsVisible() const
+{
+    Q_D(const QMenu);
+    return d->toolTipsVisible;
+}
+
+void QMenu::setToolTipsVisible(bool visible)
+{
+    Q_D(QMenu);
+    if (d->toolTipsVisible == visible)
+        return;
+
+    d->toolTipsVisible = visible;
 }
 
 QT_END_NAMESPACE

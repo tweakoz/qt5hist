@@ -29,7 +29,6 @@
     \page mac-differences.html
     \title Qt for Mac OS X - Specific Issues
     \brief A description of issues with Qt that are specific to Mac OS X.
-    \ingroup platform-specific
 
     This file outlines known issues and possible workarounds when
     using Qt for Mac OS X. Contact Qt's technical support team if you find
@@ -99,7 +98,7 @@
 
     If you use \c qmake and Makefiles, use the \c QMAKE_LFLAGS_SONAME setting:
 
-    \snippet doc/src/snippets/code/doc_src_mac-differences.pro 0
+    \snippet snippets/code/doc_src_mac-differences.pro 0
 
     Alternatively, you can modify the install name using the
     install_name_tool(1) on the command line. See its manpage for more
@@ -161,7 +160,7 @@
     the bundle resides on the disk. The following code returns the
     path of the application bundle:
 
-    \snippet doc/src/snippets/code/doc_src_mac-differences.cpp 1
+    \snippet snippets/code/doc_src_mac-differences.cpp 1
 
     Note: When OS X is set to use Japanese, a bug causes this sequence
     to fail and return an empty string. Therefore, always test the
@@ -179,12 +178,12 @@
     The items in the Application Menu will be merged correctly for
     your localized application, but they will not show up translated
     until you
-    \l{https://developer.apple.com/library/mac/#documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html#//apple_ref/doc/uid/10000123i-CH101-SW13}
+    \l{http://developer.apple.com/library/mac/#documentation/CoreFoundation/Conceptual/CFBundles/BundleTypes/BundleTypes.html#//apple_ref/doc/uid/10000123i-CH101-SW13}
     {add a localized resource folder} to the application bundle.
     The main thing you need to do is create a file called
     locversion.plist.  Here is an example for Norwegian:
 
-    \snippet doc/src/snippets/code/doc_src_mac-differences.qdoc 2
+    \snippet snippets/code/doc_src_mac-differences.qdoc 2
 
     Now when you run the application with your preferred language set
     to Norwegian, you should see menu items like "Avslutt" instead of

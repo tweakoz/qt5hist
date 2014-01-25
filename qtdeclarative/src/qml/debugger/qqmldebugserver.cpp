@@ -102,9 +102,8 @@ public:
     bool gotHello;
     bool blockingMode;
 
-    QMutex messageArrivedMutex;
-    QWaitCondition messageArrivedCondition;
-    QStringList waitingForMessageNames;
+    QMutex helloMutex;
+    QWaitCondition helloCondition;
     QQmlDebugServerThread *thread;
     QPluginLoader loader;
     QAtomicInt changeServiceStateCalls;
@@ -123,8 +122,9 @@ public:
         m_pluginName = pluginName;
     }
 
-    void setPort(int port, bool block, QString &hostAddress) {
-        m_port = port;
+    void setPortRange(int portFrom, int portTo, bool block, QString &hostAddress) {
+        m_portFrom = portFrom;
+        m_portTo = portTo;
         m_block = block;
         m_hostAddress = hostAddress;
     }
@@ -133,7 +133,8 @@ public:
 
 private:
     QString m_pluginName;
-    int m_port;
+    int m_portFrom;
+    int m_portTo;
     bool m_block;
     QString m_hostAddress;
 };
@@ -225,7 +226,7 @@ void QQmlDebugServerThread::run()
             = server->d_func()->loadConnectionPlugin(m_pluginName);
     if (connection) {
         connection->setServer(QQmlDebugServer::instance());
-        connection->setPort(m_port, m_block, m_hostAddress);
+        connection->setPortRange(m_portFrom, m_portTo, m_block, m_hostAddress);
     } else {
         QCoreApplicationPrivate *appD = static_cast<QCoreApplicationPrivate*>(QObjectPrivate::get(qApp));
         qWarning() << QString(QLatin1String("QML Debugger: Ignoring \"-qmljsdebugger=%1\". "
@@ -272,12 +273,13 @@ QQmlDebugServer *QQmlDebugServer::instance()
         QCoreApplicationPrivate *appD = static_cast<QCoreApplicationPrivate*>(QObjectPrivate::get(qApp));
 #ifndef QT_QML_NO_DEBUGGER
         // ### remove port definition when protocol is changed
-        int port = 0;
+        int portFrom = 0;
+        int portTo = 0;
         bool block = false;
         bool ok = false;
         QString hostAddress;
 
-        // format: qmljsdebugger=port:3768[,host:<ip address>][,block] OR qmljsdebugger=ost[,block]
+        // format: qmljsdebugger=port:<port_from>[,port_to],host:<ip address>][,block]
         if (!appD->qmljsDebugArgumentsString().isEmpty()) {
             if (!QQmlEnginePrivate::qml_debugging_enabled) {
                 qWarning() << QString(QLatin1String(
@@ -290,10 +292,22 @@ QQmlDebugServer *QQmlDebugServer::instance()
             QString pluginName;
             QStringList lstjsDebugArguments = appD->qmljsDebugArgumentsString()
                                                                     .split(QLatin1Char(','));
-            foreach (const QString &strArgument, lstjsDebugArguments) {
+            QStringList::const_iterator argsItEnd = lstjsDebugArguments.end();
+            QStringList::const_iterator argsIt = lstjsDebugArguments.begin();
+            for (; argsIt != argsItEnd; ++argsIt) {
+                const QString strArgument = *argsIt;
                 if (strArgument.startsWith(QLatin1String("port:"))) {
-                    port = strArgument.mid(5).toInt(&ok);
                     pluginName = QLatin1String("qmldbg_tcp");
+                    portFrom = strArgument.mid(5).toInt(&ok);
+                    portTo = portFrom;
+                    QStringList::const_iterator argsNext = argsIt + 1;
+                    if (argsNext == argsItEnd)
+                        break;
+                    const QString nextArgument = *argsNext;
+                    if (ok && nextArgument.contains(QRegExp(QStringLiteral("^\\s*\\d+\\s*$")))) {
+                        portTo = nextArgument.toInt(&ok);
+                        ++argsIt;
+                    }
                 } else if (strArgument.startsWith(QLatin1String("host:"))) {
                     hostAddress = strArgument.mid(5);
                 } else if (strArgument == QLatin1String("block")) {
@@ -311,22 +325,22 @@ QQmlDebugServer *QQmlDebugServer::instance()
                 qQmlDebugServer->d_func()->thread = thread;
                 qQmlDebugServer->moveToThread(thread);
                 thread->setPluginName(pluginName);
-                thread->setPort(port, block, hostAddress);
+                thread->setPortRange(portFrom, portTo, block, hostAddress);
 
                 QQmlDebugServerPrivate *d = qQmlDebugServer->d_func();
                 d->blockingMode = block;
 
-                QMutexLocker locker(&d->messageArrivedMutex);
+                QMutexLocker locker(&d->helloMutex);
                 thread->start();
 
                 if (d->blockingMode)
-                    d->messageArrivedCondition.wait(&d->messageArrivedMutex);
+                    d->helloCondition.wait(&d->helloMutex);
 
             } else {
                 qWarning() << QString(QLatin1String(
                                   "QML Debugger: Ignoring \"-qmljsdebugger=%1\". "
-                                  "Format is -qmljsdebugger=port:<port>[,block]")).arg(
-                                  appD->qmljsDebugArgumentsString());
+                                  "Format is qmljsdebugger=port:<port_from>[,port_to],host:"
+                                  "<ip address>][,block]")).arg(appD->qmljsDebugArgumentsString());
             }
         }
 #else
@@ -403,10 +417,13 @@ void QQmlDebugServer::receiveMessage(const QByteArray &message)
                 if (s_dataStreamVersion > QDataStream().version())
                     s_dataStreamVersion = QDataStream().version();
             }
+
             // Send the hello answer immediately, since it needs to arrive before
             // the plugins below start sending messages.
+
             QByteArray helloAnswer;
             {
+                QReadLocker readPluginsLock(&d->pluginsLock);
                 QQmlDebugStream out(&helloAnswer, QIODevice::WriteOnly);
                 QStringList pluginNames;
                 QList<float> pluginVersions;
@@ -432,7 +449,8 @@ void QQmlDebugServer::receiveMessage(const QByteArray &message)
                 d->_q_changeServiceState(iter.value()->name(), newState);
             }
 
-            d->messageArrivedCondition.wakeAll();
+            QMutexLocker helloLock(&d->helloMutex);
+            d->helloCondition.wakeAll();
 
         } else if (op == 1) {
 
@@ -472,9 +490,6 @@ void QQmlDebugServer::receiveMessage(const QByteArray &message)
                 qWarning() << "QML Debugger: Message received for missing plugin" << name << '.';
             } else {
                 (*iter)->messageReceived(message);
-
-                if (d->waitingForMessageNames.removeOne(name))
-                    d->messageArrivedCondition.wakeAll();
             }
         } else {
             qWarning("QML Debugger: Invalid hello message.");

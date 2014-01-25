@@ -40,7 +40,7 @@ as an instantiable \l{qtqml-typesystem-objecttypes.html}{QML object type} from
 QML, or enabling a singleton instance of the class to be imported and used
 from QML.
 
-Additionally, the QtQml module provides mechanisms for implementing QML-specific
+Additionally, the \l {Qt QML} module provides mechanisms for implementing QML-specific
 features such as \e{attached properties} and \e{default properties} in C++.
 
 (Note that a number of the important concepts covered in this document are
@@ -133,7 +133,7 @@ not be instantiable
 should not be instantiable from QML
 \endlist
 
-The QtQml module provides several methods for registering non-instantiable
+The \l {Qt QML} module provides several methods for registering non-instantiable
 types:
 
 \list
@@ -168,7 +168,7 @@ are constructed and owned by the QQmlEngine, and will be destroyed when
 the engine is destroyed.
 
 A QObject singleton type can be interacted with in a manner simlar to any
-other QObject or instantiated element, except that only one (engine constructed
+other QObject or instantiated type, except that only one (engine constructed
 and owned) instance will exist, and it must be referenced by type name rather
 than id.  Q_PROPERTYs of QObject singleton types may be bound to, and Q_INVOKABLE
 functions of QObject module APIs may be used in signal handler expressions.
@@ -230,7 +230,7 @@ version of their type definition, \c root.x now resolves to a different value
 because \c root is also the \c id of the top level component. The author could
 specify that the new \c root property is available from a specific minor
 version. This permits new properties and features to be added to existing
-elements without breaking existing programs.
+types without breaking existing programs.
 
 The REVISION tag is used to mark the \c root property as added in revision 1
 of the type. Methods such as Q_INVOKABLE's, signals and slots can also be
@@ -263,7 +263,7 @@ qmlRegisterType<CppType,1>("MyTypes", 1, 1, "CppType")
 
 \c root is only available when \c MyTypes version 1.1 is imported.
 
-For the same reason, new elements introduced in later versions should use
+For the same reason, new types introduced in later versions should use
 the minor version argument of qmlRegisterType.
 
 This feature of the language allows for behavioural changes to be made
@@ -291,7 +291,7 @@ qmlRegisterRevision<BaseType,1>("MyTypes", 1, 1);
 \endcode
 
 This is useful when deriving from base classes provided by other authors,
-e.g. when extending classes from the QtQuick library.
+e.g. when extending classes from the Qt Quick module.
 
 
 \section1 Defining QML-Specific Types and Attributes
@@ -675,19 +675,19 @@ to be declared for an item without explicitly assigning them to the
 \l{Item::}{children} property.)
 
 
-\section2 Defining Visual Items with the QtQuick Module
+\section2 Defining Visual Items with the Qt Quick Module
 
-When building user interfaces with the QtQuick module, all QML objects that are
+When building user interfaces with the \l {Qt Quick} module, all QML objects that are
 to be visually rendered must derive from the \l Item type, as it is the base
-type for all visual objects in the QtQuick module. This \l Item type is
-implemented by the QQuickItem C++ class, which is provided as part of the
-QtQuick C++ module. Therefore, this class should be subclassed when it is
+type for all visual objects in \l {Qt Quick}. This \l Item type is
+implemented by the QQuickItem C++ class, which is provided by the
+\l {Qt Quick} module. Therefore, this class should be subclassed when it is
 necessary to implement a visual type in C++ that can be integrated into a
 QML-based user interface.
 
 See the QQuickItem documentation for more information. Additionally, the
 \l{Writing QML Extensions with C++} tutorial demonstrates how a QQuickItem-based
-visual item can be implemented in C++ and integrated into a QtQuick-based user
+visual item can be implemented in C++ and integrated into a Qt Quick-based user
 interface.
 
 
@@ -699,7 +699,7 @@ its properties have been set. For example, this may be the case if the
 initialization is costly, or if the initialization should not be performed until
 all property values have been initialized.
 
-The QtQml module provides the QQmlParserStatus to be subclass for these
+The \l {Qt QML} module provides the QQmlParserStatus to be subclass for these
 purposes. It defines a number of virtual methods that are invoked invoked at
 various stages during component instantiation. To receive these notifications, a
 C++ class should inherit QQmlParserStatus and also notify the Qt meta system

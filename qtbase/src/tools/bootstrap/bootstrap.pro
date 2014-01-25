@@ -2,8 +2,7 @@ option(host_build)
 
 TARGET = QtBootstrap
 QT =
-CONFIG += no_module_headers internal_module
-!build_pass: CONFIG += release
+CONFIG += internal_module force_bootstrap
 
 # otherwise mingw headers do not declare common functions like putenv
 win32-g++*:QMAKE_CXXFLAGS_CXX11 = -std=gnu++0x
@@ -26,16 +25,28 @@ MODULE_DEFINES = \
 
 DEFINES += \
     $$MODULE_DEFINES \
+    QT_CRYPTOGRAPHICHASH_ONLY_SHA1 \
     QT_NO_CAST_FROM_ASCII
 
-MODULE_PRIVATE_INCLUDES = \
+DEFINES -= QT_EVAL
+
+MODULE_INCLUDES = \
     \$\$QT_MODULE_INCLUDE_BASE \
     \$\$QT_MODULE_INCLUDE_BASE/QtCore \
+    \$\$QT_MODULE_INCLUDE_BASE/QtXml
+MODULE_PRIVATE_INCLUDES = \
     \$\$QT_MODULE_INCLUDE_BASE/QtCore/$$QT_VERSION \
     \$\$QT_MODULE_INCLUDE_BASE/QtCore/$$QT_VERSION/QtCore \
-    \$\$QT_MODULE_INCLUDE_BASE/QtXml \
     \$\$QT_MODULE_INCLUDE_BASE/QtXml/$$QT_VERSION \
     \$\$QT_MODULE_INCLUDE_BASE/QtXml/$$QT_VERSION/QtXml
+
+# We need the forwarding headers before their respective modules are built,
+# so do a minimal syncqt run.
+CONFIG += minimal_syncqt
+QMAKE_SYNCQT_OPTIONS = -module QtCore -module QtDBus -module QtXml
+contains(QT_CONFIG, zlib): \
+    QMAKE_SYNCQT_OPTIONS += -module QtZlib
+QMAKE_SYNCQT_OPTIONS += -version $$QT_VERSION
 
 load(qt_module)
 
@@ -66,6 +77,8 @@ SOURCES += \
            ../../corelib/io/qsettings.cpp \
            ../../corelib/io/qtemporaryfile.cpp \
            ../../corelib/io/qtextstream.cpp \
+           ../../corelib/io/qstandardpaths.cpp \
+           ../../corelib/kernel/qcoreapplication.cpp \
            ../../corelib/kernel/qcoreglobaldata.cpp \
            ../../corelib/kernel/qmetatype.cpp \
            ../../corelib/kernel/qvariant.cpp \
@@ -75,6 +88,7 @@ SOURCES += \
            ../../corelib/tools/qbytearray.cpp \
            ../../corelib/tools/qarraydata.cpp \
            ../../corelib/tools/qbytearraymatcher.cpp \
+           ../../corelib/tools/qcryptographichash.cpp \
            ../../corelib/tools/qdatetime.cpp \
            ../../corelib/tools/qhash.cpp \
            ../../corelib/tools/qlist.cpp \
@@ -111,14 +125,27 @@ win32:SOURCES += ../../corelib/io/qfilesystemengine_win.cpp \
                  ../../corelib/io/qfilesystemiterator_win.cpp \
                  ../../corelib/io/qfsfileengine_win.cpp \
                  ../../corelib/io/qsettings_win.cpp \
+                 ../../corelib/kernel/qcoreapplication_win.cpp \
                  ../../corelib/plugin/qsystemlibrary.cpp \
 
-macx: {
-   SOURCES += ../../corelib/io/qfilesystemengine_mac.cpp \
-              ../../corelib/io/qsettings_mac.cpp \
+mac {
+   SOURCES += ../../corelib/io/qsettings_mac.cpp \
+              ../../corelib/kernel/qcoreapplication_mac.cpp \
               ../../corelib/kernel/qcore_mac.cpp
    LIBS += -framework CoreServices
 }
+
+macx {
+    SOURCES += \
+        ../../corelib/io/qstandardpaths_mac.cpp
+} else:unix {
+    SOURCES += \
+        ../../corelib/io/qstandardpaths_unix.cpp
+} else {
+    SOURCES += \
+        ../../corelib/io/qstandardpaths_win.cpp
+}
+
 *-g++*: QMAKE_CXXFLAGS += -ffunction-sections
 
 if(contains(QT_CONFIG, zlib)|cross_compile):include(../../3rdparty/zlib.pri)
@@ -128,19 +155,3 @@ win32:LIBS += -luser32 -lole32 -ladvapi32
 
 lib.CONFIG = dummy_install
 INSTALLS += lib
-
-!build_pass {
-    # We need the forwarding headers before their respective modules are built,
-    # so do a minimal syncqt run.
-    qtPrepareTool(QMAKE_SYNCQT, syncqt)
-    QTDIR = $$[QT_HOST_PREFIX]
-    exists($$QTDIR/.qmake.cache): \
-        mod_component_base = $$QTDIR
-    else: \
-        mod_component_base = $$dirname(_QMAKE_CACHE_)
-    QMAKE_SYNCQT += -minimal -module QtCore -module QtDBus -module QtXml \
-        -version $$VERSION -outdir $$mod_component_base $$dirname(_QMAKE_CONF_)
-    contains(QT_CONFIG, zlib):QMAKE_SYNCQT += -module QtZlib
-    !silent:message($$QMAKE_SYNCQT)
-    system($$QMAKE_SYNCQT)|error("Failed to run: $$QMAKE_SYNCQT")
-}

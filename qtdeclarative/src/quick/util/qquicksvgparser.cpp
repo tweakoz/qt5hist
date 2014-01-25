@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtDeclaractive module of the Qt Toolkit.
+** This file is part of the Qt Quick module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -49,7 +49,7 @@ QT_BEGIN_NAMESPACE
 
 static const double Q_PI   = 3.14159265358979323846;   // pi
 
-//copied from QtSvg (qsvghandler.cpp).
+//copied from Qt SVG (qsvghandler.cpp).
 Q_CORE_EXPORT double qstrtod(const char *s00, char const **se, bool *ok);
 // '0' is 0x30 and '9' is 0x39
 static inline bool isDigit(ushort ch)

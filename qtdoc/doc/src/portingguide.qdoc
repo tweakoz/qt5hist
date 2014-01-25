@@ -51,13 +51,17 @@ The following list summarizes the changes in Qt 5:
    \li Qt Widgets - These are now part of a separate module,
        \l{Qt Widgets}{QtWidgets}. They were part of \l{QtGui} earlier.
    \li Qt Quick - The older Qt Quick version (1.0) is now part of a separate
-       \l{https://qt-project.org/doc/qt-4.8/qtdeclarative.html}{Qt Declarative}
+       \l{http://qt-project.org/doc/qt-4.8/qtdeclarative.html}{Qt Declarative}
        add-on module for compatibility purposes. We recommend using the new Qt
        Quick (2.0) from now on to avoid binary breaks in the future.
    \li Qt3Support - This module is removed in Qt 5, so you must move away from
        this module before porting your codebase to Qt 5.
    \li Qt WebKit - This module has been split into two, there is now a \l{Qt WebKit}
        and a \l{Qt WebKit Widgets} module.
+   \li Multimedia - In Qt 5, multimedia support is provided by the \l{Qt Multimedia}
+       module. Phonon framework is no longer part of Qt, but it continues to be
+       maintained by the Phonon developers and has support for Qt 5. See
+       \l{http://phonon.kde.org}.
 \endlist
 
 \section1 Related Topics

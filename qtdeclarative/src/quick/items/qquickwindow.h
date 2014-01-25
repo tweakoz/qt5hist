@@ -48,8 +48,6 @@
 #include <QtGui/qwindow.h>
 #include <QtGui/qevent.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class QQuickItem;
@@ -59,6 +57,7 @@ class QQuickWindowPrivate;
 class QOpenGLFramebufferObject;
 class QQmlIncubationController;
 class QInputMethodEvent;
+class QQuickCloseEvent;
 
 class Q_QUICK_EXPORT QQuickWindow : public QWindow
 {
@@ -66,6 +65,7 @@ class Q_QUICK_EXPORT QQuickWindow : public QWindow
     Q_PRIVATE_PROPERTY(QQuickWindow::d_func(), QQmlListProperty<QObject> data READ data DESIGNABLE false)
     Q_PROPERTY(QColor color READ color WRITE setColor NOTIFY colorChanged)
     Q_PROPERTY(QQuickItem* contentItem READ contentItem CONSTANT FINAL)
+    Q_PROPERTY(QQuickItem* activeFocusItem READ activeFocusItem NOTIFY activeFocusItemChanged REVISION 1)
     Q_CLASSINFO("DefaultProperty", "data")
     Q_DECLARE_PRIVATE(QQuickWindow)
 public:
@@ -115,6 +115,9 @@ public:
     void setColor(const QColor &color);
     QColor color() const;
 
+    static bool hasDefaultAlphaBuffer();
+    static void setDefaultAlphaBuffer(bool useAlpha);
+
     void setPersistentOpenGLContext(bool persistent);
     bool isPersistentOpenGLContext() const;
 
@@ -130,7 +133,9 @@ Q_SIGNALS:
     void beforeSynchronizing();
     void beforeRendering();
     void afterRendering();
+    Q_REVISION(1) void closing(QQuickCloseEvent *close);
     void colorChanged(const QColor &);
+    Q_REVISION(1) void activeFocusItemChanged();
 
 public Q_SLOTS:
     void update();
@@ -144,6 +149,7 @@ protected:
 
     virtual void showEvent(QShowEvent *);
     virtual void hideEvent(QHideEvent *);
+    // TODO Qt 6: reimplement QWindow::closeEvent to emit closing
 
     virtual void focusInEvent(QFocusEvent *);
     virtual void focusOutEvent(QFocusEvent *);
@@ -162,6 +168,7 @@ protected:
 private Q_SLOTS:
     void maybeUpdate();
     void cleanupSceneGraph();
+    void setTransientParent_helper(QQuickWindow *window);
 
 private:
     friend class QQuickItem;
@@ -172,8 +179,6 @@ private:
 QT_END_NAMESPACE
 
 Q_DECLARE_METATYPE(QQuickWindow *)
-
-QT_END_HEADER
 
 #endif // QQUICKWINDOW_H
 

@@ -773,11 +773,7 @@ void QQuickMouseArea::mouseMoveEvent(QMouseEvent *event)
 
     // ### we should skip this if these signals aren't used
     // ### can GV handle this for us?
-    const bool isInside = contains(d->lastPos);
-    if (d->hovered && !isInside)
-        setHovered(false);
-    else if (!d->hovered && isInside)
-        setHovered(true);
+    setHovered(contains(d->lastPos));
 
 #ifndef QT_NO_DRAGANDDROP
     if (d->drag && d->drag->target()) {
@@ -797,9 +793,6 @@ void QQuickMouseArea::mouseMoveEvent(QMouseEvent *event)
             curLocalPos = event->windowPos();
         }
 
-        qreal dx = qAbs(curLocalPos.x() - startLocalPos.x());
-        qreal dy = qAbs(curLocalPos.y() - startLocalPos.y());
-
         if (keepMouseGrab() && d->stealMouse && !d->drag->active())
             d->drag->setActive(true);
 
@@ -807,38 +800,31 @@ void QQuickMouseArea::mouseMoveEvent(QMouseEvent *event)
                 ? d->drag->target()->parentItem()->mapFromScene(d->targetStartPos)
                 : d->targetStartPos;
 
-        QPointF dragPos = d->drag->target()->position();
-
         bool dragX = drag()->axis() & QQuickDrag::XAxis;
         bool dragY = drag()->axis() & QQuickDrag::YAxis;
 
-        if (dragX && d->drag->active()) {
-            qreal x = (curLocalPos.x() - startLocalPos.x()) + startPos.x();
-            if (x < drag()->xmin())
-                x = drag()->xmin();
-            else if (x > drag()->xmax())
-                x = drag()->xmax();
-            dragPos.setX(x);
+        QPointF dragPos = d->drag->target()->position();
+        if (dragX) {
+            dragPos.setX(qBound(
+                    d->drag->xmin(),
+                    startPos.x() + curLocalPos.x() - startLocalPos.x(),
+                    d->drag->xmax()));
         }
-        if (dragY && d->drag->active()) {
-            qreal y = (curLocalPos.y() - startLocalPos.y()) + startPos.y();
-            if (y < drag()->ymin())
-                y = drag()->ymin();
-            else if (y > drag()->ymax())
-                y = drag()->ymax();
-            dragPos.setY(y);
+        if (dragY) {
+            dragPos.setY(qBound(
+                    d->drag->ymin(),
+                    startPos.y() + curLocalPos.y() - startLocalPos.y(),
+                    d->drag->ymax()));
         }
-        d->drag->target()->setPosition(dragPos);
+        if (d->drag->active())
+            d->drag->target()->setPosition(dragPos);
 
-        if (!keepMouseGrab()) {
-            bool xDragged = QQuickWindowPrivate::dragOverThreshold(dx, Qt::XAxis, event);
-            bool yDragged = QQuickWindowPrivate::dragOverThreshold(dy, Qt::YAxis, event);
-            if ((!dragY && !yDragged && dragX && xDragged)
-                || (!dragX && !xDragged && dragY && yDragged)
-                || (dragX && dragY && (xDragged || yDragged))) {
-                setKeepMouseGrab(true);
-                d->stealMouse = true;
-            }
+        if (!keepMouseGrab()
+                && (QQuickWindowPrivate::dragOverThreshold(dragPos.x() - startPos.x(), Qt::XAxis, event)
+                || QQuickWindowPrivate::dragOverThreshold(dragPos.y() - startPos.y(), Qt::YAxis, event))) {
+            setKeepMouseGrab(true);
+            d->stealMouse = true;
+            d->startScene = event->windowPos();
         }
 
         d->moved = true;
@@ -968,7 +954,8 @@ void QQuickMouseArea::ungrabMouse()
         emit canceled();
         emit pressedChanged();
         emit pressedButtonsChanged();
-        if (d->hovered) {
+
+        if (d->hovered && !isUnderMouse()) {
             d->hovered = false;
             emit hoveredChanged();
         }

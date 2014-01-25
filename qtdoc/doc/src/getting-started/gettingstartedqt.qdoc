@@ -29,7 +29,6 @@
     \page gettingstartedqt.html
 
     \title Getting Started Programming with Qt Widgets
-        \ingroup gettingStarted
 
     In this topic, we teach basic Qt knowledge by implementing a simple Notepad
     application using C++ and the \l{QtWidgets Module}{Qt Widgets module}. We use the
@@ -50,7 +49,7 @@
     \image gs1.png "Notepad application"
 
     You can find the final Notepad source files in the qtdoc repository in the
-    doc/src/snippets/widgets-tutorial/notepad directory. You can either fetch
+    snippets/widgets-tutorial/notepad directory. You can either fetch
     the Qt 5 sources from Qt Project or install them as part of Qt 5.
 
     \section1 Creating the Notepad Project
@@ -95,10 +94,10 @@
             \li Here
         \row
             \li Using Qt Creator
-            \li \l{external: Qt Creator Manual}{Qt Creator}
+            \li \l{Qt Creator Manual}{Qt Creator}
         \row
             \li Creating other kind of applications with Qt Creator
-            \li \l{external: Tutorials for Creator}{Qt Creator Tutorials}
+            \li \l{Tutorials for Creator}{Qt Creator Tutorials}
     \endtable
 
 

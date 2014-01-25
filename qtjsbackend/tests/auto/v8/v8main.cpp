@@ -74,6 +74,8 @@ int main(int argc, char *argv[])
     RUN_TEST(fallbackpropertyhandler_in_prototype);
     RUN_TEST(fallbackpropertyhandler_nonempty);
     RUN_TEST(completehash);
+    RUN_TEST(qmlmodevariables);
+    RUN_TEST(qmlmodeinlinelocal);
 
     return exit_status;
 }

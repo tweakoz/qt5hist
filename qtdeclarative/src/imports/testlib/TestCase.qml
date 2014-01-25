@@ -143,7 +143,7 @@ Item {
             if ("mapFromItem" in o && "mapToItem" in o) {
                 return "declarativeitem";  // @todo improve detection of declarative items
             } else if ("x" in o && "y" in o && "z" in o) {
-                return "vector3d"; // Qt3D vector
+                return "vector3d"; // Qt 3D vector
             }
             return "object";
         } else if (o instanceof Function) {
@@ -291,6 +291,11 @@ Item {
     }
 
     function tryCompare(obj, prop, value, timeout) {
+        if (arguments.length == 2) {
+            qtest_results.fail("A value is required for tryCompare",
+                        util.callerFile(), util.callerLine())
+            throw new Error("QtQuickTest::fail")
+        }
         if (!timeout)
             timeout = 5000
         if (!qtest_compareInternal(obj[prop], value))
@@ -372,8 +377,13 @@ Item {
             modifiers = Qt.NoModifier
         if (delay == undefined)
             delay = -1
-        if (!qtest_events.keyPress(key, modifiers, delay))
-            qtest_fail("window not shown", 2)
+        if (typeof(key) == "string" && key.length == 1) {
+            if (!qtest_events.keyPressChar(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        } else {
+            if (!qtest_events.keyPress(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        }
     }
 
     function keyRelease(key, modifiers, delay) {
@@ -381,8 +391,13 @@ Item {
             modifiers = Qt.NoModifier
         if (delay == undefined)
             delay = -1
-        if (!qtest_events.keyRelease(key, modifiers, delay))
-            qtest_fail("window not shown", 2)
+        if (typeof(key) == "string" && key.length == 1) {
+            if (!qtest_events.keyReleaseChar(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        } else {
+            if (!qtest_events.keyRelease(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        }
     }
 
     function keyClick(key, modifiers, delay) {
@@ -390,8 +405,13 @@ Item {
             modifiers = Qt.NoModifier
         if (delay == undefined)
             delay = -1
-        if (!qtest_events.keyClick(key, modifiers, delay))
-            qtest_fail("window not shown", 2)
+        if (typeof(key) == "string" && key.length == 1) {
+            if (!qtest_events.keyClickChar(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        } else {
+            if (!qtest_events.keyClick(key, modifiers, delay))
+                qtest_fail("window not shown", 2)
+        }
     }
 
     function mousePress(item, x, y, button, modifiers, delay) {
@@ -426,10 +446,25 @@ Item {
         if (delay == undefined)
             delay = -1
 
+        // Divide dx and dy to have intermediate mouseMove while dragging
+        // Fractions of dx/dy need be superior to the dragThreshold
+        // to make the drag works though
+        var ddx = Math.round(dx/3)
+        if (ddx < (util.dragThreshold + 1))
+            ddx = 0
+        var ddy = Math.round(dy/3)
+        if (ddy < (util.dragThreshold + 1))
+            ddy = 0
+
         mousePress(item, x, y, button, modifiers, delay)
         //trigger dragging
         mouseMove(item, x + util.dragThreshold + 1, y + util.dragThreshold + 1, delay, button)
+        if (ddx > 0 || ddy > 0) {
+            mouseMove(item, x + ddx, y + ddy, delay, button)
+            mouseMove(item, x + 2*ddx, y + 2*ddy, delay, button)
+        }
         mouseMove(item, x + dx, y + dy, delay, button)
+        mouseRelease(item, x + dx, y + dy, button, modifiers, delay)
     }
 
     function mouseClick(item, x, y, button, modifiers, delay) {
@@ -652,6 +687,9 @@ Item {
                 qtest_runFunction(prop, null, isBenchmark)
             }
             qtest_results.finishTestFunction()
+            // wait(0) will call processEvents() so objects marked for deletion
+            // in the test function will be deleted.
+            wait(0)
             qtest_results.skipped = false
         }
 

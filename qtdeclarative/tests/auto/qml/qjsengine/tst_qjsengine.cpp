@@ -246,7 +246,7 @@ void tst_QJSEngine::newArray_HooliganTask233836()
     }
     {
         QJSValue ret = eng.newArray(0xFFFFFFFF);
-        QEXPECT_FAIL("", "The maximum length of arrays is defined by v8 currently and differs from QtScript", Abort);
+        QEXPECT_FAIL("", "The maximum length of arrays is defined by v8 currently and differs from Qt Script", Abort);
         QCOMPARE(ret.property("length").toUInt(), uint(0xFFFFFFFF));
         ret.setProperty(0xFFFFFFFF, 123);
         QCOMPARE(ret.property("length").toUInt(), uint(0xFFFFFFFF));
@@ -1917,7 +1917,7 @@ void tst_QJSEngine::jsFunctionDeclarationAsStatement()
     // at the beginning of chapter 12 in ECMA-262 5th edition, where it's
     // recommended that implementations either disallow this usage or issue
     // a warning.
-    // Since we had a bug report long ago about QtScript not supporting this
+    // Since we had a bug report long ago about Qt Script not supporting this
     // "feature" (and thus deviating from other implementations), we still
     // check this behavior.
 
@@ -2226,15 +2226,10 @@ void tst_QJSEngine::jsContinueInSwitch()
 
 void tst_QJSEngine::jsShadowReadOnlyPrototypeProperty()
 {
-    // SpiderMonkey has different behavior than JSC and V8; it disallows
-    // creating a property on the instance if there's a property with the
-    // same name in the prototype, and that property is read-only. We
-    // adopted that behavior in the old (4.5) QtScript back-end, but it
-    // just seems weird -- and non-compliant. Adopt the JSC behavior instead.
     QJSEngine eng;
     QVERIFY(eng.evaluate("o = {}; o.__proto__ = parseInt; o.length").isNumber());
-    QCOMPARE(eng.evaluate("o.length = 123; o.length").toInt(), 123);
-    QVERIFY(eng.evaluate("o.hasOwnProperty('length')").toBool());
+    QVERIFY(eng.evaluate("o.length = 123; o.length").toInt() != 123);
+    QVERIFY(!eng.evaluate("o.hasOwnProperty('length')").toBool());
 }
 
 void tst_QJSEngine::jsReservedWords_data()
@@ -2630,7 +2625,7 @@ void tst_QJSEngine::qRegExpInport()
 }
 
 // QScriptValue::toDateTime() returns a local time, whereas JS dates
-// are always stored as UTC. QtScript must respect the current time
+// are always stored as UTC. Qt Script must respect the current time
 // zone, and correctly adjust for daylight saving time that may be in
 // effect at a given date (QTBUG-9770).
 void tst_QJSEngine::dateRoundtripJSQtJS()

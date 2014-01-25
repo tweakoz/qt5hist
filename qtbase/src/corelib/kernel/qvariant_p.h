@@ -150,7 +150,7 @@ inline void v_construct(QVariant::Private *x, const T &t)
 template <class T>
 inline void v_clear(QVariant::Private *d, T* = 0)
 {
-    
+
     if (!QVariantIntegrator<T>::CanUseInternalSpace) {
         //now we need to cast
         //because QVariant::PrivateShared doesn't have a virtual destructor
@@ -224,7 +224,7 @@ class QVariantIsNull
     public:
         static const bool Value = (sizeof(test<T>(0)) == sizeof(Yes));
     };
-#elif defined(Q_CC_MSVC) && _MSC_VER >= 1400 // MSVC 2005, 2008 version: no decltype, but 'sealed' classes (>=2010 has decltype)
+#elif defined(Q_CC_MSVC) && _MSC_VER >= 1400 && !defined(Q_CC_INTEL) // MSVC 2005, 2008 version: no decltype, but 'sealed' classes (>=2010 has decltype)
     template<typename T>
     class HasIsNullMethod {
         struct Yes { char unused[1]; };

@@ -1147,3 +1147,100 @@ cleanup:
     ENDTEST();
 }
 #endif
+
+// Test whether the variables are declared in the appropriate scope
+// when script is compiled in QML compilation mode.
+bool v8test_qmlmodevariables()
+{
+    BEGINTEST();
+
+    HandleScope handle_scope;
+    Persistent<Context> context = Context::New();
+    Context::Scope context_scope(context);
+
+    Local<Object> global = context->Global();
+    Local<Object> qmlglobal = Object::New();
+
+    qmlglobal->Set(String::New("eval"), Integer::New(1922));
+    qmlglobal->Set(String::New("b"), Integer::New(28));
+    global->Set(String::New("x"), Integer::New(32));
+    global->Set(String::New("y"), Integer::New(40));
+
+    // Different declarations regarding to the binding kind.
+    Local<String> source = String::New(
+        "function f() { return 28; }" // function is bound at parse-time
+        "var a = 42;"                 // bound variable declared in qmlglobal scope
+        "eval(\"b\");"                // unbound variable declared in qmlglobal scope
+        "const c = 28;"               // constant is bound at parse-time
+        "var x = 2;"                  // bound variable declared in global scope
+        "eval(\"y\");"                // unbound variable declared in global scope
+      );
+    Local<Script> script = Script::Compile(source, NULL, NULL, Handle<String>(), Script::QmlMode);
+
+    TryCatch tc;
+    script->Run(qmlglobal);
+    VERIFY(!tc.HasCaught());
+
+    // Check redeclaration of a global JS function.
+    VERIFY(global->HasOwnProperty(String::New("eval")));
+    VERIFY(qmlglobal->HasOwnProperty(String::New("eval")));
+
+    // The following variables should be declared in the qmlglobal scope.
+    VERIFY(!global->HasOwnProperty(String::New("f")));
+    VERIFY(qmlglobal->HasOwnProperty(String::New("f")));
+
+    VERIFY(!global->HasOwnProperty(String::New("a")));
+    VERIFY(qmlglobal->HasOwnProperty(String::New("a")));
+
+    VERIFY(!global->HasOwnProperty(String::New("b")));
+    VERIFY(qmlglobal->HasOwnProperty(String::New("b")));
+
+    VERIFY(!global->HasOwnProperty(String::New("c")));
+    VERIFY(qmlglobal->HasOwnProperty(String::New("c")));
+
+    // The following variables should be declared in the global scope.
+    VERIFY(global->HasOwnProperty(String::New("x")));
+    VERIFY(!qmlglobal->HasOwnProperty(String::New("x")));
+
+    VERIFY(global->HasOwnProperty(String::New("y")));
+    VERIFY(!qmlglobal->HasOwnProperty(String::New("y")));
+
+cleanup:
+    context.Dispose();
+
+    ENDTEST();
+}
+
+// test for https://bugreports.qt-project.org/browse/QTBUG-31366
+// assert/crash when inlining local functions in qml mode
+bool v8test_qmlmodeinlinelocal()
+{
+    BEGINTEST();
+
+    HandleScope handle_scope;
+    Persistent<Context> context = Context::New();
+    Context::Scope context_scope(context);
+
+    Local<Object> qmlglobal = Object::New();
+
+    Local<String> source = String::New(
+        "function func() {"
+            "function local_function () {"
+            "}"
+            // high enough to get it to opt; 10000 seems to be too low
+            "for (var i = 0; i < 100000; ++i) local_function();"
+        "}"
+        "func();"
+      );
+
+    Local<Script> script = Script::Compile(source, NULL, NULL, Handle<String>(), Script::QmlMode);
+
+    TryCatch tc;
+    script->Run(qmlglobal);
+    VERIFY(!tc.HasCaught());
+
+cleanup:
+    context.Dispose();
+
+    ENDTEST();
+}

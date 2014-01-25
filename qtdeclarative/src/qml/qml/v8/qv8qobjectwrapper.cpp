@@ -277,7 +277,7 @@ static v8::Handle<v8::Value> GenericValueGetter(v8::Local<v8::String>, const v8:
     if (QQmlData::wasDeleted(object)) return v8::Undefined();
 
     QQmlPropertyData *property =
-        (QQmlPropertyData *)v8::External::Unwrap(info.Data());
+        (QQmlPropertyData *)v8::External::Cast(*info.Data())->Value();
 
     QQmlEngine *engine = resource->engine->engine();
     QQmlEnginePrivate *ep = engine?QQmlEnginePrivate::get(engine):0;
@@ -524,7 +524,7 @@ v8::Handle<v8::Value> QV8QObjectWrapper::GetProperty(QV8Engine *engine, QObject 
         QQmlData *ddata = QQmlData::get(object, false);
         if (ddata && ddata->propertyCache)
             result = ddata->propertyCache->property(property, object, context);
-        else
+        if (!result)
             result = QQmlPropertyCache::property(engine->engine(), object, property, context, local);
     }
 
@@ -894,7 +894,7 @@ static void FastValueSetter(v8::Local<v8::String>, v8::Local<v8::Value> value,
     QObject *object = resource->object;
 
     QQmlPropertyData *property =
-        (QQmlPropertyData *)v8::External::Unwrap(info.Data());
+        (QQmlPropertyData *)v8::External::Cast(*info.Data())->Value();
 
     int index = property->coreIndex;
 
@@ -1029,7 +1029,7 @@ v8::Local<v8::Object> QQmlPropertyCache::newQObject(QObject *object, QV8Engine *
                 // this type and the property accessor checks if the object is 0 (deleted) before
                 // dereferencing the pointer.
                 ft->InstanceTemplate()->SetAccessor(engine->toString(iter.key()), fastgetter, fastsetter,
-                                                    v8::External::Wrap(property));
+                                                    v8::External::New(property));
             }
         }
 
@@ -1612,7 +1612,8 @@ static v8::Handle<v8::Value> CallMethod(QObject *object, int index, int returnTy
     Returns the match score for converting \a actual to be of type \a conversionType.  A 
     zero score means "perfect match" whereas a higher score is worse.
 
-    The conversion table is copied out of the QtScript callQtMethod() function.
+    The conversion table is copied out of the \l QScript::callQtMethod()
+    function.
 */
 static int MatchScore(v8::Handle<v8::Value> actual, int conversionType)
 {

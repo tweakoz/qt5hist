@@ -1549,7 +1549,7 @@ void tst_QGraphicsGridLayout::setColumnSpacing()
 }
 
 void tst_QGraphicsGridLayout::setGeometry_data()
-{    
+{
     QTest::addColumn<QRectF>("rect");
     QTest::newRow("null") << QRectF();
     QTest::newRow("normal") << QRectF(0,0, 50, 50);
@@ -1882,6 +1882,18 @@ void tst_QGraphicsGridLayout::defaultStretchFactors_data()
                             << (SizeList()
                                 << QSizeF(10,10) << QSizeF(10,10) << QSizeF(10,10)
                                 << QSizeF(10,10) << QSizeF(10,10) << QSizeF(10,10)
+                            );
+
+    QTest::newRow("preferredsizeIsZero") << (ItemList()
+                                    << ItemDesc(0,0)
+                                        .preferredSizeHint(QSizeF(0,10))
+                                    << ItemDesc(0,1)
+                                        .preferredSizeHint(QSizeF(10,10))
+                                        .maxSize(QSizeF(20, 10))
+                                )
+                            << QSizeF(30, 10)
+                            << (SizeList()
+                                << QSizeF(10,10) << QSizeF(20,10)
                             );
 
     QTest::newRow("ignoreitem01") << (ItemList()

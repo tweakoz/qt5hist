@@ -405,7 +405,7 @@ IntRect ChromeClientQt::windowResizerRect() const
     // always draw scrollbars on the right hand side, so we assume this to be the
     // location when computing the resize rect to reserve for WebKit.
     QPoint resizeCornerTopLeft = QPoint(topLevelGeometry.width(), topLevelGeometry.height())
-        - QPoint(scollbarThickness, scollbarThickness))
+        - QPoint(scollbarThickness, scollbarThickness)
         - m_webPage->viewRectRelativeToWindow().topLeft();
 
     QRect resizeCornerRect = QRect(resizeCornerTopLeft, QSize(scollbarThickness, scollbarThickness));
@@ -654,7 +654,7 @@ void ChromeClientQt::scheduleCompositingLayerFlush()
 ChromeClient::CompositingTriggerFlags ChromeClientQt::allowedCompositingTriggers() const
 {
     if (allowsAcceleratedCompositing())
-        return ThreeDTransformTrigger | VideoTrigger | CanvasTrigger | AnimationTrigger;
+        return ThreeDTransformTrigger | CanvasTrigger | AnimationTrigger | AnimatedOpacityTrigger;
 
     return 0;
 }

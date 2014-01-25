@@ -39,7 +39,7 @@
 **
 ****************************************************************************/
 
-import QtQuick 2.0
+import QtQuick 2.1
 
 Rectangle {
     height: 360; width: 640
@@ -75,6 +75,7 @@ Rectangle {
             wrapMode: { wrapvalue.model.get(wrapvalue.currentIndex).value }
             smooth: { smoothvalue.model.get(smoothvalue.currentIndex).value }
             selectByMouse: { mousevalue.model.get(mousevalue.currentIndex).value }
+            selectByKeyboard: { keyboardvalue.model.get(keyboardvalue.currentIndex).value }
             onLinkActivated: { bordercolor.border.color = "red" }
             Rectangle { id: bordercolor; color: "transparent"; border.color: "green"; anchors.fill: parent }
         }
@@ -143,7 +144,7 @@ Rectangle {
                     "and a language runtime. "+
                     "A collection of C++ APIs is used to integrate these high level features with classic Qt applications."});
                     textmodel.append({ "name": "Links",
-                    "value": "This is a link - <a href=\"http://doc.qt.nokia.com\">Qt Docs</a>"});
+                    "value": "This is a link - <a href=\"http://qt-project.org/doc\">Qt Docs</a>"});
                 }
             }
             ControlView {
@@ -226,6 +227,10 @@ Rectangle {
             ControlView {
                 id: mousevalue
                 controlname: "Mouse"
+                model: ListModel { ListElement { name: "Off"; value: false } ListElement { name: "On"; value: true } } }
+            ControlView {
+                id: keyboardvalue
+                controlname: "Keyboard"
                 model: ListModel { ListElement { name: "Off"; value: false } ListElement { name: "On"; value: true } } }
             ControlView {
                 id: halignvalue

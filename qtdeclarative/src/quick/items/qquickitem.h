@@ -52,8 +52,6 @@
 #include <QtGui/qfont.h>
 #include <QtGui/qaccessible.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class QQuickItem;
@@ -134,6 +132,7 @@ class Q_QUICK_EXPORT QQuickItem : public QObject, public QQmlParserStatus
 
     Q_PROPERTY(bool focus READ hasFocus WRITE setFocus NOTIFY focusChanged FINAL)
     Q_PROPERTY(bool activeFocus READ hasActiveFocus NOTIFY activeFocusChanged FINAL)
+    Q_PROPERTY(bool activeFocusOnTab READ activeFocusOnTab WRITE setActiveFocusOnTab NOTIFY activeFocusOnTabChanged FINAL REVISION 1)
 
     Q_PROPERTY(qreal rotation READ rotation WRITE setRotation NOTIFY rotationChanged)
     Q_PROPERTY(qreal scale READ scale WRITE setScale NOTIFY scaleChanged)
@@ -263,6 +262,9 @@ public:
     bool smooth() const;
     void setSmooth(bool);
 
+    bool activeFocusOnTab() const;
+    void setActiveFocusOnTab(bool);
+
     bool antialiasing() const;
     void setAntialiasing(bool);
 
@@ -276,6 +278,7 @@ public:
     bool hasActiveFocus() const;
     bool hasFocus() const;
     void setFocus(bool);
+    void setFocus(bool focus, Qt::FocusReason reason);
     bool isFocusScope() const;
     QQuickItem *scopedFocusItem() const;
 
@@ -320,6 +323,8 @@ public:
     Q_INVOKABLE void mapFromItem(QQmlV8Function*) const;
     Q_INVOKABLE void mapToItem(QQmlV8Function*) const;
     Q_INVOKABLE void forceActiveFocus();
+    Q_INVOKABLE void forceActiveFocus(Qt::FocusReason reason);
+    Q_REVISION(1) Q_INVOKABLE QQuickItem *nextItemInFocusChain(bool forward = true);
     Q_INVOKABLE QQuickItem *childAt(qreal x, qreal y) const;
 
 #ifndef QT_NO_IM
@@ -345,11 +350,13 @@ Q_SIGNALS:
     void stateChanged(const QString &);
     void focusChanged(bool);
     void activeFocusChanged(bool);
+    Q_REVISION(1) void activeFocusOnTabChanged(bool);
     void parentChanged(QQuickItem *);
     void transformOriginChanged(TransformOrigin);
     void smoothChanged(bool);
     void antialiasingChanged(bool);
     void clipChanged(bool);
+    Q_REVISION(1) void windowChanged(QQuickWindow* window);
 
     // XXX todo
     void childrenChanged();
@@ -425,6 +432,8 @@ protected:
     QQuickItem(QQuickItemPrivate &dd, QQuickItem *parent = 0);
 
 private:
+    Q_PRIVATE_SLOT(d_func(), void _q_resourceObjectDeleted(QObject *))
+
     friend class QQuickWindow;
     friend class QQuickWindowPrivate;
     friend class QSGRenderer;
@@ -445,7 +454,5 @@ QT_END_NAMESPACE
 
 QML_DECLARE_TYPE(QQuickItem)
 QML_DECLARE_TYPE(QQuickTransform)
-
-QT_END_HEADER
 
 #endif // QQUICKITEM_H

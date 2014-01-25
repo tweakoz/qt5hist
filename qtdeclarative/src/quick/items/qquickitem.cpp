@@ -58,6 +58,7 @@
 #include <QtCore/qdebug.h>
 #include <QtCore/qcoreevent.h>
 #include <QtCore/qnumeric.h>
+#include <QtGui/qpa/qplatformtheme.h>
 
 #include <private/qqmlglobal_p.h>
 #include <private/qqmlengine_p.h>
@@ -77,6 +78,10 @@
 // XXX todo Check that elements that create items handle memory correctly after visual ownership change
 
 QT_BEGIN_NAMESPACE
+
+#ifndef QT_NO_DEBUG
+static bool qsg_leak_check = !qgetenv("QML_LEAK_CHECK").isEmpty();
+#endif
 
 #ifdef FOCUS_DEBUG
 void printFocusTree(QQuickItem *item, QQuickItem *scope = 0, int depth = 1);
@@ -739,7 +744,12 @@ void QQuickKeyNavigationAttached::setFocusNavigation(QQuickItem *currentItem, co
     while (currentItem != initialItem && isNextItem);
 }
 
-const QQuickKeysAttached::SigMap QQuickKeysAttached::sigMap[] = {
+struct SigMap {
+    int key;
+    const char *sig;
+};
+
+const SigMap sigMap[] = {
     { Qt::Key_Left, "leftPressed" },
     { Qt::Key_Right, "rightPressed" },
     { Qt::Key_Up, "upPressed" },
@@ -770,6 +780,21 @@ const QQuickKeysAttached::SigMap QQuickKeysAttached::sigMap[] = {
     { Qt::Key_VolumeDown, "volumeDownPressed" },
     { 0, 0 }
 };
+
+const QByteArray QQuickKeysAttached::keyToSignal(int key)
+{
+    QByteArray keySignal;
+    if (key >= Qt::Key_0 && key <= Qt::Key_9) {
+        keySignal = "digit0Pressed";
+        keySignal[5] = '0' + (key - Qt::Key_0);
+    } else {
+        int i = 0;
+        while (sigMap[i].key && sigMap[i].key != key)
+            ++i;
+        keySignal = sigMap[i].sig;
+    }
+    return keySignal;
+}
 
 bool QQuickKeysAttached::isConnected(const char *signalName)
 {
@@ -1338,7 +1363,7 @@ QQuickKeysAttached *QQuickKeysAttached::qmlAttachedProperties(QObject *obj)
     \brief Property used to mirror layout behavior
 
     The LayoutMirroring attached property is used to horizontally mirror \l {anchor-layout}{Item anchors},
-    \l{Item Layouts}{positioner} types (such as \l Row and \l Grid)
+    \l{Item Positioners}{positioner} types (such as \l Row and \l Grid)
     and views (such as \l GridView and horizontal \l ListView). Mirroring is a visual change: left
     anchors become right anchors, and positioner types like \l Grid and \l Row reverse the
     horizontal layout of child items.
@@ -1378,7 +1403,7 @@ QQuickKeysAttached *QQuickKeysAttached::qmlAttachedProperties(QObject *obj)
 
     This property holds whether the item's layout is mirrored horizontally. Setting this to true
     horizontally reverses \l {anchor-layout}{anchor} settings such that left anchors become right,
-    and right anchors become left. For \l{Item Layouts}{positioner} types
+    and right anchors become left. For \l{Item Positioners}{positioner} types
     (such as \l Row and \l Grid) and view types (such as \l {GridView}{GridView} and \l {ListView}{ListView})
     this also mirrors the horizontal layout direction of the item.
 
@@ -1510,6 +1535,11 @@ void QQuickItemPrivate::setAccessibleFlagAndListener()
     }
 }
 
+/*!
+Clears all sub focus items from \a scope.
+If \a focus is true, sets the scope's subFocusItem
+to be this item.
+*/
 void QQuickItemPrivate::updateSubFocusItem(QQuickItem *scope, bool focus)
 {
     Q_Q(QQuickItem);
@@ -1541,7 +1571,7 @@ void QQuickItemPrivate::updateSubFocusItem(QQuickItem *scope, bool focus)
 
 /*!
     \class QQuickItem
-    \brief The QQuickItem class provides the most basic of all visual items in QtQuick.
+    \brief The QQuickItem class provides the most basic of all visual items in \l {Qt Quick}.
     \inmodule QtQuick
 
     All visual items in Qt Quick inherit from QQuickItem. Although a QQuickItem
@@ -1839,6 +1869,11 @@ void QQuickItemPrivate::updateSubFocusItem(QQuickItem *scope, bool focus)
 */
 
 /*!
+    \fn void QQuickItem::activeFocusOnTabChanged(bool)
+    \internal
+*/
+
+/*!
     \fn void QQuickItem::childrenChanged()
     \internal
 */
@@ -1945,9 +1980,11 @@ static void qt_print_item_count()
 QQuickItem::~QQuickItem()
 {
 #ifndef QT_NO_DEBUG
-    --qt_item_count;
-    if (qt_item_count < 0)
-        qDebug("Item destroyed after qt_print_item_count() was called.");
+    if (qsg_leak_check) {
+        --qt_item_count;
+        if (qt_item_count < 0)
+            qDebug("Item destroyed after qt_print_item_count() was called.");
+    }
 #endif
 
     Q_D(QQuickItem);
@@ -1994,6 +2031,161 @@ QQuickItem::~QQuickItem()
 
     delete d->_anchors; d->_anchors = 0;
     delete d->_stateGroup; d->_stateGroup = 0;
+}
+
+/*!
+    \internal
+*/
+bool QQuickItemPrivate::qt_tab_all_widgets()
+{
+    if (const QPlatformTheme *theme = QGuiApplicationPrivate::platformTheme())
+        return theme->themeHint(QPlatformTheme::TabAllWidgets).toBool();
+    return true;
+}
+
+/*!
+    \internal
+*/
+bool QQuickItemPrivate::canAcceptTabFocus(QQuickItem *item)
+{
+    bool result = true;
+
+    if (!item->window())
+        return false;
+
+    if (item == item->window()->contentItem())
+        return true;
+
+#ifndef QT_NO_ACCESSIBILITY
+    result = false;
+    if (QObject *acc = qmlAttachedPropertiesObject<QQuickAccessibleAttached>(item, false)) {
+        int role = acc->property("role").toInt();
+        if (role == QAccessible::EditableText
+                || role == QAccessible::Table
+                || role == QAccessible::List
+                || role == QAccessible::SpinBox)
+            result = true;
+    }
+#endif
+
+    return result;
+}
+
+/*!
+    \internal
+    \brief QQuickItemPrivate::focusNextPrev focuses the next/prev item in the tab-focus-chain
+    \param item The item that currently has the focus
+    \param forward The direction
+    \return Whether the next item in the focus chain is found or not
+
+    If \a next is true, the next item visited will be in depth-first order relative to \a item.
+    If \a next is false, the next item visited will be in reverse depth-first order relative to \a item.
+*/
+bool QQuickItemPrivate::focusNextPrev(QQuickItem *item, bool forward)
+{
+    QQuickItem *next = QQuickItemPrivate::nextPrevItemInTabFocusChain(item, forward);
+
+    if (next == item)
+        return false;
+
+    next->forceActiveFocus(forward ? Qt::TabFocusReason : Qt::BacktabFocusReason);
+
+    return true;
+}
+
+QQuickItem* QQuickItemPrivate::nextPrevItemInTabFocusChain(QQuickItem *item, bool forward)
+{
+    Q_ASSERT(item);
+
+    bool all = QQuickItemPrivate::qt_tab_all_widgets();
+
+    QQuickItem *from = 0;
+    if (forward) {
+       from = item->parentItem();
+    } else {
+        if (!item->childItems().isEmpty())
+            from = item->childItems().first();
+        else
+            from = item->parentItem();
+    }
+    bool skip = false;
+    const QQuickItem * const contentItem = item->window()->contentItem();
+    const QQuickItem * const originalItem = item;
+    QQuickItem * startItem = item;
+    QQuickItem * firstFromItem = from;
+    QQuickItem *current = item;
+    do {
+        skip = false;
+        QQuickItem *last = current;
+
+        bool hasChildren = !current->childItems().isEmpty() && current->isEnabled() && current->isVisible();
+
+        // coming from parent: check children
+        if (hasChildren && from == current->parentItem()) {
+            if (forward) {
+                current = current->childItems().first();
+            } else {
+                current = current->childItems().last();
+                if (!current->childItems().isEmpty())
+                    skip = true;
+            }
+        } else if (hasChildren && forward && from != current->childItems().last()) {
+            // not last child going forwards
+            int nextChild = current->childItems().indexOf(from) + 1;
+            current = current->childItems().at(nextChild);
+        } else if (hasChildren && !forward && from != current->childItems().first()) {
+            // not first child going backwards
+            int prevChild = current->childItems().indexOf(from) - 1;
+            current = current->childItems().at(prevChild);
+            if (!current->childItems().isEmpty())
+                skip = true;
+        // back to the parent
+        } else if (current->parentItem()) {
+            current = current->parentItem();
+            // we would evaluate the parent twice, thus we skip
+            if (forward) {
+                skip = true;
+            } else if (!forward && !current->childItems().isEmpty()) {
+                if (last != current->childItems().first()) {
+                    skip = true;
+                } else if (last == current->childItems().first()) {
+                    if (current->isFocusScope() && current->activeFocusOnTab() && current->hasActiveFocus())
+                        skip = true;
+                }
+            }
+        } else if (hasChildren) {
+            // Wrap around after checking all items forward
+            if (forward) {
+                current = current->childItems().first();
+            } else {
+                current = current->childItems().last();
+                if (!current->childItems().isEmpty())
+                    skip = true;
+            }
+        }
+        from = last;
+        if (current == startItem && from == firstFromItem) {
+            // wrapped around, avoid endless loops
+            if (originalItem == contentItem) {
+#ifdef FOCUS_DEBUG
+                qDebug() << "QQuickItemPrivate::nextPrevItemInTabFocusChain: looped, return contentItem";
+#endif
+                return item->window()->contentItem();
+            } else {
+#ifdef FOCUS_DEBUG
+                qDebug() << "QQuickItemPrivate::nextPrevItemInTabFocusChain: looped, return " << startItem;
+#endif
+                return startItem;
+            }
+        }
+        if (!firstFromItem) { //start from root
+            startItem = current;
+            firstFromItem = from;
+        }
+    } while (skip || !current->activeFocusOnTab() || !current->isEnabled() || !current->isVisible()
+                  || !(all || QQuickItemPrivate::canAcceptTabFocus(current)));
+
+    return current;
 }
 
 /*!
@@ -2057,7 +2249,7 @@ void QQuickItem::setParentItem(QQuickItem *parentItem)
             while (!scopeItem->isFocusScope() && scopeItem->parentItem())
                 scopeItem = scopeItem->parentItem();
             if (d->window) {
-                QQuickWindowPrivate::get(d->window)->clearFocusInScope(scopeItem, scopeFocusedItem,
+                QQuickWindowPrivate::get(d->window)->clearFocusInScope(scopeItem, scopeFocusedItem, Qt::OtherFocusReason,
                                                                 QQuickWindowPrivate::DontChangeFocusProperty);
                 if (scopeFocusedItem != this)
                     QQuickItemPrivate::get(scopeFocusedItem)->updateSubFocusItem(this, true);
@@ -2120,7 +2312,7 @@ void QQuickItem::setParentItem(QQuickItem *parentItem)
                 emit scopeFocusedItem->focusChanged(false);
             } else {
                 if (d->window) {
-                    QQuickWindowPrivate::get(d->window)->setFocusInScope(scopeItem, scopeFocusedItem,
+                    QQuickWindowPrivate::get(d->window)->setFocusInScope(scopeItem, scopeFocusedItem, Qt::OtherFocusReason,
                                                                   QQuickWindowPrivate::DontChangeFocusProperty);
                 } else {
                     QQuickItemPrivate::get(scopeFocusedItem)->updateSubFocusItem(scopeItem, true);
@@ -2129,7 +2321,8 @@ void QQuickItem::setParentItem(QQuickItem *parentItem)
         }
     }
 
-    d->resolveLayoutMirror();
+    if (d->parentItem)
+        d->resolveLayoutMirror();
 
     d->itemChange(ItemParentHasChanged, d->parentItem);
 
@@ -2215,13 +2408,16 @@ void QQuickItem::stackAfter(const QQuickItem *sibling)
         QQuickItemPrivate::get(parentPrivate->childItems.at(ii))->siblingOrderChanged();
 }
 
+/*! \fn void QQuickItem::windowChanged(QQuickWindow *window)
+    This signal is emitted when the item's \a window changes.
+*/
+
 /*!
   Returns the window in which this item is rendered.
 
-  The item does not have a window until it has been assigned into a scene. To
-  get notification about this, reimplement the itemChange() function and
-  listen for the ItemSceneChange change. The itemChange() function is called
-  both when the item is entered into a scene and when it is removed from a scene.
+  The item does not have a window until it has been assigned into a scene. The
+  \l windowChanged signal provides a notification both when the item is entered
+  into a scene and when it is removed from a scene.
   */
 QQuickWindow *QQuickItem::window() const
 {
@@ -2372,8 +2568,7 @@ void QQuickItemPrivate::derefWindow()
     if (c->cursorItem == q)
         c->cursorItem = 0;
 #endif
-    if ( hoverEnabled )
-        c->hoverItems.removeAll(q);
+    c->hoverItems.removeAll(q);
     if (itemNodeInstance)
         c->cleanup(itemNodeInstance);
     if (!parentItem)
@@ -2496,6 +2691,7 @@ QQuickItemPrivate::QQuickItemPrivate()
     , isAccessible(false)
     , culled(false)
     , hasCursor(false)
+    , activeFocusOnTab(false)
     , dirtyAttributes(0)
     , nextDirtyItem(0)
     , prevDirtyItem(0)
@@ -2526,11 +2722,13 @@ QQuickItemPrivate::~QQuickItemPrivate()
 void QQuickItemPrivate::init(QQuickItem *parent)
 {
 #ifndef QT_NO_DEBUG
-    ++qt_item_count;
-    static bool atexit_registered = false;
-    if (!atexit_registered) {
-        atexit(qt_print_item_count);
-        atexit_registered = true;
+    if (qsg_leak_check) {
+        ++qt_item_count;
+        static bool atexit_registered = false;
+        if (!atexit_registered) {
+            atexit(qt_print_item_count);
+            atexit_registered = true;
+        }
     }
 #endif
 
@@ -2559,9 +2757,26 @@ void QQuickItemPrivate::data_append(QQmlListProperty<QObject> *prop, QObject *o)
     } else {
         if (o->inherits("QGraphicsItem"))
             qWarning("Cannot add a QtQuick 1.0 item (%s) into a QtQuick 2.0 scene!", o->metaObject()->className());
+        else {
+            QQuickWindow *thisWindow = qmlobject_cast<QQuickWindow *>(o);
+            QQuickItem *item = that;
+            QQuickWindow *itemWindow = that->window();
+            while (!itemWindow && item && item->parentItem()) {
+                item = item->parentItem();
+                itemWindow = item->window();
+            }
 
-        // XXX todo - do we really want this behavior?
-        o->setParent(that);
+            if (thisWindow) {
+                if (itemWindow)
+                    thisWindow->setTransientParent(itemWindow);
+                else
+                    QObject::connect(item, SIGNAL(windowChanged(QQuickWindow*)),
+                                     thisWindow, SLOT(setTransientParent_helper(QQuickWindow*)));
+            }
+            o->setParent(that);
+        }
+
+        resources_append(prop, o);
     }
 }
 
@@ -2639,30 +2854,38 @@ void QQuickItemPrivate::data_clear(QQmlListProperty<QObject> *property)
 
 QObject *QQuickItemPrivate::resources_at(QQmlListProperty<QObject> *prop, int index)
 {
-    const QObjectList children = prop->object->children();
-    if (index < children.count())
-        return children.at(index);
-    else
-        return 0;
+    QQuickItemPrivate *quickItemPrivate = QQuickItemPrivate::get(static_cast<QQuickItem *>(prop->object));
+    return quickItemPrivate->extra.isAllocated() ? quickItemPrivate->extra->resourcesList.value(index) : 0;
 }
 
-void QQuickItemPrivate::resources_append(QQmlListProperty<QObject> *prop, QObject *o)
+void QQuickItemPrivate::resources_append(QQmlListProperty<QObject> *prop, QObject *object)
 {
-    // XXX todo - do we really want this behavior?
-    o->setParent(prop->object);
+    QQuickItem *quickItem = static_cast<QQuickItem *>(prop->object);
+    QQuickItemPrivate *quickItemPrivate = QQuickItemPrivate::get(quickItem);
+    if (!quickItemPrivate->extra.value().resourcesList.contains(object)) {
+        quickItemPrivate->extra.value().resourcesList.append(object);
+        qmlobject_connect(object, QObject, SIGNAL(destroyed(QObject*)),
+                          quickItem, QQuickItem, SLOT(_q_resourceObjectDeleted(QObject*)));
+    }
 }
 
 int QQuickItemPrivate::resources_count(QQmlListProperty<QObject> *prop)
 {
-    return prop->object->children().count();
+    QQuickItemPrivate *quickItemPrivate = QQuickItemPrivate::get(static_cast<QQuickItem *>(prop->object));
+    return  quickItemPrivate->extra.isAllocated() ? quickItemPrivate->extra->resourcesList.count() : 0;
 }
 
 void QQuickItemPrivate::resources_clear(QQmlListProperty<QObject> *prop)
 {
-    // XXX todo - do we really want this behavior?
-    const QObjectList children = prop->object->children();
-    for (int index = 0; index < children.count(); index++)
-        children.at(index)->setParent(0);
+    QQuickItem *quickItem = static_cast<QQuickItem *>(prop->object);
+    QQuickItemPrivate *quickItemPrivate = QQuickItemPrivate::get(quickItem);
+    if (quickItemPrivate->extra.isAllocated()) {//If extra is not allocated resources is empty.
+        foreach (QObject *object, quickItemPrivate->extra->resourcesList) {
+            qmlobject_disconnect(object, QObject, SIGNAL(destroyed(QObject*)),
+                                 quickItem, QQuickItem, SLOT(_q_resourceObjectDeleted(QObject*)));
+        }
+        quickItemPrivate->extra->resourcesList.clear();
+    }
 }
 
 QQuickItem *QQuickItemPrivate::children_at(QQmlListProperty<QQuickItem> *prop, int index)
@@ -2807,6 +3030,12 @@ void QQuickItemPrivate::transform_clear(QQmlListProperty<QQuickTransform> *prop)
     p->transforms.clear();
 
     p->dirty(QQuickItemPrivate::Transform);
+}
+
+void QQuickItemPrivate::_q_resourceObjectDeleted(QObject *object)
+{
+    if (extra.isAllocated() && extra->resourcesList.contains(object))
+        extra->resourcesList.removeAll(object);
 }
 
 /*!
@@ -2979,8 +3208,6 @@ QList<QQuickItem *> QQuickItem::childItems() const
 
   If clipping is enabled, an item will clip its own painting, as well
   as the painting of its children, to its bounding rectangle.
-
-  Non-rectangular clipping regions are not supported for performance reasons.
 */
 /*!
   \property QQuickItem::clip
@@ -2990,8 +3217,6 @@ QList<QQuickItem *> QQuickItem::childItems() const
   as the painting of its children, to its bounding rectangle. If you set
   clipping during an item's paint operation, remember to re-set it to
   prevent clipping the rest of your scene.
-
-  Non-rectangular clipping regions are not supported for performance reasons.
 */
 bool QQuickItem::clip() const
 {
@@ -3744,32 +3969,69 @@ void QQuickItem::mapToItem(QQmlV8Function *args) const
 
 /*!
     \qmlmethod QtQuick2::Item::forceActiveFocus()
+    \overload
 
     Forces active focus on the item.
 
     This method sets focus on the item and ensures that all ancestor
     FocusScope objects in the object hierarchy are also given \l focus.
 
-    \sa activeFocus
-*/
-/*!
-    Forces active focus on the item.
-
-    This method sets focus on the item and ensures that all ancestor
-    FocusScope objects in the object hierarchy are also given \l focus.
+    The reason for the focus change will be \a Qt::OtherFocusReason. Use
+    the overloaded method to specify the focus reason to enable better
+    handling of the focus change.
 
     \sa activeFocus
 */
 void QQuickItem::forceActiveFocus()
 {
-    setFocus(true);
+    forceActiveFocus(Qt::OtherFocusReason);
+}
+
+/*!
+    \qmlmethod QtQuick2::Item::forceActiveFocus(Qt::FocusReason reason)
+
+    Forces active focus on the item with the given \a reason.
+
+    This method sets focus on the item and ensures that all ancestor
+    FocusScope objects in the object hierarchy are also given \l focus.
+
+    \since QtQuick 2.1
+
+    \sa activeFocus, Qt::FocusReason
+*/
+
+void QQuickItem::forceActiveFocus(Qt::FocusReason reason)
+{
+    setFocus(true, reason);
     QQuickItem *parent = parentItem();
     while (parent) {
         if (parent->flags() & QQuickItem::ItemIsFocusScope) {
-            parent->setFocus(true);
+            parent->setFocus(true, reason);
         }
         parent = parent->parentItem();
     }
+}
+
+/*!
+    \qmlmethod QtQuick2::Item::nextItemInFocusChain(bool forward)
+
+    \since QtQuick 2.1
+
+    Returns the item in the focus chain which is next to this item.
+    If \a forward is \c true, or not supplied, it is the next item in
+    the forwards direction. If \a forward is \c false, it is the next
+    item in the backwards direction.
+*/
+/*!
+    Returns the item in the focus chain which is next to this item.
+    If \a forward is \c true, or not supplied, it is the next item in
+    the forwards direction. If \a forward is \c false, it is the next
+    item in the backwards direction.
+*/
+
+QQuickItem *QQuickItem::nextItemInFocusChain(bool forward)
+{
+    return QQuickItemPrivate::nextPrevItemInTabFocusChain(this, forward);
 }
 
 /*!
@@ -3788,14 +4050,15 @@ void QQuickItem::forceActiveFocus()
 */
 QQuickItem *QQuickItem::childAt(qreal x, qreal y) const
 {
-    // XXX todo - should this include transform etc.?
     const QList<QQuickItem *> children = childItems();
     for (int i = children.count()-1; i >= 0; --i) {
         QQuickItem *child = children.at(i);
-        if (child->isVisible() && child->x() <= x
-                && child->x() + child->width() >= x
-                && child->y() <= y
-                && child->y() + child->height() >= y)
+        // Map coordinates to the child element's coordinate space
+        QPointF point = mapToItem(child, QPointF(x, y));
+        if (child->isVisible() && point.x() >= 0
+                && child->width() >= point.x()
+                && point.y() >= 0
+                && child->height() >= point.y())
             return child;
     }
     return 0;
@@ -3954,8 +4217,8 @@ void QQuickItemPrivate::setState(const QString &state)
 
     This property holds the name of the current state of the item.
 
-    If the item is in its default state — that is, no explicit state has been
-    set — then this property holds an empty string. Likewise, you can return
+    If the item is in its default state, that is, no explicit state has been
+    set, then this property holds an empty string. Likewise, you can return
     an item to its default state by setting this property to an empty string.
 
     \sa {Qt Quick States}
@@ -3965,8 +4228,8 @@ void QQuickItemPrivate::setState(const QString &state)
 
     This property holds the name of the current state of the item.
 
-    If the item is in its default state — that is, no explicit state has been
-    set — then this property holds an empty string. Likewise, you can return
+    If the item is in its default state, that is, no explicit state has been
+    set, then this property holds an empty string. Likewise, you can return
     an item to its default state by setting this property to an empty string.
 
     \sa {Qt Quick States}
@@ -4130,6 +4393,24 @@ void QQuickItemPrivate::deliverKeyEvent(QKeyEvent *e)
         else
             extra->keyHandler->keyReleased(e, true);
     }
+
+    if (e->isAccepted())
+        return;
+
+    //only care about KeyPress now
+    if ((q == q->window()->contentItem() || q->activeFocusOnTab())
+            && e->type() == QEvent::KeyPress) {
+        bool res = false;
+        if (!(e->modifiers() & (Qt::ControlModifier | Qt::AltModifier))) {  //### Add MetaModifier?
+            if (e->key() == Qt::Key_Backtab
+                || (e->key() == Qt::Key_Tab && (e->modifiers() & Qt::ShiftModifier)))
+                res = QQuickItemPrivate::focusNextPrev(q, false);
+            else if (e->key() == Qt::Key_Tab)
+                res = QQuickItemPrivate::focusNextPrev(q, true);
+            if (res)
+                e->setAccepted(true);
+        }
+    }
 }
 
 #ifndef QT_NO_IM
@@ -4255,11 +4536,18 @@ void QQuickItemPrivate::deliverDragEvent(QEvent *e)
 
     \a value contains extra information relating to the change, when
     applicable.
+
+    If you re-implement this method in a subclass, be sure to call
+    \code
+    QQuickItem::itemChange(change, value);
+    \endcode
+    typically at the end of your implementation, to ensure the
+    \l windowChanged signal will be emitted.
   */
 void QQuickItem::itemChange(ItemChange change, const ItemChangeData &value)
 {
-    Q_UNUSED(change);
-    Q_UNUSED(value);
+    if (change == ItemSceneChange)
+        emit windowChanged(value.window);
 }
 
 #ifndef QT_NO_IM
@@ -5052,7 +5340,7 @@ void QQuickItemPrivate::setEffectiveEnableRecur(QQuickItem *scope, bool newEffec
             q->ungrabMouse();
         if (scope && !effectiveEnable && activeFocus) {
             windowPriv->clearFocusInScope(
-                    scope, q,  QQuickWindowPrivate::DontChangeFocusProperty | QQuickWindowPrivate::DontChangeSubFocusItem);
+                    scope, q, Qt::OtherFocusReason, QQuickWindowPrivate::DontChangeFocusProperty | QQuickWindowPrivate::DontChangeSubFocusItem);
         }
     }
 
@@ -5063,7 +5351,7 @@ void QQuickItemPrivate::setEffectiveEnableRecur(QQuickItem *scope, bool newEffec
 
     if (window && scope && effectiveEnable && focus) {
         QQuickWindowPrivate::get(window)->setFocusInScope(
-                scope, q, QQuickWindowPrivate::DontChangeFocusProperty | QQuickWindowPrivate::DontChangeSubFocusItem);
+                scope, q, Qt::OtherFocusReason, QQuickWindowPrivate::DontChangeFocusProperty | QQuickWindowPrivate::DontChangeSubFocusItem);
     }
 
     emit q->enabledChanged();
@@ -5289,6 +5577,53 @@ void QQuickItem::setSmooth(bool smooth)
     d->dirty(QQuickItemPrivate::Smooth);
 
     emit smoothChanged(smooth);
+}
+
+/*!
+    \qmlproperty bool QtQuick2::Item::activeFocusOnTab
+
+    This property holds whether the item wants to be in tab focus
+    chain. By default this is set to false.
+
+    The tab focus chain traverses elements by visiting first the
+    parent, and then its children in the order they occur in the
+    children property. Pressing the tab key on an item in the tab
+    focus chain will move keyboard focus to the next item in the
+    chain. Pressing BackTab (normally Shift+Tab) will move focus
+    to the previous item.
+
+    To set up a manual tab focus chain, see \l KeyNavigation. Tab
+    key events used by Keys or KeyNavigation have precedence over
+    focus chain behavior, ignore the events in other key handlers
+    to allow it to propagate.
+*/
+/*!
+    \property QQuickItem::activeFocusOnTab
+
+    This property holds whether the item wants to be in tab focus
+    chain. By default this is set to false.
+*/
+bool QQuickItem::activeFocusOnTab() const
+{
+    Q_D(const QQuickItem);
+    return d->activeFocusOnTab;
+}
+void QQuickItem::setActiveFocusOnTab(bool activeFocusOnTab)
+{
+    Q_D(QQuickItem);
+    if (d->activeFocusOnTab == activeFocusOnTab)
+        return;
+
+    if (window()) {
+        if ((this == window()->activeFocusItem()) && this != window()->contentItem() && !activeFocusOnTab) {
+            qWarning("QQuickItem: Cannot set activeFocusOnTab to false once item is the active focus item.");
+            return;
+        }
+    }
+
+    d->activeFocusOnTab = activeFocusOnTab;
+
+    emit activeFocusOnTabChanged(activeFocusOnTab);
 }
 
 /*!
@@ -5977,6 +6312,11 @@ bool QQuickItem::hasFocus() const
 
 void QQuickItem::setFocus(bool focus)
 {
+    setFocus(focus, Qt::OtherFocusReason);
+}
+
+void QQuickItem::setFocus(bool focus, Qt::FocusReason reason)
+{
     Q_D(QQuickItem);
     if (d->focus == focus)
         return;
@@ -5988,9 +6328,9 @@ void QQuickItem::setFocus(bool focus)
             scope = scope->parentItem();
         if (d->window) {
             if (focus)
-                QQuickWindowPrivate::get(d->window)->setFocusInScope(scope, this);
+                QQuickWindowPrivate::get(d->window)->setFocusInScope(scope, this, reason);
             else
-                QQuickWindowPrivate::get(d->window)->clearFocusInScope(scope, this);
+                QQuickWindowPrivate::get(d->window)->clearFocusInScope(scope, this, reason);
         } else {
             // do the focus changes from setFocusInScope/clearFocusInScope that are
             // unrelated to a window

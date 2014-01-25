@@ -46,7 +46,9 @@ for your platform from the following list.
 \tableofcontents
 
     Qt for X11 has some requirements that are given in more detail
-    in the \l{Qt for X11 Requirements} document.
+    in the \l{Qt for X11 Requirements} document. A binary package is available
+    and the \l{Qt Installation Program} page describes the installation in more
+    detail.
 
 \section1 Step 1: Installing the License File (commercial editions only)
     If you have the commercial edition of Qt, install your license
@@ -56,12 +58,12 @@ for your platform from the following list.
 
 \section1 Step 2: Unpacking the Archive
     Unpack the archive if you have not done so already. For example,
-    if you have the \c{qt-everywhere-opensource-src-5.0.2.tar.gz}
+    if you have the \c{qt-everywhere-opensource-src-5.1.0.tar.gz}
     package, type the following commands at a command line prompt:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 0
+\snippet snippets/code/doc_src_installation.qdoc 0
 
-    This creates the directory \c{/tmp/qt-everywhere-opensource-src-5.0.2}
+    This creates the directory \c{/tmp/qt-everywhere-opensource-src-5.1.0}
     containing the files from the archive. We only support the GNU version of
     the tar archiving utility. Note that on some systems it is called gtar.
 
@@ -71,23 +73,23 @@ for your platform from the following list.
     \c{./configure} script in the package directory.
 
     By default, Qt is configured for installation in the
-    \c{/usr/local/Qt-5.0.2} directory, but this can be
+    \c{/usr/local/Qt-5.1.0} directory, but this can be
     changed by using the \c{-prefix} option.
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 1
+\snippet snippets/code/doc_src_installation.qdoc 1
 
     Type \c{./configure -help} to get a list of all available options.
 
     To create the library and compile all the examples, tools,
     and tutorials, type:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 2
+\snippet snippets/code/doc_src_installation.qdoc 2
 
     If \c{-prefix} is outside the build directory, you need to install
     the library, examples, tools, and tutorials in the appropriate
     place. To do this (as root if necessary), type:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 3
+\snippet snippets/code/doc_src_installation.qdoc 3
 
     Note that on some systems the make utility is named differently,
     e.g. gmake. The configure script tells you which make utility to
@@ -103,25 +105,25 @@ for your platform from the following list.
     In order to use Qt, some environment variables needs to be
     extended.
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 4
+\snippet snippets/code/doc_src_installation.qdoc 4
 
     This is done like this:
 
     In \c{.profile} (if your shell is bash, ksh, zsh or sh), add the
     following lines:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 5
+\snippet snippets/code/doc_src_installation.qdoc 5
 
     In \c{.login} (in case your shell is csh or tcsh), add the following line:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 6
+\snippet snippets/code/doc_src_installation.qdoc 6
 
     If you use a different shell, please modify your environment
     variables accordingly.
 
     For compilers that do not support rpath you must also extended the
     \c LD_LIBRARY_PATH environment variable to include
-    \c{/usr/local/Qt-5.0.2/lib}. On Linux with GCC this step
+    \c{/usr/local/Qt-5.1.0/lib}. On Linux with GCC this step
     is not needed.
 
 \b {That's all. Qt is now installed.}
@@ -154,13 +156,10 @@ for your platform from the following list.
 
 \tableofcontents
 
-    Qt for Windows has some requirements that are given in more detail
-    in the \l{Qt for Windows Requirements} document.
-
-    If you have obtained a binary package for this platform,
-    consult the installation instructions provided instead of the ones in
-    this document.
-
+    Qt for Windows has some requirements that are given in more detail in the
+    \l{Qt for Windows Requirements} document. A binary package is available and
+    the \l{Qt Installation Program} page describes the installation in more
+    detail.
 
 \section1 Step 1: Install the License File (commercial editions only)
 
@@ -177,7 +176,7 @@ for your platform from the following list.
 \section1 Step 2: Unpack the Archive
 
     Uncompress the files into the directory you want Qt installed;
-    e.g. \c{C:\Qt\5.0.2}.
+    e.g. \c{C:\Qt\5.1.0}.
 
     \note The install path must not contain any spaces or Windows specific
     file system characters.
@@ -287,6 +286,8 @@ Qt for Mac OS X has some requirements that are given in more detail
 in the \l{Qt for Mac OS X Requirements} document.
 
 The following instructions describe how to install Qt from the source package.
+A binary package is available and the \l{Qt Installation Program} page describes
+the installation in more detail.
 
 For the binary package, simply double-click on the Qt.mpkg
 and follow the instructions to install Qt. You can later run the \c{uninstall-qt.py}
@@ -304,12 +305,12 @@ must be run as root.
     For the open source version you do not need a license file.
 
     Unpack the archive if you have not done so already. For example,
-    if you have the \c{qt-everywhere-opensource-src-5.0.2.tar.gz}
+    if you have the \c{qt-everywhere-opensource-src-5.1.0.tar.gz}
     package, type the following commands at a command line prompt:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 11
+\snippet snippets/code/doc_src_installation.qdoc 11
 
-    This creates the directory \c{/tmp/qt-everywhere-opensource-src-5.0.2}
+    This creates the directory \c{/tmp/qt-everywhere-opensource-src-5.1.0}
     containing the files from the archive.
 
 \section1 Step 2:  Build the Qt Library
@@ -318,10 +319,10 @@ must be run as root.
     \c{./configure} script in the package directory.
 
     By default, Qt is configured for installation in the
-    \c{/usr/local/Qt-5.0.2} directory, but this can be
+    \c{/usr/local/Qt-5.1.0} directory, but this can be
     changed by using the \c{-prefix} option.
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 12
+\snippet snippets/code/doc_src_installation.qdoc 12
 
     Type \c{./configure -help} to get a list of all available options.
 
@@ -339,13 +340,13 @@ must be run as root.
     To create the library and compile all the examples, tools,
     and tutorials, type:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 13
+\snippet snippets/code/doc_src_installation.qdoc 13
 
     If \c{-prefix} is outside the build directory, you need to install
     the library, examples, tools, and tutorials in the appropriate
     place. To do this, type:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 14
+\snippet snippets/code/doc_src_installation.qdoc 14
 
     This command requires that you have administrator access
     on your machine.
@@ -363,17 +364,17 @@ must be run as root.
     In order to use Qt, some environment variables need to be
     extended.
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 15
+\snippet snippets/code/doc_src_installation.qdoc 15
 
     This is done like this:
 
     In \c{.profile} (if your shell is bash), add the following lines:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 16
+\snippet snippets/code/doc_src_installation.qdoc 16
 
     In \c{.login} (in case your shell is csh or tcsh), add the following line:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 17
+\snippet snippets/code/doc_src_installation.qdoc 17
 
     If you use a different shell, please modify your environment
     variables accordingly.
@@ -411,7 +412,7 @@ in the \l{Qt for Windows CE Requirements} document.
 
 \section1 Step 1: Install the License File (commercial editions only)
     Uncompress the files into the directory you want to install Qt into;
-    e.g., \c{C:\Qt\5.0.2}.
+    e.g., \c{C:\Qt\5.1.0}.
 
     \note The install path must not contain any spaces.
 
@@ -420,8 +421,8 @@ in the \l{Qt for Windows CE Requirements} document.
     In order to build and use Qt, the \c PATH environment variable needs
     to be extended:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 18
-    This is done by adding \c{c:\Qt\5.0.2\bin} to the \c PATH variable.
+\snippet snippets/code/doc_src_installation.qdoc 18
+    This is done by adding \c{c:\Qt\5.1.0\bin} to the \c PATH variable.
 
     For newer versions of Windows, \c PATH can be extended through
     "Control Panel->System->Advanced->Environment variables" and for
@@ -436,7 +437,7 @@ in the \l{Qt for Windows CE Requirements} document.
     To configure Qt for Windows Mobile 5.0 for Pocket PC, type the
     following:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 19
+\snippet snippets/code/doc_src_installation.qdoc 19
 
     If you want to configure Qt for another platform or with other
     options, type \c{configure -help} to get a list of all available
@@ -450,16 +451,16 @@ in the \l{Qt for Windows CE Requirements} document.
     platforms. For a default installation of the Windows Mobile 5.0
     Pocket PC SDK, this is done with the following commands:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 20
+\snippet snippets/code/doc_src_installation.qdoc 20
 
     We provide a convenience script for this purpose, called \c{setcepaths}.
     Simply type:
 
-\snippet doc/src/snippets/code/doc_src_installation.qdoc 21
+\snippet snippets/code/doc_src_installation.qdoc 21
 
     Then to build Qt type:
 
-    \snippet doc/src/snippets/code/doc_src_installation.qdoc 22
+    \snippet snippets/code/doc_src_installation.qdoc 22
 
 \b{That's all. Qt is now installed.}
 
@@ -635,8 +636,8 @@ in the \l{Qt for Windows CE Requirements} document.
             \endlist
         \li Windows SDK 7.
         \li A MinGW toolchain with g++ version 4.7 or higher. Qt 5 is tested regularly with a \
-            \l{http://sourceforge.net/projects/mingwbuilds/files/host-windows/releases/4.7.2/32-bit/threads-posix/sjlj/x32-4.7.2-release-posix-sjlj-rev8.7z}
-            {32 bit gcc 4.7.2 toolchain} from the \l{http://mingwbuilds.sourceforge.net}{MinGW-builds}
+            \l{http://sourceforge.net/projects/mingwbuilds/files/host-windows/releases/4.8.0/32-bit/threads-posix/dwarf/x32-4.8.0-release-posix-dwarf-rev1.7z}
+            {32 bit gcc 4.8.0 toolchain} from the \l{http://mingwbuilds.sourceforge.net}{MinGW-builds}
             project.
 
     \endlist
@@ -666,7 +667,7 @@ in the \l{Qt for Windows CE Requirements} document.
 
     Qt requires Xcode to be installed on the system. You can get it from:
 
-    \l{https://developer.apple.com/xcode/}
+    \l{http://developer.apple.com/xcode/}
 
     The command line tools are also needed, they can be installed within XCode:
 

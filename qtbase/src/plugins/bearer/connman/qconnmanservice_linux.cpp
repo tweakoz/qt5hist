@@ -81,6 +81,8 @@ QConnmanManagerInterface::QConnmanManagerInterface( QObject *parent)
                                  CONNMAN_MANAGER_INTERFACE,
                                  QDBusConnection::systemBus(), parent)
 {
+    qDBusRegisterMetaType<ConnmanMap>();
+    qDBusRegisterMetaType<ConnmanMapList>();
 }
 
 QConnmanManagerInterface::~QConnmanManagerInterface()
@@ -405,7 +407,7 @@ QVariant QConnmanProfileInterface::getProperty(const QString &property)
     QVariantMap map = getProperties();
     if (map.contains(property)) {
         var = map.value(property);
-    } 
+    }
     return var;
 }
 
@@ -493,7 +495,7 @@ QVariant QConnmanServiceInterface::getProperty(const QString &property)
     QVariantMap map = getProperties();
     if (map.contains(property)) {
         var = map.value(property);
-    } 
+    }
     return var;
 }
 

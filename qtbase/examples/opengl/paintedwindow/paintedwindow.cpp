@@ -56,7 +56,7 @@ PaintedWindow::PaintedWindow()
     format.setSamples(4);
 
     setSurfaceType(QWindow::OpenGLSurface);
-    setFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
+    setFlags(Qt::Window | Qt::WindowTitleHint | Qt::WindowSystemMenuHint | Qt::WindowMinMaxButtonsHint | Qt::WindowCloseButtonHint);
     setFormat(format);
 
     create();
@@ -88,14 +88,10 @@ PaintedWindow::PaintedWindow()
     connect(this, SIGNAL(rotationChanged(qreal)), this, SLOT(paint()));
 }
 
-void PaintedWindow::resizeEvent(QResizeEvent *)
-{
-    paint();
-}
-
 void PaintedWindow::exposeEvent(QExposeEvent *)
 {
-    paint();
+    if (isExposed())
+        paint();
 }
 
 void PaintedWindow::mousePressEvent(QMouseEvent *)

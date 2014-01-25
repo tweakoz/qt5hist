@@ -46,10 +46,17 @@
 #include <QtCore/qurl.h>
 #include <QtQml/qqmlerror.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
+class QQmlInfo;
+
+namespace QtQml {
+    // declared in namespace to avoid symbol conflicts with QtDeclarative
+    Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me);
+    Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QQmlError &error);
+    Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QList<QQmlError> &errors);
+}
+using namespace QtQml;
 
 class QQmlInfoPrivate;
 class Q_QML_EXPORT QQmlInfo : public QDebug
@@ -84,20 +91,14 @@ public:
 #endif
 
 private:
-    friend Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me);
-    friend Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QQmlError &error);
-    friend Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QList<QQmlError> &errors);
+    friend Q_QML_EXPORT QQmlInfo QtQml::qmlInfo(const QObject *me);
+    friend Q_QML_EXPORT QQmlInfo QtQml::qmlInfo(const QObject *me, const QQmlError &error);
+    friend Q_QML_EXPORT QQmlInfo QtQml::qmlInfo(const QObject *me, const QList<QQmlError> &errors);
 
     QQmlInfo(QQmlInfoPrivate *);
     QQmlInfoPrivate *d;
 };
 
-Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me);
-Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QQmlError &error);
-Q_QML_EXPORT QQmlInfo qmlInfo(const QObject *me, const QList<QQmlError> &errors);
-
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QQMLINFO_H

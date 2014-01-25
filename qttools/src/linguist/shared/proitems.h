@@ -275,6 +275,7 @@ enum ProToken {
     TokRemove,          // variable -=
     TokReplace,         // variable ~=
                         // previous literal/expansion is a variable manipulation
+                        // - lower bound for expected output length (1)
                         // - value expression + TokValueTerminator
     TokValueTerminator, // assignment value terminator
     TokLiteral,         // literal string (fully dequoted)
@@ -307,6 +308,9 @@ enum ProToken {
     TokTestCall,        // previous literal/expansion is a test function call
                         // - ((nested expansion + TokArgSeparator)* + nested expansion)?
                         // - TokFuncTerminator
+    TokReturn,          // previous literal/expansion is a return value
+    TokBreak,           // break loop
+    TokNext,            // shortcut to next loop iteration
     TokNot,             // '!' operator
     TokAnd,             // ':' operator
     TokOr,              // '|' operator

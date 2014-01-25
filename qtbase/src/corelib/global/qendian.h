@@ -52,8 +52,6 @@
 #include <byteswap.h>
 #endif
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -80,7 +78,10 @@ template <typename T> inline void qbswap(const T src, uchar *dest)
 // If you want to avoid the memcopy, you must write specializations for this function
 template <typename T> inline void qToUnaligned(const T src, uchar *dest)
 {
-    memcpy(dest, &src, sizeof(T));
+    // Using sizeof(T) inside memcpy function produces internal compiler error with
+    // MSVC2008/ARM in tst_endian -> use extra indirection to resolve size of T.
+    const size_t size = sizeof(T);
+    memcpy(dest, &src, size);
 }
 
 /* T qFromLittleEndian(const uchar *src)
@@ -385,7 +386,5 @@ template <> inline qint8 qbswap<qint8>(qint8 source)
 }
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QENDIAN_H

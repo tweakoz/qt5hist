@@ -1,5 +1,5 @@
-HOW TO BUILD Qt 5
-=================
+HOW TO BUILD QT5
+================
 
 
  Synopsis
@@ -59,9 +59,6 @@ HOW TO BUILD Qt 5
      configure -prefix %CD%\qtbase -opensource -nomake tests
      nmake // jom // mingw32-make
 
-     For MinGW (gcc version 4.6 or later), ensure that the compiler can
-     be found in the path.
-
      To accelerate the bootstrap of qmake with MSVC, it may be useful to pass
      "-make-tool jom" on the configure command line. If you do not use jom,
      adding "/MP" to the CL environment variable is a good idea.
@@ -109,9 +106,22 @@ HOW TO BUILD Qt 5
  This can save a lot of time if you are only interested in a subset of Qt5.
 
 
+ Hints
+ =====
+
+ The submodule repository qtrepotools contains useful scripts for
+ developers and release engineers. Consider adding qtrepotools/bin
+ to your PATH environment variable to access them.
+
+ The qt5_tool in qtrepotools has some more features which may be of interest.
+ Try `qt5_tool --help'.
+
+
  Building Qt5 from git
  =====================
- See http://qt-project.org/wiki/Building-Qt-5-from-Git for more information.
+ See http://qt-project.org/wiki/Building-Qt-5-from-Git and README.git
+ for more information.
+ See http://qt-project.org/wiki/Qt-5 for the reference platforms.
 
 
  Documentation

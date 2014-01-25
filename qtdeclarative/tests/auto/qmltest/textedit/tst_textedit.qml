@@ -74,6 +74,13 @@ Item {
     }
 
     TextEdit {
+        id: txtentry2
+        text: ""
+        height: 20
+        width: 50
+    }
+
+    TextEdit {
         id: txtfunctions
         text: "The quick brown fox jumped over the lazy dog"
         height: 20
@@ -124,6 +131,23 @@ Item {
             compare(txtentry.text, "hello world")
         }
 
+        function test_textentry_char() {
+            txtentry2.focus = true;
+            compare(txtentry2.text, "")
+            keyClick("h")
+            keyClick("e")
+            keyClick("l")
+            keyClick("l")
+            keyClick("o")
+            keyClick(" ")
+            keyClick("W")
+            keyClick("o")
+            keyClick("r")
+            keyClick("l")
+            keyClick("d")
+            compare(txtentry2.text, "hello World")
+        }
+
         function test_functions() {
             compare(txtfunctions.getText(4,9), "quick")
             txtfunctions.select(4,9);
@@ -155,11 +179,12 @@ Item {
             compare(txtlines.lineCount, 3)
             txtlines.text = txtlines.styledtextvalue;
             compare(txtlines.text, "Line 1<br>Line 2<br>Line 3")
-            tryCompare(txtlines.lineCount, 1)
+            tryCompare(txtlines, 'lineCount', 1)
             txtlines.textFormat = Text.StyledText;
-            tryCompare(txtlines.lineCount, 3)
+            expectFail("", "QTBUG-31191")
+            tryCompare(txtlines, 'lineCount', 3)
             txtlines.textFormat = Text.RichText;
-            tryCompare(txtlines.lineCount, 3)
+            tryCompare(txtlines, 'lineCount', 3)
         }
     }
 }

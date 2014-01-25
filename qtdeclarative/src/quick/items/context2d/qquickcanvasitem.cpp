@@ -171,7 +171,6 @@ public:
     uint hasTileSize :1;
     uint hasCanvasWindow :1;
     uint available :1;
-    uint contextInitialized :1;
     QQuickCanvasItem::RenderTarget renderTarget;
     QQuickCanvasItem::RenderStrategy renderStrategy;
     QString contextType;
@@ -189,10 +188,10 @@ QQuickCanvasItemPrivate::QQuickCanvasItemPrivate()
     , hasTileSize(false)
     , hasCanvasWindow(false)
     , available(false)
-    , contextInitialized(false)
-    , renderTarget(QQuickCanvasItem::FramebufferObject)
+    , renderTarget(QQuickCanvasItem::Image)
     , renderStrategy(QQuickCanvasItem::Cooperative)
 {
+    antialiasing = true;
 }
 
 QQuickCanvasItemPrivate::~QQuickCanvasItemPrivate()
@@ -245,7 +244,7 @@ QQuickCanvasItemPrivate::~QQuickCanvasItemPrivate()
     results in faster rendering.
 
     The default render target is Canvas.Image and the default renderStrategy is
-    Canvas.Threaded.
+    Canvas.Cooperative.
 
     \section1 Tiled Canvas
     The Canvas item supports tiled rendering by setting \l canvasSize, \l tileSize
@@ -267,7 +266,7 @@ QQuickCanvasItemPrivate::~QQuickCanvasItemPrivate()
     requires the pixel data to be exchanged between the system memory and the
     graphic card, which is significantly more expensive.  Rendering may also be
     synchronized with the V-sync signal (to avoid
-    \l{en.wikipedia.org/wiki/Screen_tearing}{screen tearing}) which will further
+    \l{http://en.wikipedia.org/wiki/Screen_tearing}{screen tearing}) which will further
     impact pixel operations with \c Canvas.FrambufferObject render target.
 
     \section1 Tips for Porting Existing HTML5 Canvas applications
@@ -338,7 +337,7 @@ void QQuickCanvasItem::setContextType(const QString &contextType)
     if (contextType.compare(d->contextType, Qt::CaseInsensitive) == 0)
         return;
 
-    if (d->contextInitialized) {
+    if (d->context) {
         qmlInfo(this) << "Canvas already initialized with a different context type";
         return;
     }
@@ -363,7 +362,7 @@ void QQuickCanvasItem::setContextType(const QString &contextType)
 QQmlV8Handle QQuickCanvasItem::context() const
 {
     Q_D(const QQuickCanvasItem);
-    if (d->contextInitialized)
+    if (d->context)
         return QQmlV8Handle::fromHandle(d->context->v8value());
 
     return QQmlV8Handle::fromHandle(v8::Null());
@@ -397,7 +396,7 @@ void QQuickCanvasItem::setCanvasSize(const QSizeF & size)
         d->canvasSize = size;
         emit canvasSizeChanged();
 
-        if (d->contextInitialized)
+        if (d->context)
             polish();
     }
 }
@@ -432,7 +431,7 @@ void QQuickCanvasItem::setTileSize(const QSize & size)
 
         emit tileSizeChanged();
 
-        if (d->contextInitialized)
+        if (d->context)
             polish();
     }
 }
@@ -465,7 +464,7 @@ void QQuickCanvasItem::setCanvasWindow(const QRectF& rect)
         d->hasCanvasWindow = true;
         emit canvasWindowChanged();
 
-        if (d->contextInitialized)
+        if (d->context)
             polish();
     }
 }
@@ -497,7 +496,7 @@ void QQuickCanvasItem::setRenderTarget(QQuickCanvasItem::RenderTarget target)
 {
     Q_D(QQuickCanvasItem);
     if (d->renderTarget != target) {
-        if (d->contextInitialized) {
+        if (d->context) {
             qmlInfo(this) << "Canvas:renderTarget not changeble once context is active.";
             return;
         }
@@ -541,7 +540,7 @@ void QQuickCanvasItem::setRenderStrategy(QQuickCanvasItem::RenderStrategy strate
 {
     Q_D(QQuickCanvasItem);
     if (d->renderStrategy != strategy) {
-        if (d->contextInitialized) {
+        if (d->context) {
             qmlInfo(this) << "Canvas:renderStrategy not changeable once context is active.";
             return;
         }
@@ -646,7 +645,7 @@ void QQuickCanvasItem::updatePolish()
 
     Q_D(QQuickCanvasItem);
 
-    if (d->contextInitialized)
+    if (d->context)
         d->context->prepare(d->canvasSize.toSize(), d->tileSize, d->canvasWindow.toRect(), d->dirtyRect.toRect(), d->smooth, d->antialiasing);
 
     if (d->animationCallbacks.size() > 0 && isVisible()) {
@@ -672,7 +671,7 @@ void QQuickCanvasItem::updatePolish()
         }
     }
 
-    if (d->contextInitialized) {
+    if (d->context) {
         if (d->renderStrategy == QQuickCanvasItem::Cooperative)
             update();
         else
@@ -684,8 +683,10 @@ QSGNode *QQuickCanvasItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
 {
     Q_D(QQuickCanvasItem);
 
-    if (!d->contextInitialized)
+    if (!d->context) {
+        delete oldNode;
         return 0;
+    }
 
     QSGSimpleTextureNode *node = static_cast<QSGSimpleTextureNode*>(oldNode);
     if (!node)
@@ -700,6 +701,7 @@ QSGNode *QQuickCanvasItem::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData
         d->context->flush();
 
     node->setTexture(d->context->texture());
+    node->markDirty(QSGNode::DirtyMaterial);
     node->setRect(QRectF(QPoint(0, 0), d->canvasWindow.size()));
     return node;
 }
@@ -759,7 +761,7 @@ void QQuickCanvasItem::getContext(QQmlV8Function *args)
 /*!
     \qmlmethod long QtQuick2::Canvas::requestAnimationFrame(callback)
 
-    This function schedules callback to be invoked before composing the QtQuick
+    This function schedules callback to be invoked before composing the Qt Quick
     scene.
 */
 
@@ -966,7 +968,7 @@ bool QQuickCanvasItem::isImageLoaded(const QUrl& url) const
 QImage QQuickCanvasItem::toImage(const QRectF& rect) const
 {
     Q_D(const QQuickCanvasItem);
-    if (d->contextInitialized) {
+    if (d->context) {
         if (rect.isEmpty())
             return d->context->toImage(canvasWindow());
         else
@@ -1022,7 +1024,7 @@ void QQuickCanvasItem::delayedCreate()
 {
     Q_D(QQuickCanvasItem);
 
-    if (!d->contextInitialized && !d->contextType.isNull())
+    if (!d->context && !d->contextType.isNull())
         createContext(d->contextType);
 
     requestPaint();
@@ -1051,7 +1053,6 @@ void QQuickCanvasItem::initializeContext(QQuickCanvasContext *context, const QVa
     d->context = context;
     d->context->init(this, args);
     d->context->setV8Engine(QQmlEnginePrivate::getV8Engine(qmlEngine(this)));
-    d->contextInitialized = true;
     connect(d->context, SIGNAL(textureChanged()), SLOT(update()));
     connect(d->context, SIGNAL(textureChanged()), SIGNAL(painted()));
     emit contextChanged();

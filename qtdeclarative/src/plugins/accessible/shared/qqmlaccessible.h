@@ -43,12 +43,8 @@
 #define QQMLACCESSIBLE_H
 
 #include <QtGui/qaccessibleobject.h>
-#include <QtGui/qaccessible2.h>
-//#include <QtQuick1/qdeclarativeview.h>
-//#include <QtQuick1/qdeclarativeitem.h>
+#include <QtGui/private/qaccessible2_p.h>
 #include <QtQml/qqmlproperty.h>
-
-//#include <private/qdeclarativeaccessible_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -58,8 +54,8 @@ QT_BEGIN_NAMESPACE
     -- Declarative Accessibility Overview. --
 
     * Item interface classes:
-    QAccessibleDeclarativeItem for QtQuick1
-    QAccessibleQuickItem for for QtQuick2
+    QAccessibleDeclarativeItem for Qt Quick 1
+    QAccessibleQuickItem for for Qt Quick 2
     Common base class: QQmlAccessible
 
     * View interface classes.

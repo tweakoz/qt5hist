@@ -21,6 +21,7 @@ depends += \
     qtlocation \
     qtlinguist \
     qtmultimedia \
+    qtmultimediawidgets \
     qtnetwork \
     qtopengl \
     qtorganizer \
@@ -28,9 +29,14 @@ depends += \
     qtpublishsubscribe \
     qtqml \
     qtquick \
+    qtquickcontrols \
+    qtquickcontrolsstyles \
+    qtquickdialogs \
+    qtquicklayouts \
     qtscript \
     qtscripttools \
     qtsensors \
+    qtserialport \
     qtserviceframework \
     qtsql \
     qtsvg \
@@ -42,16 +48,21 @@ depends += \
     qtwidgets \
     qtwebkit \
     qtwebkitexamples \
+    qtx11extras \
     qtxml \
     qtxmlpatterns
 
 headerdirs  += ../src
-imagedirs   += ../src/images
+imagedirs   += ../src/images \
+               ../images
 
 sourcedirs  += \
-    ../.. \
     ../src
 
 exampledirs += \
-    ../.. \
-    ../src
+    ../src \
+    ../snippets
+
+# Don't parse files in snippets directory
+excludedirs += \
+    ../src/snippets

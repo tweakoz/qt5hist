@@ -266,7 +266,7 @@ qreal QQuickLoaderPrivate::getImplicitHeight() const
     \c event.accepted to \c true so that the event is not propagated to the
     parent \l Rectangle.
 
-    Since QtQuick 2.0 Loader can also load non-visual components.
+    Since \c {QtQuick 2.0}, Loader can also load non-visual components.
 
     \section2 Using a Loader within a view delegate
 
@@ -335,41 +335,42 @@ bool QQuickLoader::active() const
 void QQuickLoader::setActive(bool newVal)
 {
     Q_D(QQuickLoader);
-    if (d->active != newVal) {
-        d->active = newVal;
-        if (newVal == true) {
-            if (d->loadingFromSource) {
-                loadFromSource();
-            } else {
-                loadFromSourceComponent();
-            }
+    if (d->active == newVal)
+        return;
+
+    d->active = newVal;
+    if (newVal == true) {
+        if (d->loadingFromSource) {
+            loadFromSource();
         } else {
-            // cancel any current incubation
-            if (d->incubator) {
-                d->incubator->clear();
-                delete d->itemContext;
-                d->itemContext = 0;
-            }
-
-            if (d->item) {
-                QQuickItemPrivate *p = QQuickItemPrivate::get(d->item);
-                p->removeItemChangeListener(d, watchedChanges);
-
-                // We can't delete immediately because our item may have triggered
-                // the Loader to load a different item.
-                d->item->setParentItem(0);
-                d->item->setVisible(false);
-                d->item = 0;
-            }
-            if (d->object) {
-                d->object->deleteLater();
-                d->object = 0;
-                emit itemChanged();
-            }
-            emit statusChanged();
+            loadFromSourceComponent();
         }
-        emit activeChanged();
+    } else {
+        // cancel any current incubation
+        if (d->incubator) {
+            d->incubator->clear();
+            delete d->itemContext;
+            d->itemContext = 0;
+        }
+
+        if (d->item) {
+            QQuickItemPrivate *p = QQuickItemPrivate::get(d->item);
+            p->removeItemChangeListener(d, watchedChanges);
+
+            // We can't delete immediately because our item may have triggered
+            // the Loader to load a different item.
+            d->item->setParentItem(0);
+            d->item->setVisible(false);
+            d->item = 0;
+        }
+        if (d->object) {
+            d->object->deleteLater();
+            d->object = 0;
+            emit itemChanged();
+        }
+        emit statusChanged();
     }
+    emit activeChanged();
 }
 
 
@@ -377,7 +378,7 @@ void QQuickLoader::setActive(bool newVal)
     \qmlproperty url QtQuick2::Loader::source
     This property holds the URL of the QML component to instantiate.
 
-    Since QtQuick 2.0 Loader is able to load any type of object; it
+    Since \c {QtQuick 2.0}, Loader is able to load any type of object; it
     is not restricted to Item types.
 
     To unload the currently loaded object, set this property to an empty string,
@@ -452,7 +453,7 @@ void QQuickLoader::loadFromSource()
     To unload the currently loaded object, set this property to an empty string
     or \c undefined.
 
-    Since QtQuick 2.0 Loader is able to load any type of object; it
+    Since \c {QtQuick 2.0}, Loader is able to load any type of object; it
     is not restricted to Item types.
 
     \sa source, progress
@@ -886,15 +887,18 @@ void QQuickLoader::setAsynchronous(bool a)
 void QQuickLoaderPrivate::_q_updateSize(bool loaderGeometryChanged)
 {
     Q_Q(QQuickLoader);
-    if (!item || updatingSize)
+    if (!item)
         return;
-
-    updatingSize = true;
 
     if (loaderGeometryChanged && q->widthValid())
         item->setWidth(q->width());
     if (loaderGeometryChanged && q->heightValid())
         item->setHeight(q->height());
+
+    if (updatingSize)
+        return;
+
+    updatingSize = true;
 
     q->setImplicitSize(getImplicitWidth(), getImplicitHeight());
 
@@ -905,7 +909,7 @@ void QQuickLoaderPrivate::_q_updateSize(bool loaderGeometryChanged)
     \qmlproperty object QtQuick2::Loader::item
     This property holds the top-level object that is currently loaded.
 
-    Since QtQuick 2.0 Loader can load any object type.
+    Since \c {QtQuick 2.0}, Loader can load any object type.
 */
 QObject *QQuickLoader::item() const
 {

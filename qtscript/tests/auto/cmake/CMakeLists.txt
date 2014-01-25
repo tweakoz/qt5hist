@@ -9,9 +9,16 @@ find_package(Qt5Core REQUIRED)
 
 include("${_Qt5CTestMacros}")
 
-set(Qt5_MODULE_TEST_DEPENDS Core)
+set(qt_module_includes
+    Script QScriptEngine
+)
+
+if (NOT NO_WIDGETS)
+    list(APPEND qt_module_includes
+        ScriptTools QScriptEngineDebugger
+    )
+endif()
 
 test_module_includes(
-  Script QScriptEngine
-  ScriptTools QScriptEngineDebugger
+    ${qt_module_includes}
 )

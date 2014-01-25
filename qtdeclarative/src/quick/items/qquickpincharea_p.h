@@ -44,8 +44,6 @@
 
 #include "qquickitem.h"
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class Q_AUTOTEST_EXPORT QQuickPinch : public QObject
@@ -285,12 +283,16 @@ protected:
                                  const QRectF &oldGeometry);
     virtual void itemChange(ItemChange change, const ItemChangeData& value);
 
+private slots:
+    void setTouchEventsEnabledForWindow(QWindow *window);
+
 private:
     void updatePinch();
     void handlePress();
     void handleRelease();
 
 private:
+    QWindow *_currentWindow;
     Q_DISABLE_COPY(QQuickPinchArea)
     Q_DECLARE_PRIVATE(QQuickPinchArea)
 };
@@ -300,8 +302,6 @@ QT_END_NAMESPACE
 QML_DECLARE_TYPE(QQuickPinch)
 QML_DECLARE_TYPE(QQuickPinchEvent)
 QML_DECLARE_TYPE(QQuickPinchArea)
-
-QT_END_HEADER
 
 #endif // QQUICKPINCHAREA_H
 

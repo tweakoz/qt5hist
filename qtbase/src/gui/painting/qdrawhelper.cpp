@@ -5373,7 +5373,7 @@ void qBlendTexture(int count, const QSpan *spans, void *userData)
     proc(count, spans, userData);
 }
 
-template <class DST>
+template <class DST> Q_STATIC_TEMPLATE_FUNCTION
 inline void qt_bitmapblit_template(QRasterBuffer *rasterBuffer,
                                    int x, int y, DST color,
                                    const uchar *map,
@@ -6034,6 +6034,7 @@ void qInitDrawhelperAsm()
 
     const uint features = qCpuFeatures();
     if (false) {
+        Q_UNUSED(features);
 #ifdef QT_COMPILER_SUPPORTS_AVX
     } else if (features & AVX) {
         qt_memfill32 = qt_memfill32_avx;

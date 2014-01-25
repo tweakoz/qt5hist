@@ -43,6 +43,8 @@
 #include <QtQuick/private/qsgdistancefieldutil_p.h>
 #include <QtQuick/private/qsgtexture_p.h>
 #include <QtGui/qopenglfunctions.h>
+#include <QtGui/qsurface.h>
+#include <QtGui/qwindow.h>
 #include <qmath.h>
 
 QT_BEGIN_NAMESPACE
@@ -115,7 +117,6 @@ void QSGDistanceFieldTextMaterialShader::updateAlphaRange(ThresholdFunc threshol
     float combinedScale = m_fontScale * m_matrixScale;
     float base = thresholdFunc(combinedScale);
     float range = spreadFunc(combinedScale);
-
     float alphaMin = qMax(0.0f, base - range);
     float alphaMax = qMin(base + range, 1.0f);
     program()->setUniformValue(m_alphaMin_id, GLfloat(alphaMin));
@@ -143,8 +144,7 @@ void QSGDistanceFieldTextMaterialShader::updateState(const RenderState &state, Q
     if (oldMaterial == 0
            || material->color() != oldMaterial->color()
            || state.isOpacityDirty()) {
-        QVector4D color(material->color().redF(), material->color().greenF(),
-                        material->color().blueF(), material->color().alphaF());
+        QVector4D color = material->color();
         color *= state.opacity();
         program()->setUniformValue(m_color_id, color);
     }
@@ -157,7 +157,7 @@ void QSGDistanceFieldTextMaterialShader::updateState(const RenderState &state, Q
     }
     if (state.isMatrixDirty()) {
         program()->setUniformValue(m_matrix_id, state.combinedMatrix());
-        m_matrixScale = qSqrt(qAbs(state.determinant()));
+        m_matrixScale = qSqrt(qAbs(state.determinant())) * state.devicePixelRatio();
         updateRange = true;
     }
     if (updateRange) {
@@ -203,6 +203,14 @@ QSGMaterialType *QSGDistanceFieldTextMaterial::type() const
     return &type;
 }
 
+void QSGDistanceFieldTextMaterial::setColor(const QColor &color)
+{
+    m_color = QVector4D(color.redF() * color.alphaF(),
+                        color.greenF() * color.alphaF(),
+                        color.blueF() * color.alphaF(),
+                        color.alphaF());
+}
+
 QSGMaterialShader *QSGDistanceFieldTextMaterial::createShader() const
 {
     return new QSGDistanceFieldTextMaterialShader;
@@ -230,10 +238,8 @@ int QSGDistanceFieldTextMaterial::compare(const QSGMaterial *o) const
     if (m_fontScale != other->m_fontScale) {
         return int(other->m_fontScale < m_fontScale) - int(m_fontScale < other->m_fontScale);
     }
-    QRgb c1 = m_color.rgba();
-    QRgb c2 = other->m_color.rgba();
-    if (c1 != c2)
-        return int(c2 < c1) - int(c1 < c2);
+    if (m_color != other->m_color)
+        return &m_color < &other->m_color ? -1 : 1;
     int t0 = m_texture ? m_texture->textureId : -1;
     int t1 = other->m_texture ? other->m_texture->textureId : -1;
     return t0 - t1;
@@ -275,8 +281,7 @@ void DistanceFieldStyledTextMaterialShader::updateState(const RenderState &state
     if (oldMaterial == 0
            || material->styleColor() != oldMaterial->styleColor()
            || (state.isOpacityDirty())) {
-        QVector4D color(material->styleColor().redF(), material->styleColor().greenF(),
-                        material->styleColor().blueF(), material->styleColor().alphaF());
+        QVector4D color = material->styleColor();
         color *= state.opacity();
         program()->setUniformValue(m_styleColor_id, color);
     }
@@ -291,15 +296,20 @@ QSGDistanceFieldStyledTextMaterial::~QSGDistanceFieldStyledTextMaterial()
 {
 }
 
+void QSGDistanceFieldStyledTextMaterial::setStyleColor(const QColor &color)
+{
+    m_styleColor = QVector4D(color.redF() * color.alphaF(),
+                             color.greenF() * color.alphaF(),
+                             color.blueF() * color.alphaF(),
+                             color.alphaF());
+}
+
 int QSGDistanceFieldStyledTextMaterial::compare(const QSGMaterial *o) const
 {
     Q_ASSERT(o && type() == o->type());
     const QSGDistanceFieldStyledTextMaterial *other = static_cast<const QSGDistanceFieldStyledTextMaterial *>(o);
-    if (m_styleColor != other->m_styleColor) {
-        QRgb c1 = m_styleColor.rgba();
-        QRgb c2 = other->m_styleColor.rgba();
-        return int(c2 < c1) - int(c1 < c2);
-    }
+    if (m_styleColor != other->m_color)
+        return &m_styleColor < &other->m_styleColor ? -1 : 1;
     return QSGDistanceFieldTextMaterial::compare(o);
 }
 
@@ -315,7 +325,7 @@ protected:
     virtual void initialize();
     virtual const char *fragmentShader() const;
 
-    void updateOutlineAlphaRange(int dfRadius);
+    void updateOutlineAlphaRange(ThresholdFunc thresholdFunc, AntialiasingSpreadFunc spreadFunc, int dfRadius);
 
     int m_outlineAlphaMax0_id;
     int m_outlineAlphaMax1_id;
@@ -350,14 +360,18 @@ void DistanceFieldOutlineTextMaterialShader::initialize()
     m_outlineAlphaMax1_id = program()->uniformLocation("outlineAlphaMax1");
 }
 
-void DistanceFieldOutlineTextMaterialShader::updateOutlineAlphaRange(int dfRadius)
+void DistanceFieldOutlineTextMaterialShader::updateOutlineAlphaRange(ThresholdFunc thresholdFunc,
+                                                                     AntialiasingSpreadFunc spreadFunc,
+                                                                     int dfRadius)
 {
-    qreal outlineLimit = qMax(qreal(0.2), qreal(0.5 - 0.5 / dfRadius / m_fontScale));
+    float combinedScale = m_fontScale * m_matrixScale;
+    float base = thresholdFunc(combinedScale);
+    float range = spreadFunc(combinedScale);
+    float outlineLimit = qMax(0.2f, base - 0.5f / dfRadius / m_fontScale);
 
-    qreal combinedScale = m_fontScale * m_matrixScale;
-    qreal alphaMin = qMax(0.0, 0.5 - 0.07 / combinedScale);
-    qreal styleAlphaMin0 = qMax(0.0, outlineLimit - 0.07 / combinedScale);
-    qreal styleAlphaMin1 = qMin(qreal(outlineLimit + 0.07 / combinedScale), alphaMin);
+    float alphaMin = qMax(0.0f, base - range);
+    float styleAlphaMin0 = qMax(0.0f, outlineLimit - range);
+    float styleAlphaMin1 = qMin(outlineLimit + range, alphaMin);
     program()->setUniformValue(m_outlineAlphaMax0_id, GLfloat(styleAlphaMin0));
     program()->setUniformValue(m_outlineAlphaMax1_id, GLfloat(styleAlphaMin1));
 }
@@ -372,7 +386,9 @@ void DistanceFieldOutlineTextMaterialShader::updateState(const RenderState &stat
     if (oldMaterial == 0
             || material->fontScale() != oldMaterial->fontScale()
             || state.isMatrixDirty())
-        updateOutlineAlphaRange(material->glyphCache()->distanceFieldRadius());
+        updateOutlineAlphaRange(material->glyphCache()->manager()->thresholdFunc(),
+                                material->glyphCache()->manager()->antialiasingSpreadFunc(),
+                                material->glyphCache()->distanceFieldRadius());
 }
 
 
@@ -634,8 +650,8 @@ void QSGHiQSubPixelDistanceFieldTextMaterialShader::updateState(const RenderStat
     QSGDistanceFieldTextMaterial *oldMaterial = static_cast<QSGDistanceFieldTextMaterial *>(oldEffect);
 
     if (oldMaterial == 0 || material->color() != oldMaterial->color()) {
-        QColor c = material->color();
-        state.context()->functions()->glBlendColor(c.redF(), c.greenF(), c.blueF(), 1.0f);
+        QVector4D c = material->color();
+        state.context()->functions()->glBlendColor(c.x(), c.y(), c.z(), 1.0f);
     }
 
     if (oldMaterial == 0 || material->fontScale() != oldMaterial->fontScale())

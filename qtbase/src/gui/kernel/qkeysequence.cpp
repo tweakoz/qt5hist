@@ -55,14 +55,14 @@
 #endif
 #include "qvariant.h"
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 #include <QtCore/private/qcore_mac_p.h>
 #include <Carbon/Carbon.h>
 #endif
 
 QT_BEGIN_NAMESPACE
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 static bool qt_sequence_no_mnemonics = true;
 struct MacSpecialKey {
     int key;
@@ -257,6 +257,7 @@ void Q_GUI_EXPORT qt_set_sequence_auto_mnemonic(bool b) { qt_sequence_no_mnemoni
     \row    \li FindPrevious     \li Shift+F3, Ctrl+Shift+G               \li Ctrl+Shift+G             \li Shift+F3       \li Ctrl+Shift+G, Shift+F3
     \row    \li Replace          \li Ctrl+H                               \li (none)                   \li Ctrl+R         \li Ctrl+H
     \row    \li SelectAll        \li Ctrl+A                               \li Ctrl+A                   \li Ctrl+A         \li Ctrl+A
+    \row    \li Deselect         \li                                      \li                          \li Ctrl+Shift+A   \li Ctrl+Shift+A
     \row    \li Bold             \li Ctrl+B                               \li Ctrl+B                   \li Ctrl+B         \li Ctrl+B
     \row    \li Italic           \li Ctrl+I                               \li Ctrl+I                   \li Ctrl+I         \li Ctrl+I
     \row    \li Underline        \li Ctrl+U                               \li Ctrl+U                   \li Ctrl+U         \li Ctrl+U
@@ -753,6 +754,7 @@ const QKeyBinding QKeySequencePrivate::keyBindings[] = {
     {QKeySequence::Close,                   0,          Qt::CTRL | Qt::Key_F4,                  KB_Mac},
     {QKeySequence::NextChild,               0,          Qt::CTRL | Qt::Key_F6,                  KB_Win},
     {QKeySequence::FullScreen,              1,          Qt::CTRL | Qt::Key_F11,                 KB_Gnome},
+    {QKeySequence::Deselect,                0,          Qt::CTRL | Qt::SHIFT | Qt::Key_A,       KB_X11},
     {QKeySequence::FullScreen,              0,          Qt::CTRL | Qt::SHIFT | Qt::Key_F,       KB_KDE},
     {QKeySequence::FindPrevious,            1,          Qt::CTRL | Qt::SHIFT | Qt::Key_G,       KB_Gnome | KB_Mac},
     {QKeySequence::FindPrevious,            0,          Qt::CTRL | Qt::SHIFT | Qt::Key_G,       KB_Win},
@@ -866,6 +868,7 @@ const uint QKeySequencePrivate::numberOfKeyBindings = sizeof(QKeySequencePrivate
     \value SaveAs           Save document after prompting the user for a file name.
     \value Save             Save document.
     \value SelectAll        Select all text.
+    \value Deselect         Deselect text. Since 5.1
     \value SelectEndOfBlock         Extend selection to the end of a text block. This shortcut is only used on OS X.
     \value SelectEndOfDocument      Extend selection to end of document.
     \value SelectEndOfLine          Extend selection to end of line.
@@ -878,7 +881,7 @@ const uint QKeySequencePrivate::numberOfKeyBindings = sizeof(QKeySequencePrivate
     \value SelectPreviousPage       Extend selection to previous page.
     \value SelectPreviousWord       Extend selection to previous word.
     \value SelectStartOfBlock       Extend selection to the start of a text block. This shortcut is only used on OS X.
-    \value SelectStartOfDocument    Extend selection to start of document. 
+    \value SelectStartOfDocument    Extend selection to start of document.
     \value SelectStartOfLine        Extend selection to start of line.
     \value Underline        Underline text.
     \value Undo             Undo.
@@ -892,10 +895,10 @@ const uint QKeySequencePrivate::numberOfKeyBindings = sizeof(QKeySequencePrivate
 /*!
     \since 4.2
 
-    Constructs a QKeySequence object for the given \a key. 
-    The result will depend on the currently running platform. 
+    Constructs a QKeySequence object for the given \a key.
+    The result will depend on the currently running platform.
 
-    The resulting object will be based on the first element in the 
+    The resulting object will be based on the first element in the
     list of key bindings for the \a key.
 */
 QKeySequence::QKeySequence(StandardKey key)
@@ -903,7 +906,7 @@ QKeySequence::QKeySequence(StandardKey key)
     const QList <QKeySequence> bindings = keyBindings(key);
     //pick only the first/primary shortcut from current bindings
     if (bindings.size() > 0) {
-        d = bindings.first().d; 
+        d = bindings.first().d;
         d->ref.ref();
     }
     else
@@ -972,7 +975,7 @@ QKeySequence::QKeySequence(const QKeySequence& keysequence)
     d->ref.ref();
 }
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 static inline int maybeSwapShortcut(int shortcut)
 {
     if (qApp->testAttribute(Qt::AA_MacDontSwapCtrlAndMeta)) {
@@ -991,8 +994,8 @@ static inline int maybeSwapShortcut(int shortcut)
     \since 4.2
 
     Returns a list of key bindings for the given \a key.
-    The result of calling this function will vary based on the target platform. 
-    The first element of the list indicates the primary shortcut for the given platform. 
+    The result of calling this function will vary based on the target platform.
+    The first element of the list indicates the primary shortcut for the given platform.
     If the result contains more than one result, these can
     be considered alternative shortcuts on the same platform for the given \a key.
 */
@@ -1004,7 +1007,7 @@ QList<QKeySequence> QKeySequence::keyBindings(StandardKey key)
         QKeyBinding keyBinding = QKeySequencePrivate::keyBindings[i];
         if (keyBinding.standardKey == key && (keyBinding.platform & platform)) {
             uint shortcut =
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
                     maybeSwapShortcut(QKeySequencePrivate::keyBindings[i].shortcut);
 #else
                     QKeySequencePrivate::keyBindings[i].shortcut;
@@ -1206,7 +1209,7 @@ int QKeySequencePrivate::decodeString(const QString &str, QKeySequence::Sequence
     if (nativeText) {
         gmodifs = globalModifs();
         if (gmodifs->isEmpty()) {
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
             const bool dontSwap = qApp->testAttribute(Qt::AA_MacDontSwapCtrlAndMeta);
             if (dontSwap)
                 *gmodifs << QModifKeyName(Qt::META, QChar(kCommandUnicode));
@@ -1222,7 +1225,8 @@ int QKeySequencePrivate::decodeString(const QString &str, QKeySequence::Sequence
             *gmodifs << QModifKeyName(Qt::CTRL, QLatin1String("ctrl+"))
                      << QModifKeyName(Qt::SHIFT, QLatin1String("shift+"))
                      << QModifKeyName(Qt::ALT, QLatin1String("alt+"))
-                     << QModifKeyName(Qt::META, QLatin1String("meta+"));
+                     << QModifKeyName(Qt::META, QLatin1String("meta+"))
+                     << QModifKeyName(Qt::KeypadModifier, QLatin1String("num+"));
         }
     } else {
         gmodifs = globalPortableModifs();
@@ -1230,7 +1234,8 @@ int QKeySequencePrivate::decodeString(const QString &str, QKeySequence::Sequence
             *gmodifs << QModifKeyName(Qt::CTRL, QLatin1String("ctrl+"))
                      << QModifKeyName(Qt::SHIFT, QLatin1String("shift+"))
                      << QModifKeyName(Qt::ALT, QLatin1String("alt+"))
-                     << QModifKeyName(Qt::META, QLatin1String("meta+"));
+                     << QModifKeyName(Qt::META, QLatin1String("meta+"))
+                     << QModifKeyName(Qt::KeypadModifier, QLatin1String("num+"));
         }
     }
     if (!gmodifs) return ret;
@@ -1241,12 +1246,13 @@ int QKeySequencePrivate::decodeString(const QString &str, QKeySequence::Sequence
         modifs << QModifKeyName(Qt::CTRL, QCoreApplication::translate("QShortcut", "Ctrl").toLower().append(QLatin1Char('+')))
                << QModifKeyName(Qt::SHIFT, QCoreApplication::translate("QShortcut", "Shift").toLower().append(QLatin1Char('+')))
                << QModifKeyName(Qt::ALT, QCoreApplication::translate("QShortcut", "Alt").toLower().append(QLatin1Char('+')))
-               << QModifKeyName(Qt::META, QCoreApplication::translate("QShortcut", "Meta").toLower().append(QLatin1Char('+')));
+               << QModifKeyName(Qt::META, QCoreApplication::translate("QShortcut", "Meta").toLower().append(QLatin1Char('+')))
+               << QModifKeyName(Qt::KeypadModifier, QCoreApplication::translate("QShortcut", "Num").toLower().append(QLatin1Char('+')));
     }
     modifs += *gmodifs; // Test non-translated ones last
 
     QString sl = accel;
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     for (int i = 0; i < modifs.size(); ++i) {
         const QModifKeyName &mkf = modifs.at(i);
         if (sl.contains(mkf.name)) {
@@ -1298,7 +1304,7 @@ int QKeySequencePrivate::decodeString(const QString &str, QKeySequence::Sequence
 
     int fnum = 0;
     if (accel.length() == 1) {
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
         int qtKey = qtkeyForMacSymbol(accel[0]);
         if (qtKey != -1) {
             ret |= qtKey;
@@ -1377,7 +1383,7 @@ QString QKeySequencePrivate::encodeString(int key, QKeySequence::SequenceFormat 
     if (key == -1 || key == Qt::Key_unknown)
         return s;
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     if (nativeText) {
         // On Mac OS X the order (by default) is Meta, Alt, Shift, Control.
         // If the AA_MacDontSwapCtrlAndMeta is enabled, then the order
@@ -1416,9 +1422,11 @@ QString QKeySequencePrivate::encodeString(int key, QKeySequence::SequenceFormat 
         if ((key & Qt::SHIFT) == Qt::SHIFT)
             addKey(s, nativeText ? QCoreApplication::translate("QShortcut", "Shift") : QString::fromLatin1("Shift"), format);
     }
+    if ((key & Qt::KeypadModifier) == Qt::KeypadModifier)
+        addKey(s, nativeText ? QCoreApplication::translate("QShortcut", "Num") : QString::fromLatin1("Num"), format);
 
 
-    key &= ~(Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier);
+    key &= ~(Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier | Qt::KeypadModifier);
     QString p;
 
     if (key && key < Qt::Key_Escape && key != Qt::Key_Space) {
@@ -1433,7 +1441,7 @@ QString QKeySequencePrivate::encodeString(int key, QKeySequence::SequenceFormat 
                            : QString::fromLatin1("F%1").arg(key - Qt::Key_F1 + 1);
     } else if (key) {
         int i=0;
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
         if (nativeText) {
             QChar ch = qt_macSymbolForQtKey(key);
             if (!ch.isNull())
@@ -1443,7 +1451,7 @@ QString QKeySequencePrivate::encodeString(int key, QKeySequence::SequenceFormat 
         } else
 #endif
         {
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
 NonSymbol:
 #endif
             while (keyname[i].name) {
@@ -1469,7 +1477,7 @@ NonSymbol:
         }
     }
 
-#if defined(Q_OS_MAC) && !defined(Q_OS_IOS)
+#if defined(Q_OS_MACX)
     if (nativeText)
         s += p;
     else
@@ -1509,9 +1517,9 @@ QKeySequence::SequenceMatch QKeySequence::matches(const QKeySequence &seq) const
 
     \obsolete
 
-    Use toString() instead. 
-    
-    Returns the key sequence as a QString. This is equivalent to 
+    Use toString() instead.
+
+    Returns the key sequence as a QString. This is equivalent to
     calling toString(QKeySequence::NativeText). Note that the
     result is not platform independent.
 */
@@ -1679,6 +1687,47 @@ QString QKeySequence::toString(SequenceFormat format) const
 QKeySequence QKeySequence::fromString(const QString &str, SequenceFormat format)
 {
     return QKeySequence(str, format);
+}
+
+/*!
+    \since 5.1
+
+    Return a list of QKeySequence from the string \a str based on \a format.
+
+    \sa fromString()
+    \sa listToString()
+*/
+QList<QKeySequence> QKeySequence::listFromString(const QString &str, SequenceFormat format)
+{
+    QList<QKeySequence> result;
+
+    QStringList strings = str.split(QLatin1String("; "));
+    foreach (const QString &string, strings) {
+        result << fromString(string, format);
+    }
+
+    return result;
+}
+
+/*!
+    \since 5.1
+
+    Return a string representation of \a list based on \a format.
+
+    \sa toString()
+    \sa listFromString()
+*/
+QString QKeySequence::listToString(const QList<QKeySequence> &list, SequenceFormat format)
+{
+    QString result;
+
+    foreach (const QKeySequence &sequence, list) {
+        result += sequence.toString(format);
+        result += QLatin1String("; ");
+    }
+    result.truncate(result.length() - 2);
+
+    return result;
 }
 
 /*****************************************************************************

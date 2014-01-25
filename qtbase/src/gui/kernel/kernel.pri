@@ -21,19 +21,24 @@ HEADERS += \
         kernel/qplatformintegrationfactory_p.h \
         kernel/qplatformintegrationplugin.h \
         kernel/qplatformtheme.h\
+        kernel/qplatformtheme_p.h \
         kernel/qplatformthemefactory_p.h \
         kernel/qplatformthemeplugin.h \
         kernel/qplatformwindow.h \
+        kernel/qplatformoffscreensurface.h \
         kernel/qplatformwindow_p.h \
         kernel/qplatformcursor.h \
         kernel/qplatformclipboard.h \
         kernel/qplatformnativeinterface.h \
         kernel/qplatformmenu.h \
+        kernel/qshapedpixmapdndwindow_p.h \
+        kernel/qsimpledrag_p.h \
         kernel/qsurfaceformat.h \
         kernel/qguiapplication.h \
         kernel/qguiapplication_p.h \
         kernel/qwindow_p.h \
         kernel/qwindow.h \
+        kernel/qoffscreensurface.h \
         kernel/qplatformsurface.h \
         kernel/qsurface.h \
         kernel/qclipboard.h \
@@ -81,13 +86,17 @@ SOURCES += \
         kernel/qplatformthemefactory.cpp \
         kernel/qplatformthemeplugin.cpp \
         kernel/qplatformwindow.cpp \
+        kernel/qplatformoffscreensurface.cpp \
         kernel/qplatformcursor.cpp \
         kernel/qplatformclipboard.cpp \
         kernel/qplatformnativeinterface.cpp \
         kernel/qsessionmanager.cpp \
+        kernel/qshapedpixmapdndwindow.cpp \
+        kernel/qsimpledrag.cpp \
         kernel/qsurfaceformat.cpp \
         kernel/qguiapplication.cpp \
         kernel/qwindow.cpp \
+        kernel/qoffscreensurface.cpp \
         kernel/qplatformsurface.cpp \
         kernel/qsurface.cpp \
         kernel/qclipboard.cpp \

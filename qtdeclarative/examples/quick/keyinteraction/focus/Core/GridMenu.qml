@@ -38,14 +38,14 @@
 **
 ****************************************************************************/
 
-import QtQuick 2.0
+import QtQuick 2.1
 
 FocusScope {
     property alias interactive: gridView.interactive
 
     onActiveFocusChanged: {
         if (activeFocus) 
-            mainView.state = ""
+            mainView.state = "showGridViews"
     }
 
     Rectangle {
@@ -63,6 +63,7 @@ FocusScope {
             focus: true
             model: 12
 
+            KeyNavigation.up: tabMenu
             KeyNavigation.down: listMenu
             KeyNavigation.left: contextMenu
 

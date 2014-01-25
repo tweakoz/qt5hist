@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the examples of the Qt Toolkit.
+** This file is part of the test suite of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -42,7 +42,7 @@
 #ifndef INPUTMETHODHINTS_H
 #define INPUTMETHODHINTS_H
 
-#include <QtWidgets/QMainWindow>
+#include <QMainWindow>
 #include "ui_inputmethodhints.h"
 
 class inputmethodhints : public QMainWindow
@@ -52,7 +52,7 @@ class inputmethodhints : public QMainWindow
 public:
     inputmethodhints(QWidget *parent = 0);
     ~inputmethodhints();
-    
+
 public slots:
     void checkboxChanged(int);
 

@@ -44,8 +44,6 @@
 
 #include <QtQuick/qsgmaterial.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 template <typename State>
@@ -142,8 +140,8 @@ class QSGSimpleMaterial : public QSGMaterial
 {
 public:
 #ifndef qdoc
-    QSGSimpleMaterial(const State &state, PtrShaderCreateFunc func)
-        : m_state(state)
+    QSGSimpleMaterial(const State &aState, PtrShaderCreateFunc func)
+        : m_state(aState)
         , m_func(func)
     {
     }
@@ -214,8 +212,6 @@ Q_INLINE_TEMPLATE void QSGSimpleMaterialShader<State>::updateState(const RenderS
 }
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 
 #endif

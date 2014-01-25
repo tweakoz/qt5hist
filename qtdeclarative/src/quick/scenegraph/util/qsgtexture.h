@@ -43,10 +43,8 @@
 #define QSGTEXTURE_H
 
 #include <QtQuick/qtquickglobal.h>
-#include <QObject>
-#include <QImage>
-
-QT_BEGIN_HEADER
+#include <QtCore/QObject>
+#include <QtGui/QImage>
 
 QT_BEGIN_NAMESPACE
 
@@ -126,7 +124,5 @@ public:
 };
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif

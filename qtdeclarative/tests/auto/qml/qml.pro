@@ -23,8 +23,9 @@ PUBLICTESTS += \
     qqmlqt \
     qqmltranslation \
     qqmlxmlhttprequest \
-    qqmlparser \
-    qquickfolderlistmodel
+    qtqmlmodules \
+    qquickfolderlistmodel \
+    qqmlapplicationengine
 
 PRIVATETESTS += \
     animation \
@@ -42,16 +43,18 @@ PRIVATETESTS += \
     qqmlvaluetypes \
     qqmlvaluetypeproviders \
     qqmlbinding \
-    qquickchangeset \
+    qqmlchangeset \
     qqmlconnections \
-    qquicklistcompositor \
-    qquicklistmodel \
-    qquicklistmodelworkerscript \
+    qqmllistcompositor \
+    qqmllistmodel \
+    qqmllistmodelworkerscript \
+    qqmlparser \
     qquickworkerscript \
     qqmlbundle \
     qrcqml \
     v4 \
-    qqmltimer
+    qqmltimer \
+    qqmlinstantiator
 
 qtHaveModule(widgets) {
     PUBLICTESTS += \
@@ -66,3 +69,7 @@ SUBDIRS += debugger
 contains(QT_CONFIG, private_tests) {
     SUBDIRS += $$PRIVATETESTS
 }
+
+qtNomakeTools( \
+    qmlplugindump \
+)

@@ -100,9 +100,22 @@ static void cleanupCocoaApplicationDelegate()
 - (id)init
 {
     self = [super init];
-    if (self)
+    if (self) {
         inLaunch = true;
+        [[NSNotificationCenter defaultCenter]
+                addObserver:self
+                   selector:@selector(updateScreens:)
+                       name:NSApplicationDidChangeScreenParametersNotification
+                     object:NSApp];
+    }
     return self;
+}
+
+- (void)updateScreens:(NSNotification *)notification
+{
+    Q_UNUSED(notification);
+    if (QCocoaIntegration *ci = dynamic_cast<QCocoaIntegration *>(QGuiApplicationPrivate::platformIntegration()))
+        ci->updateScreens();
 }
 
 - (void)dealloc
@@ -114,6 +127,8 @@ static void cleanupCocoaApplicationDelegate()
         [NSApp setDelegate:reflectionDelegate];
         [reflectionDelegate release];
     }
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+
     [super dealloc];
 }
 
@@ -145,8 +160,9 @@ static void cleanupCocoaApplicationDelegate()
     dockMenu = newMenu;
 }
 
-- (NSMenu *)applicationDockMenu
+- (NSMenu *)applicationDockMenu:(NSApplication *)sender
 {
+    Q_UNUSED(sender);
     return [[dockMenu retain] autorelease];
 }
 
@@ -206,7 +222,6 @@ static void cleanupCocoaApplicationDelegate()
             // events while the event loop is still running.
             const QWindowList topLevels = QGuiApplication::topLevelWindows();
             for (int i = 0; i < topLevels.size(); ++i) {
-                QWindow *window = topLevels.at(i);
                 topLevels.at(i)->close();
             }
 

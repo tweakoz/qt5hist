@@ -126,6 +126,7 @@ void QMakeEvaluator::initStatics()
     statics.strforever = QLatin1String("forever");
     statics.strhost_build = QLatin1String("host_build");
     statics.strTEMPLATE = ProKey("TEMPLATE");
+    statics.strQMAKE_PLATFORM = ProKey("QMAKE_PLATFORM");
 #ifdef PROEVALUATOR_FULL
     statics.strREQUIRES = ProKey("REQUIRES");
 #endif
@@ -263,48 +264,55 @@ ProStringList QMakeEvaluator::split_value_list(const QString &vals, const ProFil
 {
     QString build;
     ProStringList ret;
-    QStack<char> quote;
-
-    const ushort SPACE = ' ';
-    const ushort LPAREN = '(';
-    const ushort RPAREN = ')';
-    const ushort SINGLEQUOTE = '\'';
-    const ushort DOUBLEQUOTE = '"';
-    const ushort BACKSLASH = '\\';
 
     if (!source)
         source = currentProFile();
 
-    ushort unicode;
     const QChar *vals_data = vals.data();
     const int vals_len = vals.length();
-    int parens = 0;
+    ushort quote = 0;
+    bool hadWord = false;
     for (int x = 0; x < vals_len; x++) {
-        unicode = vals_data[x].unicode();
-        if (x != (int)vals_len-1 && unicode == BACKSLASH &&
-            (vals_data[x+1].unicode() == SINGLEQUOTE || vals_data[x+1].unicode() == DOUBLEQUOTE)) {
-            build += vals_data[x++]; //get that 'escape'
-        } else if (!quote.isEmpty() && unicode == quote.top()) {
-            quote.pop();
-        } else if (unicode == SINGLEQUOTE || unicode == DOUBLEQUOTE) {
-            quote.push(unicode);
-        } else if (unicode == RPAREN) {
-            --parens;
-        } else if (unicode == LPAREN) {
-            ++parens;
+        ushort unicode = vals_data[x].unicode();
+        if (unicode == quote) {
+            quote = 0;
+            continue;
         }
-
-        if (!parens && quote.isEmpty() && vals_data[x] == SPACE) {
-            ret << ProString(build).setSource(source);
-            build.clear();
-        } else {
-            build += vals_data[x];
+        switch (unicode) {
+        case '"':
+        case '\'':
+            quote = unicode;
+            hadWord = true;
+            continue;
+        case ' ':
+        case '\t':
+            if (!quote) {
+                if (hadWord) {
+                    ret << ProString(build).setSource(source);
+                    build.clear();
+                    hadWord = false;
+                }
+                continue;
+            }
+            build += QChar(unicode);
+            break;
+        case '\\':
+            if (x + 1 != vals_len) {
+                ushort next = vals_data[++x].unicode();
+                if (next == '\'' || next == '"' || next == '\\')
+                    unicode = next;
+                else
+                    --x;
+            }
+            // fallthrough
+        default:
+            hadWord = true;
+            build += QChar(unicode);
+            break;
         }
     }
-    if (!build.isEmpty())
+    if (hadWord)
         ret << ProString(build).setSource(source);
-    if (parens)
-        deprecationWarning(fL1S("Unmatched parentheses are deprecated."));
     return ret;
 }
 
@@ -924,6 +932,8 @@ void QMakeEvaluator::visitProVariable(
 
     if (varName == statics.strTEMPLATE)
         setTemplate();
+    else if (varName == statics.strQMAKE_PLATFORM)
+        updateFeaturePaths();
 #ifdef PROEVALUATOR_FULL
     else if (varName == statics.strREQUIRES)
         checkRequirements(values(varName));
@@ -1212,12 +1222,11 @@ bool QMakeEvaluator::loadSpec()
     m_qmakespec = QDir::cleanPath(qmakespec);
 
     if (!m_superfile.isEmpty()
-        && evaluateFile(m_superfile, QMakeHandler::EvalConfigFile, LoadProOnly) != ReturnTrue) {
+        && evaluateFile(m_superfile, QMakeHandler::EvalConfigFile, LoadProOnly|LoadHidden) != ReturnTrue) {
         return false;
     }
     if (!loadSpecInternal())
         return false;
-    updateFeaturePaths(); // The spec extends the feature search path, so rebuild the cache.
     if (!m_conffile.isEmpty()
         && evaluateFile(m_conffile, QMakeHandler::EvalConfigFile, LoadProOnly) != ReturnTrue) {
         return false;
@@ -1233,10 +1242,11 @@ void QMakeEvaluator::setupProject()
 {
     setTemplate();
     ProValueMap &vars = m_valuemapStack.top();
-    vars[ProKey("TARGET")] << ProString(QFileInfo(currentFileName()).baseName());
-    vars[ProKey("_PRO_FILE_")] << ProString(currentFileName());
-    vars[ProKey("_PRO_FILE_PWD_")] << ProString(currentDirectory());
-    vars[ProKey("OUT_PWD")] << ProString(m_outputDir);
+    ProFile *proFile = currentProFile();
+    vars[ProKey("TARGET")] << ProString(QFileInfo(currentFileName()).baseName()).setSource(proFile);
+    vars[ProKey("_PRO_FILE_")] << ProString(currentFileName()).setSource(proFile);
+    vars[ProKey("_PRO_FILE_PWD_")] << ProString(currentDirectory()).setSource(proFile);
+    vars[ProKey("OUT_PWD")] << ProString(m_outputDir).setSource(proFile);
 }
 
 void QMakeEvaluator::evaluateCommand(const QString &cmds, const QString &where)
@@ -1347,11 +1357,9 @@ QMakeEvaluator::VisitReturn QMakeEvaluator::visitProFile(
             loadDefaults();
     }
 
-#ifdef QT_BUILD_QMAKE
     for (ProValueMap::ConstIterator it = m_extraVars.constBegin();
          it != m_extraVars.constEnd(); ++it)
         m_valuemapStack.first().insert(it.key(), it.value());
-#endif
 
     VisitReturn vr;
 
@@ -1366,11 +1374,9 @@ QMakeEvaluator::VisitReturn QMakeEvaluator::visitProFile(
 
         evaluateCommand(m_option->precmds, fL1S("(command line)"));
 
-#ifdef QT_BUILD_QMAKE
         // After user configs, to override them
         if (!m_extraConfigs.isEmpty())
-            evaluateCommand("CONFIG += " + m_extraConfigs.join(' '), fL1S("(extra configs)"));
-#endif
+            evaluateCommand(fL1S("CONFIG += ") + m_extraConfigs.join(QLatin1Char(' ')), fL1S("(extra configs)"));
     }
 
     debugMsg(1, "visiting file %s", qPrintable(pro->fileName()));
@@ -1381,13 +1387,11 @@ QMakeEvaluator::VisitReturn QMakeEvaluator::visitProFile(
     if (flags & LoadPostFiles) {
         evaluateCommand(m_option->postcmds, fL1S("(command line -after)"));
 
-#ifdef QT_BUILD_QMAKE
         // Again, to ensure the project does not mess with us.
         // Specifically, do not allow a project to override debug/release within a
         // debug_and_release build pass - it's too late for that at this point anyway.
         if (!m_extraConfigs.isEmpty())
-            evaluateCommand("CONFIG += " + m_extraConfigs.join(' '), fL1S("(extra configs)"));
-#endif
+            evaluateCommand(fL1S("CONFIG += ") + m_extraConfigs.join(QLatin1Char(' ')), fL1S("(extra configs)"));
 
         if ((vr = evaluateFeatureFile(QLatin1String("default_post.prf"))) == ReturnError)
             goto failed;
@@ -1809,7 +1813,7 @@ QMakeEvaluator::VisitReturn QMakeEvaluator::evaluateFile(
         m_current = m_locationStack.pop();
         pro->deref();
 #ifdef PROEVALUATOR_FULL
-        if (ok == ReturnTrue) {
+        if (ok == ReturnTrue && !(flags & LoadHidden)) {
             ProStringList &iif = m_valuemapStack.first()[ProKey("QMAKE_INTERNAL_INCLUDED_FILES")];
             ProString ifn(fileName);
             if (!iif.contains(ifn))

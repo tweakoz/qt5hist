@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the FOO module of the Qt Toolkit.
+** This file is part of the QtCore module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -44,7 +44,6 @@
 #ifndef QSYSINFO_H
 #define QSYSINFO_H
 
-QT_BEGIN_HEADER
 QT_BEGIN_NAMESPACE
 
 /*
@@ -133,6 +132,7 @@ public:
         MV_10_6 = 0x0008,
         MV_10_7 = 0x0009,
         MV_10_8 = 0x000A,
+        MV_10_9 = 0x000B,
 
         /* codenames */
         MV_CHEETAH = MV_10_0,
@@ -143,7 +143,8 @@ public:
         MV_LEOPARD = MV_10_5,
         MV_SNOWLEOPARD = MV_10_6,
         MV_LION = MV_10_7,
-        MV_MOUNTAINLION = MV_10_8
+        MV_MOUNTAINLION = MV_10_8,
+        MV_MAVERICKS = MV_10_9
     };
     static const MacVersion MacintoshVersion;
     static MacVersion macVersion();
@@ -151,6 +152,4 @@ public:
 };
 
 QT_END_NAMESPACE
-QT_END_HEADER
-
 #endif // QSYSINFO_H

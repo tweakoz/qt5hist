@@ -123,6 +123,7 @@ public:
     virtual QImage alphaRGBMapForGlyph(glyph_t t, QFixed subPixelPosition, const QTransform &xform);
 
     virtual QFontEngine *cloneWithSize(qreal pixelSize) const;
+    virtual bool supportsTransformation(const QTransform &transform) const;
 
 #ifndef Q_CC_MINGW
     virtual void getGlyphBearings(glyph_t glyph, qreal *leftBearing = 0, qreal *rightBearing = 0);
@@ -145,6 +146,7 @@ public:
 private:
     QWindowsNativeImage *drawGDIGlyph(HFONT font, glyph_t, int margin, const QTransform &xform,
                                       QImage::Format mask_format);
+    bool hasCFFTable() const;
 
     const QSharedPointer<QWindowsFontEngineData> m_fontEngineData;
 
@@ -155,6 +157,7 @@ private:
     uint        stockFont  : 1;
     uint        ttf        : 1;
     uint        hasOutline : 1;
+    uint        cffTable   : 1;
     TEXTMETRIC  tm;
     int         lw;
     const unsigned char *cmap;

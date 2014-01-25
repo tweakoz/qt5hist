@@ -1,34 +1,42 @@
-qtsdk was archived from 2d6a7a780de9f7d2e38c7fd59a2eed122250e373
+qt5 was archived from c21bee55a5444248fa785b9d3acd631b5c889476
 ------------------------------------------------------------------------
-qtactiveqt was archived from de06fb45694171f5c914d8a61b17f6068b44a6c2
+qtactiveqt was archived from 8c1759ed70da31b2492e9df68fa44eac7db6ab66
 ------------------------------------------------------------------------
-qtbase was archived from 967c18d29694fdeab858691a80cb8400fd02ec33
+qtbase was archived from 215f137e29ad9176fa1a5d4c446115379f5dbc0d
 ------------------------------------------------------------------------
-qtdeclarative was archived from 2223f1ae293c2aedf4759564185f74b782395459
+qtdeclarative was archived from 811337a73c160447e5218ae55e93df99ac3d9edd
 ------------------------------------------------------------------------
-qtdoc was archived from 5fdaa2bca2edebaad9d54970622702565e7aae64
+qtdoc was archived from 4d875f2b0666009bae23fd15417f7fe03b70f612
 ------------------------------------------------------------------------
-qtgraphicaleffects was archived from a567c47b3785fafb51c6db0f660c3af198968271
+qtgraphicaleffects was archived from 535c6978fdb11b58ba65873d0105b5e90219c5de
 ------------------------------------------------------------------------
-qtimageformats was archived from bacb0bec3cc2b409b215093f8e6ea3ff00c2af45
+qtimageformats was archived from 37257d4be0cab8d5a92db9566f89ac115645f81f
 ------------------------------------------------------------------------
-qtjsbackend was archived from 04efcdf23b77c9dfdee25070a849523c835883a6
+qtjsbackend was archived from ca1ac7634f00b845ded92b5fabfa0d1c53197b01
 ------------------------------------------------------------------------
-qtmultimedia was archived from 2d8ad6066d59075ebb20ae880af00eaba027d5e9
+qtmultimedia was archived from 1c0cfdf408a398f4fe3efded775341b50106505d
 ------------------------------------------------------------------------
-qtquick1 was archived from 5ed36a9fe84f78c66692bb4a0395cb09eaf31d66
+qtquick1 was archived from c3eae1e470b219c25d04cf4ad60eff665f11f1b7
 ------------------------------------------------------------------------
-qtscript was archived from 59c342572fc2cda2cd53ae60f215c095083bbf58
+qtquickcontrols was archived from aa4ddfd8443f07badc0899d835027e46c6e0dfd8
 ------------------------------------------------------------------------
-qtsvg was archived from 95fca593cb08b3755cc72df6169afad9f75f0a7f
+qtscript was archived from e2415c8b957a41345284f56d11cd276d5e4e9267
 ------------------------------------------------------------------------
-qttools was archived from 1b02287e464efc999dda10ff57c0207e6f3648d5
+qtsensors was archived from e26a41a51d4d414160346703ed0d05416c3987b5
 ------------------------------------------------------------------------
-qttranslations was archived from 438b596f3e42f186017940b185116d8c36bece53
+qtserialport was archived from 58365228b3181ed03188fc8ff56007ea22678bb5
 ------------------------------------------------------------------------
-qtwebkit was archived from aca7ee6efbdd8a149ce6135df54cc93fbe362922
+qtsvg was archived from 0b7bb2bd2d7404c42dd782975b665c9415409e0c
 ------------------------------------------------------------------------
-qtwebkit-examples-and-demos was archived from b207fe504c57768358c02fc03c53716aa91658fb
+qttools was archived from d403785d9bc5ce27d1aa28ab68200a97a8bffcf5
 ------------------------------------------------------------------------
-qtxmlpatterns was archived from 5c0c8f258f66a057ba3597e86c00f1e8e30504b7
+qttranslations was archived from eb8ee6a96b8a3dd4228c746c617dd36b66e70dec
+------------------------------------------------------------------------
+qtwebkit was archived from 0368bb7e2682d0b187d31bb91618632965351e4d
+------------------------------------------------------------------------
+qtwebkit-examples was archived from bb4c9761d2746fa26c67ed07821fdb38bb0a3c9b
+------------------------------------------------------------------------
+qtx11extras was archived from 1a095bd1f406b453cfea16312bbb0f258d370b59
+------------------------------------------------------------------------
+qtxmlpatterns was archived from ce0f629b741f268d0546a775d9d8f4eec99d21d0
 ------------------------------------------------------------------------

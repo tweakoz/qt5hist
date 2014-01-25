@@ -47,6 +47,7 @@
 #include <QtGui/private/qinputmethod_p.h>
 #include <QtQuick/private/qquickrectangle_p.h>
 #include <QtQuick/private/qquicktextinput_p.h>
+#include <QtGui/qpa/qplatformtheme.h>
 #include <private/qquickitem_p.h>
 #include "../../shared/util.h"
 #include "../shared/visualtestutil.h"
@@ -63,6 +64,18 @@ public:
 private slots:
     void initTestCase();
     void cleanup();
+
+    void activeFocusOnTab();
+    void activeFocusOnTab2();
+    void activeFocusOnTab3();
+    void activeFocusOnTab4();
+    void activeFocusOnTab5();
+    void activeFocusOnTab6();
+    void activeFocusOnTab7();
+    void activeFocusOnTab8();
+
+    void nextItemInFocusChain();
+    void nextItemInFocusChain2();
 
     void keys();
     void keysProcessingOrder();
@@ -102,6 +115,11 @@ private slots:
 
 private:
     QQmlEngine engine;
+    bool qt_tab_all_widgets() {
+        if (const QPlatformTheme *theme = QGuiApplicationPrivate::platformTheme())
+            return theme->themeHint(QPlatformTheme::TabAllWidgets).toBool();
+        return true;
+    }
 };
 
 class KeysTestObject : public QObject
@@ -271,6 +289,673 @@ void tst_QQuickItem::cleanup()
 {
     QInputMethodPrivate *inputMethodPrivate = QInputMethodPrivate::get(qApp->inputMethod());
     inputMethodPrivate->testContext = 0;
+}
+
+void tst_QQuickItem::activeFocusOnTab()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button12
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button12->sub2
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "sub2");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: sub2->button21
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button21");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button21->button22
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button22");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button22->edit
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: edit->button22
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button22");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button22->button21
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button21");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button21->sub2
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "sub2");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: sub2->button12
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button12->button11
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button11->edit
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab2()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button12
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button12->button11
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button11->edit
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab3()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab3.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button1
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button1");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button1->button2, through a repeater
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button2");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button2->button3, through a row
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button3");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button3->button4, through a flow
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button4");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button4->button5, through a focusscope
+    // parent is activeFocusOnTab:false, one of children is focus:true
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button5");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button5->button6, through a focusscope
+    // parent is activeFocusOnTab:true, one of children is focus:true
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button6");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 5 Tabs: button6->button7, through a focusscope
+    // parent is activeFocusOnTab:true, none of children is focus:true
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 5; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button7");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button7->button6, through a focusscope
+    // parent is activeFocusOnTab:true, one of children got focus:true in previous code
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button6");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 Tabs: button6->button7, through a focusscope
+    // parent is activeFocusOnTab:true, one of children got focus:true in previous code
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);;
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button7");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button7->button6, through a focusscope
+    // parent is activeFocusOnTab:true, one of children got focus:true in previous code
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button6");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button6->button5, through a focusscope(parent is activeFocusOnTab: false)
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button5");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button5->button4, through a focusscope(parent is activeFocusOnTab: false)
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button4");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button4->button3, through a flow
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button3");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button3->button2, through a row
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button2");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // 4 BackTabs: button2->button1, through a repeater
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    for (int i = 0; i < 4; ++i) {
+        QGuiApplication::sendEvent(window, &key);
+        QVERIFY(key.isAccepted());
+    }
+
+    item = findItem<QQuickItem>(window->rootObject(), "button1");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab4()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab4.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button11
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button11");
+    item->setActiveFocusOnTab(true);
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button11->button21
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button21");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab5()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab4.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button11 in sub1
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    QQuickItem *item2 = findItem<QQuickItem>(window->rootObject(), "sub1");
+    item2->setActiveFocusOnTab(true);
+
+    // Tab: button11->button21
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button21");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab6()
+{
+    if (qt_tab_all_widgets())
+        QSKIP("This function doesn't support iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab6.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    // original: button12
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button12->edit
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: edit->button12
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button12->button11
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button11->edit
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    item = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(item);
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab7()
+{
+    if (qt_tab_all_widgets())
+        QSKIP("This function doesn't support iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(300,300));
+
+    window->setSource(testFileUrl("activeFocusOnTab7.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    QQuickItem *item = findItem<QQuickItem>(window->rootObject(), "button1");
+    QVERIFY(item);
+    item->forceActiveFocus();
+    QVERIFY(item->hasActiveFocus());
+
+    // Tab: button1->button1
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(!key.isAccepted());
+
+    QVERIFY(item->hasActiveFocus());
+
+    // BackTab: button1->button1
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(!key.isAccepted());
+
+    QVERIFY(item->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::activeFocusOnTab8()
+{
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(300,300));
+
+    window->setSource(testFileUrl("activeFocusOnTab8.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    QQuickItem *content = window->contentItem();
+    QVERIFY(content);
+    QVERIFY(content->hasActiveFocus());
+
+    QQuickItem *button1 = findItem<QQuickItem>(window->rootObject(), "button1");
+    QVERIFY(button1);
+    QVERIFY(!button1->hasActiveFocus());
+
+    QQuickItem *button2 = findItem<QQuickItem>(window->rootObject(), "button2");
+    QVERIFY(button2);
+    QVERIFY(!button2->hasActiveFocus());
+
+    // Tab: contentItem->button1
+    QKeyEvent key(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    QVERIFY(button1->hasActiveFocus());
+
+    // Tab: button1->button2
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    QVERIFY(button2->hasActiveFocus());
+    QVERIFY(!button1->hasActiveFocus());
+
+    // BackTab: button2->button1
+    key = QKeyEvent(QEvent::KeyPress, Qt::Key_Tab, Qt::ShiftModifier, "", false, 1);
+    QGuiApplication::sendEvent(window, &key);
+    QVERIFY(key.isAccepted());
+
+    QVERIFY(button1->hasActiveFocus());
+    QVERIFY(!button2->hasActiveFocus());
+
+    delete window;
+}
+
+void tst_QQuickItem::nextItemInFocusChain()
+{
+    if (!qt_tab_all_widgets())
+        QSKIP("This function doesn't support NOT iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    QQuickItem *button11 = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(button11);
+    QQuickItem *button12 = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(button12);
+
+    QQuickItem *sub2 = findItem<QQuickItem>(window->rootObject(), "sub2");
+    QVERIFY(sub2);
+    QQuickItem *button21 = findItem<QQuickItem>(window->rootObject(), "button21");
+    QVERIFY(button21);
+    QQuickItem *button22 = findItem<QQuickItem>(window->rootObject(), "button22");
+    QVERIFY(button22);
+
+    QQuickItem *edit = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(edit);
+
+    QQuickItem *next, *prev;
+
+    next = button11->nextItemInFocusChain(true);
+    QVERIFY(next);
+    QCOMPARE(next, button12);
+    prev = button11->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, edit);
+
+    next = button12->nextItemInFocusChain();
+    QVERIFY(next);
+    QCOMPARE(next, sub2);
+    prev = button12->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button11);
+
+    next = sub2->nextItemInFocusChain(true);
+    QVERIFY(next);
+    QCOMPARE(next, button21);
+    prev = sub2->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button12);
+
+    next = button21->nextItemInFocusChain();
+    QVERIFY(next);
+    QCOMPARE(next, button22);
+    prev = button21->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, sub2);
+
+    next = button22->nextItemInFocusChain(true);
+    QVERIFY(next);
+    QCOMPARE(next, edit);
+    prev = button22->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button21);
+
+    next = edit->nextItemInFocusChain();
+    QVERIFY(next);
+    QCOMPARE(next, button11);
+    prev = edit->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button22);
+
+    delete window;
+}
+
+void tst_QQuickItem::nextItemInFocusChain2()
+{
+    if (qt_tab_all_widgets())
+        QSKIP("This function doesn't support iterating all.");
+
+    QQuickView *window = new QQuickView(0);
+    window->setBaseSize(QSize(800,600));
+
+    window->setSource(testFileUrl("activeFocusOnTab6.qml"));
+    window->show();
+    window->requestActivate();
+    QVERIFY(QTest::qWaitForWindowActive(window));
+    QVERIFY(QGuiApplication::focusWindow() == window);
+
+    QQuickItem *button11 = findItem<QQuickItem>(window->rootObject(), "button11");
+    QVERIFY(button11);
+    QQuickItem *button12 = findItem<QQuickItem>(window->rootObject(), "button12");
+    QVERIFY(button12);
+
+    QQuickItem *edit = findItem<QQuickItem>(window->rootObject(), "edit");
+    QVERIFY(edit);
+
+    QQuickItem *next, *prev;
+
+    next = button11->nextItemInFocusChain(true);
+    QVERIFY(next);
+    QCOMPARE(next, button12);
+    prev = button11->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, edit);
+
+    next = button12->nextItemInFocusChain();
+    QVERIFY(next);
+    QCOMPARE(next, edit);
+    prev = button12->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button11);
+
+    next = edit->nextItemInFocusChain();
+    QVERIFY(next);
+    QCOMPARE(next, button11);
+    prev = edit->nextItemInFocusChain(false);
+    QVERIFY(prev);
+    QCOMPARE(prev, button12);
+
+    delete window;
 }
 
 void tst_QQuickItem::keys()
@@ -1242,15 +1927,35 @@ void tst_QQuickItem::resourcesProperty()
 {
     QQmlComponent component(&engine, testFileUrl("resourcesProperty.qml"));
 
-    QObject *o = component.create();
-    QVERIFY(o != 0);
+    QObject *object = component.create();
+    QVERIFY(object != 0);
 
-    QCOMPARE(o->property("test1").toBool(), true);
-    QCOMPARE(o->property("test2").toBool(), true);
-    QCOMPARE(o->property("test3").toBool(), true);
-    QCOMPARE(o->property("test4").toBool(), true);
-    QCOMPARE(o->property("test5").toBool(), true);
-    delete o;
+    QQmlProperty property(object, "resources", component.creationContext());
+
+    QVERIFY(property.isValid());
+    QQmlListReference list = qvariant_cast<QQmlListReference>(property.read());
+    QVERIFY(list.isValid());
+
+    QCOMPARE(list.count(), 4);
+
+    QCOMPARE(object->property("test1").toBool(), true);
+    QCOMPARE(object->property("test2").toBool(), true);
+    QCOMPARE(object->property("test3").toBool(), true);
+    QCOMPARE(object->property("test4").toBool(), true);
+    QCOMPARE(object->property("test5").toBool(), true);
+    QCOMPARE(object->property("test6").toBool(), true);
+
+    QObject *subObject = object->findChild<QObject *>("subObject");
+
+    QVERIFY(subObject);
+
+    QCOMPARE(object, subObject->parent());
+
+    delete subObject;
+
+    QCOMPARE(list.count(), 3);
+
+    delete object;
 }
 
 void tst_QQuickItem::propertyChanges()

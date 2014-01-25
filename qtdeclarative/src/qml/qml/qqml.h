@@ -50,8 +50,6 @@
 #include <QtCore/qbytearray.h>
 #include <QtCore/qmetaobject.h>
 
-QT_BEGIN_HEADER
-
 #define QML_VERSION     0x020000
 #define QML_VERSION_STR "2.0"
 
@@ -102,6 +100,8 @@ class QQmlPropertyValueInterceptor;
     memcpy(listName.data()+listLen, className, nameLen); \
     listName[listLen+nameLen] = '>'; \
     listName[listLen+nameLen+1] = '\0';
+
+void Q_QML_EXPORT qmlClearTypeRegistrations();
 
 template<typename T>
 int qmlRegisterType()
@@ -418,11 +418,17 @@ class QQmlContext;
 class QQmlEngine;
 class QJSValue;
 class QJSEngine;
-Q_QML_EXPORT void qmlExecuteDeferred(QObject *);
-Q_QML_EXPORT QQmlContext *qmlContext(const QObject *);
-Q_QML_EXPORT QQmlEngine *qmlEngine(const QObject *);
-Q_QML_EXPORT QObject *qmlAttachedPropertiesObjectById(int, const QObject *, bool create = true);
-Q_QML_EXPORT QObject *qmlAttachedPropertiesObject(int *, const QObject *, const QMetaObject *, bool create);
+
+namespace QtQml {
+    // declared in namespace to avoid symbol conflicts with QtDeclarative
+    Q_QML_EXPORT void qmlExecuteDeferred(QObject *);
+    Q_QML_EXPORT QQmlContext *qmlContext(const QObject *);
+    Q_QML_EXPORT QQmlEngine *qmlEngine(const QObject *);
+    Q_QML_EXPORT QObject *qmlAttachedPropertiesObjectById(int, const QObject *, bool create = true);
+    Q_QML_EXPORT QObject *qmlAttachedPropertiesObject(int *, const QObject *,
+                                                      const QMetaObject *, bool create);
+}
+using namespace QtQml;
 
 template<typename T>
 QObject *qmlAttachedPropertiesObject(const QObject *obj, bool create = true)
@@ -465,11 +471,29 @@ inline int qmlRegisterSingletonType(const char *uri, int versionMajor, int versi
     return QQmlPrivate::qmlregister(QQmlPrivate::SingletonRegistration, &api);
 }
 
+
+inline int qmlRegisterType(const QUrl &url, const char *uri, int versionMajor, int versionMinor, const char *qmlName)
+{
+    if (url.isRelative()) { 
+        // User input check must go here, because QQmlPrivate::qmlregister is also used internally for composite types
+        qWarning("qmlRegisterType requires absolute URLs.");
+        return 0;
+    }
+
+    QQmlPrivate::RegisterCompositeType type = {
+        url,
+        uri,
+        versionMajor,
+        versionMinor,
+        qmlName
+    };
+
+    return QQmlPrivate::qmlregister(QQmlPrivate::CompositeRegistration, &type);
+}
+
 QT_END_NAMESPACE
 
 QML_DECLARE_TYPE(QObject)
 Q_DECLARE_METATYPE(QVariant)
-
-QT_END_HEADER
 
 #endif // QQML_H

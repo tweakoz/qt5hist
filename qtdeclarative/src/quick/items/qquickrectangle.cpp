@@ -302,7 +302,7 @@ int QQuickRectanglePrivate::doUpdateSlotIdx = -1;
     \clearfloat
     \section1 Performance
 
-    Using the \l antialiasing property improves the appearance of a rounded rectangle at
+    Using the \l Item::antialiasing property improves the appearance of a rounded rectangle at
     the cost of rendering performance. You should consider unsetting this property
     for rectangles in motion, and only set it when they are stationary.
 
@@ -475,7 +475,7 @@ QSGNode *QQuickRectangle::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData 
     }
 
     rectangle->setRadius(d->radius);
-    rectangle->setAntialiasing(d->antialiasing);
+    rectangle->setAntialiasing(d->antialiasing || d->radius > 0);
 
     QGradientStops stops;
     if (d->gradient) {

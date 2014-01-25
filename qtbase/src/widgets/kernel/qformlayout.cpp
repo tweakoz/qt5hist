@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtGui module of the Qt Toolkit.
+** This file is part of the QtWidgets module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -976,8 +976,8 @@ void QFormLayoutPrivate::setLayout(int row, QFormLayout::ItemRole role, QLayout 
 {
     if (layout) {
         Q_Q(QFormLayout);
-        q->addChildLayout(layout);
-        setItem(row, role, layout);
+        if (q->adoptLayout(layout))
+            setItem(row, role, layout);
     }
 }
 
@@ -1022,7 +1022,7 @@ QStyle* QFormLayoutPrivate::getStyle() const
     \li \b{Adherence to the different platform's look and feel guidelines.}
 
         For example, the
-        \l{https://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html}{Mac OS X Aqua} and KDE guidelines specify that the
+        \l{http://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html}{Mac OS X Aqua} and KDE guidelines specify that the
         labels should be right-aligned, whereas Windows and GNOME
         applications normally use left-alignment.
 
@@ -1065,7 +1065,7 @@ QStyle* QFormLayoutPrivate::getStyle() const
            corresponds to what we would get using a two-column
            QGridLayout.)
         \li Style based on the
-           \l{https://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html}{Mac OS X Aqua} guidelines. Labels are right-aligned,
+           \l{http://developer.apple.com/library/mac/#documentation/UserExperience/Conceptual/AppleHIGuidelines/Intro/Intro.html}{Mac OS X Aqua} guidelines. Labels are right-aligned,
            the fields don't grow beyond their size hint, and the
            form is horizontally centered.
         \li Recommended style for

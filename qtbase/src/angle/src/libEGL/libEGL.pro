@@ -6,8 +6,13 @@ include(../common/common.pri)
 # Note: ANGLE is patched to dynamically resolve DwmIsCompositionEnabled DwmSetPresentParameters
 # in Surface.cpp, which would otherwise require -ldwmapi, which does not exist on Windows XP
 # (QTBUG-27741).
-LIBS += -ld3d9 -ldxguid \
-        -L$$QT_BUILD_TREE/lib -l$$qtLibraryTarget(libGLESv2)
+
+angle_d3d11 {
+    LIBS += -ld3d11
+} else {
+    LIBS += -ld3d9
+}
+LIBS += -ldxguid -L$$QT_BUILD_TREE/lib -l$$qtLibraryTarget(libGLESv2)
 
 HEADERS += \
     $$ANGLE_DIR/src/libEGL/Config.h \
@@ -35,5 +40,5 @@ egl_headers.files = \
     $$ANGLE_DIR/include/EGL/egl.h \
     $$ANGLE_DIR/include/EGL/eglext.h \
     $$ANGLE_DIR/include/EGL/eglplatform.h
-egl_headers.path = $$[QT_INSTALL_HEADERS]/EGL
+egl_headers.path = $$[QT_INSTALL_HEADERS]/QtANGLE/EGL
 INSTALLS += egl_headers

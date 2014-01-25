@@ -312,6 +312,9 @@ qreal QQuickTextPrivate::getImplicitHeight() const
     not require advanced features such as transformation of the text. Using such features in
     combination with the NativeRendering render type will lend poor and sometimes pixelated
     results.
+
+    On HighDpi "retina" displays and mobile and embedded platforms, this property is ignored
+    and QtRendering is always used.
 */
 QQuickText::RenderType QQuickText::renderType() const
 {
@@ -1332,10 +1335,10 @@ QQuickText::~QQuickText()
     \snippet qml/text/onLinkActivated.qml 0
 
     The example code will display the text
-    "The main website is at \l{http://qt.nokia.com}{Nokia Qt DF}."
+    "See the \l{http://qt-project.org}{Qt Project website}."
 
     Clicking on the highlighted link will output
-    \tt{http://qt.nokia.com link activated} to the console.
+    \tt{http://qt-project.org link activated} to the console.
 */
 
 /*!
@@ -1986,6 +1989,7 @@ void QQuickText::setTextFormat(TextFormat format)
             d->rightToLeftText = d->extra->doc->toPlainText().isRightToLeft();
         } else {
             d->rightToLeftText = d->text.isRightToLeft();
+            d->textHasChanged = true;
         }
         d->determineHorizontalAlignment();
     }
@@ -2234,7 +2238,7 @@ QSGNode *QQuickText::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData *data
         node = static_cast<QQuickTextNode *>(oldNode);
     }
 
-    node->setUseNativeRenderer(d->renderType == NativeRendering);
+    node->setUseNativeRenderer(d->renderType == NativeRendering && d->window->devicePixelRatio() <= 1);
     node->deleteContent();
     node->setMatrix(QMatrix4x4());
 

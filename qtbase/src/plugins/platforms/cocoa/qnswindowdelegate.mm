@@ -80,12 +80,22 @@
     }
 }
 
-- (void)windowWillClose:(NSNotification *)notification
+- (BOOL)windowShouldClose:(NSNotification *)notification
 {
     Q_UNUSED(notification);
     if (m_cocoaWindow) {
-        m_cocoaWindow->windowWillClose();
+        return m_cocoaWindow->windowShouldClose();
     }
+
+    return YES;
+}
+
+- (BOOL)windowShouldZoom:(NSWindow *)window toFrame:(NSRect)newFrame
+{
+    Q_UNUSED(newFrame);
+    if (m_cocoaWindow && m_cocoaWindow->m_qtView)
+        [m_cocoaWindow->m_qtView notifyWindowWillZoom:![window isZoomed]];
+    return YES;
 }
 
 @end

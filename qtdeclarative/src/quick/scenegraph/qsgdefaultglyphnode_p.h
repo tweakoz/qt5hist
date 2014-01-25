@@ -39,13 +39,11 @@
 **
 ****************************************************************************/
 
-#ifndef DEFAULT_GLYPHNODE_H
-#define DEFAULT_GLYPHNODE_H
+#ifndef QSGDEFAULTGLYPHNODE_P_H
+#define QSGDEFAULTGLYPHNODE_P_H
 
 #include <private/qsgadaptationlayer_p.h>
 #include <QtQuick/qsgnode.h>
-
-QT_BEGIN_HEADER
 
 QT_BEGIN_NAMESPACE
 
@@ -55,22 +53,24 @@ class QSGDefaultGlyphNode: public QSGGlyphNode
 {
 public:
     QSGDefaultGlyphNode();
-    ~QSGDefaultGlyphNode();
+    virtual ~QSGDefaultGlyphNode();
 
     virtual QPointF baseLine() const { return m_baseLine; }
     virtual void setGlyphs(const QPointF &position, const QGlyphRun &glyphs);
     virtual void setColor(const QColor &color);
 
     virtual void setPreferredAntialiasingMode(AntialiasingMode) { }
-    virtual void setStyle(QQuickText::TextStyle) { }
-    virtual void setStyleColor(const QColor &) { }
+    virtual void setStyle(QQuickText::TextStyle);
+    virtual void setStyleColor(const QColor &);
 
-    virtual void update() { }
+    virtual void update();
 
-private:
+protected:
     QGlyphRun m_glyphs;
     QPointF m_position;
     QColor m_color;
+    QQuickText::TextStyle m_style;
+    QColor m_styleColor;
 
     QPointF m_baseLine;
     QSGTextMaskMaterial *m_material;
@@ -80,6 +80,4 @@ private:
 
 QT_END_NAMESPACE
 
-QT_END_HEADER
-
-#endif // DEFAULT_GLYPHNODE_H
+#endif

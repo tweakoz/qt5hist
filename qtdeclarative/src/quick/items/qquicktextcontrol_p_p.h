@@ -39,8 +39,8 @@
 **
 ****************************************************************************/
 
-#ifndef QTEXTCONTROL_P_P_H
-#define QTEXTCONTROL_P_P_H
+#ifndef QQUICKTEXTCONTROL_P_P_H
+#define QQUICKTEXTCONTROL_P_P_H
 
 //
 //  W A R N I N G
@@ -108,6 +108,7 @@ public:
     QRectF rectForPosition(int position) const;
 
     void keyPressEvent(QKeyEvent *e);
+    void keyReleaseEvent(QKeyEvent *e);
     void mousePressEvent(QMouseEvent *event, const QPointF &pos);
     void mouseMoveEvent(QMouseEvent *event, const QPointF &pos);
     void mouseReleaseEvent(QMouseEvent *event, const QPointF &pos);
@@ -126,7 +127,7 @@ public:
     void cancelPreedit();
 #endif
 
-    QPointF trippleClickPoint;
+    QPointF tripleClickPoint;
     QPointF mousePressPos;
 
     QTextCharFormat lastCharFormat;
@@ -134,12 +135,12 @@ public:
     QTextDocument *doc;
     QTextCursor cursor;
     QTextCursor selectedWordOnDoubleClick;
-    QTextCursor selectedBlockOnTrippleClick;
+    QTextCursor selectedBlockOnTripleClick;
     QString anchorOnMousePress;
     QString linkToCopy;
 
     QBasicTimer cursorBlinkTimer;
-    QBasicTimer trippleClickTimer;
+    QBasicTimer tripleClickTimer;
 
 #ifndef QT_NO_IM
     int preeditCursor;

@@ -52,8 +52,6 @@
 #include <QtGui/qaccessible.h>
 #include <private/qtquickglobal_p.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -144,6 +142,10 @@ public Q_SLOTS:
         QAccessibleValueChangeEvent ev(parent(), parent()->property("value"));
         QAccessible::updateAccessibility(&ev);
     }
+    void cursorPositionChanged() {
+        QAccessibleTextCursorEvent ev(parent(), parent()->property("cursorPosition").toInt());
+        QAccessible::updateAccessibility(&ev);
+    }
 
 Q_SIGNALS:
     void roleChanged();
@@ -164,8 +166,6 @@ QT_END_NAMESPACE
 
 QML_DECLARE_TYPE(QQuickAccessibleAttached)
 QML_DECLARE_TYPEINFO(QQuickAccessibleAttached, QML_HAS_ATTACHED_PROPERTIES)
-
-QT_END_HEADER
 
 #endif // QT_NO_ACCESSIBILITY
 

@@ -25,7 +25,7 @@ qhp.QtQuick.subprojects.qmltypes.selectors = fake:qmlclass
 qhp.QtQuick.subprojects.qmltypes.sortPages = true
 qhp.QtQuick.subprojects.classes.title = Classes
 qhp.QtQuick.subprojects.classes.title = C++ Classes
-qhp.QtQuick.subprojects.classes.indexTitle = Qt Quick Module C++ Classes
+qhp.QtQuick.subprojects.classes.indexTitle = Qt Quick C++ Classes
 qhp.QtQuick.subprojects.classes.selectors = class fake:headerfile
 qhp.QtQuick.subprojects.classes.sortPages = true
 qhp.QtQuick.subprojects.examples.title = Examples
@@ -34,7 +34,7 @@ qhp.QtQuick.subprojects.examples.selectors = fake:example
 
 tagfile                 = ../../../doc/qtquick/qtquick.tags
 
-depends += qtcore qtxmlpatterns qtqml qtgui qtlinguist
+depends += qtcore qtxmlpatterns qtqml qtgui qtlinguist qtquickcontrols qtquicklayouts qtdoc qtquickdialogs
 
 headerdirs  += ..
 
@@ -58,3 +58,8 @@ sourcedirs += ../../imports
 #add plugins directory because of dependencies
 headerdirs += ../../plugins
 sourcedirs += ../../plugins
+
+#exclude certain directories
+excludedirs += ../../imports/dialogs \
+               ../../imports/models \
+               ../../../examples/quick/dialogs

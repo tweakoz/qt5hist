@@ -60,6 +60,7 @@
 #include "qqmlscriptstring.h"
 #include "qqmlglobal_p.h"
 #include "qqmlbinding_p.h"
+#include "qqmlabstracturlinterceptor_p.h"
 #include <private/qv4compiler_p.h>
 
 #include <QDebug>
@@ -517,6 +518,10 @@ void QQmlCompiler::genLiteralAssignment(QQmlScript::Property *prop,
             // Encoded dir-separators defeat QUrl processing - decode them first
             string.replace(QLatin1String("%2f"), QLatin1String("/"), Qt::CaseInsensitive);
             QUrl u = string.isEmpty() ? QUrl() : output->url.resolved(QUrl(string));
+            // Apply URL interceptor
+            if (engine->urlInterceptor())
+                u = engine->urlInterceptor()->intercept(u,
+                        QQmlAbstractUrlInterceptor::UrlString);
             instr.propertyIndex = prop->index;
             instr.value = output->indexForUrl(u);
             output->addInstruction(instr);
@@ -815,7 +820,10 @@ bool QQmlCompiler::compile(QQmlEngine *engine,
         const QQmlTypeData::TypeReference &tref = resolvedTypes.at(ii);
         QQmlScript::TypeReference *parserRef = referencedTypes.at(ii);
 
-        if (tref.type) {
+        if (tref.typeData) { //QML-based type
+            ref.component = tref.typeData->compiledData();
+            ref.component->addref();
+        } else if (tref.type) {//C++-based type
             ref.type = tref.type;
             if (!ref.type->isCreatable()) {
                 QString err = ref.type->noCreationReason();
@@ -823,21 +831,18 @@ bool QQmlCompiler::compile(QQmlEngine *engine,
                     err = tr( "Element is not creatable.");
                 COMPILE_EXCEPTION(parserRef->firstUse, err);
             }
-            
+
             if (ref.type->containsRevisionedAttributes()) {
                 QQmlError cacheError;
                 ref.typePropertyCache = enginePrivate->cache(ref.type,
                                                              resolvedTypes.at(ii).minorVersion,
                                                              cacheError);
-                if (!ref.typePropertyCache) 
+                if (!ref.typePropertyCache)
                     COMPILE_EXCEPTION(parserRef->firstUse, cacheError.description());
                 ref.typePropertyCache->addref();
             }
-
-        } else if (tref.typeData) {
-            ref.component = tref.typeData->compiledData();
-            ref.component->addref();
         }
+
         out->types << ref;
     }
 
@@ -944,7 +949,7 @@ void QQmlCompiler::compileTree(QQmlScript::Object *tree)
 
     Q_ASSERT(tree->metatype);
     if (!tree->synthdata.isEmpty()) {
-        enginePrivate->registerCompositeType(output);
+        enginePrivate->registerInternalCompositeType(output);
     } else if (output->types.at(tree->type).component) {
         output->metaTypeId = output->types.at(tree->type).component->metaTypeId;
         output->listMetaTypeId = output->types.at(tree->type).component->listMetaTypeId;
@@ -954,7 +959,7 @@ void QQmlCompiler::compileTree(QQmlScript::Object *tree)
         output->listMetaTypeId = output->types.at(tree->type).type->qListTypeId();
     }
     if (!tree->synthdata.isEmpty())
-        enginePrivate->registerCompositeType(output);
+        enginePrivate->registerInternalCompositeType(output);
 }
 
 static bool QStringList_contains(const QStringList &list, const QHashedStringRef &string)
@@ -1752,7 +1757,7 @@ bool QQmlCompiler::buildProperty(QQmlScript::Property *prop,
 
         QQmlType *type = 0;
         QQmlImportNamespace *typeNamespace = 0;
-        unit->imports().resolveType(prop->name(), &type, 0, 0, 0, &typeNamespace);
+        unit->imports().resolveType(prop->name(), &type, 0, 0, &typeNamespace);
 
         if (typeNamespace) {
             COMPILE_CHECK(buildPropertyInNamespace(typeNamespace, prop, obj, 
@@ -1874,7 +1879,7 @@ bool QQmlCompiler::buildPropertyInNamespace(QQmlImportNamespace *ns,
         // Setup attached property data
 
         QQmlType *type = 0;
-        unit->imports().resolveType(ns, prop->name(), &type, 0, 0, 0);
+        unit->imports().resolveType(ns, prop->name(), &type, 0, 0);
 
         if (!type || !type->attachedPropertiesType()) 
             COMPILE_EXCEPTION(prop, tr("Non-existent attached object"));
@@ -2527,7 +2532,7 @@ bool QQmlCompiler::buildPropertyLiteralAssignment(QQmlScript::Property *prop,
 struct StaticQtMetaObject : public QObject
 {
     static const QMetaObject *get()
-        { return &static_cast<StaticQtMetaObject*> (0)->staticQtMetaObject; }
+        { return &staticQtMetaObject; }
 };
 
 bool QQmlCompiler::testQualifiedEnumAssignment(QQmlScript::Property *prop,
@@ -2572,9 +2577,11 @@ bool QQmlCompiler::testQualifiedEnumAssignment(QQmlScript::Property *prop,
     }
 
     QQmlType *type = 0;
-    unit->imports().resolveType(typeName, &type, 0, 0, 0, 0);
+    unit->imports().resolveType(typeName, &type, 0, 0, 0);
 
     if (!type && typeName != QLatin1String("Qt"))
+        return true;
+    if (type && type->isComposite()) //No enums on composite types
         return true;
 
     int value = 0;
@@ -2619,7 +2626,7 @@ int QQmlCompiler::evaluateEnum(const QHashedStringRef &scope, const QByteArray& 
 
     if (scope != QLatin1String("Qt")) {
         QQmlType *type = 0;
-        unit->imports().resolveType(scope, &type, 0, 0, 0, 0);
+        unit->imports().resolveType(scope, &type, 0, 0, 0);
         return type ? type->enumValue(QHashedCStringRef(enumValue.constData(), enumValue.length()), ok) : -1;
     }
 
@@ -2636,7 +2643,7 @@ int QQmlCompiler::evaluateEnum(const QHashedStringRef &scope, const QByteArray& 
 const QMetaObject *QQmlCompiler::resolveType(const QString& name) const
 {
     QQmlType *qmltype = 0;
-    if (!unit->imports().resolveType(name, &qmltype, 0, 0, 0, 0))
+    if (!unit->imports().resolveType(name, &qmltype, 0, 0, 0))
         return 0;
     if (!qmltype)
         return 0;
@@ -3024,12 +3031,11 @@ bool QQmlCompiler::buildDynamicMeta(QQmlScript::Object *obj, DynamicMetaMode mod
                     // lazily resolved type
                     Q_ASSERT(s->parameterTypes.at(i) == Object::DynamicProperty::Custom);
                     QQmlType *qmltype = 0;
-                    QString url;
-                    if (!unit->imports().resolveType(s->parameterTypeNames.at(i).toString(), &qmltype, &url, 0, 0, 0))
+                    if (!unit->imports().resolveType(s->parameterTypeNames.at(i).toString(), &qmltype, 0, 0, 0))
                         COMPILE_EXCEPTION(s, tr("Invalid signal parameter type: %1").arg(s->parameterTypeNames.at(i).toString()));
 
-                    if (!qmltype) {
-                        QQmlTypeData *tdata = enginePrivate->typeLoader.getType(QUrl(url));
+                    if (qmltype->isComposite()) {
+                        QQmlTypeData *tdata = enginePrivate->typeLoader.getType(qmltype->sourceUrl());
                         Q_ASSERT(tdata);
                         Q_ASSERT(tdata->isComplete());
 
@@ -3121,12 +3127,12 @@ bool QQmlCompiler::buildDynamicMeta(QQmlScript::Object *obj, DynamicMetaMode mod
                      p->type == Object::DynamicProperty::Custom);
 
             QQmlType *qmltype = 0;
-            QString url;
-            if (!unit->imports().resolveType(p->customType.toString(), &qmltype, &url, 0, 0, 0))
+            if (!unit->imports().resolveType(p->customType.toString(), &qmltype, 0, 0, 0))
                 COMPILE_EXCEPTION(p, tr("Invalid property type"));
 
-            if (!qmltype) {
-                QQmlTypeData *tdata = enginePrivate->typeLoader.getType(QUrl(url));
+            Q_ASSERT(qmltype);
+            if (qmltype->isComposite()) {
+                QQmlTypeData *tdata = enginePrivate->typeLoader.getType(qmltype->sourceUrl());
                 Q_ASSERT(tdata);
                 Q_ASSERT(tdata->isComplete());
 
@@ -3885,7 +3891,7 @@ QQmlType *QQmlCompiler::toQmlType(QQmlScript::Object *from)
         type = QQmlMetaType::qmlType(mo);
         mo = mo->superClass();
     }
-   return type;
+    return type;
 }
 
 QStringList QQmlCompiler::deferredProperties(QQmlScript::Object *obj)

@@ -44,8 +44,6 @@
 
 #include <QtCore/qjsonvalue.h>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 class QDebug;
@@ -69,7 +67,8 @@ struct Q_CORE_EXPORT QJsonParseError
         IllegalUTF8String,
         UnterminatedString,
         MissingObject,
-        DeepNesting
+        DeepNesting,
+        DocumentTooLarge
     };
 
     QString    errorString() const;
@@ -109,8 +108,19 @@ public:
     static QJsonDocument fromVariant(const QVariant &variant);
     QVariant toVariant() const;
 
+    enum JsonFormat {
+        Indented,
+        Compact
+    };
+
     static QJsonDocument fromJson(const QByteArray &json, QJsonParseError *error = 0);
-    QByteArray toJson() const;
+
+#ifdef Q_QDOC
+    QByteArray toJson(JsonFormat format = Indented) const;
+#else
+    QByteArray toJson() const; //### Merge in Qt6
+    QByteArray toJson(JsonFormat format) const;
+#endif
 
     bool isEmpty() const;
     bool isArray() const;
@@ -143,7 +153,5 @@ Q_CORE_EXPORT QDebug operator<<(QDebug, const QJsonDocument &);
 #endif
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif // QJSONDOCUMENT_H

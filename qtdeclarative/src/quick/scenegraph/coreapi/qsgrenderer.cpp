@@ -53,6 +53,8 @@
 
 #include <qdatetime.h>
 
+#include <private/qqmlprofilerservice_p.h>
+
 QT_BEGIN_NAMESPACE
 
 //#define RENDERER_DEBUG
@@ -60,12 +62,11 @@ QT_BEGIN_NAMESPACE
 
 
 
-#define QSG_RENDERER_TIMING
-#ifdef QSG_RENDERER_TIMING
-static bool qsg_render_timing = !qgetenv("QML_RENDERER_TIMING").isEmpty();
-static QTime frameTimer;
-static int preprocessTime;
-static int updatePassTime;
+#ifndef QSG_NO_RENDER_TIMING
+static bool qsg_render_timing = !qgetenv("QSG_RENDER_TIMING").isEmpty();
+static QElapsedTimer frameTimer;
+static qint64 preprocessTime;
+static qint64 updatePassTime;
 #endif
 
 void QSGBindable::clear(QSGRenderer::ClearMode mode) const
@@ -138,6 +139,7 @@ QSGRenderer::QSGRenderer(QSGContext *context)
     , m_clear_mode(ClearColorBuffer | ClearDepthBuffer)
     , m_current_opacity(1)
     , m_current_determinant(1)
+    , m_device_pixel_ratio(1)
     , m_current_stencil_value(0)
     , m_context(context)
     , m_root_node(0)
@@ -237,20 +239,21 @@ void QSGRenderer::renderScene(const QSGBindable &bindable)
     m_is_rendering = true;
 
 
-#ifdef QSG_RENDERER_TIMING
-    if (qsg_render_timing)
+#ifndef QSG_NO_RENDER_TIMING
+    bool profileFrames = qsg_render_timing || QQmlProfilerService::enabled;
+    if (profileFrames)
         frameTimer.start();
-    int bindTime = 0;
-    int renderTime = 0;
+    qint64 bindTime = 0;
+    qint64 renderTime = 0;
 #endif
 
     m_bindable = &bindable;
     preprocess();
 
     bindable.bind();
-#ifdef QSG_RENDERER_TIMING
-    if (qsg_render_timing)
-        bindTime = frameTimer.elapsed();
+#ifndef QSG_NO_RENDER_TIMING
+    if (profileFrames)
+        bindTime = frameTimer.nsecsElapsed();
 #endif
 
 #ifndef QT_NO_DEBUG
@@ -269,9 +272,9 @@ void QSGRenderer::renderScene(const QSGBindable &bindable)
 #endif
 
     render();
-#ifdef QSG_RENDERER_TIMING
-    if (qsg_render_timing)
-        renderTime = frameTimer.elapsed();
+#ifndef QSG_NO_RENDER_TIMING
+    if (profileFrames)
+        renderTime = frameTimer.nsecsElapsed();
 #endif
 
     glDisable(GL_SCISSOR_TEST);
@@ -289,15 +292,25 @@ void QSGRenderer::renderScene(const QSGBindable &bindable)
         m_index_buffer_bound = false;
     }
 
-#ifdef QSG_RENDERER_TIMING
+#ifndef QSG_NO_RENDER_TIMING
     if (qsg_render_timing) {
-        printf(" - Breakdown of frametime: preprocess=%d, updates=%d, binding=%d, render=%d, total=%d\n",
-               preprocessTime,
-               updatePassTime - preprocessTime,
-               bindTime - updatePassTime,
-               renderTime - bindTime,
-               renderTime);
+        printf(" - Breakdown of render time: preprocess=%d, updates=%d, binding=%d, render=%d, total=%d\n",
+               int(preprocessTime / 1000000),
+               int((updatePassTime - preprocessTime) / 1000000),
+               int((bindTime - updatePassTime) / 1000000),
+               int((renderTime - bindTime) / 1000000),
+               int(renderTime / 1000000));
     }
+
+    if (QQmlProfilerService::enabled) {
+        QQmlProfilerService::sceneGraphFrame(
+                    QQmlProfilerService::SceneGraphRendererFrame,
+                    preprocessTime,
+                    updatePassTime - preprocessTime,
+                    bindTime - updatePassTime,
+                    renderTime - bindTime);
+    }
+
 #endif
 }
 
@@ -379,17 +392,18 @@ void QSGRenderer::preprocess()
         }
     }
 
-#ifdef QSG_RENDERER_TIMING
-    if (qsg_render_timing)
-        preprocessTime = frameTimer.elapsed();
+#ifndef QSG_NO_RENDER_TIMING
+    bool profileFrames = qsg_render_timing || QQmlProfilerService::enabled;
+    if (profileFrames)
+        preprocessTime = frameTimer.nsecsElapsed();
 #endif
 
     nodeUpdater()->setToplevelOpacity(context()->renderAlpha());
     nodeUpdater()->updateStates(m_root_node);
 
-#ifdef QSG_RENDERER_TIMING
-    if (qsg_render_timing)
-        updatePassTime = frameTimer.elapsed();
+#ifndef QSG_NO_RENDER_TIMING
+    if (profileFrames)
+        updatePassTime = frameTimer.nsecsElapsed();
 #endif
 
 }

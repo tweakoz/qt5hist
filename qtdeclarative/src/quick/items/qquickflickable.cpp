@@ -422,12 +422,16 @@ void QQuickFlickablePrivate::fixupX_callback(void *data)
 void QQuickFlickablePrivate::fixupX()
 {
     Q_Q(QQuickFlickable);
+    if (!q->isComponentComplete())
+        return; //Do not fixup from initialization values
     fixup(hData, q->minXExtent(), q->maxXExtent());
 }
 
 void QQuickFlickablePrivate::fixupY()
 {
     Q_Q(QQuickFlickable);
+    if (!q->isComponentComplete())
+        return; //Do not fixup from initialization values
     fixup(vData, q->minYExtent(), q->maxYExtent());
 }
 
@@ -912,6 +916,18 @@ void QQuickFlickable::setFlickableDirection(FlickableDirection direction)
     }
 }
 
+/*!
+    \qmlproperty bool QtQuick2::Flickable::pixelAligned
+
+    This property sets the alignment of \l contentX and \l contentY to
+    pixels (\c true) or subpixels (\c false).
+
+    Enable pixelAligned to optimize for still content or moving content with
+    high constrast edges, such as one-pixel-wide lines, text or vector graphics.
+    Disable pixelAligned when optimizing for animation quality.
+
+    The default is \c false.
+*/
 bool QQuickFlickable::pixelAligned() const
 {
     Q_D(const QQuickFlickable);
@@ -1031,23 +1047,20 @@ void QQuickFlickablePrivate::handleMouseMoveEvent(QMouseEvent *event)
                 newY = minY + (newY - minY) / 2;
             if (newY < maxY && maxY - minY <= 0)
                 newY = maxY + (newY - maxY) / 2;
-            if (boundsBehavior == QQuickFlickable::StopAtBounds && (newY > minY || newY < maxY)) {
-                rejectY = true;
-                if (newY < maxY) {
-                    newY = maxY;
-                    rejectY = false;
-                }
-                if (newY > minY) {
-                    newY = minY;
-                    rejectY = false;
-                }
+            if (boundsBehavior == QQuickFlickable::StopAtBounds && newY <= maxY) {
+                newY = maxY;
+                rejectY = vData.pressPos == maxY && dy < 0;
+            }
+            if (boundsBehavior == QQuickFlickable::StopAtBounds && newY >= minY) {
+                newY = minY;
+                rejectY = vData.pressPos == minY && dy > 0;
             }
             if (!rejectY && stealMouse && dy != 0.0) {
                 clearTimeline();
                 vData.move.setValue(newY);
                 vMoved = true;
             }
-            if (overThreshold)
+            if (!rejectY && overThreshold)
                 stealY = true;
         }
     }
@@ -1065,24 +1078,22 @@ void QQuickFlickablePrivate::handleMouseMoveEvent(QMouseEvent *event)
                 newX = minX + (newX - minX) / 2;
             if (newX < maxX && maxX - minX <= 0)
                 newX = maxX + (newX - maxX) / 2;
-            if (boundsBehavior == QQuickFlickable::StopAtBounds && (newX > minX || newX < maxX)) {
-                rejectX = true;
-                if (newX < maxX) {
-                    newX = maxX;
-                    rejectX = false;
-                }
-                if (newX > minX) {
-                    newX = minX;
-                    rejectX = false;
-                }
+            if (boundsBehavior == QQuickFlickable::StopAtBounds && newX <= maxX) {
+                newX = maxX;
+                rejectX = hData.pressPos == maxX && dx < 0;
             }
+            if (boundsBehavior == QQuickFlickable::StopAtBounds && newX >= minX) {
+                newX = minX;
+                rejectX = hData.pressPos == minX && dx > 0;
+            }
+
             if (!rejectX && stealMouse && dx != 0.0) {
                 clearTimeline();
                 hData.move.setValue(newX);
                 hMoved = true;
             }
 
-            if (overThreshold)
+            if (!rejectX && overThreshold)
                 stealX = true;
         }
     }

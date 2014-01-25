@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtGui module of the Qt Toolkit.
+** This file is part of the QtWidgets module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -51,6 +51,7 @@
 #include <private/qapplication_p.h>
 #include <private/qshortcutmap_p.h>
 #include <private/qaction_p.h>
+#include <private/qwidgetwindow_qpa_p.h>
 
 QT_BEGIN_NAMESPACE
 
@@ -86,6 +87,20 @@ bool qWidgetShortcutContextMatcher(QObject *object, Qt::ShortcutContext context)
     if (QApplication::activePopupWidget())
         active_window = QApplication::activePopupWidget();
 
+    if (!active_window) {
+        QWindow *qwindow = QGuiApplication::focusWindow();
+        if (qwindow && qwindow->isActive()) {
+            while (qwindow) {
+                QWidgetWindow *widgetWindow = qobject_cast<QWidgetWindow *>(qwindow);
+                if (widgetWindow) {
+                    active_window = widgetWindow->widget();
+                    break;
+                }
+                qwindow = qwindow->parent();
+            }
+        }
+    }
+
     if (!active_window)
         return false;
 
@@ -104,6 +119,18 @@ bool qWidgetShortcutContextMatcher(QObject *object, Qt::ShortcutContext context)
         QShortcut *s = qobject_cast<QShortcut *>(object);
         if (s)
             w = s->parentWidget();
+    }
+
+    if (!w) {
+        QWindow *qwindow = qobject_cast<QWindow *>(object);
+        while (qwindow) {
+            QWidgetWindow *widget_window = qobject_cast<QWidgetWindow *>(qwindow);
+            if (widget_window) {
+                w = widget_window->widget();
+                break;
+            }
+            qwindow = qwindow->parent();
+        }
     }
 
     if (!w)
@@ -246,9 +273,19 @@ static bool correctActionContext(Qt::ShortcutContext context, QAction *a, QWidge
         QWidget *w = widgets.at(i);
 #ifndef QT_NO_MENU
         if (QMenu *menu = qobject_cast<QMenu *>(w)) {
+#ifdef Q_OS_MAC
+            // On Mac, menu item shortcuts are processed before reaching any window.
+            // That means that if a menu action shortcut has not been already processed
+            // (and reaches this point), then the menu item itself has been disabled.
+            // This occurs at the QPA level on Mac, were we disable all the Cocoa menus
+            // when showing a modal window.
+            Q_UNUSED(menu);
+            continue;
+#else
             QAction *a = menu->menuAction();
             if (correctActionContext(context, a, active_window))
                 return true;
+#endif
         } else
 #endif
             if (correctWidgetContext(context, w, active_window))

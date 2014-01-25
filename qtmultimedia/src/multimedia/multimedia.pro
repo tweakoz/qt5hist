@@ -51,6 +51,18 @@ include(radio/radio.pri)
 include(recording/recording.pri)
 include(video/video.pri)
 
+ANDROID_BUNDLED_JAR_DEPENDENCIES = \
+    jar/QtMultimedia-bundled.jar:org.qtproject.qt5.android.multimedia.QtAndroidMediaPlayer
+ANDROID_JAR_DEPENDENCIES = \
+    jar/QtMultimedia.jar:org.qtproject.qt5.android.multimedia.QtAndroidMediaPlayer
+ANDROID_LIB_DEPENDENCIES = \
+    plugins/mediaservice/libandroidmediaplayer.so \
+    lib/libQt5MultimediaQuick_p.so:Qt5Quick
+ANDROID_BUNDLED_FILES += \
+    lib/libQt5MultimediaQuick_p.so
+MODULE_PLUGIN_TYPES = \
+    mediaservice
+
 mac {
    LIBS += -framework AppKit -framework QuartzCore -framework QTKit
 }

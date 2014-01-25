@@ -47,13 +47,16 @@
 #include <QtQuick/private/qsgdefaultimagenode_p.h>
 #include <QtQuick/private/qsgdefaultglyphnode_p.h>
 #include <QtQuick/private/qsgdistancefieldglyphnode_p.h>
+#include <QtQuick/private/qsgdistancefieldglyphnode_p_p.h>
 #include <QtQuick/private/qsgshareddistancefieldglyphcache_p.h>
+#include <QtQuick/QSGFlatColorMaterial>
 
 #include <QtQuick/private/qsgtexture_p.h>
 #include <QtQuick/private/qquickpixmapcache_p.h>
 
 #include <QGuiApplication>
 #include <QOpenGLContext>
+#include <QQuickWindow>
 #include <QtGui/qopenglframebufferobject.h>
 
 #include <private/qqmlglobal_p.h>
@@ -67,9 +70,17 @@
 #include <private/qobject_p.h>
 #include <qmutex.h>
 
+#include <private/qqmlprofilerservice_p.h>
+
 DEFINE_BOOL_CONFIG_OPTION(qmlFlashMode, QML_FLASH_MODE)
 DEFINE_BOOL_CONFIG_OPTION(qmlTranslucentMode, QML_TRANSLUCENT_MODE)
 DEFINE_BOOL_CONFIG_OPTION(qmlDisableDistanceField, QML_DISABLE_DISTANCEFIELD)
+
+
+#ifndef QSG_NO_RENDER_TIMING
+static bool qsg_render_timing = !qgetenv("QSG_RENDER_TIMING").isEmpty();
+static QElapsedTimer qsg_renderer_timer;
+#endif
 
 /*
     Comments about this class from Gunnar:
@@ -243,10 +254,44 @@ void QSGContext::initialize(QOpenGLContext *context)
 {
     Q_D(QSGContext);
 
+    // Sanity check the surface format, in case it was overridden by the application
+    QSurfaceFormat requested = defaultSurfaceFormat();
+    QSurfaceFormat actual = context->format();
+    if (requested.depthBufferSize() > 0 && actual.depthBufferSize() <= 0)
+        qWarning("QSGContext::initialize: depth buffer support missing, expect rendering errors");
+    if (requested.stencilBufferSize() > 0 && actual.stencilBufferSize() <= 0)
+        qWarning("QSGContext::initialize: stencil buffer support missing, expect rendering errors");
+
     Q_ASSERT(!d->gl);
     d->gl = context;
 
+    precompileMaterials();
+
     emit initialized();
+}
+
+#define QSG_PRECOMPILE_MATERIAL(name) { name m; prepareMaterial(&m); }
+
+/*
+ * Some glsl compilers take their time compiling materials, and
+ * the way the scene graph is being processed, these materials
+ * get compiled when they are first taken into use. This can
+ * easily lead to skipped frames. By precompiling the most
+ * common materials, we potentially add a few milliseconds to the
+ * start up, and reduce the chance of avoiding skipped frames
+ * later on.
+ */
+void QSGContext::precompileMaterials()
+{
+    if (qEnvironmentVariableIsEmpty("QSG_NO_MATERIAL_PRELOADING")) {
+        QSG_PRECOMPILE_MATERIAL(QSGVertexColorMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGFlatColorMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGOpaqueTextureMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGTextureMaterial);
+        QSG_PRECOMPILE_MATERIAL(SmoothTextureMaterial);
+        QSG_PRECOMPILE_MATERIAL(SmoothColorMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGDistanceFieldTextMaterial);
+    }
 }
 
 
@@ -340,7 +385,11 @@ QSGDistanceFieldGlyphCache *QSGContext::distanceFieldGlyphCache(const QRawFont &
 */
 QSGGlyphNode *QSGContext::createNativeGlyphNode()
 {
+#if defined(QT_OPENGL_ES) && !defined(QT_OPENGL_ES_2_ANGLE)
+    return createGlyphNode();
+#else
     return new QSGDefaultGlyphNode;
+#endif
 }
 
 /*!
@@ -378,6 +427,8 @@ QSurfaceFormat QSGContext::defaultSurfaceFormat() const
     QSurfaceFormat format;
     format.setDepthBufferSize(24);
     format.setStencilBufferSize(8);
+    if (QQuickWindow::hasDefaultAlphaBuffer())
+        format.setAlphaBufferSize(8);
     format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
     return format;
 }
@@ -458,15 +509,38 @@ QSGDepthStencilBufferManager *QSGContext::depthStencilBufferManager()
 QSGMaterialShader *QSGContext::prepareMaterial(QSGMaterial *material)
 {
     Q_D(QSGContext);
+
+    if (material->m_reserved)
+        return reinterpret_cast<QSGMaterialShader *>(material->m_reserved);
+
     QSGMaterialType *type = material->type();
     QSGMaterialShader *shader = d->materials.value(type);
-    if (shader)
+    if (shader) {
+        material->m_reserved = shader;
         return shader;
+    }
+
+#ifndef QSG_NO_RENDER_TIMING
+    if (qsg_render_timing  || QQmlProfilerService::enabled)
+        qsg_renderer_timer.start();
+#endif
 
     shader = material->createShader();
+    material->m_reserved = shader;
     shader->compile();
     shader->initialize();
     d->materials[type] = shader;
+
+#ifndef QSG_NO_RENDER_TIMING
+    if (qsg_render_timing)
+        printf("   - compiling material: %dms\n", (int) qsg_renderer_timer.elapsed());
+
+    if (QQmlProfilerService::enabled) {
+        QQmlProfilerService::sceneGraphFrame(
+                    QQmlProfilerService::SceneGraphContextFrame,
+                    qsg_renderer_timer.nsecsElapsed());
+    }
+#endif
 
     return shader;
 }

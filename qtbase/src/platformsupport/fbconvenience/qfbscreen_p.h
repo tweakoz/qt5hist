@@ -51,6 +51,7 @@ QT_BEGIN_NAMESPACE
 class QFbWindow;
 class QFbCursor;
 class QPainter;
+class QFbBackingStore;
 
 class QFbScreen : public QObject, public QPlatformScreen
 {
@@ -64,6 +65,7 @@ public:
     virtual QImage::Format format() const { return mFormat; }
     virtual QSizeF physicalSize() const { return mPhysicalSize; }
 
+    QWindow *topWindow() const;
     virtual QWindow *topLevelAt(const QPoint & p) const;
 
     // compositor api
@@ -71,7 +73,14 @@ public:
     virtual void removeWindow(QFbWindow *window);
     virtual void raise(QFbWindow *window);
     virtual void lower(QFbWindow *window);
+    virtual void topWindowChanged(QWindow *) {}
+
+    void addBackingStore(QFbBackingStore *bs) {mBackingStores << bs;}
+
+public slots:
     virtual void setDirty(const QRect &rect);
+    void setPhysicalSize(const QSize &size);
+    void setGeometry(const QRect &rect);
 
 protected slots:
     virtual QRegion doRedraw();
@@ -96,6 +105,7 @@ private:
 
     QPainter *mCompositePainter;
     QList<QPair<QRect, int> > mCachedRects;
+    QList <QFbBackingStore*> mBackingStores;
 
     friend class QFbWindow;
     bool mIsUpToDate;

@@ -64,6 +64,12 @@ QRunnable *createTask(FunctionPointer pointer)
 class tst_QThreadPool : public QObject
 {
     Q_OBJECT
+public:
+    tst_QThreadPool();
+    ~tst_QThreadPool();
+
+    static QMutex *functionTestMutex;
+
 private slots:
     void runFunction();
     void createThreadRunFunction();
@@ -88,11 +94,29 @@ private slots:
     void tryStart();
     void tryStartPeakThreadCount();
     void tryStartCount();
+    void priorityStart_data();
+    void priorityStart();
     void waitForDone();
     void waitForDoneTimeout();
     void destroyingWaitsForTasksToFinish();
     void stressTest();
+
+private:
+    QMutex m_functionTestMutex;
 };
+
+
+QMutex *tst_QThreadPool::functionTestMutex = 0;
+
+tst_QThreadPool::tst_QThreadPool()
+{
+    tst_QThreadPool::functionTestMutex = &m_functionTestMutex;
+}
+
+tst_QThreadPool::~tst_QThreadPool()
+{
+    tst_QThreadPool::functionTestMutex = 0;
+}
 
 int testFunctionCount;
 
@@ -114,19 +138,19 @@ void noSleepTestFunction()
 
 void sleepTestFunctionMutex()
 {
-    static QMutex testMutex;
+    Q_ASSERT(tst_QThreadPool::functionTestMutex);
     QTest::qSleep(1000);
-    testMutex.lock();
+    tst_QThreadPool::functionTestMutex->lock();
     ++testFunctionCount;
-    testMutex.unlock();
+    tst_QThreadPool::functionTestMutex->unlock();
 }
 
 void noSleepTestFunctionMutex()
 {
-    static QMutex testMutex;
-    testMutex.lock();
+    Q_ASSERT(tst_QThreadPool::functionTestMutex);
+    tst_QThreadPool::functionTestMutex->lock();
     ++testFunctionCount;
-    testMutex.unlock();
+    tst_QThreadPool::functionTestMutex->unlock();
 }
 
 void tst_QThreadPool::runFunction()
@@ -725,6 +749,57 @@ void tst_QThreadPool::tryStartCount()
     }
 }
 
+void tst_QThreadPool::priorityStart_data()
+{
+    QTest::addColumn<int>("otherCount");
+    QTest::newRow("0") << 0;
+    QTest::newRow("1") << 1;
+    QTest::newRow("2") << 2;
+}
+
+void tst_QThreadPool::priorityStart()
+{
+    class Holder : public QRunnable
+    {
+    public:
+        QSemaphore &sem;
+        Holder(QSemaphore &sem) : sem(sem) {}
+        void run()
+        {
+            sem.acquire();
+        }
+    };
+    class Runner : public QRunnable
+    {
+    public:
+        QAtomicPointer<QRunnable> &ptr;
+        Runner(QAtomicPointer<QRunnable> &ptr) : ptr(ptr) {}
+        void run()
+        {
+            ptr.testAndSetRelaxed(0, this);
+        }
+    };
+
+    QFETCH(int, otherCount);
+    QSemaphore sem;
+    QAtomicPointer<QRunnable> firstStarted;
+    QRunnable *expected;
+    QThreadPool threadPool;
+    threadPool.setMaxThreadCount(1); // start only one thread at a time
+
+    // queue the holder first
+    // We need to be sure that all threads are active when we
+    // queue the two Runners
+    threadPool.start(new Holder(sem));
+    while (otherCount--)
+        threadPool.start(new Runner(firstStarted), 0); // priority 0
+    threadPool.start(expected = new Runner(firstStarted), 1); // priority 1
+
+    sem.release();
+    QVERIFY(threadPool.waitForDone());
+    QCOMPARE(firstStarted.load(), expected);
+}
+
 void tst_QThreadPool::waitForDone()
 {
     QTime total, pass;
@@ -761,7 +836,7 @@ void tst_QThreadPool::waitForDoneTimeout()
     public:
       QMutex mutex;
       BlockedTask() { setAutoDelete(false); }
-      
+
       void run()
         {
           mutex.lock();

@@ -146,10 +146,15 @@ bool QGLContext::chooseContext(const QGLContext* shareContext)
         if (widget->testAttribute(Qt::WA_TranslucentBackground))
             winFormat.setAlphaBufferSize(qMax(winFormat.alphaBufferSize(), 8));
 
-        if (!widget->windowHandle()->handle()) {
-            widget->windowHandle()->setSurfaceType(QWindow::OpenGLSurface);
-            widget->windowHandle()->setFormat(winFormat);
-            widget->winId();//make window
+        QWindow *window = widget->windowHandle();
+        if (!window->handle()
+            || window->surfaceType() != QWindow::OpenGLSurface
+            || window->requestedFormat() != winFormat)
+        {
+            window->setSurfaceType(QWindow::OpenGLSurface);
+            window->setFormat(winFormat);
+            window->destroy();
+            window->create();
         }
 
         if (d->ownContext)
@@ -357,6 +362,15 @@ void QGLWidgetPrivate::cleanupColormaps()
 
 bool QGLWidget::event(QEvent *e)
 {
+    Q_D(QGLWidget);
+
+    // A re-parent will destroy the window and re-create it. We should not reset the context while it happens.
+    if (e->type() == QEvent::ParentAboutToChange)
+        d->parent_changing = true;
+
+    if (e->type() == QEvent::ParentChange)
+        d->parent_changing = false;
+
     return QWidget::event(e);
 }
 

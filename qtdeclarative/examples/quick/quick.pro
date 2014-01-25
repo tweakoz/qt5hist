@@ -20,8 +20,14 @@ SUBDIRS = accessibility \
             customitems \
             imageprovider \
             window \
+            dialogs \
             particles \
             demos
+
+# Widget dependent examples
+qtHaveModule(widgets) {
+    SUBDIRS += embeddedinwidgets
+}
 
 EXAMPLE_FILES = \
     ui-components \

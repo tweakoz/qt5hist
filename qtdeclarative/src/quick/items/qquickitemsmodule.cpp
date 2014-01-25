@@ -49,6 +49,7 @@
 #include "qquicktext_p.h"
 #include "qquicktextinput_p.h"
 #include "qquicktextedit_p.h"
+#include "qquicktextdocument.h"
 #include "qquickimage_p.h"
 #include "qquickborderimage_p.h"
 #include "qquickscalegrid_p_p.h"
@@ -57,8 +58,6 @@
 #include "qquickflickable_p.h"
 #include "qquickflickable_p_p.h"
 #include "qquicklistview_p.h"
-#include "qquickvisualitemmodel_p.h"
-#include "qquickvisualdatamodel_p.h"
 #include "qquickgridview_p.h"
 #include "qquickpathview_p.h"
 #include "qquickitemviewtransition_p.h"
@@ -159,17 +158,16 @@ static void qt_quickitems_defineModule(const char *uri, int major, int minor)
     qmlRegisterType<QQuickScale>(uri,major,minor,"Scale");
     qmlRegisterType<QQuickText>(uri,major,minor,"Text");
     qmlRegisterType<QQuickTextEdit>(uri,major,minor,"TextEdit");
+    qmlRegisterType<QQuickTextEdit,1>(uri,2,1,"TextEdit");
     qmlRegisterType<QQuickTextInput>(uri,major,minor,"TextInput");
     qmlRegisterType<QQuickViewSection>(uri,major,minor,"ViewSection");
-    qmlRegisterType<QQuickVisualDataModel>(uri,major,minor,"VisualDataModel");
-    qmlRegisterType<QQuickVisualDataGroup>(uri,major,minor,"VisualDataGroup");
-    qmlRegisterType<QQuickVisualItemModel>(uri,major,minor,"VisualItemModel");
 
     qmlRegisterType<QQuickItemLayer>();
     qmlRegisterType<QQuickAnchors>();
     qmlRegisterType<QQuickKeyEvent>();
     qmlRegisterType<QQuickMouseEvent>();
     qmlRegisterType<QQuickWheelEvent>();
+    qmlRegisterType<QQuickCloseEvent>();
     qmlRegisterType<QQuickTransform>();
     qmlRegisterType<QQuickPathElement>();
     qmlRegisterType<QQuickCurve>();
@@ -178,11 +176,13 @@ static void qt_quickitems_defineModule(const char *uri, int major, int minor)
 #ifndef QT_NO_VALIDATOR
     qmlRegisterType<QValidator>();
 #endif
-    qmlRegisterType<QQuickVisualModel>();
     qmlRegisterType<QQuickPen>();
     qmlRegisterType<QQuickFlickableVisibleArea>();
     qRegisterMetaType<QQuickAnchorLine>("QQuickAnchorLine");
     QQmlMetaType::setQQuickAnchorLineCompareFunction(compareQQuickAnchorLines);
+
+    qmlRegisterType<QQuickTextDocument>();
+
 
     qmlRegisterUncreatableType<QQuickKeyNavigationAttached>(uri,major,minor,"KeyNavigation",QQuickKeyNavigationAttached::tr("KeyNavigation is only available via attached properties"));
     qmlRegisterUncreatableType<QQuickKeysAttached>(uri,major,minor,"Keys",QQuickKeysAttached::tr("Keys is only available via attached properties"));
@@ -228,6 +228,13 @@ static void qt_quickitems_defineModule(const char *uri, int major, int minor)
 #ifndef QT_NO_ACCESSIBILITY
     qmlRegisterUncreatableType<QQuickAccessibleAttached>("QtQuick", 2, 0, "Accessible",QQuickAccessibleAttached::tr("Accessible is only available via attached properties"));
 #endif
+
+    qmlRegisterType<QQuickItem, 1>(uri, 2, 1,"Item");
+    qmlRegisterType<QQuickGrid, 1>(uri, 2, 1, "Grid");
+    qmlRegisterUncreatableType<QQuickItemView, 1>(uri, 2, 1, "ItemView", QQuickItemView::tr("ItemView is an abstract base class"));
+    qmlRegisterType<QQuickListView, 1>(uri, 2, 1, "ListView");
+    qmlRegisterType<QQuickGridView, 1>(uri, 2, 1, "GridView");
+    qmlRegisterType<QQuickTextEdit, 1>(uri, 2, 1, "TextEdit");
 }
 
 void QQuickItemsModule::defineModule()

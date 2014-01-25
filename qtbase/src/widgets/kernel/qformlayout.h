@@ -3,7 +3,7 @@
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
-** This file is part of the QtGui module of the Qt Toolkit.
+** This file is part of the QtWidgets module of the Qt Toolkit.
 **
 ** $QT_BEGIN_LICENSE:LGPL$
 ** Commercial License Usage
@@ -44,8 +44,6 @@
 
 #include <QtWidgets/QLayout>
 
-QT_BEGIN_HEADER
-
 QT_BEGIN_NAMESPACE
 
 
@@ -54,7 +52,7 @@ class QFormLayoutPrivate;
 class Q_WIDGETS_EXPORT QFormLayout : public QLayout
 {
     Q_OBJECT
-    Q_ENUMS(FormStyle FieldGrowthPolicy RowWrapPolicy ItemRole)
+    Q_ENUMS(FieldGrowthPolicy RowWrapPolicy ItemRole)
     Q_DECLARE_PRIVATE(QFormLayout)
     Q_PROPERTY(FieldGrowthPolicy fieldGrowthPolicy READ fieldGrowthPolicy WRITE setFieldGrowthPolicy RESET resetFieldGrowthPolicy)
     Q_PROPERTY(RowWrapPolicy rowWrapPolicy READ rowWrapPolicy WRITE setRowWrapPolicy RESET resetRowWrapPolicy)
@@ -156,7 +154,5 @@ private:
 };
 
 QT_END_NAMESPACE
-
-QT_END_HEADER
 
 #endif

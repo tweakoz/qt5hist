@@ -153,6 +153,9 @@ void QQuickTextInput::setText(const QString &s)
     not require advanced features such as transformation of the text. Using such features in
     combination with the NativeRendering render type will lend poor and sometimes pixelated
     results.
+
+    On HighDpi "retina" displays and mobile and embedded platforms, this property is ignored
+    and QtRendering is always used.
 */
 QQuickTextInput::RenderType QQuickTextInput::renderType() const
 {
@@ -775,7 +778,10 @@ QRectF QQuickTextInput::cursorRectangle() const
     QTextLine l = d->m_textLayout.lineForTextPosition(c);
     if (!l.isValid())
         return QRectF();
-    return QRectF(l.cursorToX(c) - d->hscroll, l.y() - d->vscroll, 1, l.height());
+    qreal x = l.cursorToX(c) - d->hscroll;
+    qreal y = l.y() - d->vscroll;
+    qreal height = l.ascent() + l.descent();
+    return QRectF(x, y, 1, height);
 }
 
 /*!
@@ -1224,10 +1230,11 @@ Qt::InputMethodHints QQuickTextInputPrivate::effectiveInputMethodHints() const
     Specifies how the text should be displayed in the TextInput.
     \list
     \li TextInput.Normal - Displays the text as it is. (Default)
-    \li TextInput.Password - Displays asterisks instead of characters.
+    \li TextInput.Password - Displays platform-dependent password mask
+    characters instead of the actual characters.
     \li TextInput.NoEcho - Displays nothing.
     \li TextInput.PasswordEchoOnEdit - Displays characters as they are entered
-    while editing, otherwise displays asterisks.
+    while editing, otherwise identical to \c TextInput.Password.
     \endlist
 */
 QQuickTextInput::EchoMode QQuickTextInput::echoMode() const
@@ -1369,9 +1376,12 @@ QRectF QQuickTextInput::positionToRectangle(int pos) const
         pos += d->preeditAreaText().length();
 #endif
     QTextLine l = d->m_textLayout.lineForTextPosition(pos);
-    return l.isValid()
-            ? QRectF(l.cursorToX(pos) - d->hscroll, l.y() - d->vscroll, 1, l.height())
-            : QRectF();
+    if (!l.isValid())
+        return QRectF();
+    qreal x = l.cursorToX(pos) - d->hscroll;
+    qreal y = l.y() - d->vscroll;
+    qreal height = l.ascent() + l.descent();
+    return QRectF(x, y, 1, height);
 }
 
 /*!
@@ -1462,7 +1472,7 @@ void QQuickTextInput::keyPressEvent(QKeyEvent* ev)
         int cursorPosition = d->m_cursor;
         if (cursorPosition == 0)
             ignore = ev->key() == (d->layoutDirection() == Qt::LeftToRight ? Qt::Key_Left : Qt::Key_Right);
-        if (!ignore && cursorPosition == text().length())
+        if (!ignore && cursorPosition == d->m_text.length())
             ignore = ev->key() == (d->layoutDirection() == Qt::LeftToRight ? Qt::Key_Right : Qt::Key_Left);
     }
     if (ignore) {
@@ -1836,7 +1846,7 @@ QSGNode *QQuickTextInput::updatePaintNode(QSGNode *oldNode, UpdatePaintNodeData 
             }
         }
     } else {
-        node->setUseNativeRenderer(d->renderType == QQuickTextInput::NativeRendering);
+        node->setUseNativeRenderer(d->renderType == NativeRendering && d->window->devicePixelRatio() <= 1);
         node->deleteContent();
         node->setMatrix(QMatrix4x4());
 
@@ -1910,7 +1920,7 @@ QVariant QQuickTextInput::inputMethodQuery(Qt::InputMethodQuery property) const
         else
             return QVariant(d->selectionStart());
     default:
-        return QVariant();
+        return QQuickItem::inputMethodQuery(property);
     }
 }
 #endif // QT_NO_IM
@@ -2191,7 +2201,8 @@ void QQuickTextInput::selectWord()
    \qmlproperty string QtQuick2::TextInput::passwordCharacter
 
    This is the character displayed when echoMode is set to Password or
-   PasswordEchoOnEdit. By default it is an asterisk.
+   PasswordEchoOnEdit. By default it is the password character used by
+   the platform theme.
 
    If this property is set to a string with more than one character,
    the first character is used. If the string is empty, the value
@@ -2477,40 +2488,47 @@ void QQuickTextInput::moveCursorSelection(int pos, SelectionMode mode)
 
 void QQuickTextInput::focusInEvent(QFocusEvent *event)
 {
-    Q_D(const QQuickTextInput);
-#ifndef QT_NO_IM
-    if (d->focusOnPress && !d->m_readOnly)
-        qGuiApp->inputMethod()->show();
-#endif
+    Q_D(QQuickTextInput);
+    d->handleFocusEvent(event);
     QQuickImplicitSizeItem::focusInEvent(event);
 }
 
-void QQuickTextInput::itemChange(ItemChange change, const ItemChangeData &value)
+void QQuickTextInputPrivate::handleFocusEvent(QFocusEvent *event)
 {
-    Q_D(QQuickTextInput);
-    if (change == ItemActiveFocusHasChanged) {
-        bool hasFocus = value.boolValue;
-        setCursorVisible(hasFocus);
-        if (!hasFocus && (d->m_passwordEchoEditing || d->m_passwordEchoTimer.isActive())) {
-            d->updatePasswordEchoEditing(false);//QQuickTextInputPrivate sets it on key events, but doesn't deal with focus events
+    Q_Q(QQuickTextInput);
+    bool focus = event->gotFocus();
+    q->setCursorVisible(focus);
+    if (focus) {
+        q->q_updateAlignment();
+#ifndef QT_NO_IM
+        if (focusOnPress && !m_readOnly)
+            qGuiApp->inputMethod()->show();
+        q->connect(qApp->inputMethod(), SIGNAL(inputDirectionChanged(Qt::LayoutDirection)),
+                   q, SLOT(q_updateAlignment()));
+#endif
+    } else {
+        if ((m_passwordEchoEditing || m_passwordEchoTimer.isActive())) {
+            updatePasswordEchoEditing(false);//QQuickTextInputPrivate sets it on key events, but doesn't deal with focus events
         }
 
-        if (!hasFocus) {
-            if (!d->persistentSelection)
-                d->deselect();
+        if (event->reason() != Qt::ActiveWindowFocusReason
+                && event->reason() != Qt::PopupFocusReason
+                && hasSelectedText()
+                && !persistentSelection)
+            deselect();
+
 #ifndef QT_NO_IM
-            disconnect(qApp->inputMethod(), SIGNAL(inputDirectionChanged(Qt::LayoutDirection)),
-                       this, SLOT(q_updateAlignment()));
+        q->disconnect(qApp->inputMethod(), SIGNAL(inputDirectionChanged(Qt::LayoutDirection)),
+                      q, SLOT(q_updateAlignment()));
 #endif
-        } else {
-            q_updateAlignment();
-#ifndef QT_NO_IM
-            connect(qApp->inputMethod(), SIGNAL(inputDirectionChanged(Qt::LayoutDirection)),
-                    this, SLOT(q_updateAlignment()));
-#endif
-        }
     }
-    QQuickItem::itemChange(change, value);
+}
+
+void QQuickTextInput::focusOutEvent(QFocusEvent *event)
+{
+    Q_D(QQuickTextInput);
+    d->handleFocusEvent(event);
+    QQuickImplicitSizeItem::focusOutEvent(event);
 }
 
 #ifndef QT_NO_IM

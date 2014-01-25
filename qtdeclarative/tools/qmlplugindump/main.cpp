@@ -184,11 +184,13 @@ QSet<const QMetaObject *> collectReachableMetaObjects(QQmlEngine *engine, const 
 
     QHash<QByteArray, QSet<QByteArray> > extensions;
     foreach (const QQmlType *ty, QQmlMetaType::qmlTypes()) {
-        qmlTypesByCppName[ty->metaObject()->className()].insert(ty);
-        if (ty->isExtendedType()) {
-            extensions[ty->typeName()].insert(ty->metaObject()->className());
+        if (!ty->isComposite()) {
+            qmlTypesByCppName[ty->metaObject()->className()].insert(ty);
+            if (ty->isExtendedType())
+                extensions[ty->typeName()].insert(ty->metaObject()->className());
+            collectReachableMetaObjects(ty, &metas);
         }
-        collectReachableMetaObjects(ty, &metas);
+        // TODO actually handle composite types
     }
 
     // Adjust exports of the base object if there are extensions.
@@ -328,17 +330,13 @@ public:
             qSort(exportStrings);
             qml->writeArrayBinding(QLatin1String("exports"), exportStrings);
 
-            // write meta object revisions unless they're all zero
+            // write meta object revisions
             QStringList metaObjectRevisions;
-            bool shouldWriteMetaObjectRevisions = false;
             foreach (const QString &exportString, exportStrings) {
                 int metaObjectRevision = exports[exportString]->metaObjectRevision();
-                if (metaObjectRevision != 0)
-                    shouldWriteMetaObjectRevisions = true;
                 metaObjectRevisions += QString::number(metaObjectRevision);
             }
-            if (shouldWriteMetaObjectRevisions)
-                qml->writeArrayBinding(QLatin1String("exportMetaObjectRevisions"), metaObjectRevisions);
+            qml->writeArrayBinding(QLatin1String("exportMetaObjectRevisions"), metaObjectRevisions);
 
             if (const QMetaObject *attachedType = (*qmlTypes.begin())->attachedPropertiesType()) {
                 // Can happen when a type is registered that returns itself as attachedPropertiesType()
@@ -542,7 +540,7 @@ void sigSegvHandler(int) {
 void printUsage(const QString &appName)
 {
     qWarning() << qPrintable(QString(
-                                 "Usage: %1 [-v] [-notrelocatable] module.uri version [module/import/path]\n"
+                                 "Usage: %1 [-v] [-[non]relocatable] module.uri version [module/import/path]\n"
                                  "       %1 [-v] -path path/to/qmldir/directory [version]\n"
                                  "       %1 [-v] -builtins\n"
                                  "Example: %1 Qt.labs.folderlistmodel 2.0 /home/user/dev/qt-install/imports").arg(
@@ -564,7 +562,7 @@ int main(int argc, char *argv[])
 #endif
 
 #ifdef QT_SIMULATOR
-    // Running this application would bring up the Qt Simulator (since it links QtGui), avoid that!
+    // Running this application would bring up the Qt Simulator (since it links Qt GUI), avoid that!
     QtSimulatorPrivate::SimulatorConnection::createStubInstance();
 #endif
 
@@ -593,8 +591,13 @@ int main(int argc, char *argv[])
             }
 
             if (arg == QLatin1String("--notrelocatable")
-                    || arg == QLatin1String("-notrelocatable")) {
+                    || arg == QLatin1String("-notrelocatable")
+                    || arg == QLatin1String("--nonrelocatable")
+                    || arg == QLatin1String("-nonrelocatable")) {
                 relocatable = false;
+            } else if (arg == QLatin1String("--relocatable")
+                        || arg == QLatin1String("-relocatable")) {
+                relocatable = true;
             } else if (arg == QLatin1String("--path")
                        || arg == QLatin1String("-path")) {
                 action = Path;

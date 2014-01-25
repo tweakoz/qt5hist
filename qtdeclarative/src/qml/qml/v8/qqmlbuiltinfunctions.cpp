@@ -821,7 +821,7 @@ to \c format.
 The \a date parameter may be a JavaScript \c Date object, a \l{date}{date}
 property, a QDate, or QDateTime value. The \a format parameter may be any of
 the possible format values as described for
-\l{QML:Qt::formatDateTime()}{Qt.formatDateTime()}.
+\l{QtQml2::Qt::formatDateTime()}{Qt.formatDateTime()}.
 
 If \a format is not specified, \a date is formatted using
 \l {Qt::DefaultLocaleShortDate}{Qt.DefaultLocaleShortDate}.
@@ -862,7 +862,7 @@ Returns a string representation of \c time, optionally formatted according to
 
 The \a time parameter may be a JavaScript \c Date object, a QTime, or QDateTime
 value. The \a format parameter may be any of the possible format values as
-described for \l{QML:Qt::formatDateTime()}{Qt.formatDateTime()}.
+described for \l{QtQml2::Qt::formatDateTime()}{Qt.formatDateTime()}.
 
 If \a format is not specified, \a time is formatted using
 \l {Qt::DefaultLocaleShortDate}{Qt.DefaultLocaleShortDate}.
@@ -978,7 +978,7 @@ For example, if the following date/time value was specified:
     \endcode
 
 This \a dateTime value could be passed to \c Qt.formatDateTime(),
-\l {QML:Qt::formatDate()}{Qt.formatDate()} or \l {QML:Qt::formatTime()}{Qt.formatTime()}
+\l {QtQml2::Qt::formatDate()}{Qt.formatDate()} or \l {QtQml2::Qt::formatTime()}{Qt.formatTime()}
 with the \a format values below to produce the following results:
 
     \table
@@ -1130,7 +1130,7 @@ Example (where \c parentItem is the id of an existing QML item):
 
 \snippet qml/createQmlObject.qml 0
 
-In the case of an error, a QtScript Error object is thrown. This object has an additional property,
+In the case of an error, a \l {Qt Script} Error object is thrown. This object has an additional property,
 \c qmlErrors, which is an array of the errors encountered.
 Each object in this array has the members \c lineNumber, \c columnNumber, \c fileName and \c message.
 For example, if the above snippet had misspelled color as 'colro' then the array would contain an object like the following:
@@ -1138,7 +1138,7 @@ For example, if the above snippet had misspelled color as 'colro' then the array
 
 Note that this function returns immediately, and therefore may not work if
 the \a qml string loads new components (that is, external QML files that have not yet been loaded).
-If this is the case, consider using \l{QML:Qt::createComponent()}{Qt.createComponent()} instead.
+If this is the case, consider using \l{QtQml2::Qt::createComponent()}{Qt.createComponent()} instead.
 
 See \l {Dynamic QML Object Creation from JavaScript} for more information on using this function.
 */
@@ -1264,7 +1264,7 @@ For example:
 See \l {Dynamic QML Object Creation from JavaScript} for more information on using this function.
 
 To create a QML object from an arbitrary string of QML (instead of a file),
-use \l{QML:Qt::createQmlObject()}{Qt.createQmlObject()}.
+use \l{QtQml2::Qt::createQmlObject()}{Qt.createQmlObject()}.
 */
 v8::Handle<v8::Value> createComponent(const v8::Arguments &args)
 {
@@ -1344,7 +1344,7 @@ v8::Handle<v8::Value> createComponent(const v8::Arguments &args)
     Example:
     \snippet qml/qsTranslate.qml 0
 
-    \sa {Localization And Internationalization Support In Qt Quick}
+    \sa {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTranslate(const v8::Arguments &args)
 {
@@ -1401,7 +1401,7 @@ v8::Handle<v8::Value> qsTranslate(const v8::Arguments &args)
     Example:
     \snippet qml/qtTranslateNoOp.qml 0
 
-    \sa {Localization And Internationalization Support In Qt Quick}
+    \sa {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTranslateNoOp(const v8::Arguments &args)
 {
@@ -1425,7 +1425,7 @@ v8::Handle<v8::Value> qsTranslateNoOp(const v8::Arguments &args)
     Example:
     \snippet qml/qsTr.qml 0
 
-    \sa {Localization And Internationalization Support In Qt Quick}
+    \sa {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTr(const v8::Arguments &args)
 {
@@ -1479,7 +1479,7 @@ v8::Handle<v8::Value> qsTr(const v8::Arguments &args)
     Example:
     \snippet qml/qtTrNoOp.qml 0
 
-    \sa {Localization And Internationalization Support In Qt Quick}
+    \sa {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTrNoOp(const v8::Arguments &args)
 {
@@ -1516,7 +1516,7 @@ v8::Handle<v8::Value> qsTrNoOp(const v8::Arguments &args)
     Creating binary translation (QM) files suitable for use with this function requires passing
     the \c -idbased option to the \c lrelease tool.
 
-    \sa QT_TRID_NOOP, {Localization And Internationalization Support In Qt Quick}
+    \sa QT_TRID_NOOP, {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTrId(const v8::Arguments &args)
 {
@@ -1549,7 +1549,7 @@ v8::Handle<v8::Value> qsTrId(const v8::Arguments &args)
     Example:
     \snippet qml/qtTrIdNoOp.qml 0
 
-    \sa qsTrId(), {Localization And Internationalization Support In Qt Quick}
+    \sa qsTrId(), {Internationalization and Localization with Qt Quick}
 */
 v8::Handle<v8::Value> qsTrIdNoOp(const v8::Arguments &args)
 {
@@ -1634,9 +1634,9 @@ v8::Handle<v8::Value> locale(const v8::Arguments &args)
 
     \snippet qml/qtBinding.4.qml 0
 
-    Note: in QtQuick 1.x, all function assignment was treated as
+    \note In \l {Qt Quick 1}, all function assignment was treated as
     binding assignment, so the Qt.binding() function is new in
-    QtQuick 2.0.
+    \l {Qt Quick}{Qt Quick 2}.
 
     \since QtQuick 2.0
 */

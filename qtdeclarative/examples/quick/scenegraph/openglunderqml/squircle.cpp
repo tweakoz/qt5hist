@@ -51,6 +51,7 @@ Squircle::Squircle()
     , m_t(0)
     , m_thread_t(0)
 {
+    connect(this, SIGNAL(windowChanged(QQuickWindow*)), this, SLOT(handleWindowChanged(QQuickWindow*)));
 }
 //! [7]
 
@@ -66,17 +67,11 @@ void Squircle::setT(qreal t)
 }
 //! [8]
 
-
 //! [1]
-void Squircle::itemChange(ItemChange change, const ItemChangeData &)
+void Squircle::handleWindowChanged(QQuickWindow *win)
 {
-    // The ItemSceneChange event is sent when we are first attached to a window.
-    if (change == ItemSceneChange) {
-        QQuickWindow *win = window();
-        if (!win)
-            return;
+    if (win) {
 //! [1]
-
         // Connect the beforeRendering signal to our paint function.
         // Since this call is executed on the rendering thread it must be
         // a Qt::DirectConnection
@@ -108,7 +103,7 @@ void Squircle::paint()
                                            "uniform lowp float t;"
                                            "varying highp vec2 coords;"
                                            "void main() {"
-                                           "    lowp float i = 1. - (pow(coords.x, 4.) + pow(coords.y, 4.));"
+                                           "    lowp float i = 1. - (pow(abs(coords.x), 4.) + pow(abs(coords.y), 4.));"
                                            "    i = smoothstep(t - 0.8, t + 0.8, i);"
                                            "    i = floor(i * 20.) / 20.;"
                                            "    gl_FragColor = vec4(coords * .5 + .5, i, i);"

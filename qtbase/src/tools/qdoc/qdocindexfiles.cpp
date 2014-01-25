@@ -64,6 +64,7 @@ QDocIndexFiles* QDocIndexFiles::qdocIndexFiles_ = NULL;
   Constructs the singleton QDocIndexFiles.
  */
 QDocIndexFiles::QDocIndexFiles()
+    : gen_( 0 )
 {
     qdb_ = QDocDatabase::qdocDB();
 }
@@ -135,6 +136,7 @@ void QDocIndexFiles::readIndexFile(const QString& path)
             QDir installDir(path.section('/', 0, -3) + "/outputdir");
             indexUrl = installDir.relativeFilePath(path).section('/', 0, -2);
         }
+        project_ = indexElement.attribute("project", QString());
 
         basesList_.clear();
         relatedList_.clear();
@@ -193,6 +195,9 @@ void QDocIndexFiles::readIndexSection(const QDomElement& element,
         QString qmlModuleName = element.attribute("qml-module-name");
         QString qmlModuleVersion = element.attribute("qml-module-version");
         qdb_->addToQmlModule(qmlModuleName + " " + qmlModuleVersion, qcn);
+        QString qmlFullBaseName = element.attribute("qml-base-type");
+        if (!qmlFullBaseName.isEmpty())
+            qcn->setQmlBaseName(qmlFullBaseName);
         if (element.hasAttribute("location"))
             name = element.attribute("location", QString());
         if (!indexUrl.isEmpty())
@@ -455,7 +460,7 @@ void QDocIndexFiles::readIndexSection(const QDomElement& element,
     else if (status == "obsolete")
         node->setStatus(Node::Obsolete);
     else if (status == "deprecated")
-        node->setStatus(Node::Deprecated);
+        node->setStatus(Node::Obsolete);
     else if (status == "preliminary")
         node->setStatus(Node::Preliminary);
     else if (status == "commendable")
@@ -499,6 +504,11 @@ void QDocIndexFiles::readIndexSection(const QDomElement& element,
     Doc doc(location, location, " ", emptySet); // placeholder
     node->setDoc(doc);
     node->setIndexNodeFlag();
+    node->setOutputSubdirectory(project_.toLower());
+    QString briefAttr = element.attribute("brief");
+    if (!briefAttr.isEmpty()) {
+        node->setReconstitutedBrief(briefAttr);
+    }
 
     if (node->isInnerNode()) {
         InnerNode* inner = static_cast<InnerNode*>(node);
@@ -597,6 +607,7 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
     QString nodeName;
     QString qmlModuleName;
     QString qmlModuleVersion;
+    QString qmlFullBaseName;
     switch (node->type()) {
     case Node::Namespace:
         nodeName = "namespace";
@@ -610,6 +621,7 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             nodeName = "qmlclass";
             qmlModuleName = node->qmlModuleName();
             qmlModuleVersion = node->qmlModuleVersion();
+            qmlFullBaseName = node->qmlFullBaseName();
         }
         else if (node->subType() == Node::QmlBasicType)
             nodeName = "qmlbasictype";
@@ -706,7 +718,7 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
         status = "obsolete";
         break;
     case Node::Deprecated:
-        status = "deprecated";
+        status = "obsolete";
         break;
     case Node::Preliminary:
         status = "preliminary";
@@ -728,6 +740,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
     if (!qmlModuleName.isEmpty()) {
         writer.writeAttribute("qml-module-name", qmlModuleName);
         writer.writeAttribute("qml-module-version", qmlModuleVersion);
+        if (!qmlFullBaseName.isEmpty())
+            writer.writeAttribute("qml-base-type", qmlFullBaseName);
     }
     QString fullName = node->fullDocumentName();
     if (fullName != objName)
@@ -744,6 +758,7 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
         writer.writeAttribute("since", node->since());
     }
 
+    QString brief = node->doc().briefText().toString();
     switch (node->type()) {
     case Node::Class:
         {
@@ -759,6 +774,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             if (!node->moduleName().isEmpty())
                 writer.writeAttribute("module", node->moduleName());
             writeMembersAttribute(writer, classNode, Node::Document, Node::Group, "groups");
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     case Node::Namespace:
@@ -767,6 +784,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             if (!namespaceNode->moduleName().isEmpty())
                 writer.writeAttribute("module", namespaceNode->moduleName());
             writeMembersAttribute(writer, namespaceNode, Node::Document, Node::Group, "groups");
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     case Node::Document:
@@ -833,6 +852,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
                 writer.writeAttribute("module", node->moduleName());
             }
             writeMembersAttribute(writer, docNode, Node::Document, Node::Group, "groups");
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     case Node::Function:
@@ -892,6 +913,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             if (propertyNode)
                 writer.writeAttribute("associated-property", propertyNode->name());
             writer.writeAttribute("type", functionNode->returnType());
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     case Node::QmlProperty:
@@ -900,12 +923,16 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             writer.writeAttribute("type", qpn->dataType());
             writer.writeAttribute("attached", qpn->isAttached() ? "true" : "false");
             writer.writeAttribute("writable", qpn->isWritable(qdb_) ? "true" : "false");
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     case Node::Property:
         {
             const PropertyNode* propertyNode = static_cast<const PropertyNode*>(node);
             writer.writeAttribute("type", propertyNode->dataType());
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
             foreach (const Node* fnNode, propertyNode->getters()) {
                 if (fnNode) {
                     const FunctionNode* functionNode = static_cast<const FunctionNode*>(fnNode);
@@ -945,6 +972,8 @@ bool QDocIndexFiles::generateIndexSection(QXmlStreamWriter& writer,
             const VariableNode* variableNode = static_cast<const VariableNode*>(node);
             writer.writeAttribute("type", variableNode->dataType());
             writer.writeAttribute("static", variableNode->isStatic() ? "true" : "false");
+            if (!brief.isEmpty())
+                writer.writeAttribute("brief", brief);
         }
         break;
     default:
@@ -1154,8 +1183,13 @@ void QDocIndexFiles::generateIndexSections(QXmlStreamWriter& writer,
                   It is just a place holder for a collection of QML property
                   nodes. Recurse to its children, which are the QML property
                   nodes.
+
+                  Do the same thing for collision nodes - we want children
+                  of collision nodes in the index, but leaving out the
+                  parent collision page will make searching for nodes easier.
                  */
-                if (child->subType() == Node::QmlPropertyGroup) {
+                if (child->subType() == Node::QmlPropertyGroup ||
+                        child->subType() == Node::Collision) {
                     const InnerNode* pgn = static_cast<const InnerNode*>(child);
                     foreach (Node* c, pgn->childNodes()) {
                         generateIndexSections(writer, c, generateInternalNodes);
@@ -1195,6 +1229,7 @@ void QDocIndexFiles::generateIndex(const QString& fileName,
     writer.writeAttribute("url", url);
     writer.writeAttribute("title", title);
     writer.writeAttribute("version", qdb_->version());
+    writer.writeAttribute("project", g->config()->getString(CONFIG_PROJECT));
 
     generateIndexSections(writer, qdb_->treeRoot(), generateInternalNodes);
 

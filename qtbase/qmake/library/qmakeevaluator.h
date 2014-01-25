@@ -102,7 +102,8 @@ public:
         LoadPreFiles = 1,
         LoadPostFiles = 2,
         LoadAll = LoadPreFiles|LoadPostFiles,
-        LoadSilent = 0x10
+        LoadSilent = 0x10,
+        LoadHidden = 0x20
     };
     Q_DECLARE_FLAGS(LoadFlags, LoadFlag)
 
@@ -112,10 +113,8 @@ public:
                    QMakeHandler *handler);
     ~QMakeEvaluator();
 
-#ifdef QT_BUILD_QMAKE
     void setExtraVars(const ProValueMap &extraVars) { m_extraVars = extraVars; }
     void setExtraConfigs(const ProStringList &extraConfigs) { m_extraConfigs = extraConfigs; }
-#endif
     void setOutputDir(const QString &outputDir) { m_outputDir = outputDir; }
 
     ProStringList values(const ProKey &variableName) const;
@@ -268,10 +267,8 @@ public:
     QStack<Location> m_locationStack; // All execution location changes
     QStack<ProFile *> m_profileStack; // Includes only
 
-#ifdef QT_BUILD_QMAKE
     ProValueMap m_extraVars;
     ProStringList m_extraConfigs;
-#endif
     QString m_outputDir;
 
     int m_listCount;
