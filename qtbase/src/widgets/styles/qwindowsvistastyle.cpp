@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -181,6 +181,24 @@ QStyleOption *clonedAnimationStyleOption(const QStyleOption*option) {
     return styleOption;
 }
 
+/* \internal
+    Used by animations to delete cloned styleoption
+*/
+void deleteClonedAnimationStyleOption(const QStyleOption *option)
+{
+    if (const QStyleOptionSlider *slider = qstyleoption_cast<const QStyleOptionSlider*>(option))
+        delete slider;
+    else if (const QStyleOptionSpinBox *spinbox = qstyleoption_cast<const QStyleOptionSpinBox*>(option))
+        delete spinbox;
+    else if (const QStyleOptionGroupBox *groupBox = qstyleoption_cast<const QStyleOptionGroupBox*>(option))
+        delete groupBox;
+    else if (const QStyleOptionComboBox *combo = qstyleoption_cast<const QStyleOptionComboBox*>(option))
+        delete combo;
+    else if (const QStyleOptionButton *button = qstyleoption_cast<const QStyleOptionButton*>(option))
+        delete button;
+    else
+        delete option;
+}
 
 /*!
   \class QWindowsVistaStyle
@@ -411,7 +429,7 @@ void QWindowsVistaStyle::drawPrimitive(PrimitiveElement element, const QStyleOpt
                     }
                     t->setStartTime(QTime::currentTime());
 
-                    delete styleOption;
+                    deleteClonedAnimationStyleOption(styleOption);
                     d->startAnimation(t);
                 }
                 styleObject->setProperty("_q_no_animation", false);
@@ -502,7 +520,11 @@ void QWindowsVistaStyle::drawPrimitive(PrimitiveElement element, const QStyleOpt
         }
         break;
     case PE_Frame: {
+#ifndef QT_NO_ACCESSIBILITY
         if (QStyleHelper::isInstanceOf(option->styleObject, QAccessible::EditableText)) {
+#else
+        if (false) {
+#endif
             painter->save();
             int stateId = ETS_NORMAL;
             if (!(state & State_Enabled))
@@ -940,7 +962,7 @@ void QWindowsVistaStyle::drawControl(ControlElement element, const QStyleOption 
                 t->setStartTime(QTime::currentTime());
                 styleObject->setProperty("_q_no_animation", false);
 
-                delete styleOption;
+                deleteClonedAnimationStyleOption(styleOption);
                 d->startAnimation(t);
             }
 
@@ -1627,7 +1649,7 @@ void QWindowsVistaStyle::drawComplexControl(ComplexControl control, const QStyle
                 else
                     t->setDuration(500);
 
-                delete styleOption;
+                deleteClonedAnimationStyleOption(styleOption);
                 d->startAnimation(t);
             }
             if (QWindowsVistaAnimation *anim = qobject_cast<QWindowsVistaAnimation *>(d->animation(styleObject))) {

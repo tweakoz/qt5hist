@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -69,7 +69,7 @@ static bool isDebugging = false;
 #define qAtspiDebug              if (!::isDebugging); else qDebug
 
 AtSpiAdaptor::AtSpiAdaptor(DBusConnection *connection, QObject *parent)
-    : QDBusVirtualObject(parent), m_dbus(connection), initialized(false)
+    : QDBusVirtualObject(parent), m_dbus(connection)
     , sendFocus(0)
     , sendObject(0)
     , sendObject_active_descendant_changed(0)
@@ -132,6 +132,17 @@ AtSpiAdaptor::AtSpiAdaptor(DBusConnection *connection, QObject *parent)
 
     m_applicationAdaptor = new QSpiApplicationAdaptor(m_dbus->connection(), this);
     connect(m_applicationAdaptor, SIGNAL(windowActivated(QObject*,bool)), this, SLOT(windowActivated(QObject*,bool)));
+
+    updateEventListeners();
+    bool success = m_dbus->connection().connect(QLatin1String("org.a11y.atspi.Registry"), QLatin1String("/org/a11y/atspi/registry"),
+                                                QLatin1String("org.a11y.atspi.Registry"), QLatin1String("EventListenerRegistered"), this,
+                                                SLOT(eventListenerRegistered(QString,QString)));
+    success = success && m_dbus->connection().connect(QLatin1String("org.a11y.atspi.Registry"), QLatin1String("/org/a11y/atspi/registry"),
+                                                      QLatin1String("org.a11y.atspi.Registry"), QLatin1String("EventListenerDeregistered"), this,
+                                                      SLOT(eventListenerDeregistered(QString,QString)));
+#ifdef QT_ATSPI_DEBUG
+    qAtspiDebug() << "Registered event listener change listener: " << success;
+#endif
 }
 
 AtSpiAdaptor::~AtSpiAdaptor()
@@ -605,30 +616,6 @@ QString AtSpiAdaptor::introspect(const QString &path) const
     return xml;
 }
 
-/*!
-  When initialized we will send updates, not before this.
-
-  This function also checks which event listeners are registered in the at-spi registry.
-  */
-void AtSpiAdaptor::setInitialized(bool init)
-{
-    initialized = init;
-
-    if (!initialized)
-        return;
-
-    updateEventListeners();
-    bool success = m_dbus->connection().connect(QLatin1String("org.a11y.atspi.Registry"), QLatin1String("/org/a11y/atspi/registry"),
-                                               QLatin1String("org.a11y.atspi.Registry"), QLatin1String("EventListenerRegistered"), this,
-                                               SLOT(eventListenerRegistered(QString,QString)));
-    success = success && m_dbus->connection().connect(QLatin1String("org.a11y.atspi.Registry"), QLatin1String("/org/a11y/atspi/registry"),
-                                               QLatin1String("org.a11y.atspi.Registry"), QLatin1String("EventListenerDeregistered"), this,
-                                               SLOT(eventListenerDeregistered(QString,QString)));
-#ifdef QT_ATSPI_DEBUG
-    qAtspiDebug() << "Registered event listener change listener: " << success;
-#endif
-}
-
 void AtSpiAdaptor::setBitFlag(const QString &flag)
 {
     Q_ASSERT(flag.size());
@@ -918,9 +905,6 @@ void AtSpiAdaptor::notifyStateChange(const QAIPointer &interface, const QString 
 */
 void AtSpiAdaptor::notify(QAccessibleEvent *event)
 {
-    if (!initialized)
-        return;
-
     switch (event->type()) {
     case QAccessible::ObjectCreated:
         if (sendObject || sendObject_children_changed)
@@ -1120,35 +1104,64 @@ void AtSpiAdaptor::notify(QAccessibleEvent *event)
         }
         break;
     }
-//    case QAccessible::TableModelChanged: {
-//        // This is rather evil. We don't send data and hope that at-spi fetches the right child.
-//        // This hack fails when a row gets removed and a different one added in its place.
-//        QDBusVariant data;
-//        emit ChildrenChanged("add", 0, 0, data, spiBridge->getRootReference());
-//        break;
-//    }
-        //    case QAccessible::TableModelChanged:
-        //        QAccessible2::TableModelChange change = interface->tableInterface()->modelChange();
-        //        // assume we should reset if everything is 0
-        //        if (change.firstColumn == 0 && change.firstRow == 0 && change.lastColumn == 0 && change.lastRow == 0) {
-        //            notifyAboutDestruction(accessible);
-        //            notifyAboutCreation(accessible);
-        //        }
-        //        break;
-
+        // For now we ignore these events
+    case QAccessible::TableModelChanged:
+        // For tables, setting manages_descendants should
+        // indicate to the client that it cannot cache these
+        // interfaces.
     case QAccessible::ParentChanged:
-        break;
     case QAccessible::DialogStart:
-        break;
     case QAccessible::DialogEnd:
-        break;
     case QAccessible::SelectionRemove:
-        break;
-    default:
-        QAIPointer iface = QAIPointer(event->accessibleInterface());
-        qAtspiDebug() << "QSpiAccessible::accessibleEvent not handled: " << QString::number(event->type(), 16)
-                   << " obj: " << iface->object()
-                   << ((iface->isValid() && iface->object()) ? iface->object()->objectName() : QLatin1String(" invalid interface!"));
+    case QAccessible::PopupMenuStart:
+    case QAccessible::PopupMenuEnd:
+    case QAccessible::SoundPlayed:
+    case QAccessible::Alert:
+    case QAccessible::ForegroundChanged:
+    case QAccessible::MenuStart:
+    case QAccessible::MenuEnd:
+    case QAccessible::ContextHelpStart:
+    case QAccessible::ContextHelpEnd:
+    case QAccessible::DragDropStart:
+    case QAccessible::DragDropEnd:
+    case QAccessible::ScrollingStart:
+    case QAccessible::ScrollingEnd:
+    case QAccessible::MenuCommand:
+    case QAccessible::ActionChanged:
+    case QAccessible::ActiveDescendantChanged:
+    case QAccessible::AttributeChanged:
+    case QAccessible::DocumentContentChanged:
+    case QAccessible::DocumentLoadComplete:
+    case QAccessible::DocumentLoadStopped:
+    case QAccessible::DocumentReload:
+    case QAccessible::HyperlinkEndIndexChanged:
+    case QAccessible::HyperlinkNumberOfAnchorsChanged:
+    case QAccessible::HyperlinkSelectedLinkChanged:
+    case QAccessible::HypertextLinkActivated:
+    case QAccessible::HypertextLinkSelected:
+    case QAccessible::HyperlinkStartIndexChanged:
+    case QAccessible::HypertextChanged:
+    case QAccessible::HypertextNLinksChanged:
+    case QAccessible::ObjectAttributeChanged:
+    case QAccessible::PageChanged:
+    case QAccessible::SectionChanged:
+    case QAccessible::TableCaptionChanged:
+    case QAccessible::TableColumnDescriptionChanged:
+    case QAccessible::TableColumnHeaderChanged:
+    case QAccessible::TableRowDescriptionChanged:
+    case QAccessible::TableRowHeaderChanged:
+    case QAccessible::TableSummaryChanged:
+    case QAccessible::TextAttributeChanged:
+    case QAccessible::TextColumnChanged:
+    case QAccessible::VisibleDataChanged:
+    case QAccessible::ObjectReorder:
+    case QAccessible::SelectionAdd:
+    case QAccessible::SelectionWithin:
+    case QAccessible::LocationChanged:
+    case QAccessible::HelpChanged:
+    case QAccessible::DefaultActionChanged:
+    case QAccessible::AcceleratorChanged:
+    case QAccessible::InvalidEvent:
         break;
     }
 }
@@ -1197,7 +1210,7 @@ void AtSpiAdaptor::notifyAboutCreation(const QAIPointer &interface) const
 
 void AtSpiAdaptor::notifyAboutDestruction(const QAIPointer &interface) const
 {
-    if (!interface->isValid())
+    if (!interface || !interface->isValid())
         return;
 
     QAIPointer parent(interface->parent());

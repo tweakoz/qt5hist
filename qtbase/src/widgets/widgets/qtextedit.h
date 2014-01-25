@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -86,7 +86,7 @@ class Q_WIDGETS_EXPORT QTextEdit : public QAbstractScrollArea
     Q_PROPERTY(bool acceptRichText READ acceptRichText WRITE setAcceptRichText)
     Q_PROPERTY(int cursorWidth READ cursorWidth WRITE setCursorWidth)
     Q_PROPERTY(Qt::TextInteractionFlags textInteractionFlags READ textInteractionFlags WRITE setTextInteractionFlags)
-    Q_PROPERTY(QTextDocument *document READ document WRITE setDocument)
+    Q_PROPERTY(QTextDocument *document READ document WRITE setDocument DESIGNABLE false)
 public:
     enum LineWrapMode {
         NoWrap,

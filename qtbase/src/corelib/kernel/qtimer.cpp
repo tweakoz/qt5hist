@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtCore module of the Qt Toolkit.
@@ -385,6 +385,7 @@ void QTimer::setInterval(int msec)
 
 /*!
     \property QTimer::remainingTime
+    \since 5.0
     \brief the remaining time in milliseconds
 
     Returns the timer's remaining value in milliseconds left until the timeout.

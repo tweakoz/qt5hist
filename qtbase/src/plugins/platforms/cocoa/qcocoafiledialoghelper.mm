@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -218,6 +218,8 @@ static QString strippedText(QString s)
     *mCurrentSelection = QT_PREPEND_NAMESPACE(QCFString::toQString)([[mSavePanel URL] path]);
     if ([mSavePanel respondsToSelector:@selector(closePanel:)])
         [mSavePanel close];
+    if ([mSavePanel isSheet])
+        [NSApp endSheet: mSavePanel];
 }
 
 - (void)showModelessPanel
@@ -248,6 +250,7 @@ static QString strippedText(QString s)
 
     [mSavePanel setDirectoryURL:selectable ? [NSURL fileURLWithPath:QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.filePath())]
                                            : [NSURL fileURLWithPath:QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.path())]];
+    [mSavePanel setNameFieldStringValue:selectable ? QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.fileName()) : nil];
 
     // Call processEvents in case the event dispatcher has been interrupted, and needs to do
     // cleanup of modal sessions. Do this before showing the native dialog, otherwise it will
@@ -273,6 +276,7 @@ static QString strippedText(QString s)
 
     [mSavePanel setDirectoryURL:selectable ? [NSURL fileURLWithPath:QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.filePath())]
                                            : [NSURL fileURLWithPath:QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.path())]];
+    [mSavePanel setNameFieldStringValue:selectable ? QT_PREPEND_NAMESPACE(QCFString::toNSString)(info.fileName()) : nil];
     NSWindow *nsparent = static_cast<NSWindow *>(qGuiApp->platformNativeInterface()->nativeResourceForWindow("nswindow", parent));
 
     [mSavePanel beginSheetModalForWindow:nsparent completionHandler:^(NSInteger result){
@@ -491,14 +495,18 @@ static QString strippedText(QString s)
     [mPopUpButton setTarget:self];
     [mPopUpButton setAction:@selector(filterChanged:)];
 
-    QStringList *filters = mNameFilterDropDownList;
-    if (filters->size() > 0){
+    if (mNameFilterDropDownList->size() > 0) {
+        int filterToUse = -1;
         for (int i=0; i<mNameFilterDropDownList->size(); ++i) {
-            QString filter = hideDetails ? [self removeExtensions:filters->at(i)] : filters->at(i);
+            QString currentFilter = mNameFilterDropDownList->at(i);
+            if (selectedFilter == currentFilter ||
+                (filterToUse == -1 && currentFilter.startsWith(selectedFilter)))
+                filterToUse = i;
+            QString filter = hideDetails ? [self removeExtensions:currentFilter] : currentFilter;
             [mPopUpButton addItemWithTitle:QT_PREPEND_NAMESPACE(QCFString::toNSString)(filter)];
-            if (filters->at(i).startsWith(selectedFilter))
-                [mPopUpButton selectItemAtIndex:i];
         }
+        if (filterToUse != -1)
+            [mPopUpButton selectItemAtIndex:filterToUse];
     }
 }
 

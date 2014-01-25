@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the Qt Assistant of the Qt Toolkit.
@@ -72,11 +72,6 @@
 // #define TRACING_REQUESTED
 
 QT_USE_NAMESPACE
-
-#if defined(USE_STATIC_SQLITE_PLUGIN)
-  #include <QtPlugin>
-  Q_IMPORT_PLUGIN(qsqlite)
-#endif
 
 namespace {
 

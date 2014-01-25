@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -1391,6 +1391,14 @@ QWidget::~QWidget()
 
 
     QT_TRY {
+#ifndef QT_NO_GRAPHICSVIEW
+        const QWidget* w = this;
+        while (w->d_func()->extra && w->d_func()->extra->focus_proxy)
+            w = w->d_func()->extra->focus_proxy;
+        QWidget *window = w->window();
+        QWExtra *e = window ? window->d_func()->extra : 0;
+        if (!e || !e->proxyWidget)
+#endif
         clearFocus();
     } QT_CATCH(...) {
         // swallow this problem because we are in a destructor
@@ -2080,8 +2088,15 @@ void QWidgetPrivate::setOpaque(bool opaque)
 void QWidgetPrivate::updateIsTranslucent()
 {
     Q_Q(QWidget);
-    if (QWindow *window = q->windowHandle())
-        window->setOpacity(isOpaque ? qreal(1.0) : qreal(0.0));
+    if (QWindow *window = q->windowHandle()) {
+        QSurfaceFormat format = window->format();
+        const int oldAlpha = format.alphaBufferSize();
+        const int newAlpha = q->testAttribute(Qt::WA_TranslucentBackground)? 8 : 0;
+        if (oldAlpha != newAlpha) {
+            format.setAlphaBufferSize(newAlpha);
+            window->setFormat(format);
+        }
+    }
 }
 
 static inline void fillRegion(QPainter *painter, const QRegion &rgn, const QBrush &brush)
@@ -8406,7 +8421,7 @@ void QWidget::mouseReleaseEvent(QMouseEvent *event)
 
 void QWidget::mouseDoubleClickEvent(QMouseEvent *event)
 {
-    Q_UNUSED(event);
+    event->ignore();
 }
 
 #ifndef QT_NO_WHEELEVENT
@@ -8839,6 +8854,8 @@ void QWidget::setInputMethodHints(Qt::InputMethodHints hints)
 {
 #ifndef QT_NO_IM
     Q_D(QWidget);
+    if (d->imHints == hints)
+        return;
     d->imHints = hints;
     qApp->inputMethod()->update(Qt::ImHints);
 #endif //QT_NO_IM

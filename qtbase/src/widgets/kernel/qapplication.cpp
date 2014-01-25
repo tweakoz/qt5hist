@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -579,6 +579,7 @@ void QApplicationPrivate::construct()
 void qRegisterGuiStateMachine();
 void qUnregisterGuiStateMachine();
 #endif
+extern void qRegisterWidgetsVariant();
 
 /*!
   \fn void QApplicationPrivate::initialize()
@@ -589,6 +590,9 @@ void QApplicationPrivate::initialize()
 {
     QWidgetPrivate::mapper = new QWidgetMapper;
     QWidgetPrivate::allWidgets = new QWidgetSet;
+
+    // needed for a static build.
+    qRegisterWidgetsVariant();
 
     if (application_type != QApplicationPrivate::Tty)
         (void) QApplication::style();  // trigger creation of application style
@@ -2716,7 +2720,7 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
 
     if(e->spontaneous()) {
         // Capture the current mouse and keyboard states. Doing so here is
-        // required in order to support QTestLib synthesized events. Real mouse
+        // required in order to support Qt Test synthesized events. Real mouse
         // and keyboard state updates from the platform plugin are managed by
         // QGuiApplicationPrivate::process(Mouse|Wheel|Key|Touch|Tablet)Event();
         switch (e->type()) {

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the QtGui module of the Qt Toolkit.
@@ -458,6 +458,9 @@ static QString qt_mac_removeMnemonics(const QString &original)
     return returnText;
 }
 
+static CGContextRef qt_mac_cg_context(const QPaintDevice *pdev);
+
+namespace {
 class QMacCGContext
 {
     CGContextRef context;
@@ -465,7 +468,6 @@ public:
     QMacCGContext(QPainter *p);
     inline QMacCGContext() { context = 0; }
     inline QMacCGContext(const QPaintDevice *pdev) {
-        extern CGContextRef qt_mac_cg_context(const QPaintDevice *);
         context = qt_mac_cg_context(pdev);
     }
     inline QMacCGContext(CGContextRef cg, bool takeOwnership=false) {
@@ -495,6 +497,7 @@ public:
         return *this;
     }
 };
+} // anonymous namespace
 
 static QColor qcolorFromCGColor(CGColorRef cgcolor)
 {
@@ -578,11 +581,11 @@ QRegion qt_mac_fromHIShapeRef(HIShapeRef shape)
 }
 
 CGColorSpaceRef m_genericColorSpace = 0;
-QHash<CGDirectDisplayID, CGColorSpaceRef> m_displayColorSpaceHash;
+static QHash<CGDirectDisplayID, CGColorSpaceRef> m_displayColorSpaceHash;
 bool m_postRoutineRegistered = false;
 
-CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget);
-CGColorSpaceRef qt_mac_genericColorSpace()
+static CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget);
+static CGColorSpaceRef qt_mac_genericColorSpace()
 {
 #if 0
     if (!m_genericColorSpace) {
@@ -606,11 +609,26 @@ CGColorSpaceRef qt_mac_genericColorSpace()
 #endif
 }
 
+static void qt_mac_cleanUpMacColorSpaces()
+{
+    if (m_genericColorSpace) {
+        CFRelease(m_genericColorSpace);
+        m_genericColorSpace = 0;
+    }
+    QHash<CGDirectDisplayID, CGColorSpaceRef>::const_iterator it = m_displayColorSpaceHash.constBegin();
+    while (it != m_displayColorSpaceHash.constEnd()) {
+        if (it.value())
+            CFRelease(it.value());
+        ++it;
+    }
+    m_displayColorSpaceHash.clear();
+}
+
 /*
     Ideally, we should pass the widget in here, and use CGGetDisplaysWithRect() etc.
     to support multiple displays correctly.
 */
-CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget)
+static CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget)
 {
     CGColorSpaceRef colorSpace;
 
@@ -639,25 +657,9 @@ CGColorSpaceRef qt_mac_displayColorSpace(const QWidget *widget)
     m_displayColorSpaceHash.insert(displayID, colorSpace);
     if (!m_postRoutineRegistered) {
         m_postRoutineRegistered = true;
-        void qt_mac_cleanUpMacColorSpaces();
         qAddPostRoutine(qt_mac_cleanUpMacColorSpaces);
     }
     return colorSpace;
-}
-
-void qt_mac_cleanUpMacColorSpaces()
-{
-    if (m_genericColorSpace) {
-        CFRelease(m_genericColorSpace);
-        m_genericColorSpace = 0;
-    }
-    QHash<CGDirectDisplayID, CGColorSpaceRef>::const_iterator it = m_displayColorSpaceHash.constBegin();
-    while (it != m_displayColorSpaceHash.constEnd()) {
-        if (it.value())
-            CFRelease(it.value());
-        ++it;
-    }
-    m_displayColorSpaceHash.clear();
 }
 
 bool qt_macWindowIsTextured(const QWidget *window)
@@ -2707,15 +2709,15 @@ int QMacStyle::styleHint(StyleHint sh, const QStyleOption *opt, const QWidget *w
         ret = false;
         break;
     case SH_ScrollBar_Transient:
-        if (!qobject_cast<const QScrollBar*>(w)) {
-            ret = false;
-            break;
-        }
-        ret = QSysInfo::MacintoshVersion >= QSysInfo::MV_10_7;
+        if ((qobject_cast<const QScrollBar *>(w) && w->parent() &&
+                qobject_cast<QAbstractScrollArea*>(w->parent()->parent())) ||
+                (opt && QStyleHelper::hasAncestor(opt->styleObject, QAccessible::ScrollBar))) {
+            ret = QSysInfo::MacintoshVersion >= QSysInfo::MV_10_7;
 #if MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_7
-    if (QSysInfo::MacintoshVersion >= QSysInfo::MV_10_7)
-        ret &= [NSScroller preferredScrollerStyle] == NSScrollerStyleOverlay;
+            if (ret)
+                ret = [NSScroller preferredScrollerStyle] == NSScrollerStyleOverlay;
 #endif
+        }
         break;
     default:
         ret = QCommonStyle::styleHint(sh, opt, w, hret);
@@ -3101,7 +3103,7 @@ void QMacStyle::drawPrimitive(PrimitiveElement pe, const QStyleOption *opt, QPai
         CGContextScaleCTM(cg, 1, -1);
         CGContextTranslateCTM(cg, -rect.origin.x, -rect.origin.y);
 
-        [triangleCell drawBezelWithFrame:rect inView:[triangleCell controlView]];
+        [triangleCell drawBezelWithFrame:NSRectFromCGRect(rect) inView:[triangleCell controlView]];
 
         [NSGraphicsContext restoreGraphicsState];
         CGContextRestoreGState(cg);
@@ -4259,7 +4261,7 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             if (isIndeterminate || tdi.value < tdi.max) {
                 if (QProgressStyleAnimation *animation = qobject_cast<QProgressStyleAnimation*>(d->animation(opt->styleObject)))
                     tdi.trackInfo.progress.phase = animation->animationStep();
-                else
+                else if (opt->styleObject)
                     d->startAnimation(new QProgressStyleAnimation(d->animateSpeed(QMacStylePrivate::AquaProgressBar), opt->styleObject));
             } else {
                 d->stopAnimation(opt->styleObject);
@@ -4565,7 +4567,7 @@ QRect QMacStyle::subElementRect(SubElement sr, const QStyleOption *opt,
         break;
     case SE_LineEditContents:
         rect = QCommonStyle::subElementRect(sr, opt, widget);
-        if(widget->parentWidget() && qobject_cast<const QComboBox*>(widget->parentWidget()))
+        if (widget && qobject_cast<const QComboBox*>(widget->parentWidget()))
             rect.adjust(-1, -2, 0, 0);
         else
             rect.adjust(-1, -1, 0, +1);
@@ -5028,7 +5030,7 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
 
                 // Draw the track when hovering
                 if (opt->activeSubControls || wasActive) {
-                    CGRect rect = [scroller bounds];
+                    NSRect rect = [scroller bounds];
                     if (shouldExpand) {
                         if (isHorizontal)
                             rect.origin.y += 4.5 - expandOffset;
@@ -6489,7 +6491,7 @@ int QMacStyle::layoutSpacing(QSizePolicy::ControlType control1,
     return_SIZE(10, 8, 6);  // guess
 }
 
-void qt_mac_clip_cg(CGContextRef hd, const QRegion &rgn, CGAffineTransform *orig_xform)
+static void qt_mac_clip_cg(CGContextRef hd, const QRegion &rgn, CGAffineTransform *orig_xform)
 {
     CGAffineTransform old_xform = CGAffineTransformIdentity;
     if (orig_xform) { //setup xforms
@@ -6518,6 +6520,9 @@ void qt_mac_clip_cg(CGContextRef hd, const QRegion &rgn, CGAffineTransform *orig
 // move to QRegion?
 void qt_mac_scale_region(QRegion *region, qreal scaleFactor)
 {
+    if (!region || !region->rectCount())
+        return;
+
     QVector<QRect> scaledRects;
     scaledRects.reserve(region->rects().count());
 
@@ -6527,6 +6532,9 @@ void qt_mac_scale_region(QRegion *region, qreal scaleFactor)
     region->setRects(&scaledRects[0], scaledRects.count());
 }
 
+static CGColorSpaceRef qt_mac_colorSpaceForDeviceType(const QPaintDevice *paintDevice);
+
+namespace {
 QMacCGContext::QMacCGContext(QPainter *p)
 {
     QPaintEngine *pe = p->paintEngine();
@@ -6539,7 +6547,6 @@ QMacCGContext::QMacCGContext(QPainter *p)
                 devType == QInternal::Pixmap ||
                 devType == QInternal::Image)) {
 
-        extern CGColorSpaceRef qt_mac_colorSpaceForDeviceType(const QPaintDevice *paintDevice);
         CGColorSpaceRef colorspace = qt_mac_colorSpaceForDeviceType(pe->paintDevice());
         uint flags = kCGImageAlphaPremultipliedFirst;
         flags |= kCGBitmapByteOrder32Host;
@@ -6581,7 +6588,9 @@ QMacCGContext::QMacCGContext(QPainter *p)
     }
 }
 
-CGColorSpaceRef qt_mac_colorSpaceForDeviceType(const QPaintDevice *paintDevice)
+} // anonymous namespace
+
+static CGColorSpaceRef qt_mac_colorSpaceForDeviceType(const QPaintDevice *paintDevice)
 {
     bool isWidget = (paintDevice->devType() == QInternal::Widget);
     return qt_mac_displayColorSpace(isWidget ? static_cast<const QWidget *>(paintDevice) : 0);

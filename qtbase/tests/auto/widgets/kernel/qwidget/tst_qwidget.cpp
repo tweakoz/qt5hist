@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -411,6 +411,7 @@ private slots:
     void destroyedSignal();
 
     void keyboardModifiers();
+    void mouseDoubleClickBubbling_QTBUG29680();
 
 private:
     bool ensureScreenSize(int width, int height);
@@ -2043,8 +2044,6 @@ void tst_QWidget::showFullScreen()
     QVERIFY(layouted.isFullScreen());
 
     layouted.showFullScreen();
-    if (m_platform == QStringLiteral("windows"))
-        QEXPECT_FAIL("", "QTBUG-26424", Continue);
     QVERIFY(!layouted.isMinimized());
     QVERIFY(layouted.isFullScreen());
     QVERIFY(layouted.isVisible());
@@ -4240,9 +4239,13 @@ void tst_QWidget::isOpaque()
 */
 void tst_QWidget::scroll()
 {
+    if (m_platform == QStringLiteral("xcb"))
+         QSKIP("X11: Skip unstable test");
+
     UpdateWidget updateWidget;
     updateWidget.resize(500, 500);
     updateWidget.reset();
+    updateWidget.move(QGuiApplication::primaryScreen()->geometry().center() - QPoint(250, 250));
     updateWidget.show();
     qApp->setActiveWindow(&updateWidget);
     QVERIFY(QTest::qWaitForWindowActive(&updateWidget));
@@ -4254,7 +4257,7 @@ void tst_QWidget::scroll()
         qApp->processEvents();
         QRegion dirty(QRect(0, 0, 500, 10));
         dirty += QRegion(QRect(0, 10, 10, 490));
-        QCOMPARE(updateWidget.paintedRegion, dirty);
+        QTRY_COMPARE(updateWidget.paintedRegion, dirty);
     }
 
     {
@@ -4264,7 +4267,7 @@ void tst_QWidget::scroll()
         qApp->processEvents();
         QRegion dirty(QRect(0, 0, 500, 10));
         dirty += QRegion(QRect(0, 10, 10, 10));
-        QCOMPARE(updateWidget.paintedRegion, dirty);
+        QTRY_COMPARE(updateWidget.paintedRegion, dirty);
     }
 
     {
@@ -4277,7 +4280,7 @@ void tst_QWidget::scroll()
         dirty += QRegion(QRect(0, 60, 110, 40));
         dirty += QRegion(QRect(50, 100, 60, 10));
         dirty += QRegion(QRect(50, 110, 10, 40));
-        QCOMPARE(updateWidget.paintedRegion, dirty);
+        QTRY_COMPARE(updateWidget.paintedRegion, dirty);
     }
 
     {
@@ -4288,7 +4291,7 @@ void tst_QWidget::scroll()
         QRegion dirty(QRect(0, 0, 100, 100));
         dirty += QRegion(QRect(100, 100, 100, 10));
         dirty += QRegion(QRect(100, 110, 10, 90));
-        QCOMPARE(updateWidget.paintedRegion, dirty);
+        QTRY_COMPARE(updateWidget.paintedRegion, dirty);
     }
 }
 #endif
@@ -7115,8 +7118,6 @@ void tst_QWidget::updateWhileMinimized()
     // Make sure update requests are discarded until the widget is shown again.
     widget.update(0, 0, 50, 50);
     QTest::qWait(10);
-    if (m_platform == QStringLiteral("windows"))
-        QEXPECT_FAIL("", "QTBUG-26424", Continue);
     QCOMPARE(widget.numPaintEvents, 0);
 
     // Restore window.
@@ -10049,6 +10050,31 @@ void tst_QWidget::keyboardModifiers()
     QCOMPARE(w->m_eventCounter, 1);
     QCOMPARE(int(w->m_modifiers), int(Qt::ControlModifier));
     QCOMPARE(int(w->m_appModifiers), int(Qt::ControlModifier));
+}
+
+class DClickWidget : public QWidget
+{
+public:
+    DClickWidget() : triggered(false) {}
+    void mouseDoubleClickEvent(QMouseEvent *)
+    {
+        triggered = true;
+    }
+    bool triggered;
+};
+
+void tst_QWidget::mouseDoubleClickBubbling_QTBUG29680()
+{
+    DClickWidget parent;
+    QWidget child(&parent);
+    parent.resize(200, 200);
+    child.resize(200, 200);
+    parent.show();
+    QVERIFY(QTest::qWaitForWindowExposed(&parent));
+
+    QTest::mouseDClick(&child, Qt::LeftButton);
+
+    QTRY_VERIFY(parent.triggered);
 }
 
 QTEST_MAIN(tst_QWidget)

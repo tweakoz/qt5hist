@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the documentation of the Qt Toolkit.
@@ -161,7 +161,7 @@
 
     \section1 Windows Vista, Windows 7, Windows 8
 
-    At the time Qt 5.0.1 was released, there were no known issues on these
+    At the time Qt 5.0.2 was released, there were no known issues on these
     platforms.
 
     \section1 Windows XP

@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the test suite of the Qt Toolkit.
@@ -255,7 +255,7 @@ void ModelTest::index()
 void ModelTest::parent()
 {
 //     qDebug() << "p";
-    // Make sure the model wont crash and will return an invalid QModelIndex
+    // Make sure the model won't crash and will return an invalid QModelIndex
     // when asked for the parent of an invalid index.
     QVERIFY( model->parent ( QModelIndex() ) == QModelIndex() );
 

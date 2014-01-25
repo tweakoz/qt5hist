@@ -1,6 +1,6 @@
 /****************************************************************************
 **
-** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
 ** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the qmake application of the Qt Toolkit.
@@ -79,7 +79,7 @@ NmakeMakefileGenerator::writeMakefile(QTextStream &t)
 #endif
         if (!project->isHostBuild()) {
             const ProValueMap &variables = project->variables();
-            if (variables["QMAKESPEC"].first().contains("wince", Qt::CaseInsensitive)) {
+            if (project->isActiveConfig("wince")) {
                 CeSdkHandler sdkhandler;
                 sdkhandler.parse();
                 const QString sdkName = variables["CE_SDK"].join(' ')
@@ -366,16 +366,6 @@ void NmakeMakefileGenerator::writeImplicitRulesPart(QTextStream &t)
 
 }
 
-static QString cQuoted(const QString &str)
-{
-    QString ret = str;
-    ret.replace(QLatin1Char('"'), QStringLiteral("\\\""));
-    ret.replace(QLatin1Char('\\'), QStringLiteral("\\\\"));
-    ret.prepend(QLatin1Char('"'));
-    ret.append(QLatin1Char('"'));
-    return ret;
-}
-
 void NmakeMakefileGenerator::writeBuildRulesPart(QTextStream &t)
 {
     const ProString templateName = project->first("TEMPLATE");
@@ -424,7 +414,8 @@ void NmakeMakefileGenerator::writeBuildRulesPart(QTextStream &t)
                   << cQuoted(unescapeFilePath(manifest)) << ">" << manifest_rc;
 
                 if (generateManifest) {
-                    t << "\n\tif not exist $(DESTDIR_TARGET) del " << manifest << ">NUL 2>&1";
+                    t << "\n\tif not exist $(DESTDIR_TARGET) if exist " << manifest
+                      << " del " << manifest;
                     t << "\n\tif exist " << manifest << " copy /Y " << manifest << ' ' << manifest_bak;
                     const QString extraInlineFileContent = "\n!IF EXIST(" + manifest_res + ")\n" + manifest_res + "\n!ENDIF";
                     t << "\n\t";

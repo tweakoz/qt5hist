@@ -261,11 +261,6 @@ Class __sched_param
    base size=4 base align=4
 __sched_param (0x7f392298f780) 0
 
-Class timex
-   size=208 align=8
-   base size=208 base align=8
-timex (0x7f392298f840) 0
-
 Class tm
    size=56 align=8
    base size=56 base align=8
@@ -2411,11 +2406,6 @@ QObjectCleanupHandler (0x7f392077aa90) 0
     vptr=((& QObjectCleanupHandler::_ZTV21QObjectCleanupHandler) + 16u)
   QObject (0x7f3920962f60) 0
       primary-for QObjectCleanupHandler (0x7f392077aa90)
-
-Class QPointerBase
-   size=16 align=8
-   base size=16 base align=8
-QPointerBase (0x7f392078d060) 0
 
 Class QSharedMemory::QPrivateSignal
    size=1 align=1
