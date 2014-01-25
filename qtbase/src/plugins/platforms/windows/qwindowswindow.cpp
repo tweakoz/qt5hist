@@ -808,8 +808,12 @@ QWindowsWindow::QWindowsWindow(QWindow *aWindow, const WindowData &data) :
     const Qt::WindowType type = aWindow->type();
     if (type == Qt::Desktop)
         return; // No further handling for Qt::Desktop
-    if (aWindow->surfaceType() == QWindow::OpenGLSurface)
+    if (aWindow->surfaceType() == QWindow::OpenGLSurface) {
         setFlag(OpenGLSurface);
+#ifdef QT_OPENGL_ES_2
+        setFlag(OpenGL_ES2);
+#endif
+    }
     if (aWindow->isTopLevel()) {
         switch (type) {
         case Qt::Window:
@@ -837,13 +841,14 @@ QWindowsWindow::QWindowsWindow(QWindow *aWindow, const WindowData &data) :
     const qreal opacity = qt_window_private(aWindow)->opacity;
     if (!qFuzzyCompare(opacity, qreal(1.0)))
         setOpacity(opacity);
+    if (aWindow->isTopLevel())
+        setWindowIcon(aWindow->icon());
     clearFlag(WithinCreate);
 }
 
 QWindowsWindow::~QWindowsWindow()
 {
 #ifndef Q_OS_WINCE
-    QWindowSystemInterface::flushWindowSystemEvents();
     if (testFlag(TouchRegistered))
         QWindowsContext::user32dll.unregisterTouchWindow(m_data.hwnd);
 #endif // !Q_OS_WINCE
@@ -866,6 +871,9 @@ void QWindowsWindow::destroyWindow()
         qDebug() << __FUNCTION__ << this << window() << m_data.hwnd;
     if (m_data.hwnd) { // Stop event dispatching before Window is destroyed.
         setFlag(WithinDestroy);
+        QWindowsContext *context = QWindowsContext::instance();
+        if (context->windowUnderMouse() == window())
+            context->clearWindowUnderMouse();
         if (hasMouseCapture())
             setMouseGrabEnabled(false);
         unregisterDropSite();
@@ -888,7 +896,7 @@ void QWindowsWindow::destroyWindow()
 #endif // !Q_OS_WINCE
         if (m_data.hwnd != GetDesktopWindow())
             DestroyWindow(m_data.hwnd);
-        QWindowsContext::instance()->removeWindow(m_data.hwnd);
+        context->removeWindow(m_data.hwnd);
         m_data.hwnd = 0;
     }
 }
@@ -1232,9 +1240,16 @@ void QWindowsWindow::handleGeometryChange()
     //Prevent recursive resizes for Windows CE
     if (testFlag(WithinSetStyle))
         return;
+    const QRect previousGeometry = m_data.geometry;
     m_data.geometry = geometry_sys();
     QPlatformWindow::setGeometry(m_data.geometry);
     QWindowSystemInterface::handleGeometryChange(window(), m_data.geometry);
+    // QTBUG-32121: OpenGL/normal windows (with exception of ANGLE) do not receive
+    // expose events when shrinking, synthesize.
+    if (!testFlag(OpenGL_ES2) && isExposed()
+        && !(m_data.geometry.width() > previousGeometry.width() || m_data.geometry.height() > previousGeometry.height())) {
+        fireExpose(QRegion(m_data.geometry), true);
+    }
     if (testFlag(SynchronousGeometryChangeEvent))
         QWindowSystemInterface::flushWindowSystemEvents();
 
@@ -1388,9 +1403,22 @@ void QWindowsWindow::handleWindowStateChange(Qt::WindowState state)
     setFlag(FrameDirty);
     m_windowState = state;
     QWindowSystemInterface::handleWindowStateChanged(window(), state);
-    if (state == Qt::WindowMinimized) {
+    switch (state) {
+    case Qt::WindowMinimized:
         handleHidden();
         QWindowSystemInterface::flushWindowSystemEvents(); // Tell QQuickWindow to stop rendering now.
+        break;
+    case Qt::WindowNoState:
+        // QTBUG-17548: We send expose events when receiving WM_Paint, but for
+        // layered windows, we won't receive any WM_Paint.
+        if (GetWindowLongPtr(m_data.hwnd, GWL_EXSTYLE) & WS_EX_LAYERED) {
+            fireExpose(QRegion(0, 0, window()->width(), window()->height()));
+            if (!QWindowsContext::instance()->asyncExpose())
+                QWindowSystemInterface::flushWindowSystemEvents();
+        }
+        break;
+    default:
+        break;
     }
 }
 

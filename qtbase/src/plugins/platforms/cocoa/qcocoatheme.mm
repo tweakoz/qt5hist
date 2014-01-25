@@ -258,8 +258,9 @@ QPixmap QCocoaTheme::fileIconPixmap(const QFileInfo &fileInfo, const QSizeF &siz
         return QPixmap();
 
     NSRect iconRect = NSMakeRect(0, 0, size.width(), size.height());
+    NSGraphicsContext *gc = [NSGraphicsContext currentContext];
     CGImageRef cgImage = [iconImage CGImageForProposedRect:&iconRect
-                                                   context:[NSGraphicsContext currentContext]
+                                                   context:([gc graphicsPort] ? gc : nil)
                                                      hints:nil];
     QPixmap pixmap = QPixmap::fromImage(qt_mac_toQImage(cgImage));
     return pixmap;
@@ -281,7 +282,7 @@ QVariant QCocoaTheme::themeHint(ThemeHint hint) const
         sizes << 16 << 32 << 64 << 128;
         return QVariant::fromValue(sizes);
     }
-    case QPlatformTheme::PasswordMaskDelay:
+    case QPlatformTheme::PasswordMaskCharacter:
         return QVariant(QChar(kBulletUnicode));
     default:
         break;

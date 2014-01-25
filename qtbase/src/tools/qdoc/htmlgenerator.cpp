@@ -1,7 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
@@ -179,10 +179,12 @@ void HtmlGenerator::initializeGenerator(const Config &config)
     projectUrl = config.getString(CONFIG_URL);
     tagFile_ = config.getString(CONFIG_TAGFILE);
 
+#ifndef QT_NO_TEXTCODEC
     outputEncoding = config.getString(CONFIG_OUTPUTENCODING);
     if (outputEncoding.isEmpty())
         outputEncoding = QLatin1String("UTF-8");
     outputCodec = QTextCodec::codecForName(outputEncoding.toLocal8Bit());
+#endif
 
     naturalLanguage = config.getString(CONFIG_NATURALLANGUAGE);
     if (naturalLanguage.isEmpty())
@@ -472,7 +474,7 @@ int HtmlGenerator::generateAtom(const Atom *atom, const Node *relative, CodeMark
         else if (atom->string() == "classes") {
             generateCompactList(Generic, relative, qdb_->getCppClasses(), true);
         }
-        else if (atom->string() == "qmlclasses") {
+        else if (atom->string() == "qmltypes") {
             generateCompactList(Generic, relative, qdb_->getQmlTypes(), true);
         }
         else if (atom->string().contains("classesbymodule")) {
@@ -1743,7 +1745,11 @@ void HtmlGenerator::generateHeader(const QString& title,
                                    const Node *node,
                                    CodeMarker *marker)
 {
+#ifndef QT_NO_TEXTCODEC
     out() << QString("<?xml version=\"1.0\" encoding=\"%1\"?>\n").arg(outputEncoding);
+#else
+    out() << QString("<?xml version=\"1.0\"?>\n");
+#endif
     out() << "<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n";
     out() << QString("<html xmlns=\"http://www.w3.org/1999/xhtml\" xml:lang=\"%1\" lang=\"%1\">\n").arg(naturalLanguage);
     out() << "<head>\n";
@@ -3185,7 +3191,11 @@ QString HtmlGenerator::registerRef(const QString& ref)
 
 QString HtmlGenerator::protectEnc(const QString &string)
 {
+#ifndef QT_NO_TEXTCODEC
     return protect(string, outputEncoding);
+#else
+    return protect(string);
+#endif
 }
 
 QString HtmlGenerator::protect(const QString &string, const QString &outputEncoding)
@@ -4172,11 +4182,12 @@ void HtmlGenerator::generateManifestFile(QString manifest, QString element)
                 if (match) {
                     tags += manifestMetaContent[idx].tags;
                     foreach (const QString &attr, manifestMetaContent[idx].attributes) {
-                        QStringList attrList = attr.split(QLatin1Char(':'), QString::SkipEmptyParts);
+                        QLatin1Char div(':');
+                        QStringList attrList = attr.split(div);
                         if (attrList.count() == 1)
                             attrList.append(QStringLiteral("true"));
-                        if (attrList.count() == 2)
-                            writer.writeAttribute(attrList[0], attrList[1]);
+                        QString attrName = attrList.takeFirst();
+                        writer.writeAttribute(attrName, attrList.join(div));
                     }
                 }
             }

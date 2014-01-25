@@ -63,12 +63,8 @@ QT_BEGIN_NAMESPACE
 static inline bool time_update(struct timespec *tv, const struct timespec &start,
                                const struct timespec &timeout)
 {
-    if (!QElapsedTimer::isMonotonic()) {
-        // we cannot recalculate the timeout without a monotonic clock as the time may have changed
-        return false;
-    }
-
-    // clock source is monotonic, so we can recalculate how much timeout is left
+    // clock source is (hopefully) monotonic, so we can recalculate how much timeout is left;
+    // if it isn't monotonic, we'll simply hope that it hasn't jumped, because we have no alternative
     struct timespec now = qt_gettime();
     *tv = timeout + start - now;
     return tv->tv_sec >= 0;
@@ -79,7 +75,7 @@ int qt_safe_select(int nfds, fd_set *fdread, fd_set *fdwrite, fd_set *fdexcept,
 {
     if (!orig_timeout) {
         // no timeout -> block forever
-        register int ret;
+        int ret;
         EINTR_LOOP(ret, select(nfds, fdread, fdwrite, fdexcept, 0));
         return ret;
     }

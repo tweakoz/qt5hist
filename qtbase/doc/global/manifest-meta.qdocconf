@@ -36,6 +36,7 @@ manifestmeta.filters                =   highlighted webkit1 webkit2 android
 
 manifestmeta.highlighted.names      =   "QtQuick/Qt Quick Demo - Same Game" \
                                         "QtQuick/Qt Quick Demo - Photo Surface" \
+                                        "QtQuick/Qt Quick Demo - Tweet Search" \
                                         "QtQuick/Qt Quick Demo - Maroon*" \
                                         "QtQuick/Qt Quick Demo - Calqlatr" \
                                         "QtQuick/Qt Quick Particles Examples - Emitters" \
@@ -107,7 +108,6 @@ manifestmeta.android.names          =  "QtQuick/Qt Quick Demo - Maroon*" \
                                        "QtWidgets/Regular Expressions Example" \
                                        "QtWidgets/Colliding Mice Example" \
                                        "QtWidgets/Basic Graphics Layouts Example" \
-                                       "QtWidgets/Boxes" \
                                        "QtWidgets/40000 Chips" \
                                        "QtWidgets/Diagram Scene Example" \
                                        "QtWidgets/Drag and Drop Robot Example" \

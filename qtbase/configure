@@ -61,6 +61,13 @@ if [ -f "$LICENSE_FILE" ]; then
     diff "${LICENSE_FILE}.tmp" "${LICENSE_FILE}" >/dev/null 2>&1 || LICENSE_FILE="${LICENSE_FILE}.tmp"
 fi
 
+# do this early so we don't store it in config.status
+CFG_TOPLEVEL=
+if [ x"$1" = x"-top-level" ]; then
+    CFG_TOPLEVEL=yes
+    shift
+fi
+
 # later cache the command line in config.status
 OPT_CMDLINE=`echo $@ | sed "s,-v ,,g; s,-v$,,g"`
 
@@ -876,11 +883,12 @@ CFG_SSE=auto
 CFG_FONTCONFIG=auto
 CFG_LIBFREETYPE=auto
 CFG_SQL_AVAILABLE=
+QT_ALL_BUILD_PARTS=" libs tools examples tests "
 QT_DEFAULT_BUILD_PARTS="libs tools examples"
 CFG_BUILD_PARTS=""
 CFG_NOBUILD_PARTS=""
 CFG_SKIP_MODULES=""
-CFG_COMPILE_EXAMPLES=auto
+CFG_COMPILE_EXAMPLES=yes
 CFG_RELEASE_QMAKE=no
 CFG_AUDIO_BACKEND=auto
 CFG_V8SNAPSHOT=auto
@@ -1113,7 +1121,45 @@ while [ "$#" -gt 0 ]; do
         VAL=no
         ;;
     #Qt style options that pass an argument
-    -prefix|-docdir|-headerdir|-plugindir|-importdir|-qmldir|-archdatadir|-datadir|-libdir|-bindir|-libexecdir|-translationdir|-sysconfdir|-examplesdir|-testsdir|-depths|-make|-nomake|-skip|-platform|-xplatform|-device|-device-option|-sdk|-arch|-host-arch|-mysql_config|-sysroot|-hostdatadir|-hostbindir|-hostlibdir|-qpa|-qconfig|-android-sdk|-android-ndk|-android-ndk-platform|-android-ndk-host|-android-arch|-android-toolchain-version)
+    -prefix| \
+    -docdir| \
+    -headerdir| \
+    -plugindir| \
+    -importdir| \
+    -qmldir| \
+    -archdatadir| \
+    -datadir| \
+    -libdir| \
+    -bindir| \
+    -libexecdir| \
+    -translationdir| \
+    -sysconfdir| \
+    -examplesdir| \
+    -testsdir| \
+    -hostdatadir| \
+    -hostbindir| \
+    -hostlibdir| \
+    -sysroot| \
+    -depths| \
+    -make| \
+    -nomake| \
+    -skip| \
+    -platform| \
+    -xplatform| \
+    -device| \
+    -device-option| \
+    -sdk| \
+    -arch| \
+    -host-arch| \
+    -mysql_config| \
+    -qpa| \
+    -qconfig| \
+    -android-sdk| \
+    -android-ndk| \
+    -android-ndk-platform| \
+    -android-ndk-host| \
+    -android-arch| \
+    -android-toolchain-version)
         VAR=`echo $1 | sed "s,^-\(.*\),\1,"`
         shift
         VAL="$1"
@@ -1392,10 +1438,22 @@ while [ "$#" -gt 0 ]; do
         fi
         ;;
     nomake)
+        if [ -n "${QT_ALL_BUILD_PARTS%%* $VAL *}" ]; then
+            echo "Unknown part $VAL passed to -nomake." >&2
+            exit 1
+        fi
 	CFG_NOBUILD_PARTS="$CFG_NOBUILD_PARTS $VAL"
         ;;
     make)
-	CFG_BUILD_PARTS="$CFG_BUILD_PARTS $VAL"
+        if [ "$VAL" = "no" ]; then
+            UNKNOWN_OPT=yes
+        else
+            if [ -n "${QT_ALL_BUILD_PARTS%%* $VAL *}" ]; then
+                echo "Unknown part $VAL passed to -make." >&2
+                exit 1
+            fi
+            CFG_BUILD_PARTS="$CFG_BUILD_PARTS $VAL"
+        fi
         ;;
     skip)
         VAL=qt${VAL#qt}
@@ -2978,7 +3036,7 @@ gccout=`LC_ALL=C $TEST_COMPILER $SYSROOT_FLAG $TEST_COMPILER_CXXFLAGS -xc++ -E -
 libdirs=`echo "$gccout" | sed -n -e 's/^LIBRARY_PATH=\(.*\)/\1/p'`
 DEFAULT_LIBDIRS=`IFS=${HOST_DIRLIST_SEP}; for i in $libdirs; do test -d "$i" && cd "$i" && pwd; done`
 # extract from indented lines between '#include <...> search starts here:' and 'End of search list.'
-DEFAULT_INCDIRS=`echo "$gccout" | awk '
+DEFAULT_INCDIRS=`echo "$gccout" | $AWK '
 /^End of search/ { yup=0 }
 / \(framework directory\)$/ { next }
 yup { print substr($0, 2) }
@@ -3146,14 +3204,6 @@ else
     QT_HOST_DATA=`"$relpath/config.tests/unix/makeabs" "$QT_HOST_DATA"`
 fi
 
-# Do not actually build the examples in production builds with -prefix, unless requested
-if [ "$CFG_COMPILE_EXAMPLES" = auto ]; then
-    if [ "$CFG_DEV" = "yes" ] || [ "x$outpath" = "x$QT_INSTALL_PREFIX" ]; then
-        CFG_COMPILE_EXAMPLES=yes
-    else
-        CFG_COMPILE_EXAMPLES=no
-    fi
-fi
 if [ "$CFG_COMPILE_EXAMPLES" = "yes" ]; then
     QMAKE_CONFIG="$QMAKE_CONFIG compile_examples"
 fi
@@ -3459,7 +3509,7 @@ Additional options:
 
     -skip <module> ..... Exclude an entire module from the build.
 
-    -compile-examples .. Compile examples even in a production build.
+    -no-compile-examples ... Install only the sources of examples.
 
     -no-gui ............ Don't build the Qt GUI module and dependencies.
  +  -gui ............... Build the Qt GUI module and dependencies.
@@ -4017,10 +4067,6 @@ if true; then ###[ '!' -f "$outpath/bin/qmake" ];
         if [ '!' -z "$D_FLAGS" ]; then
             EXTRA_CFLAGS="$EXTRA_CFLAGS $D_FLAGS"
         fi
-        QMAKE_BIN_DIR="$QT_INSTALL_BINS"
-        [ -z "$QMAKE_BIN_DIR" ] && QMAKE_BIN_DIR="${QT_INSTALL_PREFIX}/bin"
-        QMAKE_DATA_DIR="$QT_INSTALL_ARCHDATA"
-        [ -z "$QMAKE_DATA_DIR" ] && QMAKE_DATA_DIR="${QT_INSTALL_PREFIX}"
         echo >>"$mkfile"
 	adjrelpath=`echo "$relpath" | sed 's/ /\\\\\\\\ /g'`
 	adjoutpath=`echo "$outpath" | sed 's/ /\\\\\\\\ /g'`
@@ -4037,11 +4083,9 @@ if true; then ###[ '!' -f "$outpath/bin/qmake" ];
         echo "QT_VERSION = $QT_VERSION" >> "$mkfile"
         echo "EXTRA_CFLAGS = $EXTRA_CFLAGS" >> "$mkfile"
         echo "EXTRA_CXXFLAGS = $EXTRA_CXXFLAGS" >> "$mkfile"
-        echo "QTOBJS = $EXTRA_OBJS" >> "$mkfile"
-        echo "QTSRCS = $EXTRA_SRCS" >> "$mkfile"
+        echo "QTOBJS =" $EXTRA_OBJS >> "$mkfile"
+        echo "QTSRCS =" $EXTRA_SRCS >> "$mkfile"
         echo "LFLAGS = $EXTRA_LFLAGS" >> "$mkfile"
-        echo "QT_INSTALL_BINS = \$(INSTALL_ROOT)$QMAKE_BIN_DIR" >> "$mkfile"
-        echo "QT_INSTALL_DATA = \$(INSTALL_ROOT)$QMAKE_DATA_DIR" >> "$mkfile"
         echo "EXEEXT = $EXEEXT" >> "$mkfile"
         echo "RM_F = rm -f" >> "$mkfile"
         echo "RM_RF = rm -rf" >> "$mkfile"
@@ -5329,7 +5373,18 @@ elif [ "$CFG_XKBCOMMON" = "no" ]; then
 fi
 
 # EGL Support
-if [ "$CFG_EGL" != "no" ]; then
+if [ "$CFG_OPENGL" != "es2" ]; then
+    if [ "$CFG_EGL" = "yes" ] && [ "$CFG_OPENGL" = "desktop" ]; then
+        echo "EGL support was requested but Qt is being configured for desktop OpenGL."
+        echo "Either disable EGL support or enable OpenGL ES support."
+        exit 101
+    elif [ "$CFG_EGL" = "yes" ] && [ "$CFG_OPENGL" = "no" ]; then
+        echo "EGL support was requested but OpenGL ES support is disabled."
+        echo "Either disable EGL support or enable OpenGL ES support."
+        exit 101
+    fi
+    CFG_EGL=no
+elif [ "$CFG_EGL" != "no" ]; then
     if [ -n "$PKG_CONFIG" ] && $PKG_CONFIG --exists egl 2>/dev/null; then
         QMAKE_INCDIR_EGL=`$PKG_CONFIG --cflags-only-I egl 2>/dev/null | sed -e 's,^-I,,g' -e 's, -I, ,g'`
         QMAKE_LIBS_EGL=`$PKG_CONFIG --libs egl 2>/dev/null`
@@ -5347,13 +5402,6 @@ if [ "$CFG_EGL" != "no" ]; then
     else
         CFG_EGL=no
     fi
-elif [ "$CFG_OPENGL" = "desktop" ]; then
-    if [ "$CFG_EGL" = "yes" ]; then
-        echo "EGL support was requested but Qt is being configured for desktop OpenGL."
-        echo "Either disable EGL support or enable OpenGL ES support."
-        exit 101
-    fi
-    CFG_EGL=no
 fi
 
 if [ "$CFG_EGLFS" != "no" ]; then
@@ -6034,7 +6082,7 @@ case "$XPLATFORM" in
 	;;
     solaris-cc*)
         # Check the compiler version
-        case `${QMAKE_CONF_COMPILER} -V 2>&1 | awk '{print $4}'` in
+        case `${QMAKE_CONF_COMPILER} -V 2>&1 | $AWK '{print $4}'` in
             5.[012345678])
                 canBuildWebKit="no"
                 canBuildQtXmlPatterns="no"
@@ -6421,9 +6469,7 @@ echo "#define QT_QPA_DEFAULT_PLATFORM_NAME \"$QT_QPA_DEFAULT_PLATFORM\"" >>"$out
 if cmp -s "$outpath/src/corelib/global/qconfig.h" "$outpath/src/corelib/global/qconfig.h.new"; then
     rm -f "$outpath/src/corelib/global/qconfig.h.new"
 else
-    [ -f "$outpath/src/corelib/global/qconfig.h" ] && chmod +w "$outpath/src/corelib/global/qconfig.h"
-    mv "$outpath/src/corelib/global/qconfig.h.new" "$outpath/src/corelib/global/qconfig.h"
-    chmod -w "$outpath/src/corelib/global/qconfig.h"
+    mv -f "$outpath/src/corelib/global/qconfig.h.new" "$outpath/src/corelib/global/qconfig.h"
 fi
 
 # create a forwarding header
@@ -6653,11 +6699,9 @@ report_support()
             return
             :;
     esac
-    local heading
     heading=$1
     shift
 
-    local value
     value=$1
     shift
 
@@ -6867,14 +6911,23 @@ rm -f "$QMAKE_VARS_FILE" 2>/dev/null
 #-------------------------------------------------------------------------------
 
 if [ "$CFG_PROCESS" != "no" ]; then
+(   # fork to make the cd stay local
+
+    relpathMangled=$relpath
+    if [ -n "$CFG_TOPLEVEL" ]; then
+        relpathMangled=`dirname "$relpath"`
+        cd ..
+    fi
 
     if [ "$CFG_PROCESS" = "full" ]; then
         echo "Creating makefiles. Please wait..."
-        "$outpath/bin/qmake" -r "$relpath"
+        "$outpath/bin/qmake" -r "$relpathMangled"
         echo "Done"
     else
-        "$outpath/bin/qmake" "$relpath"
+        "$outpath/bin/qmake" "$relpathMangled"
     fi
+
+)
 fi
 
 #-------------------------------------------------------------------------------
@@ -6986,7 +7039,7 @@ fi
 MAKE=`basename "$MAKE"`
 echo
 echo Qt is now configured for building. Just run \'$MAKE\'.
-if [ "$relpath" = "$QT_INSTALL_PREFIX" ]; then
+if [ "$outpath" = "$QT_INSTALL_PREFIX" ]; then
     echo Once everything is built, Qt is installed.
     echo You should not run \'$MAKE install\'.
 else

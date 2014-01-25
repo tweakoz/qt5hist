@@ -568,17 +568,19 @@ static v8::Handle<v8::Value> ctx2d_save(const v8::Arguments &args)
 // transformations
 /*!
     \qmlmethod object QtQuick2::Context2D::rotate(real angle)
-    Rotate the canvas around the current origin by \c angle in radians and clockwise direction.
+    Rotate the canvas around the current origin by \a angle in radians and clockwise direction.
+
     \code
     ctx.rotate(Math.PI/2);
     \endcode
+
     \image qml-item-canvas-rotate.png
 
     The rotation transformation matrix is as follows:
 
     \image qml-item-canvas-math-rotate.png
 
-    where the \c angle of rotation is in radians.
+    where the \a angle of rotation is in radians.
 
 */
 static v8::Handle<v8::Value> ctx2d_rotate(const v8::Arguments &args)
@@ -593,17 +595,20 @@ static v8::Handle<v8::Value> ctx2d_rotate(const v8::Arguments &args)
 
 /*!
     \qmlmethod object QtQuick2::Context2D::scale(real x, real y)
+
     Increases or decreases the size of each unit in the canvas grid by multiplying the scale factors
     to the current tranform matrix.
-    Where \c x is the scale factor in the horizontal direction and \c y is the scale factor in the
+    \a x is the scale factor in the horizontal direction and \a y is the scale factor in the
     vertical direction.
-    The following code doubles the horizontal size of an object drawn on the canvas and half its
+
+    The following code doubles the horizontal size of an object drawn on the canvas and halves its
     vertical size:
+
     \code
     ctx.scale(2.0, 0.5);
     \endcode
-    \image qml-item-canvas-scale.png
 
+    \image qml-item-canvas-scale.png
 */
 static v8::Handle<v8::Value> ctx2d_scale(const v8::Arguments &args)
 {
@@ -632,15 +637,15 @@ static v8::Handle<v8::Value> ctx2d_scale(const v8::Arguments &args)
     \li \c{a} is the scale factor in the horizontal (x) direction
     \image qml-item-canvas-scalex.png
     \li \c{c} is the skew factor in the x direction
-    \image qml-item-canvas-canvas-skewx.png
+    \image qml-item-canvas-skewx.png
     \li \c{e} is the translation in the x direction
-    \image qml-item-canvas-canvas-translate.png
+    \image qml-item-canvas-translate.png
     \li \c{b} is the skew factor in the y (vertical) direction
-    \image qml-item-canvas-canvas-skewy.png
+    \image qml-item-canvas-skewy.png
     \li \c{d} is the scale factor in the y direction
-    \image qml-item-canvas-canvas-scaley.png
+    \image qml-item-canvas-scaley.png
     \li \c{f} is the translation in the y direction
-    \image qml-item-canvas-canvas-translatey.png
+    \image qml-item-canvas-translatey.png
     \li the last row remains constant
     \endlist
     The scale factors and skew factors are multiples; \c{e} and \c{f} are
@@ -668,8 +673,9 @@ static v8::Handle<v8::Value> ctx2d_setTransform(const v8::Arguments &args)
 
 /*!
     \qmlmethod object QtQuick2::Context2D::transform(real a, real b, real c, real d, real e, real f)
+
     This method is very similar to setTransform(), but instead of replacing the old
-    tranform matrix, this method applies the given tranform matrix to the current matrix by mulitplying to it.
+    transform matrix, this method applies the given tranform matrix to the current matrix by multiplying to it.
 
     The setTransform(a, b, c, d, e, f) method actually resets the current transform to the identity matrix,
     and then invokes the transform(a, b, c, d, e, f) method with the same arguments.
@@ -695,10 +701,10 @@ static v8::Handle<v8::Value> ctx2d_transform(const v8::Arguments &args)
 
 /*!
     \qmlmethod object QtQuick2::Context2D::translate(real x, real y)
-    Translates the origin of the canvas to point (\c x, \c y).
 
-    \c x is the horizontal distance that the origin is translated, in coordinate space units,
-    \c y is the vertical distance that the origin is translated, in coordinate space units.
+    Translates the origin of the canvas by a horizontal distance of \a x,
+    and a vertical distance of \a y, in coordinate space units.
+
     Translating the origin enables you to draw patterns of different objects on the canvas
     without having to measure the coordinates manually for each shape.
 */
@@ -716,7 +722,9 @@ static v8::Handle<v8::Value> ctx2d_translate(const v8::Arguments &args)
 
 /*!
     \qmlmethod object QtQuick2::Context2D::resetTransform()
-    Reset the transformation matrix to default value.
+
+    Reset the transformation matrix to the default value (equivalent to calling
+    setTransform(\c 1, \c 0, \c 0, \c 1, \c 0, \c 0)).
 
     \sa transform(), setTransform(), reset()
 */
@@ -732,8 +740,10 @@ static v8::Handle<v8::Value> ctx2d_resetTransform(const v8::Arguments &args)
 
 
 /*!
-    \qmlmethod object QtQuick2::Context2D::shear(real sh, real sv )
-    Shear the transformation matrix with \a sh in horizontal direction and \a sv in vertical direction.
+    \qmlmethod object QtQuick2::Context2D::shear(real sh, real sv)
+
+    Shears the transformation matrix by \a sh in the horizontal direction and
+    \a sv in the vertical direction.
 */
 static v8::Handle<v8::Value> ctx2d_shear(const v8::Arguments &args)
 {
@@ -749,9 +759,10 @@ static v8::Handle<v8::Value> ctx2d_shear(const v8::Arguments &args)
 
 /*!
     \qmlproperty real QtQuick2::Context2D::globalAlpha
+
      Holds the current alpha value applied to rendering operations.
-     The value must be in the range from 0.0 (fully transparent) to 1.0 (fully opque).
-     The default value is 1.0.
+     The value must be in the range from \c 0.0 (fully transparent) to \c 1.0 (fully opaque).
+     The default value is \c 1.0.
 */
 static v8::Handle<v8::Value> ctx2d_globalAlpha(v8::Local<v8::String>, const v8::AccessorInfo &info)
 {
@@ -1629,12 +1640,25 @@ static v8::Handle<v8::Value> ctx2d_strokeRect(const v8::Arguments &args)
 
 // Complex shapes (paths) API
 /*!
-  \qmlmethod object QtQuick2::Context2D::arc(real x, real y, real radius, real startAngle, real endAngle, bool anticlockwise)
-  Adds an arc to the current subpath that lies on the circumference of the circle whose center is at the point (\c x,\cy) and whose radius is \c radius.
-  \image qml-item-canvas-arcTo2.png
-  \sa arcTo,
-      {http://www.w3.org/TR/2dcontext/#dom-context-2d-arc}{W3C 2d context standard for arc}
-  */
+    \qmlmethod object QtQuick2::Context2D::arc(real x, real y, real radius,
+        real startAngle, real endAngle, bool anticlockwise)
+
+    Adds an arc to the current subpath that lies on the circumference of the
+    circle whose center is at the point (\a x, \a y) and whose radius is
+    \a radius.
+
+    Both \c startAngle and \c endAngle are measured from the x-axis in radians.
+
+    \image qml-item-canvas-arc.png
+
+    \image qml-item-canvas-startAngle.png
+
+    The \a anticlockwise parameter is \c true for each arc in the figure above
+    because they are all drawn in the anticlockwise direction.
+
+    \sa arcTo, {http://www.w3.org/TR/2dcontext/#dom-context-2d-arc}{W3C's 2D
+    Context Standard for arc()}
+*/
 static v8::Handle<v8::Value> ctx2d_arc(const v8::Arguments &args)
 {
     QV8Context2DResource *r = v8_resource_cast<QV8Context2DResource>(args.This());
@@ -1663,25 +1687,28 @@ static v8::Handle<v8::Value> ctx2d_arc(const v8::Arguments &args)
 }
 
 /*!
-  \qmlmethod object QtQuick2::Context2D::arcTo(real x1, real y1, real x2, real y2, real radius)
+    \qmlmethod object QtQuick2::Context2D::arcTo(real x1, real y1, real x2,
+        real y2, real radius)
 
-   Adds an arc with the given control points and radius to the current subpath, connected to the previous point by a straight line.
-   To draw an arc, you begin with the same steps your followed to create a line:
+    Adds an arc with the given control points and radius to the current subpath,
+    connected to the previous point by a straight line. To draw an arc, you
+    begin with the same steps you followed to create a line:
+
     \list
-    \li Call the context.beginPath() method to set a new path.
-    \li Call the context.moveTo(\c x, \c y) method to set your starting position on the canvas at the point (\c x,\c y).
-    \li To draw an arc or circle, call the context.arcTo(\c x1, \c y1, \c x2, \c y2,\c radius) method.
-       This adds an arc with starting point (\c x1,\c y1), ending point (\c x2, \c y2), and radius \c radius to the current subpath and connects
-       it to the previous subpath by a straight line.
+    \li Call the beginPath() method to set a new path.
+    \li Call the moveTo(\c x, \c y) method to set your starting position on the
+        canvas at the point (\c x, \c y).
+    \li To draw an arc or circle, call the arcTo(\a x1, \a y1, \a x2, \a y2,
+        \a radius) method. This adds an arc with starting point (\a x1, \a y1),
+        ending point (\a x2, \a y2), and \a radius to the current subpath and
+        connects it to the previous subpath by a straight line.
     \endlist
-    \image qml-item-canvas-arcTo.png
-    Both startAngle and endAngle are measured from the x axis in units of radians.
 
-    \image qml-item-canvas-startAngle.png
-    The anticlockwise has the value TRUE for each arc in the figure above because they are all drawn in the counterclockwise direction.
-  \sa arc, {http://www.w3.org/TR/2dcontext/#dom-context-2d-arcto}{W3C 2d
-      context standard for arcTo}
-  */
+    \image qml-item-canvas-arcTo.png
+
+    \sa arc, {http://www.w3.org/TR/2dcontext/#dom-context-2d-arcto}{W3C's 2D
+    Context Standard for arcTo()}
+*/
 static v8::Handle<v8::Value> ctx2d_arcTo(const v8::Arguments &args)
 {
     QV8Context2DResource *r = v8_resource_cast<QV8Context2DResource>(args.This());
@@ -1778,7 +1805,7 @@ static v8::Handle<v8::Value> ctx2d_bezierCurveTo(const v8::Arguments &args)
     The new shape displays.  The following shows how a clipping path can
     modify how an image displays:
 
-    \image qml-canvas-clip-complex.png
+    \image qml-item-canvas-clip-complex.png
     \sa beginPath()
     \sa closePath()
     \sa stroke()
@@ -2317,7 +2344,7 @@ static v8::Handle<v8::Value> ctx2d_measureText(const v8::Arguments &args)
   \sa {http://www.w3.org/TR/2dcontext/#dom-context-2d-drawimage}{W3C 2d context standard for drawImage}
   */
 /*!
-  \qmlmethod QtQuick2::Context2D::drawImage(variant image, real sx, real sy, real sw, sh, real dx, real dy, real dw, dh)
+  \qmlmethod QtQuick2::Context2D::drawImage(variant image, real sx, real sy, real sw, real sh, real dx, real dy, real dw, real dh)
   This is an overloaded function.
   Draws the given item as \a image from source point (\a sx, \a sy) and source width \a sw, source height \a sh
   onto the canvas at point (\a dx, \a dy) and with width \a dw, height \a dh.
@@ -2363,6 +2390,7 @@ static v8::Handle<v8::Value> ctx2d_drawImage(const v8::Arguments &args)
     } else if (args[0]->IsObject()) {
         QQuickImage *imageItem = qobject_cast<QQuickImage*>(engine->toQObject(args[0]->ToObject()));
         QQuickCanvasItem *canvas = qobject_cast<QQuickCanvasItem*>(engine->toQObject(args[0]->ToObject()));
+        QUrl url(engine->toString(args[0]));
 
         QV8Context2DPixelArrayResource *pix = v8_resource_cast<QV8Context2DPixelArrayResource>(args[0]->ToObject()->GetInternalField(0)->ToObject());
         if (pix && !pix->image.isNull()) {
@@ -2373,6 +2401,8 @@ static v8::Handle<v8::Value> ctx2d_drawImage(const v8::Arguments &args)
             QImage img = canvas->toImage();
             if (!img.isNull())
                 pixmap.take(new QQuickCanvasPixmap(img, canvas->window()));
+        } else if (url.isValid()) {
+            pixmap = r->context->createPixmap(url);
         } else {
             V8THROW_DOM(DOMEXCEPTION_TYPE_MISMATCH_ERR, "drawImage(), type mismatch");
         }
@@ -2573,20 +2603,25 @@ v8::Handle<v8::Value> ctx2d_pixelArray_indexed_set(uint32_t index, v8::Local<v8:
     return v8::Undefined();
 }
 /*!
-  \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(real sw, real sh)
-   Creates a CanvasImageData object with the given dimensions(\a sw, \a sh).
-  */
-/*!
-  \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(CanvasImageData imageData)
-   Creates a CanvasImageData object with the same dimensions as the argument.
-  */
-/*!
-  \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(Url imageUrl)
-   Creates a CanvasImageData object with the given image loaded from \a imageUrl.
-   Note:The \a imageUrl must be already loaded before this function call, if not, an empty
-   CanvasImageData obect will be returned.
+    \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(real sw, real sh)
 
-   \sa Canvas::loadImage(), QtQuick2::Canvas::unloadImage(), QtQuick2::Canvas::isImageLoaded
+    Creates a CanvasImageData object with the given dimensions(\a sw, \a sh).
+*/
+/*!
+    \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(CanvasImageData imageData)
+
+    Creates a CanvasImageData object with the same dimensions as the argument.
+*/
+/*!
+    \qmlmethod CanvasImageData QtQuick2::Context2D::createImageData(Url imageUrl)
+
+    Creates a CanvasImageData object with the given image loaded from \a imageUrl.
+
+    \note The \a imageUrl must be already loaded before this function call,
+    otherwise an empty CanvasImageData obect will be returned.
+
+    \sa Canvas::loadImage(), QtQuick2::Canvas::unloadImage(),
+        QtQuick2::Canvas::isImageLoaded
   */
 static v8::Handle<v8::Value> ctx2d_createImageData(const v8::Arguments &args)
 {

@@ -1720,7 +1720,9 @@ int QWindowsXpNativeFileDialog::existingDirCallback(HWND hwnd, UINT uMsg, LPARAM
 {
     switch (uMsg) {
     case BFFM_INITIALIZED: {
-        const QString initialFile = m_data.selectedFile();
+        if (!m_title.isEmpty())
+            SetWindowText(hwnd, (wchar_t *)m_title.utf16());
+        const QString initialFile = QDir::toNativeSeparators(m_data.directory());
         if (!initialFile.isEmpty())
             SendMessage(hwnd, BFFM_SETSELECTION, TRUE, LPARAM(initialFile.utf16()));
     }
@@ -1743,8 +1745,7 @@ QStringList QWindowsXpNativeFileDialog::execExistingDir(HWND owner)
     initPath[0] = 0;
     bi.hwndOwner = owner;
     bi.pidlRoot = NULL;
-    //### This does not seem to be respected? - the dialog always displays "Browse for folder"
-    bi.lpszTitle = (wchar_t*)m_title.utf16();
+    bi.lpszTitle = 0;
     bi.pszDisplayName = initPath;
     bi.ulFlags = BIF_RETURNONLYFSDIRS | BIF_STATUSTEXT | BIF_NEWDIALOGSTYLE;
     bi.lpfn = xpFileDialogGetExistingDirCallbackProc;
@@ -2022,7 +2023,7 @@ void QWindowsNativeColorDialog::exec(HWND owner)
             qCustomColors[c] = COLORREFToQColor(m_customColors[c]).rgb();
         emit accepted();
         if (QWindowsContext::verboseDialogs)
-            qDebug() << '<' << __FUNCTION__ << m_color;
+            qDebug() << '<' << __FUNCTION__ << *m_color;
     } else {
         emit rejected();
     }
@@ -2043,7 +2044,7 @@ void QWindowsNativeColorDialog::exec(HWND owner)
 class QWindowsColorDialogHelper : public QWindowsDialogHelperBase<QPlatformColorDialogHelper>
 {
 public:
-    QWindowsColorDialogHelper() {}
+    QWindowsColorDialogHelper() : m_currentColor(new QColor) {}
 
     virtual bool supportsNonModalDialog()
         { return false; }
@@ -2063,6 +2064,8 @@ QWindowsNativeDialogBase *QWindowsColorDialogHelper::createNativeDialog()
 {
     QWindowsNativeColorDialog *nativeDialog = new QWindowsNativeColorDialog(m_currentColor);
     nativeDialog->setWindowTitle(options()->windowTitle());
+    connect(nativeDialog, SIGNAL(accepted()), this, SIGNAL(accept()));
+    connect(nativeDialog, SIGNAL(rejected()), this, SIGNAL(reject()));
     return nativeDialog;
 }
 #endif // USE_NATIVE_COLOR_DIALOG
@@ -2095,9 +2098,9 @@ QPlatformDialogHelper *createHelper(QPlatformTheme::DialogType type)
         return 0;
     switch (type) {
     case QPlatformTheme::FileDialog:
-#ifndef Q_OS_WINCE
+#ifndef Q_OS_WINCE // Note: "Windows XP Professional x64 Edition has version number WV_5_2 (WV_2003).
         if (QWindowsIntegration::instance()->options() & QWindowsIntegration::XpNativeDialogs
-            || QSysInfo::windowsVersion() == QSysInfo::WV_XP) {
+            || QSysInfo::windowsVersion() <= QSysInfo::WV_2003) {
             return new QWindowsXpFileDialogHelper();
         }
         if (QSysInfo::windowsVersion() > QSysInfo::WV_XP)

@@ -1468,11 +1468,12 @@ static void mapToLowerCase(QString *str, int from)
                 int l = 1;
                 while (l < 4 && entry->mapping[l])
                     ++l;
-                if (l > 1) {
+                if (l > 1 || uc > 0xffff) {
                     if (uc <= 0xffff)
                         str->replace(i, 1, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
                     else
-                        str->replace(i-1, 2, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
+                        str->replace(--i, 2, reinterpret_cast<const QChar *>(&entry->mapping[0]), l);
+                    i += l - 1;
                     d = 0;
                 } else {
                     if (!d)
@@ -1501,18 +1502,20 @@ static bool isMappedToNothing(uint uc)
 }
 
 
-static void stripProhibitedOutput(QString *str, int from)
+static bool containsProhibitedOuptut(const QString *str, int from)
 {
-    ushort *out = (ushort *)str->data() + from;
-    const ushort *in = out;
+    const ushort *in = reinterpret_cast<const ushort *>(str->begin() + from);
     const ushort *end = (ushort *)str->data() + str->size();
-    while (in < end) {
+    for ( ; in < end; ++in) {
         uint uc = *in;
         if (QChar(uc).isHighSurrogate() && in < end - 1) {
             ushort low = *(in + 1);
             if (QChar(low).isLowSurrogate()) {
                 ++in;
                 uc = QChar::surrogateToUcs4(uc, low);
+            } else {
+                // unpaired surrogates are prohibited
+                return true;
             }
         }
         if (uc <= 0xFFFF) {
@@ -1537,7 +1540,7 @@ static void stripProhibitedOutput(QString *str, int from)
                 || (uc >= 0xFDD0 && uc <= 0xFDEF)
                 || uc == 0xFEFF
                 || (uc >= 0xFFF9 && uc <= 0xFFFF))) {
-                *out++ = *in;
+                continue;
             }
         } else {
             if (!((uc >= 0x1D173 && uc <= 0x1D17A)
@@ -1561,14 +1564,12 @@ static void stripProhibitedOutput(QString *str, int from)
                 || (uc >= 0xFFFFE && uc <= 0xFFFFF)
                 || (uc >= 0x100000 && uc <= 0x10FFFD)
                 || (uc >= 0x10FFFE && uc <= 0x10FFFF))) {
-                *out++ = QChar::highSurrogate(uc);
-                *out++ = QChar::lowSurrogate(uc);
+                continue;
             }
         }
-        ++in;
+        return true;
     }
-    if (in != out)
-        str->truncate(out - str->utf16());
+    return false;
 }
 
 static bool isBidirectionalRorAL(uint uc)
@@ -2027,8 +2028,8 @@ Q_AUTOTEST_EXPORT void qt_nameprep(QString *source, int from)
     const QChar *e = src + source->size();
 
     for ( ; out < e; ++out) {
-        register ushort uc = out->unicode();
-        if (uc > 0x80) {
+        ushort uc = out->unicode();
+        if (uc >= 0x80) {
             break;
         } else if (uc >= 'A' && uc <= 'Z') {
             *out = QChar(uc | 0x20);
@@ -2065,8 +2066,8 @@ Q_AUTOTEST_EXPORT void qt_nameprep(QString *source, int from)
             if (uc <= 0xFFFF) {
                 *out++ = *in;
             } else {
-                *out++ = QChar::highSurrogate(uc);
-                *out++ = QChar::lowSurrogate(uc);
+                *out++ = in[-1];
+                *out++ = in[0];
             }
         }
     }
@@ -2083,7 +2084,10 @@ Q_AUTOTEST_EXPORT void qt_nameprep(QString *source, int from)
                         firstNonAscii > from ? firstNonAscii - 1 : from);
 
     // Strip prohibited output
-    stripProhibitedOutput(source, firstNonAscii);
+    if (containsProhibitedOuptut(source, firstNonAscii)) {
+        source->resize(from);
+        return;
+    }
 
     // Check for valid bidirectional characters
     bool containsLCat = false;
@@ -2117,7 +2121,7 @@ Q_AUTOTEST_EXPORT bool qt_check_std3rules(const QChar *uc, int len)
         return false;
 
     for (int i = 0; i < len; ++i) {
-        register ushort c = uc[i].unicode();
+        ushort c = uc[i].unicode();
         if (c == '-' && (i == 0 || i == len - 1))
             return false;
 
@@ -2500,7 +2504,7 @@ QString qt_ACE_do(const QString &domain, AceOperation op)
             const QChar *in = domain.constData() + lastIdx;
             const QChar *e = in + labelLength;
             for (; in < e; ++in, ++out) {
-                register ushort uc = in->unicode();
+                ushort uc = in->unicode();
                 if (uc > 0x7f)
                     simple = false;
                 if (uc >= 'A' && uc <= 'Z')
@@ -2529,7 +2533,7 @@ QString qt_ACE_do(const QString &domain, AceOperation op)
             // That means we need one or two temporaries
             qt_nameprep(&result, prevLen);
             labelLength = result.length() - prevLen;
-            register int toReserve = labelLength + 4 + 6; // "xn--" plus some extra bytes
+            int toReserve = labelLength + 4 + 6; // "xn--" plus some extra bytes
             aceForm.resize(0);
             if (toReserve > aceForm.capacity())
                 aceForm.reserve(toReserve);

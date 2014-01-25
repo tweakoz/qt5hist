@@ -132,7 +132,8 @@ void QLineEdit::initStyleOption(QStyleOptionFrame *option) const
 
     A line edit allows the user to enter and edit a single line of
     plain text with a useful collection of editing functions,
-    including undo and redo, cut and paste, and drag and drop.
+    including undo and redo, cut and paste, and drag and drop (see
+    \l setDragEnabled()).
 
     By changing the echoMode() of a line edit, it can also be used as
     a "write-only" field, for inputs such as passwords.
@@ -1801,15 +1802,15 @@ void QLineEdit::paintEvent(QPaintEvent *)
     int minLB = qMax(0, -fm.minLeftBearing());
     int minRB = qMax(0, -fm.minRightBearing());
 
-    if (d->control->text().isEmpty()) {
+    if (d->control->text().isEmpty() && d->control->preeditAreaText().isEmpty()) {
         if (!d->placeholderText.isEmpty()) {
             QColor col = pal.text().color();
             col.setAlpha(128);
             QPen oldpen = p.pen();
             p.setPen(col);
-            lineRect.adjust(minLB, 0, 0, 0);
-            QString elidedText = fm.elidedText(d->placeholderText, Qt::ElideRight, lineRect.width());
-            p.drawText(lineRect, va, elidedText);
+            QRect ph = lineRect.adjusted(minLB, 0, 0, 0);
+            QString elidedText = fm.elidedText(d->placeholderText, Qt::ElideRight, ph.width());
+            p.drawText(ph, va, elidedText);
             p.setPen(oldpen);
         }
     }

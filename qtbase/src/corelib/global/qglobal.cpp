@@ -511,7 +511,7 @@ Q_CORE_EXPORT void *qMemSet(void *dest, int c, size_t n);
     the application is compiled using Forte Developer, or Sun Studio
     C++.  The header file also declares a range of macros (Q_OS_*)
     that are defined for the specified platforms. For example,
-    Q_OS_X11 which is defined for the X Window System.
+    Q_OS_UNIX which is defined for the Unix-based systems.
 
     The purpose of these macros is to enable programmers to add
     compiler or platform specific code to their application.
@@ -1696,7 +1696,7 @@ Q_CORE_EXPORT QString qt_mac_from_pascal_string(const Str255 pstr) {
 
 QSysInfo::MacVersion QSysInfo::macVersion()
 {
-#ifndef Q_OS_IOS
+#ifdef Q_OS_MACX
     SInt32 gestalt_version;
     if (Gestalt(gestaltSystemVersion, &gestalt_version) == noErr) {
         return QSysInfo::MacVersion(((gestalt_version & 0x00F0) >> 4) + 2);
@@ -2066,11 +2066,11 @@ namespace {
     // version in portable code. However, it's impossible to do that if
     // _GNU_SOURCE is defined so we use C++ overloading to decide what to do
     // depending on the return type
-    static inline QString fromstrerror_helper(int, const QByteArray &buf)
+    static inline Q_DECL_UNUSED QString fromstrerror_helper(int, const QByteArray &buf)
     {
         return QString::fromLocal8Bit(buf);
     }
-    static inline QString fromstrerror_helper(const char *str, const QByteArray &)
+    static inline Q_DECL_UNUSED QString fromstrerror_helper(const char *str, const QByteArray &)
     {
         return QString::fromLocal8Bit(str);
     }
@@ -2322,7 +2322,7 @@ Q_GLOBAL_STATIC(SeedStorage, randTLS)  // Thread Local Storage for seed value
 */
 void qsrand(uint seed)
 {
-#if defined(Q_OS_UNIX) && !defined(QT_NO_THREAD)
+#if defined(Q_OS_UNIX) && !defined(QT_NO_THREAD) && defined(_POSIX_THREAD_SAFE_FUNCTIONS) && (_POSIX_THREAD_SAFE_FUNCTIONS - 0 > 0)
     SeedStorage *seedStorage = randTLS();
     if (seedStorage) {
         SeedStorageType *pseed = seedStorage->localData();

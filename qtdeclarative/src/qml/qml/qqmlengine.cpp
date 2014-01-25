@@ -278,11 +278,8 @@ QQmlImageProviderBase::~QQmlImageProviderBase()
 \inqmlmodule QtQml 2
 \instantiates QQmlEnginePrivate
 \ingroup qml-utility-elements
-\brief The QML global Qt object provides useful enums and functions from Qt.
-
 \keyword QmlGlobalQtObject
-
-\brief The \c Qt object provides useful enums and functions from Qt, for use in all QML files.
+\brief Provides a global object with useful enums and functions from Qt.
 
 The \c Qt object is a global object with utility functions, properties and enums.
 
@@ -855,9 +852,6 @@ QQmlEngine::~QQmlEngine()
     QList<QQmlType*> singletonTypes = QQmlMetaType::qmlSingletonTypes();
     foreach (QQmlType *currType, singletonTypes)
         currType->singletonInstanceInfo()->destroy(this);
-
-    if (d->incubationController)
-        d->incubationController->d = 0;
 }
 
 /*! \fn void QQmlEngine::quit()
@@ -1065,7 +1059,7 @@ QQmlImageProviderBase *QQmlEngine::imageProvider(const QString &providerId) cons
 {
     Q_D(const QQmlEngine);
     QMutexLocker locker(&d->mutex);
-    return d->imageProviders.value(providerId).data();
+    return d->imageProviders.value(providerId.toLower()).data();
 }
 
 /*!
@@ -1077,7 +1071,7 @@ void QQmlEngine::removeImageProvider(const QString &providerId)
 {
     Q_D(QQmlEngine);
     QMutexLocker locker(&d->mutex);
-    d->imageProviders.take(providerId);
+    d->imageProviders.take(providerId.toLower());
 }
 
 /*!

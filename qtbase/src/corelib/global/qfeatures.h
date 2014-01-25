@@ -311,6 +311,11 @@
 #define QT_NO_LOCALSERVER
 #endif
 
+// QPdf
+#if !defined(QT_NO_PDF) && (defined(QT_NO_TEMPORARYFILE))
+#define QT_NO_PDF
+#endif
+
 // QMenu
 #if !defined(QT_NO_MENU) && (defined(QT_NO_ACTION))
 #define QT_NO_MENU
@@ -386,11 +391,6 @@
 #define QT_NO_CONTEXTMENU
 #endif
 
-// Qt D-Bus module
-#if !defined(QT_NO_DBUS) && (defined(QT_NO_PROPERTIES) || defined(QT_NO_DOM))
-#define QT_NO_DBUS
-#endif
-
 // QPrinter
 #if !defined(QT_NO_PRINTER) && (defined(QT_NO_PICTURE) || defined(QT_NO_TEMPORARYFILE))
 #define QT_NO_PRINTER
@@ -444,6 +444,11 @@
 // Bearer Management
 #if !defined(QT_NO_BEARERMANAGEMENT) && (defined(QT_NO_LIBRARY) || defined(QT_NO_NETWORKINTERFACE) || defined(QT_NO_PROPERTIES))
 #define QT_NO_BEARERMANAGEMENT
+#endif
+
+// Qt D-Bus module
+#if !defined(QT_NO_DBUS) && (defined(QT_NO_PROPERTIES) || defined(QT_NO_XMLSTREAMREADER))
+#define QT_NO_DBUS
 #endif
 
 // QGraphicsView

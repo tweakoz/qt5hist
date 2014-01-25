@@ -93,6 +93,7 @@
 #include <qlibrary.h>
 #include <qdatetimeedit.h>
 #include <qmath.h>
+#include <qset.h>
 #include <QtWidgets/qgraphicsproxywidget.h>
 #include <QtWidgets/qgraphicsview.h>
 
@@ -193,10 +194,13 @@ public:
                                HIThemeButtonDrawInfo *bdi) const;
     QPixmap generateBackgroundPattern() const;
 
+    void setAutoDefaultButton(QObject *button) const;
+
 public:
     mutable QPointer<QObject> pressedButton;
     mutable QPointer<QObject> defaultButton;
     mutable QPointer<QObject> autoDefaultButton;
+    static  QSet<QPointer<QObject> > scrollBars;
 
     struct ButtonState {
         int frame;

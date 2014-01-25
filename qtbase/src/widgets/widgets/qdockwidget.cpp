@@ -49,6 +49,7 @@
 #include <qevent.h>
 #include <qfontmetrics.h>
 #include <qwindow.h>
+#include <qscreen.h>
 #include <qmainwindow.h>
 #include <qrubberband.h>
 #include <qstylepainter.h>
@@ -1259,6 +1260,9 @@ void QDockWidget::setFloating(bool floating)
         d->endDrag(true);
 
     QRect r = d->undockedGeometry;
+    // Keep position when undocking for the first time.
+    if (floating && isVisible() && !r.isValid())
+        r = QRect(mapToGlobal(QPoint(0, 0)), size());
 
     d->setWindowState(floating, false, floating ? r : QRect());
 
@@ -1384,9 +1388,17 @@ bool QDockWidget::event(QEvent *event)
         d->toggleViewAction->setChecked(false);
         emit visibilityChanged(false);
         break;
-    case QEvent::Show:
+    case QEvent::Show: {
         d->toggleViewAction->setChecked(true);
-        emit visibilityChanged(geometry().right() >= 0 && geometry().bottom() >= 0);
+        QPoint parentTopLeft(0, 0);
+        if (isWindow()) {
+            if (const QWindow *window = windowHandle())
+                parentTopLeft = window->screen()->availableVirtualGeometry().topLeft();
+            else
+                parentTopLeft = QGuiApplication::primaryScreen()->availableVirtualGeometry().topLeft();
+        }
+        emit visibilityChanged(geometry().right() >= parentTopLeft.x() && geometry().bottom() >= parentTopLeft.y());
+}
         break;
 #endif
     case QEvent::ApplicationLayoutDirectionChange:

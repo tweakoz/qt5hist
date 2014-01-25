@@ -1232,6 +1232,7 @@ static const char * xcb_atomnames = {
     // ICCCM window state
     "WM_STATE\0"
     "WM_CHANGE_STATE\0"
+    "WM_CLASS\0"
 
     // Session management
     "WM_CLIENT_LEADER\0"
@@ -1397,7 +1398,7 @@ static const char * xcb_atomnames = {
 #if XCB_USE_MAEMO_WINDOW_PROPERTIES
     "_MEEGOTOUCH_ORIENTATION_ANGLE\0"
 #endif
-    "_XSETTINGS_SETTINGS"
+    "_XSETTINGS_SETTINGS\0" // \0\0 terminates loop.
 };
 
 xcb_atom_t QXcbConnection::atom(QXcbAtom::Atom atom)

@@ -239,7 +239,7 @@ void QXcbWindow::create()
         // XCB_CW_BACK_PIXMAP
         XCB_NONE,
         // XCB_CW_OVERRIDE_REDIRECT
-        type == Qt::Popup || type == Qt::ToolTip,
+        type == Qt::Popup || type == Qt::ToolTip || (window()->flags() & Qt::BypassWindowManagerHint),
         // XCB_CW_SAVE_UNDER
         type == Qt::Popup || type == Qt::Tool || type == Qt::SplashScreen || type == Qt::ToolTip || type == Qt::Drawer,
         // XCB_CW_EVENT_MASK
@@ -379,6 +379,13 @@ void QXcbWindow::create()
     m_syncValue.hi = 0;
     m_syncValue.lo = 0;
 
+    const QByteArray wmClass = static_cast<QXcbIntegration *>(QGuiApplicationPrivate::platformIntegration())->wmClass();
+    if (!wmClass.isEmpty()) {
+        Q_XCB_CALL(xcb_change_property(xcb_connection(), XCB_PROP_MODE_REPLACE,
+                                       m_window, atom(QXcbAtom::WM_CLASS),
+                                       XCB_ATOM_STRING, 8, wmClass.size(), wmClass.constData()));
+    }
+
     if (m_usingSyncProtocol) {
         m_syncCounter = xcb_generate_id(xcb_connection());
         Q_XCB_CALL(xcb_sync_create_counter(xcb_connection(), m_syncCounter, m_syncValue));
@@ -458,6 +465,8 @@ void QXcbWindow::create()
     const qreal opacity = qt_window_private(window())->opacity;
     if (!qFuzzyCompare(opacity, qreal(1.0)))
         setOpacity(opacity);
+    if (window()->isTopLevel())
+        setWindowIcon(window()->icon());
 }
 
 QXcbWindow::~QXcbWindow()
@@ -1634,7 +1643,8 @@ void QXcbWindow::handleButtonPressEvent(const xcb_button_press_event_t *event)
 {
     if (window() != QGuiApplication::focusWindow()) {
         QWindow *w = static_cast<QWindowPrivate *>(QObjectPrivate::get(window()))->eventReceiver();
-        w->requestActivate();
+        if (!(w->flags() & Qt::WindowDoesNotAcceptFocus))
+            w->requestActivate();
     }
 
     updateNetWmUserTime(event->time);

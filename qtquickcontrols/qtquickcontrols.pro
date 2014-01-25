@@ -1,6 +1,4 @@
-load(qt_parts)
+requires(qtHaveModule(quick))
+requires(contains(QT_CONFIG, accessibility))
 
-# We need accessibility
-!contains(QT_CONFIG, accessibility) {
-    error("Building Qt without accessibility is not supported for qt quick controls.")
-}
+load(qt_parts)

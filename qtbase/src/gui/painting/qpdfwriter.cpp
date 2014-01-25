@@ -40,6 +40,9 @@
 ****************************************************************************/
 
 #include <qpdfwriter.h>
+
+#ifndef QT_NO_PDF
+
 #include <QtCore/private/qobject_p.h>
 #include "private/qpdf_p.h"
 #include <QtCore/qfile.h>
@@ -163,7 +166,7 @@ void QPdfWriter::setPageSize(PageSize size)
     Q_D(const QPdfWriter);
 
     QPagedPaintDevice::setPageSize(size);
-    d->engine->d_func()->paperSize = pageSizeMM() * 25.4/72.;
+    d->engine->d_func()->setPaperSize(pageSizeMM());
 }
 
 /*!
@@ -174,7 +177,7 @@ void QPdfWriter::setPageSizeMM(const QSizeF &size)
     Q_D(const QPdfWriter);
 
     QPagedPaintDevice::setPageSizeMM(size);
-    d->engine->d_func()->paperSize = pageSizeMM() * 25.4/72.;
+    d->engine->d_func()->setPaperSize(pageSizeMM());
 }
 
 /*!
@@ -214,3 +217,5 @@ void QPdfWriter::setMargins(const Margins &m)
 }
 
 QT_END_NAMESPACE
+
+#endif // QT_NO_PDF

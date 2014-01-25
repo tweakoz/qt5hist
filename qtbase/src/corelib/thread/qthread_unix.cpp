@@ -83,9 +83,9 @@
 #   define old_qDebug qDebug
 #   undef qDebug
 # endif
-#ifndef Q_OS_IOS
+#ifdef Q_OS_MACX
 # include <CoreServices/CoreServices.h>
-#endif //Q_OS_IOS
+#endif // Q_OS_MACX
 
 # ifdef old_qDebug
 #   undef qDebug
@@ -172,6 +172,12 @@ static void destroy_current_thread_data_key()
 {
     pthread_once(&current_thread_data_once, create_current_thread_data_key);
     pthread_key_delete(current_thread_data_key);
+
+    // Reset current_thread_data_once in case we end up recreating
+    // the thread-data in the rare case of QObject construction
+    // after destroying the QThreadData.
+    pthread_once_t pthread_once_init = PTHREAD_ONCE_INIT;
+    current_thread_data_once = pthread_once_init;
 }
 Q_DESTRUCTOR_FUNCTION(destroy_current_thread_data_key)
 

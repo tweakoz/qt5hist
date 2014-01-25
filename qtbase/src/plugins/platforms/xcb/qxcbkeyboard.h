@@ -84,13 +84,15 @@ public:
 
 protected:
     void handleKeyEvent(QWindow *window, QEvent::Type type, xcb_keycode_t code, quint16 state, xcb_timestamp_t time);
+    void resolveMaskConflicts();
 
     QString keysymToUnicode(xcb_keysym_t sym) const;
 
     int keysymToQtKey(xcb_keysym_t keysym) const;
     int keysymToQtKey(xcb_keysym_t keysym, Qt::KeyboardModifiers &modifiers, QString text) const;
 
-    void readXKBConfig(struct xkb_rule_names *names);
+    void readXKBConfig();
+    void clearXKBConfig();
 
 #ifdef QT_NO_XKB
     void updateModifiers();
@@ -106,11 +108,14 @@ private:
     struct xkb_context *xkb_context;
     struct xkb_keymap *xkb_keymap;
     struct xkb_state *xkb_state;
+    struct xkb_rule_names xkb_names;
 
     struct _mod_masks {
         uint alt;
         uint altgr;
         uint meta;
+        uint super;
+        uint hyper;
     };
 
     _mod_masks rmod_masks;

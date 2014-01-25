@@ -69,6 +69,7 @@
 #include <qheaderview.h>
 #include <qlineedit.h>
 #include <qmainwindow.h>
+#include <qmdisubwindow.h>
 #include <qmenubar.h>
 #include <qpaintdevice.h>
 #include <qpainter.h>
@@ -119,9 +120,12 @@ QMacStylePrivate *mPrivate;
 {
     Q_UNUSED(notification);
     QEvent event(QEvent::StyleChange);
-    foreach (QWidget *widget, QApplication::allWidgets()) {
-        if (QScrollBar *scrollBar = qobject_cast<QScrollBar *>(widget))
-            QCoreApplication::sendEvent(scrollBar, &event);
+    QMutableSetIterator<QPointer<QObject> > it(QMacStylePrivate::scrollBars);
+    while (it.hasNext()) {
+        if (!it.next())
+            it.remove();
+        else
+            QCoreApplication::sendEvent(it.value(), &event);
     }
 }
 @end
@@ -141,6 +145,13 @@ const int QMacStylePrivate::BevelButtonH = 22;
 const int QMacStylePrivate::PushButtonContentPadding = 6;
 const qreal QMacStylePrivate::ScrollBarFadeOutDuration = 200.0;
 const qreal QMacStylePrivate::ScrollBarFadeOutDelay = 450.0;
+
+QSet<QPointer<QObject> > QMacStylePrivate::scrollBars;
+
+static uint qHash(const QPointer<QObject> &ptr)
+{
+    return qHash(ptr.data());
+}
 
 // These colors specify the titlebar gradient colors on
 // Leopard. Ideally we should get them from the system.
@@ -839,8 +850,17 @@ static QSize qt_aqua_get_known_size(QStyle::ContentsType ct, const QWidget *widg
             gbi.direction = QApplication::isRightToLeft() ? kThemeGrowLeft | kThemeGrowDown
                                                           : kThemeGrowRight | kThemeGrowDown;
             gbi.size = sz == QAquaSizeSmall ? kHIThemeGrowBoxSizeSmall : kHIThemeGrowBoxSizeNormal;
-            if (HIThemeGetGrowBoxBounds(&p, &gbi, &r) == noErr)
-                ret = QSize(QSysInfo::MacintoshVersion <= QSysInfo::MV_10_6 ? r.size.width : 0, r.size.height);
+            if (HIThemeGetGrowBoxBounds(&p, &gbi, &r) == noErr) {
+                int width = 0;
+                // Snow Leopard and older get a size grip, as well as QMdiSubWindows.
+                if (QSysInfo::MacintoshVersion <= QSysInfo::MV_10_6
+#ifndef QT_NO_MDIAREA
+                    || (widg && widg->parentWidget() && qobject_cast<QMdiSubWindow *>(widg->parentWidget()))
+#endif
+                   )
+                    width = r.size.width;
+                ret = QSize(width, r.size.height);
+            }
         }
         break;
     case QStyle::CT_ComboBox:
@@ -1618,6 +1638,19 @@ void QMacStylePrivate::getSliderInfo(QStyle::ComplexControl cc, const QStyleOpti
     } else {
         tdi->trackInfo.scrollbar.viewsize = slider->pageStep;
     }
+}
+
+void QMacStylePrivate::setAutoDefaultButton(QObject *button) const
+{
+    if (autoDefaultButton != button) {
+        if (QStyleAnimation *anim = animation(autoDefaultButton)) {
+            anim->updateTarget();
+            stopAnimation(autoDefaultButton);
+        }
+        autoDefaultButton = button;
+    }
+    if (autoDefaultButton && !animation(autoDefaultButton))
+        startAnimation(new QStyleAnimation(autoDefaultButton));
 }
 
 QMacStylePrivate::QMacStylePrivate()
@@ -3487,15 +3520,9 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
             // takes precedence over a normal default button
             if (btn->features & QStyleOptionButton::AutoDefaultButton
                     && opt->state & State_Active && opt->state & State_HasFocus) {
-                d->autoDefaultButton = opt->styleObject;
-                if (!d->animation(opt->styleObject))
-                    d->startAnimation(new QStyleAnimation(opt->styleObject));
+                d->setAutoDefaultButton(opt->styleObject);
             } else if (d->autoDefaultButton == opt->styleObject) {
-                if (QStyleAnimation *animation = d->animation(opt->styleObject)) {
-                    animation->updateTarget();
-                    d->stopAnimation(opt->styleObject);
-                }
-                d->autoDefaultButton = 0;
+                d->setAutoDefaultButton(0);
             }
 
             if (!d->autoDefaultButton) {
@@ -4316,8 +4343,12 @@ void QMacStyle::drawControl(ControlElement ce, const QStyleOption *opt, QPainter
     case CE_ProgressBarGroove:
         break;
     case CE_SizeGrip: {
-        // We do not draw size grips on versions > 10.6
-        if (QSysInfo::MacintoshVersion > QSysInfo::MV_10_6)
+        // We do not draw size grips on versions > 10.6 unless it's a QMdiSubWindow
+        if (QSysInfo::MacintoshVersion > QSysInfo::MV_10_6
+#ifndef QT_NO_MDIAREA
+            && !(w && w->parentWidget() && qobject_cast<QMdiSubWindow *>(w->parentWidget()))
+#endif
+            )
             break;
 
         if (w && w->testAttribute(Qt::WA_MacOpaqueSizeGrip)) {
@@ -4934,6 +4965,8 @@ void QMacStyle::drawComplexControl(ComplexControl cc, const QStyleOptionComplex 
             // no longer possible to move it, second the up/down buttons are removed when
             // there is not enough space for them.
             if (cc == CC_ScrollBar) {
+                if (opt && opt->styleObject && !QMacStylePrivate::scrollBars.contains(opt->styleObject))
+                    QMacStylePrivate::scrollBars.insert(QPointer<QObject>(opt->styleObject));
                 const int scrollBarLength = (slider->orientation == Qt::Horizontal)
                     ? slider->rect.width() : slider->rect.height();
                 const QMacStyle::WidgetSizePolicy sizePolicy = widgetSizePolicy(widget, opt);
@@ -6021,10 +6054,14 @@ QSize QMacStyle::sizeFromContents(ContentsType ct, const QStyleOption *opt,
     bool useAquaGuideline = true;
 
     switch (ct) {
-    case QStyle::CT_SpinBox:
-        // hack to work around horrible sizeHint() code in QAbstractSpinBox
-        sz = QCommonStyle::sizeFromContents(ct, opt, csz, widget);
-        sz.setHeight(sz.height() - 3);
+
+    case CT_SpinBox:
+        if (const QStyleOptionSpinBox *vopt = qstyleoption_cast<const QStyleOptionSpinBox *>(opt)) {
+            // Add button + frame widths
+            int buttonWidth = 20;
+            int fw = proxy()->pixelMetric(PM_SpinBoxFrameWidth, vopt, widget);
+            sz += QSize(buttonWidth + 2*fw, 2*fw - 3);
+        }
         break;
     case QStyle::CT_TabWidget:
         // the size between the pane and the "contentsRect" (+4,+4)

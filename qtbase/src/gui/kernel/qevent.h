@@ -860,7 +860,7 @@ public:
     void setContentPos(const QPointF &pos);
 
 private:
-    QObject* m_target;
+    QObject* m_target; // Qt 6 remove.
     QPointF m_startPos;
     QSizeF m_viewportSize;
     QRectF m_contentPosRange;

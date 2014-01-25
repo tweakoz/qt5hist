@@ -598,7 +598,7 @@ int qRegisterNormalizedMetaType(const QT_PREPEND_NAMESPACE(QByteArray) &normaliz
                                    QtMetaTypePrivate::QMetaTypeFunctionHelper<T>::Create,
                                    QtMetaTypePrivate::QMetaTypeFunctionHelper<T>::Destruct,
                                    QtMetaTypePrivate::QMetaTypeFunctionHelper<T>::Construct,
-                                   sizeof(T),
+                                   int(sizeof(T)),
                                    flags,
                                    QtPrivate::MetaObjectForType<T>::value());
 }
@@ -686,7 +686,7 @@ struct QMetaTypeIdQObject<T*, /* isPointerToTypeDerivedFromQObject */ true>
 template <typename T>
 inline int qRegisterMetaTypeStreamOperators()
 {
-    register int id = qMetaTypeId<T>();
+    int id = qMetaTypeId<T>();
     QMetaType::registerStreamOperators(id, QtMetaTypePrivate::QMetaTypeFunctionHelper<T>::Save,
                                            QtMetaTypePrivate::QMetaTypeFunctionHelper<T>::Load);
     return id;
@@ -761,8 +761,8 @@ struct QMetaTypeId< SINGLE_ARG_TEMPLATE<T> > \
         Q_ASSERT(tName); \
         const int tNameLen = qstrlen(tName); \
         QByteArray typeName; \
-        typeName.reserve(sizeof(#SINGLE_ARG_TEMPLATE) + 1 + tNameLen + 1 + 1); \
-        typeName.append(#SINGLE_ARG_TEMPLATE, sizeof(#SINGLE_ARG_TEMPLATE) - 1) \
+        typeName.reserve(int(sizeof(#SINGLE_ARG_TEMPLATE)) + 1 + tNameLen + 1 + 1); \
+        typeName.append(#SINGLE_ARG_TEMPLATE, int(sizeof(#SINGLE_ARG_TEMPLATE)) - 1) \
             .append('<').append(tName, tNameLen); \
         if (typeName.endsWith('>')) \
             typeName.append(' '); \
@@ -794,8 +794,8 @@ struct QMetaTypeId< DOUBLE_ARG_TEMPLATE<T, U> > \
         const int tNameLen = qstrlen(tName); \
         const int uNameLen = qstrlen(uName); \
         QByteArray typeName; \
-        typeName.reserve(sizeof(#DOUBLE_ARG_TEMPLATE) + 1 + tNameLen + 1 + uNameLen + 1 + 1); \
-        typeName.append(#DOUBLE_ARG_TEMPLATE, sizeof(#DOUBLE_ARG_TEMPLATE) - 1) \
+        typeName.reserve(int(sizeof(#DOUBLE_ARG_TEMPLATE)) + 1 + tNameLen + 1 + uNameLen + 1 + 1); \
+        typeName.append(#DOUBLE_ARG_TEMPLATE, int(sizeof(#DOUBLE_ARG_TEMPLATE)) - 1) \
             .append('<').append(tName, tNameLen).append(',').append(uName, uNameLen); \
         if (typeName.endsWith('>')) \
             typeName.append(' '); \
@@ -830,8 +830,8 @@ struct QMetaTypeId_ ## SMART_POINTER ## _QObjectStar<T, true> \
             return id; \
         const char * const cName = T::staticMetaObject.className(); \
         QByteArray typeName; \
-        typeName.reserve(sizeof(#SMART_POINTER) + 1 + strlen(cName) + 1); \
-        typeName.append(#SMART_POINTER, sizeof(#SMART_POINTER) - 1) \
+        typeName.reserve(int(sizeof(#SMART_POINTER) + 1 + strlen(cName) + 1)); \
+        typeName.append(#SMART_POINTER, int(sizeof(#SMART_POINTER)) - 1) \
             .append('<').append(cName).append('>'); \
         const int newId = qRegisterNormalizedMetaType< SMART_POINTER<T> >( \
                         typeName, \

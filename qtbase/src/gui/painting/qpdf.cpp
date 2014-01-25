@@ -38,9 +38,13 @@
 ** $QT_END_LICENSE$
 **
 ****************************************************************************/
+
+#include "qpdf_p.h"
+
+#ifndef QT_NO_PDF
+
 #include "qplatformdefs.h"
 #include <qdebug.h>
-#include "qpdf_p.h"
 #include <qfile.h>
 #include <qtemporaryfile.h>
 #include <private/qmath_p.h>
@@ -1465,7 +1469,12 @@ int QPdfEngine::metric(QPaintDevice::PaintDeviceMetric metricType) const
     return val;
 }
 
+static inline QSizeF pageSizeToPostScriptPoints(const QSizeF &pageSizeMM)
+{
 #define Q_MM(n) int((n * 720 + 127) / 254)
+    return QSizeF(Q_MM(pageSizeMM.width()), Q_MM(pageSizeMM.height()));
+#undef Q_MM
+}
 
 QPdfEnginePrivate::QPdfEnginePrivate()
     : clipEnabled(false), allClipped(false), hasPen(true), hasBrush(false), simplePen(false),
@@ -1473,7 +1482,7 @@ QPdfEnginePrivate::QPdfEnginePrivate()
       fullPage(false), embedFonts(true),
       landscape(false),
       grayscale(false),
-      paperSize(Q_MM(210), Q_MM(297)), // A4
+      paperSize(pageSizeToPostScriptPoints(QSizeF(210, 297))), // A4
       leftMargin(10), topMargin(10), rightMargin(10), bottomMargin(10) // ~3.5 mm
 {
     resolution = 1200;
@@ -1485,6 +1494,11 @@ QPdfEnginePrivate::QPdfEnginePrivate()
     streampos = 0;
 
     stream = new QDataStream;
+}
+
+void QPdfEnginePrivate::setPaperSize(const QSizeF &pageSizeMM)
+{
+    paperSize = pageSizeToPostScriptPoints(pageSizeMM);
 }
 
 bool QPdfEngine::begin(QPaintDevice *pdev)
@@ -2514,6 +2528,10 @@ void QPdfEnginePrivate::drawTextItem(const QPointF &p, const QTextItemInt &ti)
 
     qreal size = ti.fontEngine->fontDef.pixelSize;
 
+#if defined(Q_OS_WIN)
+    size = (ti.fontEngine->ascent() + ti.fontEngine->descent()).toReal();
+#endif
+
     QVarLengthArray<glyph_t> glyphs;
     QVarLengthArray<QFixedPoint> positions;
     QTransform m = QTransform::fromTranslate(p.x(), p.y());
@@ -2624,5 +2642,6 @@ void QPdfEnginePrivate::newPage()
                  << "q q\n";
 }
 
-
 QT_END_NAMESPACE
+
+#endif // QT_NO_PDF

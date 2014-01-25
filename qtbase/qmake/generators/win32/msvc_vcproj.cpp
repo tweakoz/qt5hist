@@ -77,6 +77,8 @@ struct DotNetCombo {
     const char *regKey;
 } dotNetCombo[] = {
 #ifdef Q_OS_WIN64
+    {NET2013, "MSVC.NET 2013 (12.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\12.0\\Setup\\VC\\ProductDir"},
+    {NET2013, "MSVC.NET 2013 Express Edition (12.0)", "Software\\Wow6432Node\\Microsoft\\VCExpress\\12.0\\Setup\\VC\\ProductDir"},
     {NET2012, "MSVC.NET 2012 (11.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\11.0\\Setup\\VC\\ProductDir"},
     {NET2012, "MSVC.NET 2012 Express Edition (11.0)", "Software\\Wow6432Node\\Microsoft\\VCExpress\\11.0\\Setup\\VC\\ProductDir"},
     {NET2010, "MSVC.NET 2010 (10.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\10.0\\Setup\\VC\\ProductDir"},
@@ -88,6 +90,8 @@ struct DotNetCombo {
     {NET2003, "MSVC.NET 2003 (7.1)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\7.1\\Setup\\VC\\ProductDir"},
     {NET2002, "MSVC.NET 2002 (7.0)", "Software\\Wow6432Node\\Microsoft\\VisualStudio\\7.0\\Setup\\VC\\ProductDir"},
 #else
+    {NET2013, "MSVC.NET 2013 (12.0)", "Software\\Microsoft\\VisualStudio\\12.0\\Setup\\VC\\ProductDir"},
+    {NET2013, "MSVC.NET 2013 Express Edition (12.0)", "Software\\Microsoft\\VCExpress\\12.0\\Setup\\VC\\ProductDir"},
     {NET2012, "MSVC.NET 2012 (11.0)", "Software\\Microsoft\\VisualStudio\\11.0\\Setup\\VC\\ProductDir"},
     {NET2012, "MSVC.NET 2012 Express Edition (11.0)", "Software\\Microsoft\\VCExpress\\11.0\\Setup\\VC\\ProductDir"},
     {NET2010, "MSVC.NET 2010 (10.0)", "Software\\Microsoft\\VisualStudio\\10.0\\Setup\\VC\\ProductDir"},
@@ -183,6 +187,8 @@ const char _slnHeader100[]      = "Microsoft Visual Studio Solution File, Format
                                   "\n# Visual Studio 2010";
 const char _slnHeader110[]      = "Microsoft Visual Studio Solution File, Format Version 12.00"
                                   "\n# Visual Studio 2012";
+const char _slnHeader120[]      = "Microsoft Visual Studio Solution File, Format Version 12.00"
+                                  "\n# Visual Studio 2013";
                                   // The following UUID _may_ change for later servicepacks...
                                   // If so we need to search through the registry at
                                   // HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\VisualStudio\7.0\Projects
@@ -200,8 +206,9 @@ const char _slnSolutionConf[]   = "\n\tGlobalSection(SolutionConfiguration) = pr
                                   "\n\t\tConfigName.0 = Debug|Win32"
                                   "\n\t\tConfigName.1 = Release|Win32"
                                   "\n\tEndGlobalSection";
-const char _slnProjDepBeg[]     = "\n\tGlobalSection(ProjectDependencies) = postSolution";
-const char _slnProjDepEnd[]     = "\n\tEndGlobalSection";
+
+const char _slnProjDepBeg[]     = "\n\tProjectSection(ProjectDependencies) = postProject";
+const char _slnProjDepEnd[]     = "\n\tEndProjectSection";
 const char _slnProjConfBeg[]    = "\n\tGlobalSection(ProjectConfiguration) = postSolution";
 const char _slnProjRelConfTag1[]= ".Release|%1.ActiveCfg = Release|";
 const char _slnProjRelConfTag2[]= ".Release|%1.Build.0 = Release|";
@@ -571,10 +578,6 @@ ProStringList VcprojGenerator::collectDependencies(QMakeProject *proj, QHash<QSt
 #endif
                     solution_cleanup.append(newDep);
                     solution_depends.insert(newDep->target, newDep);
-                    t << _slnProjectBeg << _slnMSVCvcprojGUID << _slnProjectMid
-                        << "\"" << newDep->orig_target << "\", \"" << newDep->vcprojFile
-                        << "\", \"" << newDep->uuid << "\"";
-                    t << _slnProjectEnd;
                 }
 nextfile:
                 qmake_setpwd(oldpwd);
@@ -595,6 +598,9 @@ void VcprojGenerator::writeSubDirs(QTextStream &t)
     }
 
     switch(which_dotnet_version()) {
+    case NET2013:
+        t << _slnHeader120;
+        break;
     case NET2012:
         t << _slnHeader110;
         break;
@@ -634,6 +640,30 @@ void VcprojGenerator::writeSubDirs(QTextStream &t)
     QHash<QString, ProStringList> subdirProjectLookup;
     collectDependencies(project, profileLookup, projGuids, extraSubdirs, solution_depends, solution_cleanup, t, subdirProjectLookup);
 
+    // write out projects
+    for (QList<VcsolutionDepend*>::Iterator it = solution_cleanup.begin(); it != solution_cleanup.end(); ++it) {
+        t << _slnProjectBeg << _slnMSVCvcprojGUID << _slnProjectMid
+            << "\"" << (*it)->orig_target << "\", \"" << (*it)->vcprojFile
+            << "\", \"" << (*it)->uuid << "\"";
+
+        debug_msg(1, "Project %s has dependencies: %s", (*it)->target.toLatin1().constData(), (*it)->dependencies.join(" ").toLatin1().constData());
+
+        bool hasDependency = false;
+        for (QStringList::iterator dit = (*it)->dependencies.begin();  dit != (*it)->dependencies.end(); ++dit) {
+            if (VcsolutionDepend *vc = solution_depends[*dit]) {
+                if (!hasDependency) {
+                    hasDependency = true;
+                    t << _slnProjDepBeg;
+                }
+                t << "\n\t\t" << vc->uuid << " = " << vc->uuid;
+            }
+        }
+        if (hasDependency)
+            t << _slnProjDepEnd;
+
+        t << _slnProjectEnd;
+    }
+
     t << _slnGlobalBeg;
 
     QHashIterator<VcsolutionDepend *, QStringList> extraIt(extraSubdirs);
@@ -657,20 +687,9 @@ void VcprojGenerator::writeSubDirs(QTextStream &t)
     }
     t << slnConf;
 
-    t << _slnProjDepBeg;
-
     // Restore previous after_user_var options
     Option::globals->postcmds = old_after_vars;
 
-    // Figure out dependencies
-    for(QList<VcsolutionDepend*>::Iterator it = solution_cleanup.begin(); it != solution_cleanup.end(); ++it) {
-        int cnt = 0;
-        for(QStringList::iterator dit = (*it)->dependencies.begin();  dit != (*it)->dependencies.end(); ++dit) {
-            if(VcsolutionDepend *vc = solution_depends[*dit])
-                t << "\n\t\t" << (*it)->uuid << "." << cnt++ << " = " << vc->uuid;
-        }
-    }
-    t << _slnProjDepEnd;
     t << _slnProjConfBeg;
     for(QList<VcsolutionDepend*>::Iterator it = solution_cleanup.begin(); it != solution_cleanup.end(); ++it) {
         QString platform = is64Bit ? "x64" : "Win32";
@@ -858,6 +877,9 @@ void VcprojGenerator::initProject()
     // Own elements -----------------------------
     vcProject.Name = unescapeFilePath(project->first("QMAKE_ORIG_TARGET").toQString());
     switch(which_dotnet_version()) {
+    case NET2013:
+        vcProject.Version = "13.00";
+        break;
     case NET2012:
         vcProject.Version = "12.00";
         break;
@@ -915,6 +937,7 @@ void VcprojGenerator::initConfiguration()
         conf.linker.GenerateDebugInformation = isDebug ? _True : _False;
         initLinkerTool();
     }
+    initManifestTool();
     initResourceTool();
     initIDLTool();
 
@@ -1033,6 +1056,19 @@ void VcprojGenerator::initLibrarianTool()
     conf.librarian.OutputFile = "$(OutDir)\\";
     conf.librarian.OutputFile += project->first("MSVCPROJ_TARGET").toQString();
     conf.librarian.AdditionalOptions += project->values("QMAKE_LIBFLAGS").toQStringList();
+}
+
+void VcprojGenerator::initManifestTool()
+{
+    VCManifestTool &tool = vcProject.Configuration.manifestTool;
+    const ProString tmplt = project->first("TEMPLATE");
+    if ((tmplt == "vclib"
+         && !project->isActiveConfig("embed_manifest_dll")
+         && !project->isActiveConfig("static"))
+        || (tmplt == "vcapp"
+            && !project->isActiveConfig("embed_manifest_exe"))) {
+        tool.EmbedManifest = _False;
+    }
 }
 
 void VcprojGenerator::initLinkerTool()
@@ -1298,7 +1334,8 @@ void VcprojGenerator::initGeneratedFiles()
     vcProject.GeneratedFiles.addFiles(project->values("GENERATED_SOURCES"));
     vcProject.GeneratedFiles.addFiles(project->values("GENERATED_FILES"));
     vcProject.GeneratedFiles.addFiles(project->values("IDLSOURCES"));
-    vcProject.GeneratedFiles.addFiles(project->values("RES_FILE"));
+    if (project->values("RC_FILE").isEmpty())
+        vcProject.GeneratedFiles.addFiles(project->values("RES_FILE"));
     vcProject.GeneratedFiles.addFiles(project->values("QMAKE_IMAGE_COLLECTION"));   // compat
     if(!extraCompilerOutputs.isEmpty())
         vcProject.GeneratedFiles.addFiles(extraCompilerOutputs.keys());

@@ -1,7 +1,7 @@
 /****************************************************************************
 **
 ** Copyright (C) 2013 Digia Plc and/or its subsidiary(-ies).
-** Contact: http://www.qt-project.org/
+** Contact: http://www.qt-project.org/legal
 **
 ** This file is part of the tools applications of the Qt Toolkit.
 **
@@ -178,8 +178,10 @@ protected:
     QMap<QString, QStringList> editionGroupMap;
     QMap<QString, QStringList> editionModuleMap;
     QString naturalLanguage;
+#ifndef QT_NO_TEXTCODEC
     QTextCodec* outputCodec;
     QString outputEncoding;
+#endif
     QString tagFile_;
     QStack<QTextStream*> outStreamStack;
 

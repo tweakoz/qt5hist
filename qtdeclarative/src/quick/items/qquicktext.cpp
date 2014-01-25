@@ -954,7 +954,10 @@ QRectF QQuickTextPrivate::setupTextLayout(qreal *const baseline)
 
                 // Create the remainder of the unwrapped lines up to maxLineCount to get the
                 // implicit width.
-                if (line.isValid() && layoutText.at(line.textStart() + line.textLength()) != QChar::LineSeparator)
+                const int eol = line.isValid()
+                        ? line.textStart() + line.textLength()
+                        : layoutText.length();
+                if (eol < layoutText.length() && layoutText.at(eol) != QChar::LineSeparator)
                     line = layout.createLine();
                 for (; line.isValid() && unwrappedLineCount <= maxLineCount; ++unwrappedLineCount)
                     line = layout.createLine();
@@ -1790,6 +1793,10 @@ void QQuickText::setVAlign(VAlignment align)
         return;
 
     d->vAlign = align;
+
+    if (isComponentComplete())
+        d->updateLayout();
+
     emit verticalAlignmentChanged(align);
 }
 
@@ -2152,9 +2159,10 @@ void QQuickText::geometryChanged(const QRectF &newGeometry, const QRectF &oldGeo
     if ((!widthChanged && !heightChanged) || d->internalWidthUpdate)
         goto geomChangeDone;
 
-    if (effectiveHAlign() != QQuickText::AlignLeft && widthChanged) {
+    if ((effectiveHAlign() != QQuickText::AlignLeft && widthChanged)
+            || (vAlign() != QQuickText::AlignTop && heightChanged)) {
         // If the width has changed and we're not left aligned do an update so the text is
-        // repositioned even if a full layout isn't required.
+        // repositioned even if a full layout isn't required. And the same for vertical.
         d->updateType = QQuickTextPrivate::UpdatePaintNode;
         update();
     }

@@ -137,23 +137,7 @@
     } else if ([attribute isEqualToString:NSAccessibilityRoleDescriptionAttribute]) {
         return NSAccessibilityRoleDescription(role, nil);
     } else if ([attribute isEqualToString:NSAccessibilityChildrenAttribute]) {
-
-        int numKids = iface->childCount();
-        // qDebug() << "Children for: " << axid << iface << " are: " << numKids;
-
-        NSMutableArray *kids = [NSMutableArray arrayWithCapacity:numKids];
-        for (int i = 0; i < numKids; ++i) {
-            QAccessibleInterface *child = iface->child(i);
-            Q_ASSERT(child);
-            QAccessible::Id childId = QAccessible::uniqueId(child);
-            //qDebug() << "    kid: " << childId << child;
-            QCocoaAccessibleElement *element = [QCocoaAccessibleElement createElementWithId:childId parent:self];
-            [kids addObject: element];
-            [element release];
-        }
-        // ### maybe we should use NSAccessibilityUnignoredChildren(kids); this needs more profiling
-        return kids;
-
+        return QCocoaAccessible::unignoredChildren(self, iface);
     } else if ([attribute isEqualToString:NSAccessibilityFocusedAttribute]) {
         // Just check if the app thinks we're focused.
         id focusedElement = [NSApp accessibilityAttributeValue:NSAccessibilityFocusedUIElementAttribute];
@@ -272,8 +256,7 @@
     // No child found, meaning we hit this element.
     if (!childInterface) {
 //        qDebug() << "Hit test returns: " << id << iface;
-        return self;
-        //return NSAccessibilityUnignoredAncestor(self);
+        return NSAccessibilityUnignoredAncestor(self);
     }
 
     QAccessible::Id childId = QAccessible::uniqueId(childInterface);

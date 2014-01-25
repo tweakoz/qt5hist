@@ -380,7 +380,7 @@ void tst_QNetworkProxyFactory::genericSystemProxy()
     QFETCH(int, port);
 
 // The generic system proxy is only available on the following platforms
-#if (!defined Q_OS_BLACKBERRY) && (!defined Q_OS_WIN) && ((!defined Q_OS_MAC) || defined Q_OS_IOS)
+#if (!defined Q_OS_BLACKBERRY) && (!defined Q_OS_WIN) && (!defined Q_OS_MACX)
     qputenv(envVar, url);
     const QList<QNetworkProxy> systemProxy = QNetworkProxyFactory::systemProxyForQuery();
     QCOMPARE(systemProxy.size(), 1);
@@ -389,6 +389,11 @@ void tst_QNetworkProxyFactory::genericSystemProxy()
     QCOMPARE(systemProxy.first().port(), static_cast<quint16>(port));
     qunsetenv(envVar);
 #else
+    Q_UNUSED(envVar)
+    Q_UNUSED(url)
+    Q_UNUSED(proxyType)
+    Q_UNUSED(hostName)
+    Q_UNUSED(port)
     QSKIP("Generic system proxy not available on this platform.");
 #endif
 }

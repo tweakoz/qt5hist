@@ -157,14 +157,19 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
                                                QtWindows::WindowsEventType et,
                                                MSG msg, LRESULT *result)
 {
-    enum { signatureMask = 0xffffff00, miWpSignature = 0xff515700 };
+#ifdef Q_COMPILER_CLASS_ENUM
+    enum : quint64 { signatureMask = 0xffffff00, miWpSignature = 0xff515700 };
+#else
+    static const quint64 signatureMask = 0xffffff00;
+    static const quint64 miWpSignature = 0xff515700;
+#endif // !Q_COMPILER_CLASS_ENUM
 
     if (et == QtWindows::MouseWheelEvent)
         return translateMouseWheelEvent(window, hwnd, msg, result);
 
 #ifndef Q_OS_WINCE
     // Check for events synthesized from touch. Lower byte is touch index, 0 means pen.
-    const LPARAM extraInfo = GetMessageExtraInfo();
+    const quint64 extraInfo = GetMessageExtraInfo();
     const bool fromTouch = (extraInfo & signatureMask) == miWpSignature && (extraInfo & 0xff);
     if (fromTouch)
         return false;
@@ -232,8 +237,10 @@ bool QWindowsMouseHandler::translateMouseEvent(QWindow *window, HWND hwnd,
     }
 
     const QPoint globalPosition = QWindowsGeometryHint::mapToGlobal(hwnd, winEventPosition);
+    // In this context, neither an invisible nor a transparent window (transparent regarding mouse
+    // events, "click-through") can be considered as the window under mouse.
     QWindow *currentWindowUnderMouse = platformWindow->hasMouseCapture() ?
-        QWindowsScreen::windowAt(globalPosition) : window;
+        QWindowsScreen::windowAt(globalPosition, CWP_SKIPINVISIBLE | CWP_SKIPTRANSPARENT) : window;
 
     compressMouseMove(&msg);
     // Qt expects the platform plugin to capture the mouse on

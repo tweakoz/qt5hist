@@ -44,35 +44,14 @@
 #include "qquickmenu_p.h"
 #include "qquickmenubar_p.h"
 #include "qquickstack_p.h"
+#include "qquickdesktopiconprovider_p.h"
 
-#include <qimage.h>
 #include <qqml.h>
 #include <qqmlengine.h>
 #include <qqmlextensionplugin.h>
-#include <qquickimageprovider.h>
 #include <qquickwindow.h>
 
 QT_BEGIN_NAMESPACE
-
-// Load icons from desktop theme
-class DesktopIconProvider : public QQuickImageProvider
-{
-public:
-    DesktopIconProvider()
-        : QQuickImageProvider(QQuickImageProvider::Pixmap)
-    {
-    }
-
-    QPixmap requestPixmap(const QString &id, QSize *size, const QSize &requestedSize)
-    {
-        Q_UNUSED(requestedSize);
-        Q_UNUSED(size);
-        int pos = id.lastIndexOf('/');
-        QString iconName = id.right(id.length() - pos);
-        int width = requestedSize.width();
-        return QIcon::fromTheme(iconName).pixmap(width);
-    }
-};
 
 class QtQuickControlsPlugin : public QQmlExtensionPlugin
 {
@@ -103,7 +82,7 @@ void QtQuickControlsPlugin::registerTypes(const char *uri)
 void QtQuickControlsPlugin::initializeEngine(QQmlEngine *engine, const char *uri)
 {
     Q_UNUSED(uri);
-    engine->addImageProvider("desktoptheme", new DesktopIconProvider);
+    engine->addImageProvider("desktoptheme", new QQuickDesktopIconProvider);
 }
 
 QT_END_NAMESPACE

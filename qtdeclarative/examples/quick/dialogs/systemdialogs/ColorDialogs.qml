@@ -40,11 +40,11 @@
 
 import QtQuick 2.0
 import QtQuick.Dialogs 1.0
-import "../shared"
+import "../../shared"
 
 Rectangle {
     width: 320
-    height: 200
+    height: 240
     color: palette.window
     SystemPalette { id: palette }
     clip: true
@@ -115,15 +115,16 @@ Rectangle {
             right: parent.right
             bottom: parent.bottom
         }
-        height: 50
+        height: buttonRow.height * 1.2
         color: Qt.darker(palette.window, 1.1)
         border.color: Qt.darker(palette.window, 1.3)
         Row {
+            id: buttonRow
             spacing: 6
             anchors.verticalCenter: parent.verticalCenter
             anchors.left: parent.left
             anchors.leftMargin: 12
-            height: parent.height - 6
+            height: implicitHeight
             width: parent.width
             Button {
                 text: "Open"

@@ -9,6 +9,7 @@ lance \
 network_remote_stresstest \
 network_stresstest \
 qcursor \
+qdesktopservices \
 qdesktopwidget \
 qgraphicsitem \
 qgraphicsitemgroup \
@@ -39,7 +40,8 @@ widgetgrab \
 xembed-raster \
 xembed-widgets \
 dialogs \
-windowtransparency
+windowtransparency \
+unc
 
 !contains(QT_CONFIG, openssl):!contains(QT_CONFIG, openssl-linked):SUBDIRS -= qssloptions
 

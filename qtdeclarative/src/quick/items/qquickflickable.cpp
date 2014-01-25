@@ -2280,7 +2280,11 @@ bool QQuickFlickablePrivate::isViewMoving() const
     within the timeout, both the press and release will be delivered.
 
     Note that for nested Flickables with pressDelay set, the pressDelay of
-    outer Flickables is overridden by the innermost Flickable.
+    outer Flickables is overridden by the innermost Flickable. If the drag
+    exceeds the platform drag threshold, the press event will be delivered
+    regardless of this property.
+
+    \sa QStyleHints
 */
 int QQuickFlickable::pressDelay() const
 {
@@ -2379,7 +2383,7 @@ void QQuickFlickable::movementEnding(bool hMovementEnding, bool vMovementEnding)
     }
 
     // emit moving signals
-    bool wasMoving = d->hData.moving || d->vData.moving;
+    bool wasMoving = isMoving();
     if (hMovementEnding && d->hData.moving
             && (!d->pressed && !d->stealMouse)) {
         d->hData.moving = false;
@@ -2392,7 +2396,7 @@ void QQuickFlickable::movementEnding(bool hMovementEnding, bool vMovementEnding)
         d->vMoved = false;
         emit movingVerticallyChanged();
     }
-    if (wasMoving && (!d->hData.moving || !d->vData.moving)) {
+    if (wasMoving && !isMoving()) {
         emit movingChanged();
         emit movementEnded();
     }

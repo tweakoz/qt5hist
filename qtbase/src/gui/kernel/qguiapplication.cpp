@@ -94,9 +94,12 @@
 #include <QtGui/QClipboard>
 #endif
 
-#ifdef Q_OS_MAC
+#if defined(Q_OS_MAC)
 #  include "private/qcore_mac_p.h"
-#endif
+#elif defined(Q_OS_WIN) && !defined(Q_OS_WINCE)
+#  include <QtCore/qt_windows.h>
+#  include <QtCore/QLibraryInfo>
+#endif // Q_OS_WIN && !Q_OS_WINCE
 
 QT_BEGIN_NAMESPACE
 
@@ -205,6 +208,11 @@ static inline void clearFontUnlocked()
 {
     delete QGuiApplicationPrivate::app_font;
     QGuiApplicationPrivate::app_font = 0;
+}
+
+static inline bool isPopupWindow(const QWindow *w)
+{
+    return (w->flags() & Qt::WindowType_Mask) == Qt::Popup;
 }
 
 /*!
@@ -474,18 +482,25 @@ QWindow *QGuiApplication::modalWindow()
     return QGuiApplicationPrivate::self->modalWindowList.first();
 }
 
+static void updateBlockedStatusRecursion(QWindow *window, bool shouldBeBlocked)
+{
+    QWindowPrivate *p = qt_window_private(window);
+    if (p->blockedByModalWindow != shouldBeBlocked) {
+        p->blockedByModalWindow = shouldBeBlocked;
+        QEvent e(shouldBeBlocked ? QEvent::WindowBlocked : QEvent::WindowUnblocked);
+        QGuiApplication::sendEvent(window, &e);
+        foreach (QObject *c, window->children())
+            if (c->isWindowType())
+                updateBlockedStatusRecursion(static_cast<QWindow *>(c), shouldBeBlocked);
+    }
+}
+
 void QGuiApplicationPrivate::updateBlockedStatus(QWindow *window)
 {
     bool shouldBeBlocked = false;
-    if ((window->type() & Qt::Popup) != Qt::Popup && !self->modalWindowList.isEmpty())
+    if (!isPopupWindow(window) && !self->modalWindowList.isEmpty())
         shouldBeBlocked = self->isWindowBlocked(window);
-
-    if (shouldBeBlocked != window->d_func()->blockedByModalWindow) {
-        QEvent e(shouldBeBlocked ? QEvent::WindowBlocked : QEvent::WindowUnblocked);
-
-        window->d_func()->blockedByModalWindow = shouldBeBlocked;
-        QGuiApplication::sendEvent(window, &e);
-    }
+    updateBlockedStatusRecursion(window, shouldBeBlocked);
 }
 
 void QGuiApplicationPrivate::showModalWindow(QWindow *modal)
@@ -493,7 +508,7 @@ void QGuiApplicationPrivate::showModalWindow(QWindow *modal)
     self->modalWindowList.prepend(modal);
 
     // Send leave for currently entered window if it should be blocked
-    if (currentMouseWindow && (currentMouseWindow->type() & Qt::Popup) != Qt::Popup) {
+    if (currentMouseWindow && !isPopupWindow(currentMouseWindow)) {
         bool shouldBeBlocked = self->isWindowBlocked(currentMouseWindow);
         if (shouldBeBlocked) {
             // Remove the new window from modalWindowList temporarily so leave can go through
@@ -782,12 +797,21 @@ static void init_platform(const QString &pluginArgument, const QString &platform
         QGuiApplicationPrivate::platform_name = new QString(name);
     } else {
         QStringList keys = QPlatformIntegrationFactory::keys(platformPluginPath);
-        QString fatalMessage =
-            QString::fromLatin1("Failed to load platform plugin \"%1\". Available platforms are: \n").arg(name);
-        foreach(const QString &key, keys) {
-            fatalMessage.append(key + QLatin1Char('\n'));
+
+        QString fatalMessage
+                = QStringLiteral("This application failed to start because it could not find or load the Qt platform plugin \"%1\".\n\n").arg(name);
+        if (!keys.isEmpty()) {
+            fatalMessage += QStringLiteral("Available platform plugins are: %1.\n\n").arg(
+                        keys.join(QStringLiteral(", ")));
         }
-        qFatal("%s", fatalMessage.toLocal8Bit().constData());
+        fatalMessage += QStringLiteral("Reinstalling the application may fix this problem.");
+#if defined(Q_OS_WIN) && !defined(Q_OS_WINCE)
+        // Windows: Display message box unless it is a console application
+        // or debug build showing an assert box.
+        if (!QLibraryInfo::isDebugBuild() && !GetConsoleWindow())
+            MessageBox(0, (LPCTSTR)fatalMessage.utf16(), (LPCTSTR)(QCoreApplication::applicationName().utf16()), MB_OK | MB_ICONERROR);
+#endif // Q_OS_WIN && !Q_OS_WINCE
+        qFatal("%s", qPrintable(fatalMessage));
         return;
     }
 
@@ -2477,10 +2501,18 @@ void QGuiApplicationPrivate::emitLastWindowClosed()
 
 bool QGuiApplicationPrivate::shouldQuit()
 {
+    const QWindowList processedWindows;
+    return shouldQuitInternal(processedWindows);
+}
+
+bool QGuiApplicationPrivate::shouldQuitInternal(const QWindowList &processedWindows)
+{
     /* if there is no visible top-level window left, we allow the quit */
     QWindowList list = QGuiApplication::topLevelWindows();
     for (int i = 0; i < list.size(); ++i) {
         QWindow *w = list.at(i);
+        if (processedWindows.contains(w))
+            continue;
         if (w->isVisible() && !w->transientParent())
             return false;
     }

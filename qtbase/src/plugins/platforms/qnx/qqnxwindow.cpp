@@ -77,7 +77,7 @@ QQnxWindow::QQnxWindow(QWindow *window, screen_context_t context)
 #endif
       m_screen(0),
       m_parentWindow(0),
-      m_visible(true),
+      m_visible(false),
       m_windowState(Qt::WindowNoState),
       m_requestedBufferSize(window->geometry().size())
 {
@@ -135,7 +135,7 @@ QQnxWindow::QQnxWindow(QWindow *window, screen_context_t context)
     if (result != 0)
         qFatal("QQnxWindow: failed to set window swap interval, errno=%d", errno);
 
-    if (window->flags() && Qt::WindowDoesNotAcceptFocus) {
+    if (window->flags() & Qt::WindowDoesNotAcceptFocus) {
         errno = 0;
         val = SCREEN_SENSITIVITY_NO_FOCUS;
         result = screen_set_window_property_iv(m_window, SCREEN_PROPERTY_SENSITIVITY, &val);
@@ -153,7 +153,6 @@ QQnxWindow::QQnxWindow(QWindow *window, screen_context_t context)
     if (window->parent() && window->parent()->handle())
         setParent(window->parent()->handle());
     setGeometryHelper(window->geometry());
-    setVisible(window->isVisible());
 }
 
 QQnxWindow::~QQnxWindow()
@@ -273,6 +272,9 @@ void QQnxWindow::setVisible(bool visible)
 {
     qWindowDebug() << Q_FUNC_INFO << "window =" << window() << "visible =" << visible;
 
+    if (m_visible == visible)
+        return;
+
     m_visible = visible;
 
     QQnxWindow *root = this;
@@ -283,13 +285,13 @@ void QQnxWindow::setVisible(bool visible)
 
     window()->requestActivate();
 
-    if (window()->isTopLevel()) {
-        QWindowSystemInterface::handleExposeEvent(window(), window()->geometry());
+    QWindowSystemInterface::handleExposeEvent(window(), window()->geometry());
 
-        if (!visible) {
-            // Flush the context, otherwise it won't disappear immediately
-            screen_flush_context(m_screenContext, 0);
-        }
+    if (visible) {
+        applyWindowState();
+    } else {
+        // Flush the context, otherwise it won't disappear immediately
+        screen_flush_context(m_screenContext, 0);
     }
 }
 
@@ -626,35 +628,10 @@ void QQnxWindow::setWindowState(Qt::WindowState state)
     if (m_windowState == state)
         return;
 
-    switch (state) {
-
-    // WindowActive is not an accepted parameter according to the docs
-    case Qt::WindowActive:
-        return;
-
-    case Qt::WindowMinimized:
-        minimize();
-
-        if (m_unmaximizedGeometry.isValid())
-            setGeometry(m_unmaximizedGeometry);
-        else
-            setGeometry(m_screen->geometry());
-
-        break;
-
-    case Qt::WindowMaximized:
-    case Qt::WindowFullScreen:
-        m_unmaximizedGeometry = geometry();
-        setGeometry(state == Qt::WindowMaximized ? m_screen->availableGeometry() : m_screen->geometry());
-        break;
-
-    case Qt::WindowNoState:
-        if (m_unmaximizedGeometry.isValid())
-            setGeometry(m_unmaximizedGeometry);
-        break;
-    }
-
     m_windowState = state;
+
+    if (m_visible)
+        applyWindowState();
 }
 
 void QQnxWindow::gainedFocus()
@@ -733,6 +710,37 @@ void QQnxWindow::updateZorder(int &topZorder)
 
     Q_FOREACH (QQnxWindow *childWindow, m_childWindows)
         childWindow->updateZorder(topZorder);
+}
+
+void QQnxWindow::applyWindowState()
+{
+    switch (m_windowState) {
+
+    // WindowActive is not an accepted parameter according to the docs
+    case Qt::WindowActive:
+        return;
+
+    case Qt::WindowMinimized:
+        minimize();
+
+        if (m_unmaximizedGeometry.isValid())
+            setGeometry(m_unmaximizedGeometry);
+        else
+            setGeometry(m_screen->geometry());
+
+        break;
+
+    case Qt::WindowMaximized:
+    case Qt::WindowFullScreen:
+        m_unmaximizedGeometry = geometry();
+        setGeometry(m_windowState == Qt::WindowMaximized ? m_screen->availableGeometry() : m_screen->geometry());
+        break;
+
+    case Qt::WindowNoState:
+        if (m_unmaximizedGeometry.isValid())
+            setGeometry(m_unmaximizedGeometry);
+        break;
+    }
 }
 
 void QQnxWindow::blitHelper(QQnxBuffer &source, QQnxBuffer &target, const QPoint &sourceOffset,

@@ -97,7 +97,6 @@ my $force_win = 0;
 my $force_relative = 0;
 my $check_includes = 0;
 my $copy_headers = 0;
-my $create_uic_class_map = 0;
 my $create_private_headers = 1;
 my $minimal = 0;
 my $module_version = 0;
@@ -508,36 +507,6 @@ sub copyFile
 }
 
 ######################################################################
-# Syntax:  symlinkFile(file, ifile)
-# Params:  file, string, filename to create "symlink" for
-#          ifile, string, destination name of symlink
-#
-# Purpose: File is symlinked to ifile (or copied if filesystem doesn't
-#          support symlink).
-# Returns: 1 on success, else 0.
-######################################################################
-sub symlinkFile
-{
-    my ($lib, $file, $ifile) = @_;
-
-    if ($isunix) {
-        print "$lib: symlink created for $file " if ($verbose_level);
-        if ( $force_relative && ($ifile =~ /^$quoted_basedir/)) {
-            my $t = getcwd();
-            my $c = -1;
-            my $p = "../";
-            $t =~ s-^$quoted_basedir/--;
-            $p .= "../" while( ($c = index( $t, "/", $c + 1)) != -1 );
-            $file =~ s-^$quoted_basedir/-$p-;
-            print " ($file)\n" if($verbose_level);
-        }
-        print "\n" if($verbose_level);
-        return symlink($file, $ifile);
-    }
-    return copyFile($lib, $file, $ifile);
-}
-
-######################################################################
 # Syntax:  findFiles(dir, match, descend)
 # Params:  dir, string, directory to search for name
 #          match, string, regular expression to match in dir
@@ -786,7 +755,6 @@ while ( @ARGV ) {
         $modules{$module} = $prodir;
         push @modules_to_sync, $module;
         $moduleheaders{$module} = $headerdir;
-        $create_uic_class_map = 0;
     } elsif ($var eq "version") {
         if($val) {
             $module_version = $val;
@@ -1079,34 +1047,37 @@ foreach my $lib (@modules_to_sync) {
                 my $header_dir = dirname($header_path);
                 make_path($header_dir, $lib, $verbose_level);
 
-                open(HEADER, ">$header_path") || die "Could not open $header_path for writing: $!\n";
-                print HEADER "#ifndef $guard\n";
-                print HEADER "#define $guard\n";
+                my $hdrcont =
+                    "#ifndef $guard\n" .
+                    "#define $guard\n";
                 my $warning = "Header <$lib/";
                 $warning .= "private/" unless ($public_header);
                 $warning .= "$header> is deprecated. Please include <$include> instead.";
-                print HEADER "#if defined(__GNUC__)\n";
-                print HEADER "#  warning $warning\n";
-                print HEADER "#elif defined(_MSC_VER)\n";
-                print HEADER "#  pragma message (\"$warning\")\n";
-                print HEADER "#endif\n";
-                print HEADER "#include <$include>\n";
+                $hdrcont .=
+                    "#if defined(__GNUC__)\n" .
+                    "#  warning $warning\n" .
+                    "#elif defined(_MSC_VER)\n" .
+                    "#  pragma message (\"$warning\")\n" .
+                    "#endif\n" .
+                    "#include <$include>\n";
                 if ($public_header) {
-                    print HEADER "#if 0\n";
-                    print HEADER "#pragma qt_no_master_include\n";
-                    print HEADER "#endif\n";
+                    $hdrcont .=
+                        "#if 0\n" .
+                        "#pragma qt_no_master_include\n" .
+                        "#endif\n";
                 }
-                print HEADER "#endif\n";
-                close HEADER;
-
-                if ($verbose_level < 3) {
-                    my $line_prefix = ",";
-                    $line_prefix = "$lib: created deprecated header(s) {" if ($first);
-                    print "$line_prefix $header";
-                } else {
-                    print "$lib: created deprecated header $header => $include\n";
+                $hdrcont .=
+                    "#endif\n";
+                if (writeFile($header_path, $hdrcont)) {
+                    if ($verbose_level < 3) {
+                        my $line_prefix = ",";
+                        $line_prefix = "$lib: created deprecated header(s) {" if ($first);
+                        print "$line_prefix $header";
+                    } else {
+                        print "$lib: created deprecated header $header => $include\n";
+                    }
+                    $first = 0;
                 }
-                $first = 0;
             }
 
             my $addendum = fixPaths($header_path, $dir) . " ";
@@ -1154,25 +1125,6 @@ foreach my $lib (@modules_to_sync) {
         $headers_pri_contents .= "SYNCQT.QPA_HEADER_FILES = $pri_install_qpafiles\n";
         my $headers_pri_file = "$out_basedir/include/$lib/headers.pri";
         writeFile($headers_pri_file, $headers_pri_contents, $lib, "headers.pri file");
-    }
-}
-unless($showonly || !$create_uic_class_map) {
-    my $class_lib_map = "$out_basedir/src/tools/uic/qclass_lib_map.h";
-    if(-e $class_lib_map) {
-        open CLASS_LIB_MAP, "<$class_lib_map";
-        local $/;
-        binmode CLASS_LIB_MAP;
-        my $old_class_lib_map_contents = <CLASS_LIB_MAP>;
-        close CLASS_LIB_MAP;
-        $old_class_lib_map_contents =~ s/\r//g; # remove \r's , so comparison is ok on all platforms
-        $class_lib_map = 0 if($old_class_lib_map_contents eq $class_lib_map_contents);
-    }
-    if($class_lib_map) {
-        my $class_lib_map_dir = dirname($class_lib_map);
-        make_path($class_lib_map_dir, "<outdir>", $verbose_level);
-        open CLASS_LIB_MAP, ">$class_lib_map";
-        print CLASS_LIB_MAP $class_lib_map_contents;
-        close CLASS_LIB_MAP;
     }
 }
 

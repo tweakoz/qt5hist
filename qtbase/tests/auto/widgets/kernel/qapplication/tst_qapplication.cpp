@@ -694,18 +694,20 @@ void tst_QApplication::quitOnLastWindowClosed()
         QSignalSpy spy(&app, SIGNAL(aboutToQuit()));
         QSignalSpy spy2(&timer, SIGNAL(timeout()));
 
-        QPointer<QMainWindow> mainWindow = new QMainWindow;
-        QPointer<QDialog> dialog = new QDialog(mainWindow);
+        QMainWindow mainWindow;
+        QDialog *dialog = new QDialog(&mainWindow);
 
         QVERIFY(app.quitOnLastWindowClosed());
-        QVERIFY(mainWindow->testAttribute(Qt::WA_QuitOnClose));
+        QVERIFY(mainWindow.testAttribute(Qt::WA_QuitOnClose));
         QVERIFY(dialog->testAttribute(Qt::WA_QuitOnClose));
 
-        mainWindow->show();
+        mainWindow.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&mainWindow));
         dialog->show();
+        QVERIFY(QTest::qWaitForWindowExposed(dialog));
 
         timer.start();
-        QTimer::singleShot(1000, mainWindow, SLOT(close())); // This should quit the application
+        QTimer::singleShot(1000, &mainWindow, SLOT(close())); // This should quit the application
         QTimer::singleShot(2000, &app, SLOT(quit()));        // This makes sure we quit even if it didn't
 
         app.exec();
@@ -722,15 +724,16 @@ void tst_QApplication::quitOnLastWindowClosed()
         QSignalSpy spy(&app, SIGNAL(aboutToQuit()));
         QSignalSpy spy2(&timer, SIGNAL(timeout()));
 
-        QPointer<CloseEventTestWindow> mainWindow = new CloseEventTestWindow;
+        CloseEventTestWindow mainWindow;
 
         QVERIFY(app.quitOnLastWindowClosed());
-        QVERIFY(mainWindow->testAttribute(Qt::WA_QuitOnClose));
+        QVERIFY(mainWindow.testAttribute(Qt::WA_QuitOnClose));
 
-        mainWindow->show();
+        mainWindow.show();
+        QVERIFY(QTest::qWaitForWindowExposed(&mainWindow));
 
         timer.start();
-        QTimer::singleShot(1000, mainWindow, SLOT(close())); // This should quit the application
+        QTimer::singleShot(1000, &mainWindow, SLOT(close())); // This should quit the application
         QTimer::singleShot(2000, &app, SLOT(quit()));        // This makes sure we quit even if it didn't
 
         app.exec();
@@ -782,6 +785,31 @@ void tst_QApplication::quitOnLastWindowClosed()
         app.exec();
 
         QVERIFY(timerSpy.count() > 15);      // Should be around 20 if closing did not caused the quit
+    }
+    {   // QTBUG-31569: If the last widget with Qt::WA_QuitOnClose set is closed, other
+        // widgets that don't have the attribute set should be closed automatically.
+        int argc = 0;
+        QApplication app(argc, 0);
+        QVERIFY(app.quitOnLastWindowClosed());
+
+        QWidget w1;
+        w1.show();
+
+        QWidget w2;
+        w2.setAttribute(Qt::WA_QuitOnClose, false);
+        w2.show();
+
+        QVERIFY(QTest::qWaitForWindowExposed(&w2));
+
+        QTimer timer;
+        timer.setInterval(100);
+        timer.start();
+        QSignalSpy timerSpy(&timer, SIGNAL(timeout()));
+
+        QTimer::singleShot(100, &w1, SLOT(close()));
+        app.exec();
+
+        QVERIFY(timerSpy.count() < 10);
     }
 }
 

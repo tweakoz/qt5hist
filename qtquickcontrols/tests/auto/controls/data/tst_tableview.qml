@@ -173,8 +173,44 @@ TestCase {
         table.destroy();
     }
 
-    function test_forwardClickToChild() {
-        var component = Qt.createComponent("tableview/table_delegate.qml")
+    function test_buttonDelegate() {
+        var component = Qt.createComponent("tableview/table_buttondelegate.qml")
+        compare(component.status, Component.Ready)
+        var table = component.createObject(container)
+        verify(table !== null, "table created is null")
+        compare(table.currentRow, -1)
+        waitForRendering(table)
+
+        // wait for items to be created
+        var timeout = 2000
+        while (timeout >= 0 && table.rowAt(20, 50) === -1) {
+            timeout -= 50
+            wait(50)
+        }
+
+        mousePress(table, 50, 20, Qt.LeftButton)
+        compare(table.currentRow, 0)
+        compare(table.tableClickCount, 0)
+        compare(table.buttonPressCount, 1)
+        compare(table.buttonReleaseCount, 0)
+
+        mouseRelease(table, 50, 20, Qt.LeftButton)
+        compare(table.currentRow, 0)
+        compare(table.tableClickCount, 0)
+        compare(table.buttonPressCount, 1)
+        compare(table.buttonReleaseCount, 1)
+
+        mouseClick(table, 50, 60, Qt.LeftButton)
+        compare(table.currentRow, 1)
+        compare(table.tableClickCount, 0)
+        compare(table.buttonPressCount, 2)
+        compare(table.buttonReleaseCount, 2)
+
+        table.destroy()
+    }
+
+    function test_QTBUG_31206() {
+        var component = Qt.createComponent("tableview/table_delegate2.qml")
         compare(component.status, Component.Ready)
         var table =  component.createObject(container);
         verify(table !== null, "table created is null")
@@ -186,9 +222,85 @@ TestCase {
             wait(50)
         }
 
-        compare(table.test, 0)
-        mouseClick(table, 15 , 55, Qt.LeftButton)
-        compare(table.test, 1)
+        compare(table.test, false)
+        mouseClick(table, 15 , 10, Qt.LeftButton)
+        compare(table.test, true)
+        table.destroy()
+    }
+
+    function test_forwardMouseEventsToChildDelegate() {
+        var component = Qt.createComponent("tableview/table_delegate3.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(container);
+        table.forceActiveFocus();
+        verify(table !== null, "table created is null")
+
+        // wait for items to be created
+        var timeout = 2000
+        while (timeout >= 0 && table.rowAt(15, 55) === -1) {
+            timeout -= 50
+            wait(50)
+        }
+
+        compare(table._pressed, false)
+        compare(table._clicked, false)
+        compare(table._released, false)
+        compare(table._doubleClicked, false)
+
+        mousePress(table, 25 , 10, Qt.LeftButton)
+        compare(table._pressed, true)
+        table.clearTestData()
+
+        mouseRelease(table, 25 , 10, Qt.LeftButton)
+        compare(table._released, true)
+        table.clearTestData()
+
+        mouseClick(table, 25 , 10, Qt.LeftButton)
+        compare(table._clicked, true)
+        table.clearTestData()
+
+        mouseDoubleClick(table, 25 , 10, Qt.LeftButton)
+        compare(table._doubleClicked, true)
+        table.clearTestData()
+
+        table.destroy()
+    }
+
+    function test_rightClickOnMouseAreaOverTableView() {
+        var component = Qt.createComponent("tableview/table_mousearea.qml")
+        compare(component.status, Component.Ready)
+        var table =  component.createObject(container);
+        table.forceActiveFocus();
+        verify(table !== null, "table created is null")
+
+        // wait for items to be created
+        var timeout = 2000
+        while (timeout >= 0 && table.rowAt(15, 55) === -1) {
+            timeout -= 50
+            wait(50)
+        }
+
+        compare(table._pressed, false)
+        compare(table._clicked, false)
+        compare(table._released, false)
+        compare(table._doubleClicked, false)
+
+        mousePress(table, 25, 10, Qt.RightButton)
+        compare(table._pressed, true)
+        table.clearTestData()
+
+        mouseRelease(table, 25, 10, Qt.RightButton)
+        compare(table._released, true)
+        table.clearTestData()
+
+        mouseClick(table, 25, 10, Qt.RightButton)
+        compare(table._clicked, true)
+        table.clearTestData()
+
+        mouseDoubleClick(table, 25, 10, Qt.RightButton)
+        compare(table._doubleClicked, true)
+        table.clearTestData()
+
         table.destroy()
     }
 
@@ -222,22 +334,6 @@ TestCase {
         table.destroy()
     }
 
-    function test_activated_withItemDelegate() {
-        var component = Qt.createComponent("tableview/table_delegate.qml")
-        compare(component.status, Component.Ready)
-        var table = component.createObject(container);
-        verify(table !== null, "table created is null")
-        table.forceActiveFocus();
-        compare(table.activatedTest, false)
-        waitForRendering(table)
-        if (!table.__activateItemOnSingleClick)
-            mouseDoubleClick(table, 15 , 50, Qt.LeftButton)
-        else
-            mouseClick(table, 15, 50, Qt.LeftButton)
-        compare(table.activatedTest, true)
-        table.destroy()
-    }
-
     function test_columnCount() {
         var component = Qt.createComponent("tableview/table_multicolumns.qml")
         compare(component.status, Component.Ready)
@@ -267,6 +363,7 @@ TestCase {
         compare(column.__view, tableView)
         compare(column.width, tableView.viewport.width)
         var tableView2 = Qt.createQmlObject('import QtQuick 2.1; import QtQuick.Controls 1.0; TableView { }', testCase, '');
+        ignoreWarning("TableView::insertColumn(): you cannot add a column to multiple views")
         tableView2.addColumn(column) // should not work
         compare(column.__view, tableView) //same as before
         tableView2.destroy()
@@ -356,11 +453,11 @@ TestCase {
             {tag:"2->1 (2)", from: 2, to: 1},
 
             {tag:"0->0", from: 0, to: 0},
-            {tag:"-1->0", from: -1, to: 0},
-            {tag:"0->-1", from: 0, to: -1},
-            {tag:"1->10", from: 1, to: 10},
-            {tag:"10->2", from: 10, to: 2},
-            {tag:"10->-1", from: 10, to: -1}
+                    {tag:"-1->0", from: -1, to: 0, warning: "TableView::moveColumn(): invalid argument"},
+            {tag:"0->-1", from: 0, to: -1, warning: "TableView::moveColumn(): invalid argument"},
+            {tag:"1->10", from: 1, to: 10, warning: "TableView::moveColumn(): invalid argument"},
+            {tag:"10->2", from: 10, to: 2, warning: "TableView::moveColumn(): invalid argument"},
+            {tag:"10->-1", from: 10, to: -1, warning: "TableView::moveColumn(): invalid argument"}
         ]
     }
 
@@ -378,6 +475,8 @@ TestCase {
         for (i = 0; i < tableView.columnCount; ++i)
             compare(tableView.getColumn(i).title, titles[i])
 
+        if (data.warning !== undefined)
+            ignoreWarning(data.warning)
         tableView.moveColumn(data.from, data.to)
 
         compare(tableView.columnCount, titles.length)

@@ -26,11 +26,10 @@ defineTest(qtAddLibrary) {
     warning("qtAddLibrary() is deprecated. Use qtAddModule() or QT+= instead.")
 
     # Reverse-engineer the module name from the library name.
-    for(var, $$list($$find($$list($$enumerate_vars()), ^QT\\.[^.]+\\.name$))) {
-        isEqual($$var, $$1) {
-            var ~= s,^QT\\.([^.]+)\\.name$,\\1,
-            qtAddModule($$var, , LIBS):return(true):break()
-            return(false):break() # Yes, the break is insanity. But necessary.
+    for(var, QT_MODULES) {
+        isEqual(QT.$${var}.name, $$1) {
+            qtAddModule($$var, , LIBS)
+            return(true):break() # Yes, the break is insanity. But necessary.
         }
     }
     error("No module matching library '$$1' found.")
@@ -61,6 +60,9 @@ defineTest(qtAddModule) {
     MODULE_LIBS = $$eval(QT.$${1}.libs)
     MODULE_CONFIG = $$eval(QT.$${1}.module_config)
     MODULE_MAJOR_VERSION = $$eval(QT.$${1}.MAJOR_VERSION)
+
+    contains(MODULE_CONFIG, internal_module):!if(auto_use_privates|isEqual(2, UsePrivate)): \
+        error("Module $$1 has no public API.")
 
     qtProcessModuleFlags(CONFIG, QT.$${1}.CONFIG)
     qtProcessModuleFlags(DEFINES, QT.$${1}.DEFINES)
@@ -131,7 +133,6 @@ defineTest(qtAddModule) {
     export(QMAKE_RPATHDIR)
     export(QMAKE_RPATHLINKDIR)
     export(PRE_TARGETDEPS)
-    return(true)
 }
 
 # qt variable, libs variable
@@ -256,13 +257,15 @@ defineTest(qtAddTargetEnv) {
         }
         equals(QMAKE_HOST.os, Windows) {
             deppath.name = PATH
-        } else:contains(QMAKE_HOST.os, Linux|FreeBSD) {
+        } else:contains(QMAKE_HOST.os, Linux|FreeBSD|OpenBSD|NetBSD|DragonFly|SunOS|HP-UX|QNX|GNU) {
             deppath.name = LD_LIBRARY_PATH
         } else:equals(QMAKE_HOST.os, Darwin) {
             contains(QT_CONFIG, qt_framework): \
                 deppath.name = DYLD_FRAMEWORK_PATH
             else: \
                 deppath.name = DYLD_LIBRARY_PATH
+        } else:equals(QMAKE_HOST.os, AIX) {
+            deppath.name = LIBPATH
         } else {
             error("Operating system not supported.")
         }

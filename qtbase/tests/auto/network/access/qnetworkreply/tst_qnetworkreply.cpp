@@ -221,6 +221,7 @@ private Q_SLOTS:
     void postToHttpSynchronous();
     void postToHttpMultipart_data();
     void postToHttpMultipart();
+    void multipartSkipIndices(); // QTBUG-32534
 #ifndef QT_NO_SSL
     void putToHttps_data();
     void putToHttps();
@@ -2380,6 +2381,49 @@ void tst_QNetworkReply::postToHttpMultipart()
     expectedReplyData.prepend("content type: multipart/" + contentType + "; boundary=\"" + multiPart->boundary() + "\"\n");
 //    QEXPECT_FAIL("nested", "the server does not understand nested multipart messages", Continue); // see above
     QCOMPARE(replyData, expectedReplyData);
+}
+
+void tst_QNetworkReply::multipartSkipIndices() // QTBUG-32534
+{
+    QHttpMultiPart *multiPart = new QHttpMultiPart(QHttpMultiPart::MixedType);
+    QUrl url("http://" + QtNetworkSettings::serverName() + "/qtest/cgi-bin/multipart.cgi");
+    QNetworkRequest request(url);
+    QList<QByteArray> parts;
+    parts << QByteArray(56083, 'X') << QByteArray(468, 'X') << QByteArray(24952, 'X');
+
+    QHttpPart part1;
+    part1.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"field1\"; filename=\"aaaa.bin\"");
+    part1.setHeader(QNetworkRequest::ContentTypeHeader, "application/octet-stream");
+    part1.setBody(parts.at(0));
+    multiPart->append(part1);
+
+    QHttpPart part2;
+    part2.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"field2\"; filename=\"bbbb.txt\"");
+    part2.setHeader(QNetworkRequest::ContentTypeHeader, "text/plain");
+    part2.setBody(parts.at(1));
+    multiPart->append(part2);
+
+    QHttpPart part3;
+    part3.setHeader(QNetworkRequest::ContentDispositionHeader, "form-data; name=\"text-3\"; filename=\"cccc.txt\"");
+    part3.setHeader(QNetworkRequest::ContentTypeHeader, "text/plain");
+    part3.setBody(parts.at(2));
+    multiPart->append(part3);
+
+    QNetworkReplyPtr reply;
+    RUN_REQUEST(runMultipartRequest(request, reply, multiPart, "POST"));
+
+    QCOMPARE(reply->error(), QNetworkReply::NoError);
+
+    QCOMPARE(reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt(), 200); // 200 Ok
+    QByteArray line;
+    int partIndex = 0;
+    while ((line = reply->readLine()) != QByteArray("")) {
+        if (line.startsWith("content:")) {
+            // before, the 3rd part would return garbled output at the end
+            QCOMPARE("content: " + parts[partIndex++] + "\n", line);
+        }
+    }
+    multiPart->deleteLater();
 }
 
 void tst_QNetworkReply::putToHttpMultipart_data()
@@ -7478,6 +7522,10 @@ void tst_QNetworkReply::backgroundRequestInterruption()
         QNetworkSessionPrivate::setUsagePolicies(*const_cast<QNetworkSession *>(session.data()), original);
 
     QVERIFY(reply->isFinished());
+#ifdef Q_OS_MACX
+    if (QSysInfo::MacintoshVersion == QSysInfo::MV_10_8)
+        QEXPECT_FAIL("ftp, bg, nobg", "See QTBUG-32435", Abort);
+#endif
     QCOMPARE(reply->error(), error);
 #endif
 }

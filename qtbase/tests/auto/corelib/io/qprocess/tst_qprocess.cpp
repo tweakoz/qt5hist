@@ -82,6 +82,7 @@ private slots:
     void constructing();
     void simpleStart();
     void startWithOpen();
+    void startWithOldOpen();
     void execute();
     void startDetached();
     void crashTest();
@@ -267,15 +268,7 @@ void tst_QProcess::simpleStart()
         QCOMPARE(process->state(), QProcess::Running);
     QVERIFY2(process->waitForStarted(5000), qPrintable(process->errorString()));
     QCOMPARE(process->state(), QProcess::Running);
-#if defined(Q_OS_WINCE)
-    // Note: This actually seems incorrect, it will only exit the while loop when finishing fails
-    while (process->waitForFinished(5000))
-    { }
-#else
-    while (process->waitForReadyRead(5000))
-    { }
-#endif
-    QCOMPARE(int(process->state()), int(QProcess::NotRunning));
+    QTRY_COMPARE(process->state(), QProcess::NotRunning);
 
     delete process;
     process = 0;
@@ -301,6 +294,25 @@ void tst_QProcess::startWithOpen()
 
     QVERIFY(p.open(QIODevice::ReadOnly));
     QCOMPARE(p.openMode(), QIODevice::ReadOnly);
+    QVERIFY(p.waitForFinished(5000));
+}
+
+//-----------------------------------------------------------------------------
+void tst_QProcess::startWithOldOpen()
+{
+    // similar to the above, but we start with start() actually
+    // while open() is overridden to call QIODevice::open().
+    // This tests the BC requirement that "it works with the old implementation"
+    class OverriddenOpen : public QProcess
+    {
+    public:
+        virtual bool open(OpenMode mode) Q_DECL_OVERRIDE
+        { return QIODevice::open(mode); }
+    };
+
+    OverriddenOpen p;
+    p.start("testProcessNormal/testProcessNormal");
+    QVERIFY(p.waitForStarted(5000));
     QVERIFY(p.waitForFinished(5000));
 }
 

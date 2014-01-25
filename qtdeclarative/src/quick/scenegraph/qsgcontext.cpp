@@ -162,15 +162,13 @@ QSGContext::QSGContext(QObject *parent) :
     QObject(*(new QSGContextPrivate), parent)
 {
     Q_D(QSGContext);
-    static bool doSubpixel = qApp->arguments().contains(QLatin1String("--text-subpixel-antialiasing"));
-    static bool doLowQualSubpixel = qApp->arguments().contains(QLatin1String("--text-subpixel-antialiasing-lowq"));
-    static bool doGray = qApp->arguments().contains(QLatin1String("--text-gray-antialiasing"));
-    if (doSubpixel)
+    QByteArray mode = qgetenv("QSG_DISTANCEFIELD_ANTIALIASING");
+    if (mode == "subpixel")
         d->distanceFieldAntialiasing = QSGGlyphNode::HighQualitySubPixelAntialiasing;
-    else if (doLowQualSubpixel)
+    else if (mode == "subpixel-lowq")
         d->distanceFieldAntialiasing = QSGGlyphNode::LowQualitySubPixelAntialiasing;
-    else if (doGray)
-       d->distanceFieldAntialiasing = QSGGlyphNode::GrayAntialiasing;
+    else if (mode == "gray")
+        d->distanceFieldAntialiasing = QSGGlyphNode::GrayAntialiasing;
 }
 
 
@@ -288,8 +286,8 @@ void QSGContext::precompileMaterials()
         QSG_PRECOMPILE_MATERIAL(QSGFlatColorMaterial);
         QSG_PRECOMPILE_MATERIAL(QSGOpaqueTextureMaterial);
         QSG_PRECOMPILE_MATERIAL(QSGTextureMaterial);
-        QSG_PRECOMPILE_MATERIAL(SmoothTextureMaterial);
-        QSG_PRECOMPILE_MATERIAL(SmoothColorMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGSmoothTextureMaterial);
+        QSG_PRECOMPILE_MATERIAL(QSGSmoothColorMaterial);
         QSG_PRECOMPILE_MATERIAL(QSGDistanceFieldTextMaterial);
     }
 }
@@ -509,16 +507,10 @@ QSGDepthStencilBufferManager *QSGContext::depthStencilBufferManager()
 QSGMaterialShader *QSGContext::prepareMaterial(QSGMaterial *material)
 {
     Q_D(QSGContext);
-
-    if (material->m_reserved)
-        return reinterpret_cast<QSGMaterialShader *>(material->m_reserved);
-
     QSGMaterialType *type = material->type();
     QSGMaterialShader *shader = d->materials.value(type);
-    if (shader) {
-        material->m_reserved = shader;
+    if (shader)
         return shader;
-    }
 
 #ifndef QSG_NO_RENDER_TIMING
     if (qsg_render_timing  || QQmlProfilerService::enabled)
@@ -526,7 +518,6 @@ QSGMaterialShader *QSGContext::prepareMaterial(QSGMaterial *material)
 #endif
 
     shader = material->createShader();
-    material->m_reserved = shader;
     shader->compile();
     shader->initialize();
     d->materials[type] = shader;

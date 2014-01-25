@@ -104,6 +104,8 @@
 #include "qtabwidget.h" // Needed in inTabWidget()
 #endif // QT_KEYPAD_NAVIGATION
 
+#include "qwindowcontainer_p.h"
+
 
 // widget/widget data creation count
 //#define QWIDGET_EXTRA_DEBUG
@@ -4834,7 +4836,7 @@ QGraphicsEffect *QWidget::graphicsEffect() const
     on this widget, QWidget will delete the existing effect before installing
     the new \a effect.
 
-    If \a effect is the installed on a different widget, setGraphicsEffect() will remove
+    If \a effect is the installed effect on a different widget, setGraphicsEffect() will remove
     the effect from the widget and install it on this widget.
 
     QWidget takes ownership of \a effect.
@@ -6247,6 +6249,17 @@ bool QWidget::isActiveWindow() const
             w = w->parentWidget()->window();
             if(w == tlw)
                 return true;
+        }
+    }
+
+    // Check for an active window container
+    if (QWindow *ww = QGuiApplication::focusWindow()) {
+        while (ww) {
+            QWidgetWindow *qww = qobject_cast<QWidgetWindow *>(ww);
+            QWindowContainer *qwc = qww ? qobject_cast<QWindowContainer *>(qww->widget()) : 0;
+            if (qwc && qwc->topLevelWidget() == tlw)
+                return true;
+            ww = ww->parent();
         }
     }
 

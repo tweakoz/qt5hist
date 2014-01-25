@@ -954,7 +954,7 @@
     Then qApp->libraryPaths() would return something like this:
 
     "C:/customPath/plugins"
-    "C:/Qt/5.1.0/plugins"
+    "C:/Qt/5.1.1/plugins"
     "E:/myApplication/directory/"
 
     The executable will look for the plugins in these directories and
