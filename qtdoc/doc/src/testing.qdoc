@@ -1,0 +1,62 @@
+/****************************************************************************
+**
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
+**
+** This file is part of the documentation of the Qt Toolkit.
+**
+** $QT_BEGIN_LICENSE:FDL$
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
+**
+** GNU Free Documentation License Usage
+** Alternatively, this file may be used under the terms of the GNU Free
+** Documentation License version 1.3 as published by the Free Software
+** Foundation and appearing in the file included in the packaging of
+** this file.  Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: http://www.gnu.org/copyleft/fdl.html.
+** $QT_END_LICENSE$
+**
+****************************************************************************/
+
+/*!
+\page testing-and-debugging.html
+\title Testing and debugging
+\brief Writing unit tests and debugging with Qt
+
+Qt provides various functionality to help you develop high quality code. There are features
+that assist in debugging to track down bugs, and testing facilities that help to keep the bugs out.
+
+\section1 Testing Qt-based code
+
+The fundamental level of code testing is the unit test. Qt facilitates the creation of unit tests:
+
+\list
+\li \l {Qt Test Overview}{Qt Test Module} (also known as "testlib") provides a framework for unit tests of C++ code
+\li \l {QtQuickTest Reference Documentation}{Qt QuickTest} is a framework for unit tests of QML code
+\endlist
+
+Qt itself has a significant number of self-tests built with the Qt Test and QuickTest frameworks. These
+self-tests are available for study in the \c tests/auto subdirectories of the source code of each Qt module.
+The self-tests are an important part of the continuous quality assurance in the development of Qt.
+
+For higher-level testing, powerful third-party tools are available in the Qt ecosystem.
+
+\section1 Debugging Qt applications
+
+Qt provides many facilities to assist with debugging:
+
+\list
+\li \l {Debugging Techniques} for Qt C++ code
+\li \l {Debugging QML Applications}
+\li The "Debugging Plugins" section of the \l {Deploying Plugins} overview
+\li The "Debugging" chapter of the Qt Creator Manual
+\endlist
+*/
+

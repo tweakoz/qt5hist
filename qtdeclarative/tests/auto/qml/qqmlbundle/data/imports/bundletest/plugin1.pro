@@ -1,0 +1,6 @@
+TEMPLATE = lib
+CONFIG += plugin
+SOURCES += plugin.cpp
+QT = core qml
+
+DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0

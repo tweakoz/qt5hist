@@ -1,0 +1,97 @@
+/****************************************************************************
+**
+** Copyright (C) 2012 Digia Plc and/or its subsidiary(-ies).
+** Contact: http://www.qt-project.org/legal
+**
+** This file is part of the documentation of the Qt Toolkit.
+**
+** $QT_BEGIN_LICENSE:FDL$
+** Commercial License Usage
+** Licensees holding valid commercial Qt licenses may use this file in
+** accordance with the commercial license agreement provided with the
+** Software or, alternatively, in accordance with the terms contained in
+** a written agreement between you and Digia.  For licensing terms and
+** conditions see http://qt.digia.com/licensing.  For further information
+** use the contact form at http://qt.digia.com/contact-us.
+**
+** GNU Free Documentation License Usage
+** Alternatively, this file may be used under the terms of the GNU Free
+** Documentation License version 1.3 as published by the Free Software
+** Foundation and appearing in the file included in the packaging of
+** this file.  Please review the following information to ensure
+** the GNU Free Documentation License version 1.3 requirements
+** will be met: http://www.gnu.org/copyleft/fdl.html.
+** $QT_END_LICENSE$
+**
+****************************************************************************/
+
+/*!
+\page topics-core.html
+\title Core Internals
+\brief Qt's core topics
+
+Qt contains a rich set of fundamental enablers, mainly in the \l{QtCore}{Qt
+Core module}. Qt uses these enablers to provide higher-level UI and
+application development components. The following topics explain the most
+important enablers and show how to use them to implement specialized
+functionality not already provided by Qt.
+
+\section1 Objects, Properties and Events
+
+The QObject class serves as the main class in Qt's \l{object model} and is used as a superclass
+of a great number of other Qt classes. It provides features such as a
+\l{The Meta-Object System}{meta-object system} which allows run-time introspection, manipulation
+and invocation of \l{The property system}{properties} and methods in the object. It also
+serves as the basis for Qt's \l{The Event System}{event system}, which is a low-level way of
+communicating between QObject-based objects. Another, more high-level form of communication is
+provided in Qt's \l{Signals & Slots} mechanism. These features can also be used in combination
+with \l{The State Machine Framework} which provides a formally defined and predictable way of
+managing the states of your application.
+
+\section1 Container Classes
+
+A container is a data structure whose instances are collections of other
+objects. Some examples of containers are: dynamic arrays, queues, linked
+lists, and associative arrays. Qt provides a set of general purpose,
+template-based container classes that can be used to store data in memory.
+See the full list of \l {Container Classes} for more details.
+
+\section1 Internationalization
+
+Qt uses \l{Unicode in Qt}{unicode} for the encoding of displayable text strings in order to provide
+support for all commonly used writing systems in the world. Applications can also be written
+to support any number of different languages with one code base using Qt's powerful
+\l{Internationalization with Qt}{internationalization system}.
+
+\section1 Inter-Process Communication
+
+Qt provides several classes to support
+\l{Inter-Process Communication in Qt}{communication between processes}. You can also launch
+and manage external processes using the \l{QProcess} class.
+
+\section1 Threading
+
+Qt supports \l{Thread Support in Qt}{primitives and convenience functionality} to manage
+\l{Threading Basics}{threads and parallelize code} in a safe and platform-independent way.
+
+\section1 Platform Support
+
+Qt allows you to write platform-independent code, where the same code base can be compiled
+for and deployed on different platforms without any changes. In cases where you need to use
+platform-specific features and integrate with system libraries, Qt also provides solutions
+for this.
+\l{Cross-Platform and Platform-Specific Development}{Our guide to cross-platform development}
+provides information on writing software on different platforms.
+
+Qt integrates with the windowing system on the target platform using the
+\l{Qt Platform Abstraction}. This is an abstraction of the windowing system which
+makes porting Qt to new platforms simple and quick. One such system is the
+Wayland protocol. \l{Wayland Support in Qt}{Qt can be used together with Wayland}, which e.g. can
+serve as a light-weight windowing system on embedded hardware to support a multi-process graphical user
+interface.
+
+The Qt Platform Abstraction uses \l{How to Create Qt Plugins}{Qt's plugin system}. This system
+provides APIs to extend Qt in specific areas (such as adding support for new image formats, database
+drivers, etc.) and also for writing your own extensible Qt applications which support third-party
+plugins.
+*/

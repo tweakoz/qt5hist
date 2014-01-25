@@ -1,0 +1,57 @@
+project                 = QtDoc
+description             = Qt Reference Documentation
+url                     = http://qt-project.org/doc/qtdoc
+version                 = 5.0.0
+
+depends += \
+    activeqt \
+    qtassistant \
+    qt3d \
+    qtbluetooth \
+    qtconcurrent \
+    qtcontacts \
+    qtcore \
+    qtdbus \
+    qtdesigner \
+    qtfeedback \
+    qtgraphicaleffects \
+    qthelp \
+    qtimageformats \
+    qtgui \
+    qtlocation \
+    qtlinguist \
+    qtmultimedia \
+    qtnetwork \
+    qtopengl \
+    qtorganizer \
+    qtprintsupport \
+    qtpublishsubscribe \
+    qtqml \
+    qtquick \
+    qtscript \
+    qtscripttools \
+    qtsensors \
+    qtserviceframework \
+    qtsql \
+    qtsvg \
+    qtsysteminfo \
+    qttestlib \
+    qttools \
+    qtuitools \
+    qtversit \
+    qtwidgets \
+    qtwebkit \
+    qtwebkitexamples \
+    qtxml \
+    qtxmlpatterns
+
+headerdirs  += ../src
+imagedirs   += ../src/images
+
+sourcedirs  += \
+    ../.. \
+    ../src
+
+exampledirs += \
+    ../.. \
+    ../src
