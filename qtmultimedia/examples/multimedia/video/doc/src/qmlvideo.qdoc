@@ -72,7 +72,7 @@ the following items:
 Each scene in the flickable list is implemented in its own QML file - for
 example the video-basic scene (which just displays a static \l{VideoOutput}
 in the center of the screen) is implemented in the
-\l{multimedia/ideo/qmlvideo/qml/qmlvideo/VideoBasic.qml}{VideoBasic.qml} file.  As you
+\l{multimedia/video/qmlvideo/qml/qmlvideo/VideoBasic.qml}{VideoBasic.qml} file.  As you
 can see from the code, this makes use of a type of inheritance: a
 \l{multimedia/video/qmlvideo/qml/qmlvideo/VideoBasic.qml}{VideoBasic} item ...
 
@@ -129,13 +129,13 @@ instance, the embedded
 
 \section1 Calculating and displaying QML painting rate
 
-\input video-qml-paint-rate.qdocinc
+\input multimedia/doc/src/examples/video-qml-paint-rate.qdocinc
 
 All that remains is to connect the afterRendering() signal of the QQuickView
 object to a JavaScript function, which will eventually call frequencyItem.notify():
 
 \quotefromfile multimedia/video/qmlvideo/main.cpp
-\skipto QmlApplicationViewer
+\skipto QGuiApplication
 \printuntil ;
 \dots
 \skipto QQuickItem

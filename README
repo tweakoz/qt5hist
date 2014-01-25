@@ -1,5 +1,5 @@
-HOW TO BUILD QT5 SDK
-====================
+HOW TO BUILD Qt 5
+=================
 
 
  Synopsis
@@ -49,9 +49,11 @@ HOW TO BUILD QT5 SDK
    Windows:
    --------
 
-     Open a Windows SDK (7.0, 7.1 or later) command prompt. Ensure that Perl
-     version 5.12 or later and Python version 2.7 or later can be found in the
-     path.
+     Open a Windows SDK (7.0, 7.1 or later) command prompt. Ensure that the
+     following tools can be found in the path:
+     * Perl version 5.12 or later   [http://www.activestate.com/activeperl/]
+     * Python version 2.7 or later  [http://www.activestate.com/activepython/]
+     * Ruby version 1.9.3 or later  [http://rubyinstaller.org/]
 
      cd <path>\qt-everywhere-opensource-src-<version>
      configure -prefix %CD%\qtbase -opensource -nomake tests
@@ -110,3 +112,22 @@ HOW TO BUILD QT5 SDK
  Building Qt5 from git
  =====================
  See http://qt-project.org/wiki/Building-Qt-5-from-Git for more information.
+
+
+ Documentation
+ =============
+
+ After the configure step, building the documentation is possible by running
+ "make docs".
+ Example:
+
+    ./configure -prefix $PWD/qtbase -opensource
+    make docs
+
+ The documentation is installed in the path set to $QT_INSTALL_DOCS.
+ Running "qmake -query" will list the value of QT_INSTALL_DOCS.
+
+ Information about Qt 5's documentation is located in qtbase/doc/README
+ or in the following page: http://qt-project.org/wiki/Qt5DocumentationProject
+
+ Note: Building the documentation is only tested on desktop platforms.

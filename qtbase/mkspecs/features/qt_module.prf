@@ -1,3 +1,14 @@
+#
+#  W A R N I N G
+#  -------------
+#
+# This file is not part of the Qt API.  It exists purely as an
+# implementation detail.  It may change from version to version
+# without notice, or even be removed.
+#
+# We mean it.
+#
+
 !no_qt_module_warning:!contains(QMAKE_INTERNAL_INCLUDED_FILES, .*qmodule\\.pri) {
     QMAKE_ACTUAL_PRO_FILE = $$basename(_PRO_FILE_)
     isEmpty(QMAKE_ACTUAL_PRO_FILE): QMAKE_ACTUAL_PRO_FILE=.pro
@@ -103,7 +114,6 @@ TEMPLATE         = lib
 DESTDIR          = $$eval(QT.$${MODULE}.libs)
 win32:!wince*:exists($$[QT_INSTALL_PREFIX]/.qmake.cache): DLLDESTDIR = $$eval(QT.$${MODULE}.bins)
 
-CONFIG          += qt warn_on depend_includepath
 CONFIG          += qmake_cache target_qt
 
 QMAKE_DOCS_TARGETDIR = qt$${MODULE}
@@ -196,7 +206,9 @@ unix {
 }
 
 unix|win32-g++* {
-    for(i, QT):QMAKE_PKGCONFIG_REQUIRES += $$eval(QT.$${i}.name)
+    QMAKE_PKGCONFIG_NAME = $$replace(TARGET, ^Qt, Qt$$section(VERSION, ., 0, 0))
+    for(i, MODULE_DEPENDS): \
+        QMAKE_PKGCONFIG_REQUIRES += $$replace(QT.$${i}.name, ^Qt, Qt$$eval(QT.$${i}.MAJOR_VERSION))
     isEmpty(QMAKE_PKGCONFIG_DESCRIPTION): \
         QMAKE_PKGCONFIG_DESCRIPTION = $$replace(TARGET, ^Qt, "Qt ") module
 }

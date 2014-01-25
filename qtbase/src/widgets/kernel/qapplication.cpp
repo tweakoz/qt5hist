@@ -41,7 +41,6 @@
 
 #include "qplatformdefs.h"
 #include "qabstracteventdispatcher.h"
-#include "qaccessible.h"
 #include "qapplication.h"
 #include "qclipboard.h"
 #include "qcursor.h"
@@ -2218,12 +2217,17 @@ Q_WIDGETS_EXPORT bool qt_tryModalHelper(QWidget *widget, QWidget **rettop)
 bool QApplicationPrivate::isBlockedByModal(QWidget *widget)
 {
     widget = widget->window();
-    return self->isWindowBlocked(widget->windowHandle());
+    QWindow *window = widget->windowHandle();
+    return window && self->isWindowBlocked(window);
 }
 
 bool QApplicationPrivate::isWindowBlocked(QWindow *window, QWindow **blockingWindow) const
 {
     QWindow *unused = 0;
+    if (!window) {
+        qWarning().nospace() << "window == 0 passed.";
+        return false;
+    }
     if (!blockingWindow)
         blockingWindow = &unused;
 
@@ -2662,9 +2666,6 @@ int QApplication::startDragDistance()
 */
 int QApplication::exec()
 {
-#ifndef QT_NO_ACCESSIBILITY
-    QAccessible::setRootObject(qApp);
-#endif
     return QGuiApplication::exec();
 }
 
@@ -2713,16 +2714,48 @@ bool QApplication::notify(QObject *receiver, QEvent *e)
     if (receiver->isWindowType())
         QGuiApplicationPrivate::sendQWindowEventToQPlatformWindow(static_cast<QWindow *>(receiver), e);
 
-    // capture the current mouse/keyboard state
     if(e->spontaneous()) {
-        if (e->type() == QEvent::MouseButtonPress
-            || e->type() == QEvent::MouseButtonRelease) {
+        // Capture the current mouse and keyboard states. Doing so here is
+        // required in order to support QTestLib synthesized events. Real mouse
+        // and keyboard state updates from the platform plugin are managed by
+        // QGuiApplicationPrivate::process(Mouse|Wheel|Key|Touch|Tablet)Event();
+        switch (e->type()) {
+        case QEvent::MouseButtonPress:
+            {
                 QMouseEvent *me = static_cast<QMouseEvent*>(e);
-                if(me->type() == QEvent::MouseButtonPress)
-                    QApplicationPrivate::mouse_buttons |= me->button();
-                else
-                    QApplicationPrivate::mouse_buttons &= ~me->button();
+                QApplicationPrivate::modifier_buttons = me->modifiers();
+                QApplicationPrivate::mouse_buttons |= me->button();
+                break;
             }
+        case QEvent::MouseButtonRelease:
+            {
+                QMouseEvent *me = static_cast<QMouseEvent*>(e);
+                QApplicationPrivate::modifier_buttons = me->modifiers();
+                QApplicationPrivate::mouse_buttons &= ~me->button();
+                break;
+            }
+        case QEvent::KeyPress:
+        case QEvent::KeyRelease:
+        case QEvent::MouseMove:
+#ifndef QT_NO_WHEELEVENT
+        case QEvent::Wheel:
+#endif
+        case QEvent::TouchBegin:
+        case QEvent::TouchUpdate:
+        case QEvent::TouchEnd:
+#ifndef QT_NO_TABLETEVENT
+        case QEvent::TabletMove:
+        case QEvent::TabletPress:
+        case QEvent::TabletRelease:
+#endif
+            {
+                QInputEvent *ie = static_cast<QInputEvent*>(e);
+                QApplicationPrivate::modifier_buttons = ie->modifiers();
+                break;
+            }
+        default:
+            break;
+        }
     }
 
 #ifndef QT_NO_GESTURES

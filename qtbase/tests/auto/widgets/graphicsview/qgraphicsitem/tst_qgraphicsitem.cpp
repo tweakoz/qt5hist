@@ -67,11 +67,7 @@
 #include <float.h>
 #include <QStyleHints>
 
-Q_DECLARE_METATYPE(QList<int>)
-Q_DECLARE_METATYPE(QList<QRectF>)
 Q_DECLARE_METATYPE(QPainterPath)
-Q_DECLARE_METATYPE(QPointF)
-Q_DECLARE_METATYPE(QRectF)
 
 #include "../../../qtest-config.h"
 
@@ -7893,6 +7889,7 @@ void tst_QGraphicsItem::itemUsesExtendedStyleOption()
     scene.addItem(rect);
     rect->setPos(200, 200);
     QWidget topLevel;
+    topLevel.resize(200, 200);
     QGraphicsView view(&scene, &topLevel);
     topLevel.setWindowFlags(Qt::X11BypassWindowManagerHint);
     rect->startTrack = false;
@@ -8485,7 +8482,9 @@ void tst_QGraphicsItem::focusProxyDeletion()
 
     rect2 = new QGraphicsRectItem;
     rect->setFocusProxy(rect2);
+    QGraphicsItem **danglingFocusProxyRef = &rect->d_ptr->focusProxy;
     delete rect; // don't crash
+    QVERIFY(!rect2->d_ptr->focusProxyRefs.contains(danglingFocusProxyRef));
 
     rect = new QGraphicsRectItem;
     rect->setFocusProxy(rect2);

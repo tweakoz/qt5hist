@@ -1436,6 +1436,7 @@ QGraphicsItem::~QGraphicsItem()
 #endif
 
     clearFocus();
+    setFocusProxy(0);
 
     // Update focus scope item ptr.
     QGraphicsItem *p = d_ptr->parent;
@@ -1768,24 +1769,6 @@ void QGraphicsItem::setFlag(GraphicsItemFlag flag, bool enabled)
         setFlags(GraphicsItemFlags(d_ptr->flags) | flag);
     else
         setFlags(GraphicsItemFlags(d_ptr->flags) & ~flag);
-}
-
-/*!
-    \internal
-
-    Sets the flag \a flag on \a item and all its children, to \a enabled.
-*/
-static void _q_qgraphicsItemSetFlag(QGraphicsItem *item, QGraphicsItem::GraphicsItemFlag flag,
-                                    bool enabled)
-{
-    if (item->flags() & flag) {
-        // If this item already has the correct flag set, we don't have to
-        // propagate it.
-        return;
-    }
-    item->setFlag(flag, enabled);
-    foreach (QGraphicsItem *child, item->childItems())
-        _q_qgraphicsItemSetFlag(child, flag, enabled);
 }
 
 /*!
